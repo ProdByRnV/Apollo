@@ -1,0 +1,43 @@
+# Build output ---------------------------------------------------------------
+build/
+build-*/
+out/
+cmake-build-*/
+_deps/
+CMakeUserPresets.json
+compile_commands.json
+
+# Frontend -------------------------------------------------------------------
+node_modules/
+WebUI/dist/
+WebUI/build/
+.vite/
+*.tsbuildinfo
+
+# IDE / editor ---------------------------------------------------------------
+.vs/
+.vscode/*
+!.vscode/settings.json.example
+.idea/
+*.user
+*.suo
+*.sln.docstates
+.cache/
+
+# Local tooling --------------------------------------------------------------
+.clangd-cache/
+.claude/settings.local.json
+
+# Operating system -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Audio / profiling artefacts produced during DSP validation -----------------
+# Regression renders that are meant to be tracked belong in Tests/ with an
+# explicit path; anything dropped at the repository root is scratch.
+/*.wav
+/*.aiff
+/*.flac
+*.etl
+*.nvvp

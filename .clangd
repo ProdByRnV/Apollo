@@ -1,0 +1,28 @@
+# clangd configuration for Apollo.
+#
+# The Visual Studio generator does not emit compile_commands.json, and neither
+# does any generator before the first configure. These fallback flags keep
+# editor diagnostics aligned with the project's actual language standard
+# (C++20, see CMake/ApolloBuildOptions.cmake) instead of clangd's default.
+#
+# Once a build directory exists, generate a compile database with a
+# Ninja/Makefile configure and point clangd at it:
+#   cmake -S . -B build-clangd -G Ninja
+# then set CompileFlags.CompilationDatabase below, or symlink/copy
+# build-clangd/compile_commands.json to the repository root.
+
+# The -I entries below are relative to each file's own directory, which is what
+# clangd uses as the working directory for a fallback command. They cover the
+# tree depths Apollo actually uses so that `#include "Parameters/..."` resolves
+# in the editor. Non-existent directories are ignored by the compiler, and no
+# absolute or machine-specific path is committed (CLAUDE.md §31.2).
+
+CompileFlags:
+  Add:
+    - -std=c++20
+    - -I.
+    - -I..
+    - -I../..
+    - -ISource
+    - -I../Source
+    - -I../../Source

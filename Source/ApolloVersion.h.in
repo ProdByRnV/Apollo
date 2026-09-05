@@ -1,0 +1,34 @@
+#pragma once
+
+/*
+    Generated from Source/ApolloVersion.h.in by CMake. Do not edit the generated
+    header; edit the template or the project() version in the top-level
+    CMakeLists.txt, which is the single source of truth for the product version.
+
+    Versioning conventions — including the version axes that are intentionally
+    independent of this one (plugin version, preset/state schema version, UI
+    bridge protocol version) — are described in Docs/VERSIONING.md.
+*/
+
+#include <string_view>
+
+#define APOLLO_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define APOLLO_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define APOLLO_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define APOLLO_VERSION_STRING "@PROJECT_VERSION@"
+
+namespace apollo
+{
+
+/** Product name as presented to hosts, users and preset metadata. */
+inline constexpr std::string_view productName = "@PROJECT_NAME@";
+
+/** Product version components. */
+inline constexpr int versionMajor = APOLLO_VERSION_MAJOR;
+inline constexpr int versionMinor = APOLLO_VERSION_MINOR;
+inline constexpr int versionPatch = APOLLO_VERSION_PATCH;
+
+/** Product version as "major.minor.patch". */
+inline constexpr std::string_view versionString = APOLLO_VERSION_STRING;
+
+} // namespace apollo

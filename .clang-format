@@ -1,0 +1,39 @@
+# Apollo C++ formatting.
+#
+# Allman braces and 4-space indentation, matching JUCE's house style so that
+# Apollo code and the framework it sits on read consistently. The rules a
+# formatter cannot express are in Docs/CODING-STANDARDS.md.
+
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Allman
+BreakConstructorInitializers: BeforeColon
+ColumnLimit: 120
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+IndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+NamespaceIndentation: None
+PointerAlignment: Left
+ReferenceAlignment: Left
+SpaceAfterCStyleCast: true
+SpaceBeforeParens: Always
+SpacesBeforeTrailingComments: 1
+TabWidth: 4
+UseTab: Never
+
+IncludeBlocks: Preserve
+SortIncludes: Never
