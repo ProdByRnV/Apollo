@@ -17,11 +17,14 @@ C++/JUCE 8 and a WebView frontend.
 
 ## Status
 
-**Early development — roadmap Phase 0 (Specification & Repository Setup) complete.**
+**Early development — roadmap Phase 1 (Build System & Application Foundation) complete.**
 
 The build system, dependency pinning, test framework and engineering conventions
-are in place and verified. **No synthesis code exists yet.** Apollo does not
-currently produce audio and does not build a plugin.
+are in place, and Apollo builds as both a VST3 plugin and a standalone
+application with a verified, real-time-safe audio path.
+
+**No synthesis code exists yet.** Apollo outputs silence by design; the voice
+engine arrives in Phase 3, and the parameter/state/UI-binding layer in Phase 2.
 
 [PROJECT-STATE.md](PROJECT-STATE.md) is the authoritative, verified record of what
 is implemented — read it before starting work.

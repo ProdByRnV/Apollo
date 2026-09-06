@@ -142,3 +142,26 @@ it interacts with the plugin format's exported entry points and cannot be
 meaningfully validated without a real VST3/standalone build. Setting it now would
 be an unverified change to link behaviour, so the toolchain default is retained
 and the decision moves to Phase 1, where it can be tested.
+
+---
+
+## ADR-0010 — The engine is an INTERFACE library, not a static library
+
+**Phase 1 · Accepted**
+
+`apollo_engine` is a CMake INTERFACE library that propagates Apollo's
+JUCE-dependent sources to each final target, rather than a STATIC library that
+compiles them once.
+
+JUCE modules add their sources to whichever target links them. A STATIC library
+linking `juce_audio_processors` would compile the JUCE module sources into
+itself, and the plugin target would compile them again, producing duplicate
+symbols at link time. An INTERFACE library sidesteps that entirely — it is the
+same mechanism JUCE uses for its own modules.
+
+**Given up:** the engine sources are compiled once per final target (the plugin
+and the test runner) rather than shared. That cost is small and buys a build
+that cannot silently diverge between the two.
+
+`apollo_core` remains STATIC and JUCE-free, so pure logic is still compiled once
+and held to the strict warning set.

@@ -1,13 +1,25 @@
-# apollo_core — the shared, host-independent Apollo library.
+# Apollo native source.
 #
-# This is the target that the VST3 wrapper, the standalone application and the
-# test suite will all link against (roadmap Phase 1). Keeping the engine in a
-# library rather than in the plugin target is what makes ARCHITECTURE.md §5.1's
-# "DSP engine independent of the plugin wrapper" enforceable by the build system
-# rather than by convention.
+# Two libraries, split by dependency rather than by feature:
 #
-# At Phase 0 it contains only the conventions established in this phase. DSP,
-# parameter-registry, MIDI and state code arrive in their own phases.
+#   apollo_core   STATIC, JUCE-free. Pure logic that can be unit tested with no
+#                 framework, no audio device and no plugin host. Held to
+#                 apollo::strict_warnings.
+#
+#   apollo_engine INTERFACE, JUCE-dependent. The synthesis engine and plugin
+#                 glue, propagated as sources to each final target.
+#
+# Why apollo_engine is INTERFACE and not STATIC: JUCE modules add their sources
+# to whichever target links them. A STATIC library that linked
+# juce_audio_processors would compile the JUCE module sources into itself, and
+# the plugin target would compile them a second time, producing duplicate
+# symbols at link. An INTERFACE library propagates Apollo's own sources to each
+# final target instead — the same mechanism JUCE uses for its own modules — so
+# the plugin and the test runner each get one clean copy.
+
+# ---------------------------------------------------------------------------
+# apollo_core
+# ---------------------------------------------------------------------------
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/ApolloVersion.h.in"
@@ -39,3 +51,31 @@ set_target_properties(apollo_core PROPERTIES
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h)
+
+# ---------------------------------------------------------------------------
+# apollo_engine
+# ---------------------------------------------------------------------------
+
+add_library(apollo_engine INTERFACE)
+add_library(apollo::engine ALIAS apollo_engine)
+
+target_sources(apollo_engine INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.h")
+
+target_include_directories(apollo_engine INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+
+target_link_libraries(apollo_engine INTERFACE
+    apollo::core
+    juce::juce_audio_processors
+    juce::juce_audio_utils)
+
+# Applied to every target that compiles the engine, so the plugin and the test
+# runner cannot disagree about how JUCE itself is configured.
+target_compile_definitions(apollo_engine INTERFACE
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0)
+
+add_subdirectory(Plugin)

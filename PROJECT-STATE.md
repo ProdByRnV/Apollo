@@ -16,12 +16,16 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 0 — Specification & Repository Setup |
-| **Status** | **Complete and verified** |
-| **Milestone** | M0 — Repository Ready |
-| **Next step** | Phase 1 — Build System & Application Foundation |
+| **Phase** | Phase 1 — Build System & Application Foundation |
+| **Status** | **Complete** (two exit criteria need manual verification — see §6) |
+| **Milestone** | M1 — Audio Foundation |
+| **Next step** | Phase 2 — Parameter, State & UI Binding Infrastructure |
 
-Phase 1 has **not** been started. No plugin or standalone target exists.
+Phase 2 has **not** been started. Apollo has no automatable parameters, no state
+serialization and no UI bridge.
+
+**Apollo does not make a sound.** The audio path runs, is real-time safe, and
+outputs silence by design; synthesis begins in Phase 3.
 
 ---
 
@@ -29,51 +33,43 @@ Phase 1 has **not** been started. No plugin or standalone target exists.
 
 Everything below was configured, built and executed on this machine.
 
-### Build system
+### Build system and dependencies (Phase 0)
 
-- CMake is the authoritative build system. No Projucer project exists.
-- Top-level `CMakeLists.txt` with in-source-build and sub-project guards.
+- CMake is authoritative; no Projucer project exists.
 - Build modules in `CMake/`: options, warning policy, dependencies.
-- Four configurations: `Debug`, `Release`, `RelWithDebInfo` (default),
-  `MinSizeRel`.
-- Options: `APOLLO_BUILD_TESTS`, `APOLLO_WARNINGS_AS_ERRORS`,
-  `APOLLO_ENABLE_ASAN`, `APOLLO_ENABLE_UBSAN`, `APOLLO_ENABLE_IPO`,
-  `APOLLO_JUCE_SOURCE_DIR`, `APOLLO_ALLOW_UNPINNED_JUCE`.
-- Sanitizer wiring, including removal of MSVC `/RTC1` and incremental linking,
-  which are incompatible with ASan.
+- Four configurations: `Debug`, `Release`, `RelWithDebInfo` (default), `MinSizeRel`.
+- Options: `APOLLO_BUILD_TESTS`, `APOLLO_WARNINGS_AS_ERRORS`, `APOLLO_ENABLE_ASAN`,
+  `APOLLO_ENABLE_UBSAN`, `APOLLO_ENABLE_IPO`, `APOLLO_JUCE_SOURCE_DIR`,
+  `APOLLO_ALLOW_UNPINNED_JUCE`.
+- **JUCE 8.0.15**, pinned to commit `91ad83ae…` and *verified* at configure time.
+- No other third-party dependency.
 - No hard-coded developer or machine-specific paths.
 
-### Dependencies
+### Targets (Phase 1)
 
-- **JUCE 8.0.15**, pinned to commit `91ad83ae34a81e0833b1a2b0866f54846370ae53`.
-- The pin is *verified*: configure compares the resolved commit against the pin
-  and fails on mismatch, because tags are mutable server-side.
-- `APOLLO_JUCE_SOURCE_DIR` supports offline builds and CI caching from an
-  existing checkout — verified working.
-- No other third-party dependency.
+| Target | Kind | Contents |
+|---|---|---|
+| `apollo_core` | STATIC, JUCE-free | Parameter ID conventions and the generated version header. Strict warnings. |
+| `apollo_engine` | INTERFACE | The JUCE-dependent engine, propagated to each final target (ADR-0010). |
+| `Apollo` | `juce_add_plugin` | **VST3 + Standalone**, both produced from one shared engine. |
+| `ApolloTests` | console app | The test suite. |
 
-### Source
+### Processor (Phase 1)
 
-- `apollo_core` (static library) — the shared, host-independent library that the
-  plugin, standalone and test targets will all link against.
-- `Source/ApolloVersion.h.in` → generated `ApolloVersion.h`; the top-level
-  `CMakeLists.txt` is the single source of truth for the product version.
-- `Source/Parameters/ParameterId.h/.cpp` — `constexpr` validation of Apollo's
-  parameter-ID conventions, with safe, non-leaking issue descriptions.
+- `ApolloAudioProcessor`: full lifecycle — `prepareToPlay`, `releaseResources`,
+  `reset`, repeated re-initialisation, and safe destruction.
+- Tracks its own prepared sample rate and block size rather than relying on the
+  host bookkeeping a wrapper performs, so the DSP is prepared correctly even when
+  driven directly.
+- Variable block sizes (1 … prepared maximum, including zero-length) and sample
+  rates (22.05–192 kHz) handled.
+- Bus layout policy: mono/stereo output, optional mono/stereo input; wider
+  layouts rejected rather than silently mishandled.
+- `processBlock` is real-time safe: no allocation, no locks, no I/O, denormals
+  flushed, and every unwritten output channel cleared.
+- Artefacts built: `Apollo.vst3` (bundle) and standalone `Apollo.exe`.
 
-### Tests
-
-- Framework: `juce::UnitTest` (ships with `juce_core`; no new dependency).
-- `ApolloTests` console runner with `--list`, `--category`, `--seed`, `--help`.
-- Registered as CTest test `apollo.unit` (label `unit`).
-- `Tests/Foundation/BuildInfoTests.cpp` — version header reaches consumers; macro
-  and `constexpr` forms agree.
-- `Tests/Foundation/ParameterIdTests.cpp` — conventions, including a test that
-  every parameter ID documented in UI_BINDINGS.md §3 satisfies them, so the
-  documented contract and the implemented rules cannot drift apart.
-- **60 assertions, all passing.**
-
-### Conventions and documentation
+### Conventions and documentation (Phase 0)
 
 | Artefact | Purpose |
 |---|---|
@@ -83,7 +79,7 @@ Everything below was configured, built and executed on this machine.
 | `Docs/VERSIONING.md` | The independent version axes and compatibility rules |
 | `Docs/PARAMETER-CONVENTIONS.md` | Parameter naming and the permanent-ID contract |
 | `Docs/REPOSITORY-LAYOUT.md` | Reconciled directory structure |
-| `Docs/DECISIONS.md` | Decision log, ADR-0001 … ADR-0009 |
+| `Docs/DECISIONS.md` | Decision log, ADR-0001 … ADR-0010 |
 | `README.md` | Entry point and documentation index |
 | `.clang-format`, `.editorconfig`, `.gitattributes` | Mechanical formatting |
 | `.clangd` | Editor fallback flags (C++20) until a compile database exists |
@@ -93,27 +89,28 @@ Everything below was configured, built and executed on this machine.
 
 ## 3. What is NOT implemented
 
-**Apollo does not produce audio and does not build a plugin.** Nothing in
-Phases 1–12 exists.
-
-Absent, by phase:
-
 | Phase | Absent |
 |---|---|
-| 1 | `AudioProcessor`, VST3 target, standalone target, audio pass-through, lifecycle handling |
-| 2 | APVTS, parameter registry, state serialization, migration, WebView bridge |
+| 2 | APVTS, parameter registry, state serialization, migration, UI bridge, WebView |
 | 3 | Audio engine, voice allocation, polyphony, voice stealing, note handling |
 | 4 | Wavetable oscillators, unison, sub oscillator, noise, anti-aliasing |
 | 5 | Filters, envelopes, LFOs, modulation matrix |
 | 6 | MIDI processing, MIDI Learn, controller profiles |
 | 7 | The entire `WebUI/` frontend, visualizers, telemetry |
 | 8 | Every effect and the FX rack |
-| 9 | Presets, wavetable resources, state migration |
+| 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-Also absent: `Assets/`, `WebUI/`, and the `Source/` subdirectories beyond
-`Parameters/`. These are created when they receive their first file rather than
-pre-created empty — see `Docs/REPOSITORY-LAYOUT.md`.
+Concretely, in the current code:
+
+- `getStateInformation` / `setStateInformation` are stubs; there is no state to
+  serialize because there are no parameters.
+- `hasEditor()` returns `false` and `createEditor()` returns `nullptr`; hosts
+  supply a generic editor.
+- MIDI is ignored in `processBlock`; it is consumed by the voice engine in Phase 3.
+- `Assets/`, `WebUI/`, and the `Source/` subdirectories beyond `Audio/`,
+  `Parameters/` and `Plugin/` do not exist. Directories are created when they
+  receive their first file — see `Docs/REPOSITORY-LAYOUT.md`.
 
 ---
 
@@ -126,33 +123,34 @@ pre-created empty — see `Docs/REPOSITORY-LAYOUT.md`.
 |---|---|
 | `RelWithDebInfo` | Builds clean, no warnings |
 | `Debug` | Builds clean, no warnings |
-| `Release` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings |
+| `Release` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate passes |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-Clean-checkout configure — including the JUCE fetch and pin verification —
-succeeded in ~171 s; a warm configure takes ~85 s.
-
-**Not yet verified on any machine:** macOS, Linux, ARM64, and the sanitizer
-builds. These are exercised by the CI workflow but CI has not run, because the
-repository has no remote (see §6).
+**Not verified on any machine:** macOS, Linux, ARM64, sanitizer builds.
 
 ---
 
 ## 5. Test status
 
-```text
-ctest --test-dir build -C RelWithDebInfo --output-on-failure
-    Start 1: apollo.unit
-1/1 Test #1: apollo.unit ......................   Passed    0.64 sec
-100% tests passed out of 1
-```
+**208 assertions, 0 failures**, across 3 test classes:
 
-- 2 test classes, 7 test sections, **60 assertions, 0 failures**.
-- Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
-- **The failure path was explicitly verified**: a temporary failing test was
-  added, and the runner exited 1 and CTest reported failure, before it was
-  removed. A test harness that cannot fail proves nothing, so this was checked
-  rather than assumed.
+| Category | Class | Covers |
+|---|---|---|
+| Foundation | Build information | Version header reaches consumers; macro and constexpr forms agree |
+| Foundation | Parameter identifier conventions | ID rules; every ID documented in UI_BINDINGS.md §3 is well-formed |
+| Audio | Processor lifecycle | Prepare/release/reset, repeated re-initialisation, variable block sizes, sample-rate changes, bus layout policy, output silence and finiteness, metadata |
+
+Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
+The runner's failure path was explicitly verified in Phase 0.
+
+### A bug the lifecycle tests caught
+
+The first version of the processor relied on `juce::AudioProcessor::getSampleRate()`
+to report what it had been prepared with. That value is set by the plugin
+*wrapper* via `setRateAndBufferSizeDetails`, not by `prepareToPlay`, so it read
+zero whenever the processor was driven directly — by the test suite, by an
+offline renderer, or by a host that skips the call. The processor now records its
+own prepared sample rate and block size.
 
 ---
 
@@ -160,64 +158,62 @@ ctest --test-dir build -C RelWithDebInfo --output-on-failure
 
 | # | Issue | Severity | Notes |
 |---|---|---|---|
-| 1 | `ROADMAP.md` §Phase 0 refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md` | Trivial | Not renamed silently — the file is the source of truth. Rename the file or fix the reference, but do it deliberately, as other documents cross-reference it. |
-| 2 | Not under version control yet, so CI has never executed | Low | The intended remote is `https://github.com/ProdByRnV/Apollo`. Version control is initialised and pushed by the developer, not by the agent — see §10. The CI workflow is the documented strategy and stays unvalidated until then. |
-| 3 | Only Windows/MSVC has been built | Medium | macOS, Linux and ARM64 are unverified. Cross-platform validation is Phase 11, but a surprise there is cheaper to find early. |
-| 4 | Visual Studio generator emits no `compile_commands.json` | Low | `.clangd` supplies C++20 fallback flags; a Ninja build directory gives full editor accuracy. See `Docs/BUILD.md` §5. |
-| 5 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8. Moving to 9 is a product decision — ADR-0002. |
-| 6 | `filter_cutoff` etc. are un-indexed in UI_BINDINGS.md §3 while the PRD specifies two filters | Low | A Phase 2 decision (rename vs. keep and add `filter2_*`). Recorded in `Docs/PARAMETER-CONVENTIONS.md` §3. |
+| 1 | VST3 has not been loaded in a DAW | Medium | The artefact builds; loading needs a host. Phase 1's exit criterion cannot be closed without one. |
+| 2 | Standalone has not been launched against an audio device | Medium | Same: needs manual verification, including device selection. |
+| 3 | Only Windows/MSVC has been built | Medium | macOS, Linux and ARM64 unverified. Cross-platform validation is Phase 11, but surprises are cheaper to find early. |
+| 4 | Symbol visibility still unresolved | Low | ADR-0009 deferred the decision to Phase 1, where real plugin targets would exist. They now do, but the decision was not revisited. Worth closing early in Phase 2. |
+| 5 | CI has never executed | Low | The workflow exists and the repository has a remote, but no run has been observed. |
+| 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is currently by construction and review, not enforced by a tool. Phase 10. |
+| 7 | `ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md` | Trivial | Not renamed silently; other documents cross-reference it. |
+| 8 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
+| 9 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 
 ---
 
 ## 7. Blockers
 
-**None.** Phase 1 can begin.
+**None for Phase 2.**
+
+Two Phase 1 exit criteria remain open — loading the VST3 in a DAW, and launching
+the standalone against an audio device — but both are manual verification steps
+rather than blockers, and neither gates Phase 2 work.
 
 Toolchain confirmed available: CMake 4.4.0, MSVC 14.51, Windows SDK 10.0.26100,
 Git 2.53, Node 24.15 / npm 11.12 (for the Phase 7 frontend), network access for
 dependency fetching.
 
-Not installed, and needed later: Ninja (convenient but optional), a DAW for
-host testing (Phase 10), macOS and Linux machines or CI runners (Phase 11).
+One thing to settle before the UI bridge is attached to a WebView: on Windows,
+JUCE 8 links WebView2 through `NEEDS_WEBVIEW2`, which requires the **WebView2
+NuGet package** (`extras/Build/CMake/FindWebView2.cmake`). That package is not
+installed on this machine. The parameter and protocol layers do not depend on it,
+so most of Phase 2 can proceed regardless.
 
 ---
 
 ## 8. Recommended next action
 
-Begin **Phase 1 — Build System & Application Foundation**, which is the earliest
-incomplete roadmap step. Its scope:
+Begin **Phase 2 — Parameter, State & UI Binding Infrastructure**. Its scope:
 
-1. VST3 and standalone targets via `juce_add_plugin`, both thin shells over
-   `apollo_core` (ADR-0005, `Docs/REPOSITORY-LAYOUT.md` §3).
-2. `ApolloAudioProcessor`: initialization, `prepareToPlay`, `releaseResources`,
-   `reset`, bypass, destruction/reinitialization.
-3. Variable block sizes and sample-rate changes handled correctly.
-4. A clean audio pass-through, with channel configuration validated.
-5. Standalone device selection through JUCE's device abstractions, with no
-   assumption about driver, interface or connector.
-6. Resolve ADR-0009 — symbol visibility — now that real plugin targets exist to
-   validate it against.
-7. Tests for the processor lifecycle, block-size changes and sample-rate changes.
+1. The authoritative APVTS parameter registry, with stable IDs conforming to
+   `Docs/PARAMETER-CONVENTIONS.md`, and ranges, defaults, units, steps, skew,
+   smoothing and modulation metadata.
+2. State serialization and restore, with schema version metadata and an explicit
+   migration architecture. Invalid state must be rejected without destroying the
+   state already loaded.
+3. The UI bridge: WebView initialisation, protocol versioning, initial state
+   synchronisation, validated `setParameter`, asynchronous native-to-Web updates,
+   gesture semantics, and structured errors — with no path from a frontend
+   message to arbitrary native behaviour.
+4. Tests for the registry, serialization, restoration, bridge protocol, invalid
+   messages and thread safety.
 
-Phase 1 exit criteria are in `ROADMAP.md`. Note that "VST3 loads in a
-representative compatible host" needs a DAW, which is a manual verification step
-that cannot be automated here.
-
----
-
-## 9. How to keep this file honest
-
-- Record only what has been built and run. "It compiles" is not "it works"
-  (CLAUDE.md §45).
-- When a phase completes, tick its `ROADMAP.md` tasks and update §1–§8 here.
-- When something is discovered to be broken or unverified, add it to §6 rather
-  than quietly removing the claim.
-- Architectural decisions go in `Docs/DECISIONS.md`, not here — this file records
-  state, not reasoning.
+Phase 2 exit criteria are in `ROADMAP.md`. Note that the bridge's validation
+surface is far easier to test if the protocol layer is kept independent of any
+WebView, which also lets the WebView itself be attached separately.
 
 ---
 
-## 10. Version control policy
+## 9. Version control policy
 
 Set by the developer and not subject to agent discretion:
 
@@ -227,3 +223,15 @@ Set by the developer and not subject to agent discretion:
 - **The agent does not initialise or alter version-control state** on its own
   initiative.
 - **Feature work goes on its own branch, never directly on `main`.**
+
+---
+
+## 10. How to keep this file honest
+
+- Record only what has been built and run. "It compiles" is not "it works"
+  (CLAUDE.md §45).
+- When a phase completes, tick its `ROADMAP.md` tasks and update §1–§8 here.
+- When something is discovered to be broken or unverified, add it to §6 rather
+  than quietly removing the claim.
+- Architectural decisions go in `Docs/DECISIONS.md`, not here — this file records
+  state, not reasoning.

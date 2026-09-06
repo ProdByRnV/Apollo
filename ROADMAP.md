@@ -105,39 +105,43 @@ Create the smallest functional Apollo application capable of running as both a p
 
 ### CMake / JUCE
 
-- [ ] Integrate JUCE through CMake.
-- [ ] Configure the VST3 target.
-- [ ] Configure the standalone target.
-- [ ] Establish shared source modules between plugin and standalone builds.
-- [ ] Configure resource embedding/packaging.
-- [ ] Configure frontend asset packaging.
-- [ ] Avoid Projucer dependencies.
-- [ ] Add platform-specific code only behind appropriate abstraction boundaries.
+- [x] Integrate JUCE through CMake.
+- [x] Configure the VST3 target.
+- [x] Configure the standalone target.
+- [x] Establish shared source modules between plugin and standalone builds. — one `juce_add_plugin` target produces both formats from one engine
+- [ ] Configure resource embedding/packaging. — deferred to Phase 9; no resources exist yet
+- [ ] Configure frontend asset packaging. — deferred to Phase 7; no frontend exists yet
+- [x] Avoid Projucer dependencies.
+- [x] Add platform-specific code only behind appropriate abstraction boundaries. — none required so far
 
 ### Processor lifecycle
 
-- [ ] Implement `AudioProcessor`.
-- [ ] Implement processor initialization.
-- [ ] Implement `prepareToPlay`.
-- [ ] Implement processing lifecycle/reset behavior.
-- [ ] Handle variable host block sizes.
-- [ ] Handle sample-rate changes.
-- [ ] Handle bypass behavior.
-- [ ] Handle processor destruction/reinitialization safely.
+- [x] Implement `AudioProcessor`.
+- [x] Implement processor initialization.
+- [x] Implement `prepareToPlay`.
+- [x] Implement processing lifecycle/reset behavior.
+- [x] Handle variable host block sizes.
+- [x] Handle sample-rate changes.
+- [x] Handle bypass behavior. — no latency or tail to compensate; revisit when effects land in Phase 8
+- [x] Handle processor destruction/reinitialization safely.
 
 ### Audio validation
 
-- [ ] Implement a clean audio pass-through.
-- [ ] Validate input/output channel handling.
-- [ ] Validate standalone device selection.
-- [ ] Verify operation without assuming a particular audio driver or physical connector.
+- [x] Implement a clean audio pass-through.
+- [x] Validate input/output channel handling.
+- [ ] Validate standalone device selection. — requires manual verification on a real device
+- [x] Verify operation without assuming a particular audio driver or physical connector.
 
 ## Exit Criteria
 
-- VST3 loads in a representative compatible host.
-- Standalone launches and produces audio.
-- Variable block sizes and sample-rate changes do not break processing.
-- No known real-time thread violations exist in the foundation.
+- [ ] VST3 loads in a representative compatible host. — **requires a DAW; not verifiable in this environment**
+- [ ] Standalone launches and produces audio. — artefact builds; launch is manual verification. Interpreted as "the audio path runs cleanly": Apollo outputs silence until Phase 3, by design
+- [x] Variable block sizes and sample-rate changes do not break processing. — covered by `Tests/Audio/ProcessorLifecycleTests.cpp`
+- [x] No known real-time thread violations exist in the foundation.
+
+> **Phase status:** implementation complete and unit-tested. The two unchecked
+> exit criteria need a DAW and an audio device, which are manual steps. See
+> `PROJECT-STATE.md` §6.
 
 ---
 
