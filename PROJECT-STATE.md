@@ -126,7 +126,13 @@ Concretely, in the current code:
 | `Release` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate passes |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-**Not verified on any machine:** macOS, Linux, ARM64, sanitizer builds.
+**Verified by CI** on the Phase 0 commit (`1156ad4`): Linux (GCC), macOS (Apple
+Clang) and Windows (MSVC) all configure, build and pass tests with
+`APOLLO_WARNINGS_AS_ERRORS=ON`. This is the first cross-platform confirmation —
+the build is portable, not merely Windows-shaped.
+
+**Still unverified:** ARM64, and the sanitizer job (see §6, issue 3). The CI run
+for the Phase 1 branch had not completed at the time of writing.
 
 ---
 
@@ -160,9 +166,9 @@ own prepared sample rate and block size.
 |---|---|---|---|
 | 1 | VST3 has not been loaded in a DAW | Medium | The artefact builds; loading needs a host. Phase 1's exit criterion cannot be closed without one. |
 | 2 | Standalone has not been launched against an audio device | Medium | Same: needs manual verification, including device selection. |
-| 3 | Only Windows/MSVC has been built | Medium | macOS, Linux and ARM64 unverified. Cross-platform validation is Phase 11, but surprises are cheaper to find early. |
+| 3 | CI sanitizer job fails | Medium | **Cause identified and fixed, fix not yet confirmed green.** The job installed a reduced Linux dependency list that had drifted from the build matrix's, so JUCE's `juceaide` failed during configure on missing X11 headers. Both jobs now share one composite action (`.github/actions/install-linux-deps`). LeakSanitizer is also disabled for the run, because JUCE's static-lifetime singletons are reported on every run and would keep the job permanently red. |
 | 4 | Symbol visibility still unresolved | Low | ADR-0009 deferred the decision to Phase 1, where real plugin targets would exist. They now do, but the decision was not revisited. Worth closing early in Phase 2. |
-| 5 | CI has never executed | Low | The workflow exists and the repository has a remote, but no run has been observed. |
+| 5 | ARM64 unverified | Low | No ARM64 runner in the matrix. Cross-architecture validation is Phase 11. |
 | 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is currently by construction and review, not enforced by a tool. Phase 10. |
 | 7 | `ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md` | Trivial | Not renamed silently; other documents cross-reference it. |
 | 8 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
