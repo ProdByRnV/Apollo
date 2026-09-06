@@ -17,6 +17,13 @@ if(APOLLO_ENABLE_WEBVIEW AND WIN32)
 endif()
 
 juce_add_plugin(Apollo
+    # Must be JUCE's own option, not a hand-written JUCE_WEB_BROWSER define.
+    # On Linux, _juce_link_optional_libraries reads this property to decide both
+    # the compile definition *and* whether to link
+    # juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS, which is the only thing that
+    # supplies the GTK and WebKitGTK include paths. Defining the macro by hand
+    # turns on #include <gtk/gtk.h> without ever providing the path to it.
+    NEEDS_WEB_BROWSER           ${APOLLO_ENABLE_WEBVIEW}
     NEEDS_WEBVIEW2              ${APOLLO_PLUGIN_WEBVIEW2}
     VERSION                     "${PROJECT_VERSION}"
     COMPANY_NAME                "ProdByRnV"

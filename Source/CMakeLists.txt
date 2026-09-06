@@ -103,9 +103,14 @@ if(APOLLO_ENABLE_WEBVIEW)
         apollo::engine
         juce::juce_gui_extra)
 
+    # JUCE_WEB_BROWSER is deliberately NOT defined here. On Linux JUCE sets it
+    # itself from the plugin's NEEDS_WEB_BROWSER property, in the same place it
+    # links the pkg-config target carrying the GTK/WebKitGTK include paths.
+    # Defining it here as well produced two conflicting command-line definitions
+    # and a build that included <gtk/gtk.h> with no path to find it.
+    # On Windows and macOS the module default is already 1.
     target_compile_definitions(apollo_editor INTERFACE
-        APOLLO_WITH_WEBVIEW=1
-        JUCE_WEB_BROWSER=1)
+        APOLLO_WITH_WEBVIEW=1)
 
     if(WIN32)
         # Selects JUCE's WebView2 backend rather than the legacy IE control.
