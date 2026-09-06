@@ -30,10 +30,20 @@ jobs:
         include:
           - name: Windows (MSVC)
             os: windows-latest
+            parallel: 4
           - name: macOS (Apple Clang)
             os: macos-latest
+            parallel: 3
+          # Capped at 2 deliberately. This job compiles the whole of JUCE twice
+          # over — once into the plugin, once into the test runner (ADR-0010) —
+          # and since Phase 2 those translation units also pull in the GTK and
+          # WebKitGTK headers. JUCE's unity builds are individually large, and
+          # four of them at once exhausted the runner's memory: every compile was
+          # SIGTERMed at the same instant with no diagnostic and the runner
+          # reported a shutdown signal. Fewer jobs, less peak memory.
           - name: Linux (GCC)
             os: ubuntu-latest
+            parallel: 2
 
     steps:
       - name: Check out
@@ -58,8 +68,20 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON
 
-      - name: Build
-        run: cmake --build build --config RelWithDebInfo --parallel
+      # Built target by target rather than all at once: the plugin and the test
+      # runner each compile their own copy of the JUCE modules, and running both
+      # concurrently doubles peak memory for no wall-clock gain on a runner this
+      # small. Tests first, so a broken engine is reported before the slower
+      # plugin link.
+      - name: Build tests
+        run: cmake --build build --config RelWithDebInfo --target ApolloTests --parallel ${{ matrix.parallel }}
+
+      # Apollo_All, not Apollo: juce_add_plugin makes "Apollo" the shared-code
+      # library, while the aggregate target is what actually produces the VST3
+      # bundle and the standalone binary. Building "Apollo" alone would quietly
+      # stop verifying that the plugin links at all.
+      - name: Build plugin
+        run: cmake --build build --config RelWithDebInfo --target Apollo_All --parallel ${{ matrix.parallel }}
 
       - name: Test
         run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
