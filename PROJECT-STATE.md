@@ -16,13 +16,15 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 2 — Parameter, State & UI Binding Infrastructure |
+| **Phase** | Phase 3 — Audio Engine & Voice Architecture |
 | **Status** | **Complete** |
-| **Milestone** | M2 — Parameter Bridge |
-| **Next step** | Phase 3 — Audio Engine & Voice Architecture (the path to first sound, M3) |
+| **Milestone** | M3 — First Sound |
+| **Next step** | Phase 4 — Wavetable Oscillator System |
 
-**Apollo does not make a sound yet.** The audio path runs, is real-time safe, and
-outputs silence by design; synthesis begins in Phase 3.
+**Apollo makes sound.** A polyphonic sine engine with velocity, sustain, pitch
+bend and deterministic voice stealing renders through the VST3 and standalone
+builds. The oscillator is a placeholder: the wavetable engine is Phase 4 and the
+DAHDSR envelopes are Phase 5.
 
 ---
 
@@ -94,24 +96,47 @@ Everything below was configured, built and executed on this machine.
   project loads to resynchronise wholesale. The React frontend that replaces that
   page is Phase 7.
 
+### Synthesis engine (Phase 3)
+
+- `VoiceEngine` owns a fixed pool of 32 `Voice` objects by value. Nothing in the
+  audio path allocates, and no voice is created or destroyed while audio runs;
+  polyphony (1-32, default 16) only selects how many are eligible.
+- The engine is **JUCE-free** and renders into raw float buffers, so it is held
+  to Apollo's strict warning set and is testable with no host, device or message
+  loop (ADR-0018).
+- Voice allocation: free voice first, else the oldest releasing voice, else the
+  oldest overall, with ties resolved to the lowest index — deterministic by
+  construction.
+- Stealing fades the old note over 2 ms and starts the new one only at silence,
+  so the transition contains no step (ADR-0019).
+- Note-on/off with velocity, velocity-zero treated as note-off, sustain pedal,
+  pitch bend (±2 semitones), all-notes-off and all-sound-off.
+- MIDI is applied **sample-accurately**: the processor renders the block in
+  segments between events rather than quantising them to block boundaries.
+- Gain staging measured rather than assumed, including per-voice start phases to
+  stop chord attacks summing coherently (ADR-0017).
+- Master gain is smoothed multiplicatively over 20 ms.
+
+The oscillator is a sine and the envelope a linear attack/release. Both are
+deliberate placeholders for Phase 4 and Phase 5 respectively.
+
 ---
 
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 3 | Audio engine, voice allocation, polyphony, voice stealing, note handling |
 | 4 | Wavetable oscillators, unison, sub oscillator, noise, anti-aliasing |
 | 5 | Filters, envelopes, LFOs, modulation matrix |
-| 6 | MIDI processing, MIDI Learn, controller profiles |
+| 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
 | 7 | The `WebUI/` React frontend, visualizers, telemetry |
 | 8 | Every effect and the FX rack |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-MIDI is still ignored in `processBlock`; it is consumed by the voice engine in
-Phase 3. The nine registered parameters are exposed to hosts and the UI but do
-not yet affect audio, because there is no audio to affect.
+Of the nine registered parameters, only `master_gain` currently affects audio.
+The rest are exposed to hosts and to the UI but have nothing to act on until the
+oscillator, filter and effect stages exist.
 
 ---
 
@@ -127,18 +152,19 @@ not yet affect audio, because there is no audio to affect.
 | `Release` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-**Verified by CI** on the Phase 0 commit: Linux (GCC), macOS (Apple Clang) and
-Windows (MSVC) all configure, build and pass tests. The sanitizer job failed there
-on a CI dependency-list defect that has since been fixed; that fix has not yet
-been confirmed green.
+**Verified by CI** (run 34063779201, all four jobs green): Linux (GCC), macOS
+(Apple Clang), Windows (MSVC) and the Linux Clang sanitizer job all configure,
+build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`. The Linux job was confirmed
+to link both the VST3 and the standalone artefact and to actually execute the
+suite, rather than passing by building nothing.
 
-**Still unverified:** ARM64, and the CI matrix against Phase 1/2 code.
+**Still unverified:** ARM64, and the CI matrix against Phase 3 code.
 
 ---
 
 ## 5. Test status
 
-**735 assertions, 0 failures**, across 7 test classes:
+**1637 assertions, 0 failures**, across 9 test classes:
 
 | Category | Class | Covers |
 |---|---|---|
@@ -149,6 +175,8 @@ been confirmed green.
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
 | UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene |
 | UI | Parameter bridge | Snapshot matches APVTS, commands reach APVTS, invalid commands change nothing, external changes propagate, coalescing, detach safety, metadata completeness |
+| Engine | Voice engine | Pitch accuracy against four reference notes, velocity scaling, release to silence, polyphony, allocation order, deterministic stealing, click-free steal, sustain, pitch bend, voice reuse, extreme input, gain staging across five voicings |
+| Audio | MIDI rendering | Sample-accurate event placement, **identical output across nine block sizes**, sustain via CC 64, pitch wheel, all-notes-off, master gain scaling |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 

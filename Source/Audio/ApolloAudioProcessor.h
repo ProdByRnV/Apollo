@@ -15,6 +15,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Engine/VoiceEngine.h"
 #include "Parameters/ParameterLayout.h"
 #include "State/StateSerialization.h"
 
@@ -129,7 +130,30 @@ public:
         return stateReloadCounter.load (std::memory_order_relaxed);
     }
 
+    /** The synthesis engine.
+
+        Exposed so tests can inspect voice allocation directly rather than
+        inferring it from the rendered audio.
+    */
+    [[nodiscard]] engine::VoiceEngine& getVoiceEngine() noexcept { return voiceEngine; }
+    [[nodiscard]] const engine::VoiceEngine& getVoiceEngine() const noexcept { return voiceEngine; }
+
+    /** Pitch-bend range in semitones either side of centre.
+
+        ±2 is the near-universal default. It becomes a parameter when the
+        modulation system lands in Phase 5; hard-coding a different value would
+        make Apollo disagree with every other instrument on the same MIDI input.
+    */
+    static constexpr float pitchBendRangeSemitones = 2.0f;
+
 private:
+    /** Applies one MIDI message to the engine. Audio thread; must stay
+        allocation-free and bounded.
+    */
+    void handleMidiMessage (const juce::MidiMessage& message) noexcept;
+
+    /** @returns the master gain as a linear multiplier. */
+    [[nodiscard]] float readMasterGainLinear() const noexcept;
     /** Apollo's bus layout.
 
         A static member rather than a free function because BusesProperties is a
@@ -151,6 +175,22 @@ private:
 
     std::atomic<state::StateLoadResult> lastStateLoadResult { state::StateLoadResult::ok };
     std::atomic<int> stateReloadCounter { 0 };
+
+    engine::VoiceEngine voiceEngine;
+
+    /** Cached pointer to the master gain's plain (dB) value.
+
+        Resolved once at construction: looking a parameter up by string on every
+        block would be an unbounded search in the audio callback.
+    */
+    std::atomic<float>* masterGainParameter = nullptr;
+
+    /** Master gain is declared `smoothed` in the registry, and a jump in gain is
+        a click. Multiplicative smoothing ramps evenly in dB, which is how gain
+        is perceived; it is safe here because the parameter's floor (-60 dB) is
+        still a positive linear value.
+    */
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> masterGain;
 
     /** Declared after the members it does not depend on, but before anything
         that observes it: APVTS must outlive every listener attached to it.

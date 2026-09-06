@@ -285,3 +285,80 @@ one.
 With the WebView disabled the processor falls back to a generic parameter editor
 rather than to no editor at all, so the plugin stays usable on a configuration
 where the platform backend is unavailable (CLAUDE.md §33).
+
+---
+
+## ADR-0017 — Engine gain staging is measured, not derived
+
+**Phase 3 · Accepted**
+
+`VoiceEngine::outputGain` is 0.08, chosen from measurement rather than theory,
+and every voice starts from its own fixed phase offset rather than from zero.
+
+The textbook figure for summing N voices is 1/sqrt(N), which assumes the voices
+are uncorrelated. Apollo's are not, for two separate reasons, and both were found
+by a test rather than by reasoning:
+
+1. **Every voice started at phase zero.** That made a chord's attack sum
+   *coherently* instead of as root-N. Thirty-two notes at full velocity peaked at
+   1.95 — nearly 8 voice-equivalents where 5.7 was predicted. Voices now start at
+   distinct fixed offsets (`Voice::setStartPhase`), which decorrelates the attack
+   while staying perfectly reproducible; randomised phase would not.
+
+2. **Harmonically related notes reinforce.** Even decorrelated, the sum depends
+   on the interval, not just the count. Measured worst cases at full polyphony,
+   relative to one voice: octaves 11.4, unison 10.2, whole tones 8.7, fifths 8.4.
+   The first test written used a chromatic cluster, which turned out to be the
+   *easiest* case and passed while four other voicings clipped.
+
+The gain covers the worst of those with roughly 9% margin, and the test suite
+renders all five voicings and asserts the output stays inside full scale.
+
+**Given up:** a deliberately quiet instrument — one note peaks near -22 dBFS.
+That is the right trade while Apollo has no output stage: headroom is recoverable
+with master gain, clipping is not, and ARCHITECTURE.md §3.4 rules out a limiter
+that would merely hide the problem. Revisit once the oscillator (Phase 4) and
+effects (Phase 8) make the real signal chain measurable.
+
+---
+
+## ADR-0018 — The synthesis engine lives in apollo_core, free of JUCE
+
+**Phase 3 · Accepted**
+
+`Voice` and `VoiceEngine` render into raw `float* const*` buffers and know
+nothing of JUCE, MIDI messages, parameters or hosts. The processor translates
+`juce::MidiBuffer` into engine calls.
+
+The deciding factor was the warning policy. `apollo_core` is the only library
+held to Apollo's strict set (ADR-0005); `apollo_engine` is an INTERFACE library
+(ADR-0010), so its sources inherit the consuming target's JUCE-relaxed flags.
+Putting the DSP there would have left `-Wconversion` and `-Wdouble-promotion`
+switched off over exactly the code they exist to protect — a silent narrowing or
+an accidental double promotion inside a per-sample loop.
+
+It also makes the engine testable with no host, no audio device and no message
+loop, which is why the voice tests are plain arithmetic against float buffers
+and cannot be flaky.
+
+**Given up:** the processor carries the MIDI translation, and a small amount of
+duplication exists between the engine's own vocabulary and JUCE's.
+
+---
+
+## ADR-0019 — A stolen voice fades before the new note starts
+
+**Phase 3 · Accepted**
+
+Stealing does not restart the voice immediately. The voice ramps to silence over
+2 ms, and the waiting note begins only once the fade reaches zero
+(`Voice::steal`, consumed in the envelope).
+
+Restarting a sounding voice in place means cutting a waveform at full amplitude
+and resetting its phase — a step discontinuity, which is exactly what a click is.
+Phase 3's exit criteria require that note transitions produce no audible
+artifact, and a click is measurable: the test asserts the largest sample-to-sample
+step across a steal stays far below the amplitude of the signal being stolen.
+
+**Given up:** a stolen note begins about 2 ms late. Inaudible as timing, and the
+better trade against an audible click.

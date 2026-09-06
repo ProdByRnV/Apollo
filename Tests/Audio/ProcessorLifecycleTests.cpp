@@ -314,7 +314,12 @@ private:
         expect (processor.acceptsMidi(), "an instrument must accept MIDI");
         expect (! processor.producesMidi());
         expect (! processor.isMidiEffect());
-        expectEquals (processor.getTailLengthSeconds(), 0.0);
+        // The tail is the voice release time: a host rendering offline must keep
+        // pulling until the note has finished ringing, or it truncates the
+        // ending. It was 0 before the engine existed.
+        expectWithinAbsoluteError (processor.getTailLengthSeconds(),
+                                   apollo::engine::Voice::releaseSeconds, 1.0e-9,
+                                   "the reported tail must match the voice release time");
         expect (processor.getNumPrograms() >= 1, "hosts misbehave when a plugin reports zero programs");
     }
 };

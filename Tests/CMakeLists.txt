@@ -14,6 +14,8 @@ target_sources(ApolloTests PRIVATE
     Foundation/BuildInfoTests.cpp
     Foundation/ParameterIdTests.cpp
     Audio/ProcessorLifecycleTests.cpp
+    Engine/VoiceEngineTests.cpp
+    Audio/MidiRenderingTests.cpp
     Parameters/ParameterRegistryTests.cpp
     State/StateSerializationTests.cpp
     UI/BridgeProtocolTests.cpp

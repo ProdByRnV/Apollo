@@ -34,6 +34,9 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     : juce::AudioProcessor (makeBusesProperties()),
       apvts (*this, nullptr, params::stateTreeType, params::createParameterLayout())
 {
+    // Resolved once, here: a string lookup per block would be an unbounded
+    // search in the audio callback.
+    masterGainParameter = apvts.getRawParameterValue ("master_gain");
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -44,9 +47,16 @@ ApolloAudioProcessor::~ApolloAudioProcessor() = default;
 void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpectedSamplesPerBlock)
 {
     // Every allocation and every DSP resource belongs here, never in
-    // processBlock (CLAUDE.md §9.2). There is nothing to allocate yet.
+    // processBlock (CLAUDE.md §9.2).
     preparedSampleRate.store (sampleRate, std::memory_order_relaxed);
     preparedBlockSize.store (maximumExpectedSamplesPerBlock, std::memory_order_relaxed);
+
+    voiceEngine.prepare (sampleRate);
+
+    // 20 ms is long enough to remove the step from an automated gain change and
+    // short enough that a deliberate move still feels immediate.
+    masterGain.reset (sampleRate, 0.02);
+    masterGain.setCurrentAndTargetValue (readMasterGainLinear());
 
     reset();
 
@@ -63,6 +73,52 @@ void ApolloAudioProcessor::reset()
     // Clears transient DSP state without releasing resources. Hosts call this
     // on transport jumps and when re-enabling a bypassed plugin, so it must be
     // safe to call at any time, including before prepareToPlay.
+    voiceEngine.reset();
+    masterGain.setCurrentAndTargetValue (readMasterGainLinear());
+}
+
+float ApolloAudioProcessor::readMasterGainLinear() const noexcept
+{
+    if (masterGainParameter == nullptr)
+        return 1.0f;
+
+    return juce::Decibels::decibelsToGain (masterGainParameter->load (std::memory_order_relaxed));
+}
+
+void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
+{
+    if (message.isNoteOn())
+    {
+        voiceEngine.noteOn (message.getNoteNumber(), message.getFloatVelocity());
+    }
+    else if (message.isNoteOff())
+    {
+        voiceEngine.noteOff (message.getNoteNumber());
+    }
+    else if (message.isPitchWheel())
+    {
+        // JUCE reports 0-16383 with 8192 at centre.
+        constexpr float centre = 8192.0f;
+        const auto normalised = (static_cast<float> (message.getPitchWheelValue()) - centre) / centre;
+        voiceEngine.setPitchBendSemitones (normalised * pitchBendRangeSemitones);
+    }
+    else if (message.isSustainPedalOn())
+    {
+        voiceEngine.setSustainPedal (true);
+    }
+    else if (message.isSustainPedalOff())
+    {
+        voiceEngine.setSustainPedal (false);
+    }
+    else if (message.isAllNotesOff())
+    {
+        voiceEngine.allNotesOff();
+    }
+    else if (message.isAllSoundOff())
+    {
+        // All-sound-off means silence now, not "release and let it ring".
+        voiceEngine.reset();
+    }
 }
 
 bool ApolloAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -101,23 +157,62 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // is a classic source of audio dropouts in feedback paths (CLAUDE.md §37).
     const juce::ScopedNoDenormals noDenormals;
 
-    // MIDI is consumed by the voice engine in Phase 3.
-    juce::ignoreUnused (midiMessages);
-
-    const auto numInputChannels = getTotalNumInputChannels();
     const auto numOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
 
-    // JUCE hands the same buffer in for input and output, so any output channel
-    // that is not written must be cleared explicitly — otherwise it carries
-    // whatever the previous callback or another plugin left there.
-    //
-    // With the input bus disabled (the normal instrument case) this clears
-    // every channel, and Apollo outputs silence until the synthesis engine
-    // exists. With the input bus enabled, channels [0, numInputChannels) hold
-    // the host's input and pass through untouched.
-    for (int channel = numInputChannels; channel < numOutputChannels; ++channel)
-        buffer.clear (channel, 0, numSamples);
+    if (numOutputChannels <= 0 || numSamples <= 0)
+        return;
+
+    // Apollo is an instrument: the engine is the origin of the signal and
+    // overwrites the whole output. Any input is deliberately not passed through
+    // — the input bus is reserved for the compressor's external sidechain
+    // (PRD §23), which reads it rather than mixing it.
+    auto* const* outputs = buffer.getArrayOfWritePointers();
+
+    // MIDI is applied at its exact sample offset by rendering the block in
+    // segments between events. A host can place several events anywhere inside
+    // one buffer, and quantising them to block boundaries would smear timing by
+    // up to a full block — audible as loose timing at large buffer sizes, and
+    // wrong in offline renders where it is trivially measurable.
+    int position = 0;
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto eventTime = juce::jlimit (0, numSamples, metadata.samplePosition);
+
+        if (eventTime > position)
+        {
+            voiceEngine.render (outputs, numOutputChannels, position, eventTime - position);
+            position = eventTime;
+        }
+
+        handleMidiMessage (metadata.getMessage());
+    }
+
+    if (position < numSamples)
+        voiceEngine.render (outputs, numOutputChannels, position, numSamples - position);
+
+    // Master gain last, so it scales the finished mix rather than one stage of
+    // it. Smoothed per sample: an automated gain move must not step.
+    masterGain.setTargetValue (readMasterGainLinear());
+
+    if (masterGain.isSmoothing())
+    {
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const auto gain = masterGain.getNextValue();
+
+            for (int channel = 0; channel < numOutputChannels; ++channel)
+                outputs[channel][i] *= gain;
+        }
+    }
+    else
+    {
+        const auto gain = masterGain.getCurrentValue();
+
+        for (int channel = 0; channel < numOutputChannels; ++channel)
+            juce::FloatVectorOperations::multiply (outputs[channel], gain, numSamples);
+    }
 }
 
 //==============================================================================
@@ -166,9 +261,10 @@ bool ApolloAudioProcessor::isMidiEffect() const
 
 double ApolloAudioProcessor::getTailLengthSeconds() const
 {
-    // No effect tail yet. Effects that ring out (delay, reverb) report their own
-    // tail in Phase 8; reporting a tail now would only make hosts render silence.
-    return 0.0;
+    // The amplitude release is the only tail Apollo has so far. Reporting it
+    // lets an offline render capture the note ending instead of truncating it.
+    // Effects that ring out report their own tails in Phase 8.
+    return engine::Voice::releaseSeconds;
 }
 
 //==============================================================================

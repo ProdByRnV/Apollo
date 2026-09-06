@@ -27,6 +27,10 @@ configure_file(
     @ONLY)
 
 add_library(apollo_core STATIC
+    Engine/Voice.cpp
+    Engine/Voice.h
+    Engine/VoiceEngine.cpp
+    Engine/VoiceEngine.h
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
     Parameters/ParameterDefinitions.h

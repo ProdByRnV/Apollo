@@ -213,35 +213,39 @@ Create the reusable native synthesis engine and polyphonic voice infrastructure.
 
 ## Tasks
 
-- [ ] Define the audio engine ownership model.
-- [ ] Implement voice allocation.
-- [ ] Implement configurable polyphony.
-- [ ] Implement deterministic voice stealing.
-- [ ] Implement note-on/note-off handling.
-- [ ] Implement velocity handling.
-- [ ] Implement sustain behavior.
-- [ ] Implement pitch bend.
-- [ ] Implement per-voice state reset/reuse.
-- [ ] Preallocate voice and audio resources.
-- [ ] Establish voice/global processing boundaries.
-- [ ] Define mono/stereo signal-flow conventions.
-- [ ] Add gain-staging rules throughout the engine.
+- [x] Define the audio engine ownership model. — the processor owns one VoiceEngine, which owns every Voice by value in a fixed-size array
+- [x] Implement voice allocation.
+- [x] Implement configurable polyphony. — engine-level, 1..32; exposing it as a user parameter is a deliberate later decision (PROJECT-STATE.md §6)
+- [x] Implement deterministic voice stealing. — free voice, else oldest releasing, else oldest overall; ties resolve to the lowest index
+- [x] Implement note-on/note-off handling. — sample-accurate, including velocity-zero as note-off
+- [x] Implement velocity handling.
+- [x] Implement sustain behavior.
+- [x] Implement pitch bend. — ±2 semitones, applied to sounding and subsequent notes
+- [x] Implement per-voice state reset/reuse. — a reused voice renders identically to a fresh one, verified by test
+- [x] Preallocate voice and audio resources. — the voice pool is fixed at compile time; voices render additively with no scratch buffer
+- [x] Establish voice/global processing boundaries. — voices carry velocity, the engine scales the sum, the processor applies master gain
+- [x] Define mono/stereo signal-flow conventions. — voices are centred; panning and stereo spread arrive with Phase 4
+- [x] Add gain-staging rules throughout the engine. — measured rather than assumed (ADR-0017)
 
 ### Real-time requirements
 
-- [ ] No uncontrolled allocation in the audio callback.
-- [ ] No blocking mutexes in real-time processing.
-- [ ] No filesystem access.
-- [ ] No WebView calls.
-- [ ] No synchronous logging.
-- [ ] No unbounded work based on UI state.
+- [x] No uncontrolled allocation in the audio callback.
+- [x] No blocking mutexes in real-time processing.
+- [x] No filesystem access.
+- [x] No WebView calls.
+- [x] No synchronous logging.
+- [x] No unbounded work based on UI state.
 
 ## Exit Criteria
 
-- Polyphonic test tones render correctly.
-- Voice stealing behaves predictably.
-- No audible artifacts occur during normal note transitions.
-- Stress testing does not reveal fundamental audio-thread violations.
+- [x] Polyphonic test tones render correctly. — pitch verified against four reference notes to within a tenth of a semitone
+- [x] Voice stealing behaves predictably. — determinism asserted by repetition; the releasing-voice preference by construction
+- [x] No audible artifacts occur during normal note transitions. — measured as the largest sample-to-sample step across a steal
+- [x] Stress testing does not reveal fundamental audio-thread violations. — extreme notes, extreme bends and 500 rapid note changes all stay finite
+
+> **Phase status:** complete. Apollo produces sound. 1637 assertions passing.
+> The oscillator is a sine and the envelope a simple attack/release; the
+> wavetable engine (Phase 4) and the DAHDSR envelopes (Phase 5) replace them.
 
 ---
 
