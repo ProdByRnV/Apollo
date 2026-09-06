@@ -31,8 +31,14 @@ target_link_libraries(apollo_project_options INTERFACE apollo::sanitizers)
 if(MSVC)
     target_compile_options(apollo_project_options INTERFACE
         /utf-8   # source and execution character sets are UTF-8 on every platform
-        /MP)     # parallel compilation; the VS generator does not do this by default
+        /MP      # parallel compilation; the VS generator does not do this by default
+        /FS)     # serialise PDB writes
 endif()
+
+# /FS is the documented companion to /MP: parallel compilation means several
+# cl.exe processes writing one PDB, and without forced serialisation that races
+# into "C1041: cannot open program database". Recent MSVC often implies /FS, but
+# relying on that is relying on a default that has changed before.
 
 # ---------------------------------------------------------------------------
 # apollo::strict_warnings

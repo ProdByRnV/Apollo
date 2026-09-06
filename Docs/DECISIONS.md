@@ -165,3 +165,123 @@ that cannot silently diverge between the two.
 
 `apollo_core` remains STATIC and JUCE-free, so pure logic is still compiled once
 and held to the strict warning set.
+
+---
+
+## ADR-0011 — The bridge protocol is independent of the WebView
+
+**Phase 2 · Accepted**
+
+Message parsing, validation and serialization live in `Source/UI/BridgeProtocol.*`
+and depend on neither APVTS nor any WebView. `ParameterBridge` connects that
+layer to APVTS; `ApolloWebViewEditor` is pure transport on top of both.
+
+The WebView is an untrusted input boundary (UI_BINDINGS.md §14), so its whole
+validation surface — malformed JSON, wrong protocol versions, hostile numeric
+values, oversized payloads, unknown parameters — needs exhaustive testing. Behind
+a browser that testing is slow, flaky and partly manual. In front of it, it is
+ordinary unit testing, and the suite runs headless in CI with no browser
+dependency at all.
+
+---
+
+## ADR-0012 — Out-of-range parameter values are rejected, not clamped
+
+**Phase 2 · Accepted**
+
+UI_BINDINGS.md §6 permits either clamping or rejecting a value outside `[0, 1]`.
+Apollo rejects, with `INVALID_PARAMETER_VALUE`.
+
+A normalised value outside `[0, 1]` is a frontend defect. Clamping hides it while
+leaving the UI and the engine disagreeing about what was set — the class of bug
+that surfaces later as "the knob does not match the sound". Rejecting surfaces it
+at the point of failure; clamping before sending is the frontend's job.
+
+Clamping to each parameter's own range still happens downstream, where the
+definition is authoritative.
+
+---
+
+## ADR-0013 — The audio thread only sets a flag; the message thread does the work
+
+**Phase 2 · Accepted**
+
+Host automation invokes the APVTS listener on the **audio thread**. Serializing
+JSON or calling a WebView there would allocate and block, violating the real-time
+contract outright (CLAUDE.md §7.1).
+
+So `ParameterBridge::parameterChanged` does one thing: sets a lock-free atomic
+flag in a fixed-size array. A 30 Hz message-thread timer coalesces those flags
+into outbound messages.
+
+Coalescing is not only a performance measure. A parameter swept by automation
+changes far faster than any display can show, so forwarding every change would
+flood the WebView with values no one can see. One update per parameter per frame
+carries exactly the information a UI can use.
+
+---
+
+## ADR-0014 — State schema version is read from XML, not from the parsed ValueTree
+
+**Phase 2 · Accepted**
+
+`readState` reads the schema version from the XML attribute before converting to
+a `ValueTree`.
+
+XML carries no type information, so `ValueTree::fromXml` yields every attribute
+as a string `var`. Asking such a var `isInt()` always answers no, which would
+reject perfectly valid documents Apollo had just written itself. Reading the
+typed attribute directly fixes it and states the intent more clearly.
+
+---
+
+## ADR-0015 — The WebView2 SDK is fetched and pinned, not required preinstalled
+
+**Phase 2 · Accepted**
+
+JUCE picks the WebView backend per platform — WKWebView on macOS, WebKitGTK on
+Linux — and both come from the system. Windows is the exception: JUCE links
+WebView2, whose headers and import library ship in a NuGet package that is absent
+on a stock machine and that JUCE does not vendor.
+
+`CMake/ApolloWebView.cmake` fetches that package at a pinned version, exactly as
+the build already does for JUCE (CLAUDE.md §32: explicit, pinned, reproducible).
+The alternative — telling every developer and every CI runner to install it by
+hand — fails the build with a cryptic `FindWebView2` error whenever someone has
+not.
+
+Only the build-time SDK is fetched. The WebView2 *runtime* ships with Microsoft
+Edge and is already present on effectively every Windows 10/11 machine.
+
+One trap worth recording, because it fails in a way that looks like success:
+JUCE's `FindWebView2` globs `${JUCE_WEBVIEW2_PACKAGE_LOCATION}/*Microsoft.Web.WebView2*`
+and treats the first match as the package root, so it expects a NuGet *packages
+folder*, not the package itself. Extracting the archive directly into the
+location makes the glob match the package's own `.nuspec` **file**; `find_path`
+is then handed a file as a hint, returns NOTFOUND, and
+`find_package_handle_standard_args` still reports "Found" because the composed
+include path is a non-empty string. The build then fails much later on a missing
+`WebView2.h`. Apollo therefore extracts into a versioned subdirectory and hands
+JUCE the parent.
+
+---
+
+## ADR-0016 — The editor is a separate build target from the engine
+
+**Phase 2 · Accepted**
+
+`apollo_editor` is its own INTERFACE library rather than part of `apollo_engine`,
+and `APOLLO_WITH_WEBVIEW` is a per-target definition rather than an engine-wide
+one.
+
+- **Layering.** The engine must not depend on the UI (ARCHITECTURE.md §5.2).
+  Making that a build-level fact rather than a convention means a stray include
+  from DSP code fails to link instead of quietly compiling.
+- **The test runner is headless.** It exercises the bridge through its protocol
+  layer, which needs no browser. Pulling `juce_gui_extra` and the WebView2 SDK
+  into the test binary would add platform dependencies and CI packages that buy
+  nothing — and did in fact break the build until the split was made.
+
+With the WebView disabled the processor falls back to a generic parameter editor
+rather than to no editor at all, so the plugin stays usable on a configuration
+where the platform backend is unavailable (CLAUDE.md §33).

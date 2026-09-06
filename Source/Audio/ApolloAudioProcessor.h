@@ -15,6 +15,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Parameters/ParameterLayout.h"
+#include "State/StateSerialization.h"
+
 #include <atomic>
 
 namespace apollo
@@ -95,6 +98,37 @@ public:
         return preparedBlockSize.load (std::memory_order_relaxed);
     }
 
+    /** The authoritative parameter and state system.
+
+        APVTS owns every automatable parameter and is the single source of truth
+        that host automation, preset recall, MIDI and the UI all flow through
+        (ARCHITECTURE.md §6, UI_BINDINGS.md §1). Nothing else may hold a
+        competing copy of a parameter value.
+    */
+    [[nodiscard]] juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return apvts; }
+    [[nodiscard]] const juce::AudioProcessorValueTreeState& getValueTreeState() const noexcept { return apvts; }
+
+    /** Outcome of the most recent setStateInformation call.
+
+        A host hands over whatever it has stored, which may be truncated, from a
+        different product, or from a future Apollo. Rejecting is a normal
+        outcome, so it is recorded for the editor to surface rather than
+        silently discarded (CLAUDE.md §33).
+    */
+    [[nodiscard]] state::StateLoadResult getLastStateLoadResult() const noexcept
+    {
+        return lastStateLoadResult.load (std::memory_order_relaxed);
+    }
+
+    /** Incremented whenever state is replaced wholesale, so an attached editor
+        can tell a preset/project load apart from an ordinary parameter change
+        and resynchronise everything at once.
+    */
+    [[nodiscard]] int getStateReloadCounter() const noexcept
+    {
+        return stateReloadCounter.load (std::memory_order_relaxed);
+    }
+
 private:
     /** Apollo's bus layout.
 
@@ -114,6 +148,14 @@ private:
     /** Written by prepareToPlay, read by the DSP and by tests. */
     std::atomic<double> preparedSampleRate { 0.0 };
     std::atomic<int> preparedBlockSize { 0 };
+
+    std::atomic<state::StateLoadResult> lastStateLoadResult { state::StateLoadResult::ok };
+    std::atomic<int> stateReloadCounter { 0 };
+
+    /** Declared after the members it does not depend on, but before anything
+        that observes it: APVTS must outlive every listener attached to it.
+    */
+    juce::AudioProcessorValueTreeState apvts;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ApolloAudioProcessor)
 };

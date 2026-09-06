@@ -13,7 +13,11 @@ target_sources(ApolloTests PRIVATE
     TestMain.cpp
     Foundation/BuildInfoTests.cpp
     Foundation/ParameterIdTests.cpp
-    Audio/ProcessorLifecycleTests.cpp)
+    Audio/ProcessorLifecycleTests.cpp
+    Parameters/ParameterRegistryTests.cpp
+    State/StateSerializationTests.cpp
+    UI/BridgeProtocolTests.cpp
+    UI/ParameterBridgeTests.cpp)
 
 target_compile_definitions(ApolloTests PRIVATE
     JUCE_STANDALONE_APPLICATION=1
@@ -21,6 +25,9 @@ target_compile_definitions(ApolloTests PRIVATE
     # needs no browser, and requiring one would make the Linux CI image heavier
     # than the tests justify.
     JUCE_WEB_BROWSER=0
+    # Headless: the bridge is exercised through its protocol layer, which needs
+    # no browser. The processor builds its generic-editor fallback here.
+    APOLLO_WITH_WEBVIEW=0
     # JUCE's *own* internal unit tests are not part of Apollo's suite.
     JUCE_UNIT_TESTS=0)
 

@@ -34,6 +34,7 @@ project(Apollo
 include(ApolloBuildOptions)
 include(ApolloCompilerWarnings)
 include(ApolloDependencies)
+include(ApolloWebView)
 
 add_subdirectory(Source)
 
@@ -53,6 +54,7 @@ if(APOLLO_IS_TOP_LEVEL)
     endif()
     message(STATUS "  C++ standard ........... ${CMAKE_CXX_STANDARD}")
     message(STATUS "  JUCE ................... ${APOLLO_JUCE_DESCRIPTION}")
+    message(STATUS "  WebView ................ ${APOLLO_WEBVIEW_DESCRIPTION}")
     message(STATUS "  Tests .................. ${APOLLO_BUILD_TESTS}")
     message(STATUS "  Warnings as errors ..... ${APOLLO_WARNINGS_AS_ERRORS}")
     message(STATUS "  AddressSanitizer ....... ${APOLLO_ENABLE_ASAN}")

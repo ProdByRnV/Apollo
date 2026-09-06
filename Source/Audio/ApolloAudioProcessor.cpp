@@ -2,6 +2,12 @@
 
 #include "ApolloVersion.h"
 
+#if APOLLO_WITH_WEBVIEW
+ #include "UI/ApolloWebViewEditor.h"
+#else
+ #include <juce_audio_utils/juce_audio_utils.h>
+#endif
+
 namespace apollo
 {
 
@@ -25,7 +31,8 @@ juce::AudioProcessor::BusesProperties ApolloAudioProcessor::makeBusesProperties(
 //==============================================================================
 
 ApolloAudioProcessor::ApolloAudioProcessor()
-    : juce::AudioProcessor (makeBusesProperties())
+    : juce::AudioProcessor (makeBusesProperties()),
+      apvts (*this, nullptr, params::stateTreeType, params::createParameterLayout())
 {
 }
 
@@ -118,14 +125,20 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
 juce::AudioProcessorEditor* ApolloAudioProcessor::createEditor()
 {
-    // The WebView editor arrives with the UI bridge in Phase 2. Until then the
-    // host supplies a generic editor built from the parameter list.
-    return nullptr;
+   #if APOLLO_WITH_WEBVIEW
+    return new ui::ApolloWebViewEditor (*this);
+   #else
+    // Built without the WebView UI. A generic editor over the parameter list is
+    // a working fallback rather than no editor at all, which keeps the plugin
+    // usable on a configuration where the WebView backend is unavailable
+    // (CLAUDE.md §33).
+    return new juce::GenericAudioProcessorEditor (*this);
+   #endif
 }
 
 bool ApolloAudioProcessor::hasEditor() const
 {
-    return false;
+    return true;
 }
 
 //==============================================================================
@@ -197,16 +210,26 @@ void ApolloAudioProcessor::changeProgramName (int index, const juce::String& new
 
 void ApolloAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // Implemented against APVTS in Phase 2. Apollo has no automatable
-    // parameters yet, so there is nothing to serialize.
-    juce::ignoreUnused (destData);
+    state::writeState (apvts, destData);
 }
 
 void ApolloAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // Implemented against APVTS in Phase 2. Until then, incoming state is
-    // ignored rather than partially applied.
-    juce::ignoreUnused (data, sizeInBytes);
+    // A rejected document leaves the current sound untouched. Hosts call this
+    // with whatever they have stored, including state written by a different
+    // product or a future Apollo, so refusing safely is the normal path rather
+    // than an exceptional one (CLAUDE.md §33).
+    const auto result = state::readState (apvts, data, sizeInBytes);
+
+    lastStateLoadResult.store (result, std::memory_order_relaxed);
+
+    if (result == state::StateLoadResult::ok)
+    {
+        // Every parameter may have moved at once. Bumping the counter lets an
+        // attached editor resynchronise wholesale instead of inferring a preset
+        // load from a burst of individual changes.
+        stateReloadCounter.fetch_add (1, std::memory_order_relaxed);
+    }
 }
 
 } // namespace apollo

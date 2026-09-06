@@ -22,6 +22,7 @@ option(APOLLO_WARNINGS_AS_ERRORS "Treat compiler warnings in Apollo code as erro
 option(APOLLO_ENABLE_ASAN       "Enable AddressSanitizer"                           OFF)
 option(APOLLO_ENABLE_UBSAN      "Enable UndefinedBehaviorSanitizer"                 OFF)
 option(APOLLO_ENABLE_IPO        "Enable interprocedural optimisation where supported" OFF)
+option(APOLLO_ENABLE_WEBVIEW    "Build the WebView-based editor UI"                  ON)
 option(APOLLO_ALLOW_UNPINNED_JUCE "Allow a JUCE checkout that does not match the pinned commit" OFF)
 
 set(APOLLO_JUCE_SOURCE_DIR "" CACHE PATH

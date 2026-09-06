@@ -155,48 +155,53 @@ Build the authoritative parameter/state system and the C++ ↔ WebView communica
 
 ### APVTS
 
-- [ ] Create the central APVTS parameter registry.
-- [ ] Implement stable parameter IDs.
-- [ ] Define normalized and plain-value conversion.
-- [ ] Define parameter ranges, defaults, units, steps, and skew.
-- [ ] Define parameter smoothing requirements.
-- [ ] Define modulation capabilities.
-- [ ] Add parameter metadata required by the frontend.
+- [x] Create the central APVTS parameter registry. — `Source/Parameters/ParameterDefinitions.h`, JUCE-free `constexpr` data
+- [x] Implement stable parameter IDs. — validated against the conventions by test
+- [x] Define normalized and plain-value conversion.
+- [x] Define parameter ranges, defaults, units, steps, and skew.
+- [x] Define parameter smoothing requirements. — declared per parameter; applied when the DSP that needs it lands
+- [x] Define modulation capabilities. — declared per parameter; consumed by the Phase 5 matrix
+- [x] Add parameter metadata required by the frontend.
 
 ### State
 
-- [ ] Implement APVTS serialization.
-- [ ] Implement state restore.
-- [ ] Add state schema/version metadata.
-- [ ] Establish state migration architecture.
+- [x] Implement APVTS serialization.
+- [x] Implement state restore.
+- [x] Add state schema/version metadata.
+- [x] Establish state migration architecture. — versioned, single extension point, boundary-tested
 
 ### UI bridge
 
-- [ ] Initialize the JUCE WebView layer.
-- [ ] Implement bridge initialization.
-- [ ] Implement protocol versioning.
-- [ ] Implement initial state synchronization.
-- [ ] Implement validated `setParameter` commands.
-- [ ] Implement asynchronous native-to-Web parameter updates.
-- [ ] Implement parameter gesture begin/update/end semantics.
-- [ ] Implement structured bridge errors.
-- [ ] Prevent arbitrary native command execution from the frontend.
+- [x] Initialize the JUCE WebView layer. — `Source/UI/ApolloWebViewEditor.*`; WebView2 SDK fetched and pinned on Windows (ADR-0015)
+- [x] Implement bridge initialization.
+- [x] Implement protocol versioning.
+- [x] Implement initial state synchronization.
+- [x] Implement validated `setParameter` commands.
+- [x] Implement asynchronous native-to-Web parameter updates. — coalesced at 30 Hz off the audio thread
+- [x] Implement parameter gesture begin/update/end semantics.
+- [x] Implement structured bridge errors.
+- [x] Prevent arbitrary native command execution from the frontend. — the protocol maps only to a fixed command set
 
 ### Testing
 
-- [ ] Parameter registry tests.
-- [ ] State serialization tests.
-- [ ] State restoration tests.
-- [ ] Bridge protocol tests.
-- [ ] Invalid-message tests.
-- [ ] Thread-safety tests.
+- [x] Parameter registry tests.
+- [x] State serialization tests.
+- [x] State restoration tests.
+- [x] Bridge protocol tests.
+- [x] Invalid-message tests.
+- [ ] Thread-safety tests. — audio-thread safety is by construction and review; no allocation/lock detector is wired up yet (Phase 10)
 
 ## Exit Criteria
 
-- Every initial parameter can be changed from native code and the UI.
-- Native state and UI state remain synchronized.
-- Host automation can change parameters without breaking synchronization.
-- The WebView never blocks the real-time audio path.
+- [x] Every initial parameter can be changed from native code and the UI. — UI path covered by `Tests/UI/ParameterBridgeTests.cpp`
+- [x] Native state and UI state remain synchronized. — externally originated changes propagate back to the UI
+- [x] Host automation can change parameters without breaking synchronization.
+- [x] The WebView never blocks the real-time audio path. — the audio thread only sets a lock-free flag
+
+> **Phase status:** complete. 735 assertions passing. The WebView editor renders
+> a placeholder page that drives the real bridge end to end; the React frontend
+> that replaces it is Phase 7. The editor has not yet been viewed running in a
+> host — see `PROJECT-STATE.md` §6.
 
 ---
 

@@ -9,7 +9,15 @@
 # JUCE support allow. No engine change is required, which is the point of
 # keeping the processor free of format-specific code (ARCHITECTURE.md §8).
 
+set(APOLLO_PLUGIN_WEBVIEW2 FALSE)
+if(APOLLO_ENABLE_WEBVIEW AND WIN32)
+    # Links the WebView2 loader statically; the SDK is fetched by
+    # CMake/ApolloWebView.cmake so this does not require a preinstalled package.
+    set(APOLLO_PLUGIN_WEBVIEW2 TRUE)
+endif()
+
 juce_add_plugin(Apollo
+    NEEDS_WEBVIEW2              ${APOLLO_PLUGIN_WEBVIEW2}
     VERSION                     "${PROJECT_VERSION}"
     COMPANY_NAME                "ProdByRnV"
     BUNDLE_ID                   "com.prodbyrnv.apollo"
@@ -35,6 +43,7 @@ target_sources(Apollo PRIVATE
 # module sources, which are held to JUCE's warning standard rather than
 # Apollo's. See Docs/CODING-STANDARDS.md §2.
 target_link_libraries(Apollo PRIVATE
+    apollo::editor
     apollo::engine
     apollo::project_options
     juce::juce_recommended_config_flags

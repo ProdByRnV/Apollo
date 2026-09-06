@@ -87,6 +87,7 @@ All options are ordinary CMake cache variables (`-DOPTION=ON`).
 | `APOLLO_ENABLE_ASAN` | `OFF` | AddressSanitizer. Supported on MSVC, Clang and GCC. |
 | `APOLLO_ENABLE_UBSAN` | `OFF` | UndefinedBehaviorSanitizer. Clang/GCC only; ignored with a warning on MSVC. |
 | `APOLLO_ENABLE_IPO` | `OFF` | Interprocedural optimisation for Release/RelWithDebInfo, where supported. |
+| `APOLLO_ENABLE_WEBVIEW` | `ON` | Build the WebView editor. With it off, the plugin falls back to a generic parameter editor and no WebView dependency is required. |
 | `APOLLO_JUCE_SOURCE_DIR` | *(empty)* | Use an existing JUCE checkout instead of fetching. |
 | `APOLLO_ALLOW_UNPINNED_JUCE` | `OFF` | Permit a JUCE checkout that does not match the pinned commit. |
 
@@ -100,6 +101,28 @@ ctest --test-dir build-asan --output-on-failure
 
 On MSVC the Debug run-time checks (`/RTC1`) and incremental linking are removed
 automatically when ASan is enabled, because they are mutually exclusive.
+
+### The WebView backend
+
+JUCE selects the WebView backend per platform. macOS uses WKWebView and Linux
+uses WebKitGTK, both from the system. **Windows needs the WebView2 SDK**, which
+Apollo fetches at a pinned version during configure — nothing has to be
+preinstalled (`CMake/ApolloWebView.cmake`, ADR-0015). The WebView2 *runtime*
+ships with Microsoft Edge and is already present on essentially every Windows
+10/11 machine.
+
+On Linux, `libwebkit2gtk-4.1-dev` is required; it is in the dependency list the
+CI workflow installs.
+
+To build without any WebView dependency at all:
+
+```sh
+cmake -S . -B build -DAPOLLO_ENABLE_WEBVIEW=OFF
+```
+
+The plugin then presents a generic parameter editor instead. The parameter,
+state and bridge-protocol layers are unaffected — they do not depend on the
+WebView (ADR-0011, ADR-0016).
 
 ### Offline / shared JUCE checkout
 

@@ -29,6 +29,7 @@ configure_file(
 add_library(apollo_core STATIC
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
+    Parameters/ParameterDefinitions.h
     "${CMAKE_CURRENT_BINARY_DIR}/generated/ApolloVersion.h")
 
 add_library(apollo::core ALIAS apollo_core)
@@ -61,7 +62,64 @@ add_library(apollo::engine ALIAS apollo_engine)
 
 target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.h")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/State/StateSerialization.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/State/StateSerialization.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.h")
+
+# ---------------------------------------------------------------------------
+# apollo_editor
+# ---------------------------------------------------------------------------
+#
+# The WebView editor is a separate INTERFACE library rather than part of
+# apollo_engine, for two reasons:
+#
+#   - Layering. The engine must not depend on the UI (ARCHITECTURE.md §5.2);
+#     making that a build-level fact rather than a convention means a stray
+#     include from DSP code fails to link.
+#   - The test runner is headless. It exercises the bridge through its protocol
+#     layer, which needs no browser, so pulling juce_gui_extra and the WebView2
+#     SDK into the test binary would add platform dependencies (and CI packages)
+#     that buy nothing.
+#
+# APOLLO_WITH_WEBVIEW is therefore a per-target definition, not an engine-wide
+# one: the plugin builds the WebView editor, the test runner builds the generic
+# fallback.
+
+add_library(apollo_editor INTERFACE)
+add_library(apollo::editor ALIAS apollo_editor)
+
+if(APOLLO_ENABLE_WEBVIEW)
+    target_sources(apollo_editor INTERFACE
+        "${CMAKE_CURRENT_SOURCE_DIR}/UI/ApolloWebViewEditor.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/UI/ApolloWebViewEditor.h")
+
+    target_link_libraries(apollo_editor INTERFACE
+        apollo::engine
+        juce::juce_gui_extra)
+
+    target_compile_definitions(apollo_editor INTERFACE
+        APOLLO_WITH_WEBVIEW=1
+        JUCE_WEB_BROWSER=1)
+
+    if(WIN32)
+        # Selects JUCE's WebView2 backend rather than the legacy IE control.
+        target_compile_definitions(apollo_editor INTERFACE JUCE_USE_WIN_WEBVIEW2=1)
+    endif()
+else()
+    # Without the WebView, the processor falls back to a generic parameter
+    # editor rather than to no editor at all, so the plugin stays usable on a
+    # configuration where the platform backend is unavailable (CLAUDE.md §33).
+    target_link_libraries(apollo_editor INTERFACE apollo::engine)
+    target_compile_definitions(apollo_editor INTERFACE
+        APOLLO_WITH_WEBVIEW=0
+        JUCE_WEB_BROWSER=0)
+endif()
 
 target_include_directories(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}")
