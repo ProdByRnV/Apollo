@@ -1,5 +1,11 @@
 #include "UI/ApolloWebViewEditor.h"
 
+// Named explicitly rather than relied on transitively. MSVC's headers pull most
+// of these in for free and libc++ often does too, which is exactly why a missing
+// include here compiles on Windows and macOS and fails only on libstdc++.
+#include <cstddef>
+#include <vector>
+
 namespace apollo::ui
 {
 

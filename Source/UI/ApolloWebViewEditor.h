@@ -26,6 +26,8 @@
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
+#include <optional>
+
 #include "Audio/ApolloAudioProcessor.h"
 #include "UI/ParameterBridge.h"
 

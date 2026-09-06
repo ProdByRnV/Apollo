@@ -76,6 +76,10 @@ jobs:
         with:
           extra-packages: clang
 
+      # The sanitizer job exists to run the test suite under ASan/UBSan. That
+      # suite is headless and builds with APOLLO_WITH_WEBVIEW=0, so building the
+      # WebView editor here would add a large third-party surface that nothing
+      # in the run actually exercises.
       - name: Configure
         env:
           CC: clang
@@ -84,10 +88,13 @@ jobs:
           cmake -S . -B build-san -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DAPOLLO_ENABLE_ASAN=ON \
-            -DAPOLLO_ENABLE_UBSAN=ON
+            -DAPOLLO_ENABLE_UBSAN=ON \
+            -DAPOLLO_ENABLE_WEBVIEW=OFF
 
+      # Only the test runner: the plugin's cross-platform build is already
+      # covered by the matrix above.
       - name: Build
-        run: cmake --build build-san
+        run: cmake --build build-san --target ApolloTests
 
       - name: Test
         env:

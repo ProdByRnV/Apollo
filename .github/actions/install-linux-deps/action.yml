@@ -18,7 +18,27 @@ runs:
     - name: Install packages
       shell: bash
       run: |
+        set -euo pipefail
+
         sudo apt-get update
+
+        # JUCE accepts either WebKitGTK generation:
+        #   JUCEUtils.cmake -> _juce_available_pkgconfig_module_or_else(
+        #                          webkit_package_name webkit2gtk-4.1 webkit2gtk-4.0)
+        # Ubuntu 24.04 ships 4.1, older images ship 4.0, and hard-coding either
+        # one makes the whole apt step fail on the image that lacks it. Pick
+        # whichever the runner actually offers.
+        if apt-cache show libwebkit2gtk-4.1-dev >/dev/null 2>&1; then
+          webkit_dev=libwebkit2gtk-4.1-dev
+        elif apt-cache show libwebkit2gtk-4.0-dev >/dev/null 2>&1; then
+          webkit_dev=libwebkit2gtk-4.0-dev
+        else
+          echo "::error::No WebKitGTK development package is available on this runner."
+          exit 1
+        fi
+
+        echo "Using WebKitGTK package: ${webkit_dev}"
+
         sudo apt-get install -y --no-install-recommends \
           libasound2-dev \
           libjack-jackd2-dev \
@@ -34,6 +54,21 @@ runs:
           libxrender-dev \
           libglu1-mesa-dev \
           mesa-common-dev \
-          libwebkit2gtk-4.1-dev \
+          libgtk-3-dev \
+          "${webkit_dev}" \
           ninja-build \
           ${{ inputs.extra-packages }}
+
+        # JUCE resolves its Linux browser dependencies through pkg-config:
+        #   _juce_create_pkgconfig_target(JUCE_BROWSER_LINUX_DEPS NOLINK
+        #                                 ${webkit_package_name} gtk+-x11-3.0)
+        # That call does NOT pass REQUIRED, so a missing module is not a
+        # configure error — it silently produces empty include paths and the
+        # build then dies much later on a missing gtk/gtk.h. Verifying here
+        # turns that into an immediate, legible failure.
+        echo "Verifying pkg-config modules JUCE requires..."
+        pkg-config --exists gtk+-x11-3.0 \
+          || { echo "::error::pkg-config module gtk+-x11-3.0 not found after install"; exit 1; }
+        pkg-config --exists webkit2gtk-4.1 || pkg-config --exists webkit2gtk-4.0 \
+          || { echo "::error::no webkit2gtk pkg-config module found after install"; exit 1; }
+        echo "pkg-config modules OK"
