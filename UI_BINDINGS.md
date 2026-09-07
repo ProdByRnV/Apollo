@@ -67,22 +67,39 @@ Every automatable parameter exposed through APVTS should have one stable identif
 
 Parameter IDs are part of Apollo's serialized-state and automation contract. Once released, an ID must not be silently repurposed.
 
-Initial registry:
+Registry as implemented. `Source/Parameters/ParameterDefinitions.h` is authoritative; this table mirrors it and must be updated in the same change (Docs/PARAMETER-CONVENTIONS.md §6).
 
-| Parameter ID | UI Element | Range / Type | Default | Description |
-|---|---|---|---:|---|
-| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | Wavetable selection for oscillator 1 |
-| `osc1_position` | Rotary Knob | Normalized `[0, 1]` | `0` | Wavetable scan position for oscillator 1 |
-| `osc1_unison` | Rotary Knob | Integer `[1, 16]` | `1` | Unison voice count |
-| `osc1_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | Unison detune/spread amount |
-| `filter_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | Filter cutoff frequency |
-| `filter_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | Filter resonance/Q |
-| `filter_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | Filter/pre-filter drive |
-| `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | Distortion dry/wet mix |
-| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | Delay time |
-| `master_gain` | Rotary Knob | `-60–6 dB` | `0` | Master output gain |
+Parameters are added by the phase that implements the DSP giving them meaning, so no ID ships before it does something. The phase column records when each arrived.
 
-The registry should eventually be generated from one authoritative native parameter definition system rather than duplicated manually.
+| Parameter ID | UI Element | Range / Type | Default | Phase | Description |
+|---|---|---|---:|---|---|
+| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 2 | Wavetable selection for oscillator 1 |
+| `osc1_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4a | Wavetable scan position for oscillator 1 |
+| `osc1_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 2 | Unison voice count |
+| `osc1_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | 2 | Unison detune amount (±50 cents at full) |
+| `osc1_spread` | Rotary Knob | Normalized `[0, 1]` | `0.5` | 4b | Unison stereo spread |
+| `osc1_level` | Rotary Knob | Normalized `[0, 1]` | `1` | 4b | Oscillator 1 output level |
+| `osc1_pan` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 4b | Oscillator 1 stereo balance |
+| `osc2_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 4b | Wavetable selection for oscillator 2 |
+| `osc2_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Wavetable scan position for oscillator 2 |
+| `osc2_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 4b | Unison voice count |
+| `osc2_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | 4b | Unison detune amount |
+| `osc2_spread` | Rotary Knob | Normalized `[0, 1]` | `0.5` | 4b | Unison stereo spread |
+| `osc2_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Oscillator 2 output level (silent by default) |
+| `osc2_pan` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 4b | Oscillator 2 stereo balance |
+| `osc2_semitones` | Rotary Knob | Integer `[-24, 24]` | `0` | 4b | Oscillator 2 coarse transposition |
+| `osc2_fine` | Rotary Knob | `-100–100 cents` | `0` | 4b | Oscillator 2 fine tuning |
+| `sub_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Sub oscillator level (silent by default) |
+| `sub_octave` | Selector / Dropdown | Integer `[-2, -1]` | `-1` | 4b | Sub oscillator octave below the note |
+| `noise_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Noise generator level (silent by default) |
+| `filter_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 2 | Filter cutoff frequency |
+| `filter_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 2 | Filter resonance/Q |
+| `filter_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Filter/pre-filter drive |
+| `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix |
+| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time |
+| `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
+
+The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.
 
 Each definition should specify:
 

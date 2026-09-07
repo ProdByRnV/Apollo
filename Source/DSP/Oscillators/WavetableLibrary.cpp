@@ -144,15 +144,16 @@ void renderFrame (float* destination,
 void buildMorphTable (Wavetable& table,
                       const HarmonicSeries& startShape,
                       const HarmonicSeries& endShape,
-                      const std::vector<double>& sineTable)
+                      const std::vector<double>& sineTable,
+                      int numFrames)
 {
-    table.setSize (WavetableLibrary::framesPerTable);
+    table.setSize (numFrames);
 
-    for (int frame = 0; frame < WavetableLibrary::framesPerTable; ++frame)
+    for (int frame = 0; frame < numFrames; ++frame)
     {
-        const auto amount = WavetableLibrary::framesPerTable > 1
+        const auto amount = numFrames > 1
                               ? static_cast<double> (frame)
-                                    / static_cast<double> (WavetableLibrary::framesPerTable - 1)
+                                    / static_cast<double> (numFrames - 1)
                               : 0.0;
 
         const auto series = blend (startShape, endShape, amount);
@@ -215,10 +216,19 @@ WavetableLibrary::WavetableLibrary()
 
     // Placeholder factory content: four morphs across the classic shapes, chosen
     // to give the scanning and spectral tests something well-defined to measure.
-    buildMorphTable (tables[0], sine, saw, sineTable);
-    buildMorphTable (tables[1], sine, square, sineTable);
-    buildMorphTable (tables[2], triangle, saw, sineTable);
-    buildMorphTable (tables[3], saw, square, sineTable);
+    buildMorphTable (tables[0], sine, saw, sineTable, framesPerTable);
+    buildMorphTable (tables[1], sine, square, sineTable, framesPerTable);
+    buildMorphTable (tables[2], triangle, saw, sineTable, framesPerTable);
+    buildMorphTable (tables[3], saw, square, sineTable, framesPerTable);
+
+    // The sub oscillator. One frame, one harmonic: there is nothing to scan
+    // and nothing that can alias at any pitch or octave transposition.
+    buildMorphTable (subTable, sine, sine, sineTable, subTableFrames);
+}
+
+const Wavetable& WavetableLibrary::getSubTable() const noexcept
+{
+    return subTable;
 }
 
 const Wavetable& WavetableLibrary::getTable (int index) const noexcept

@@ -362,3 +362,196 @@ step across a steal stays far below the amplitude of the signal being stolen.
 
 **Given up:** a stolen note begins about 2 ms late. Inaudible as timing, and the
 better trade against an audible click.
+
+---
+
+## ADR-0020 — Wavetables are band-limited by additive synthesis, into a mipmap
+
+**Phase 4a · Accepted**
+
+Each built-in waveform is defined as a harmonic series, and each mip level is
+rendered by summing only the harmonics that level is allowed to keep
+(`WavetableLibrary`). Level L keeps `1024 >> L` harmonics; the oscillator picks
+the most detailed level whose harmonics all stay below Nyquist for the note being
+played, once per note rather than per sample.
+
+The alternative — render the full-bandwidth shape once and low-pass it down for
+each level — needs a filter design, a transition band and a stopband figure, and
+leaves ringing near the cut. Additive synthesis is band-limited *by construction*:
+the harmonics above the limit were never generated rather than attenuated, so
+there is no filter to specify and nothing to get subtly wrong.
+
+Each level stores only the samples its bandwidth needs, so the whole mipmap costs
+about twice the top level rather than eleven times it.
+
+**Given up:** this only works for shapes with a closed-form harmonic series.
+Arbitrary user-supplied tables have to be analysed and filtered instead, which
+belongs with the resource loader in Phase 9. `Wavetable` stores finished mipmaps
+either way, so that path can be added without touching playback.
+
+---
+
+## ADR-0021 — Coarse mip levels keep a 512-sample floor and one shared normalisation
+
+**Phase 4a · Accepted**
+
+Two decisions inside the mipmap, both reversed from the obvious implementation
+after measurement.
+
+**A 512-sample floor per frame.** Twice the harmonic count is the
+information-theoretic minimum for *storage*, but a poor basis for
+*interpolation*: at 2H samples the highest harmonic gets two samples per cycle.
+That is harmless at the detailed levels, where the top harmonics are 60 dB down,
+and severe at the coarse levels used for high notes, where level 8 holds four
+harmonics and its highest is 12 dB down. Measured with a 16-sample floor, a
+3520 Hz saw aliased at -35 dBc against -101 dBc an octave below. Raising the
+floor to 512 took it to -98.5 dBc, for under a megabyte across all four tables.
+
+**One normalisation factor per frame, taken from the loudest level.** Removing
+harmonics does not simply lower a waveform's peak — a partial sum can peak
+*higher* than the complete one, because the harmonics that cancelled the
+fundamental's crest are the ones removed. Normalising against level 0 let the
+reduced levels reach 1.097, measured. Normalising each level independently would
+be worse still: it would boost the duller levels and make a note change loudness
+as it crossed an octave boundary.
+
+**Given up:** memory that strict bandwidth accounting says is unnecessary, and a
+small amount of headroom relative to per-level normalisation.
+
+---
+
+## ADR-0022 — Phase is wrapped into range before it is scaled to a table index
+
+**Phase 4a · Accepted**
+
+`Wavetable::getSample` wraps phase into `[0, 1)` with `std::floor` and rejects
+non-finite phase outright, *before* multiplying by the frame size and converting
+to an `int`. The oscillator likewise wraps with `floor` rather than a single
+subtraction.
+
+A single subtraction assumes the phase increment is below 1.0. That holds for any
+musical frequency but not for an absurd one, and mip selection clamps the *level*,
+not the increment: at 1 GHz the increment is over 20000, phase grows without
+bound, and converting the result to an `int` is undefined behaviour.
+
+This is recorded because of how it was found. MSVC did not trap it — it produced
+usable-looking garbage, and Windows, Linux/GCC and macOS all went green on broken
+code. UBSan on Linux/Clang reported it precisely: `2.15456e+09 is outside the
+range of representable values of type 'int'`. The sanitizer job is the only
+reason this was ever seen.
+
+**Given up:** a `floor` per cycle instead of a compare and a subtract. It is
+reached once per cycle rather than once per sample, so the cost is nothing.
+
+---
+
+## ADR-0023 — The unison layout is computed once per block by the engine
+
+**Phase 4b · Accepted**
+
+`UnisonLayout` holds the per-voice detune ratios, pan gains and start phases for
+a unison stack. The engine owns one per primary oscillator, rebuilds it only when
+the voice count, detune or spread actually moves, and hands voices a pointer.
+
+The layout depends only on those three values — never on pitch, note or voice —
+so it is identical for every sounding voice. Computing it per voice would mean up
+to 32 voices x 2 oscillators x 16 unison voices of `pow`, `sin` and `cos` per
+block; computing it once is a few dozen. It also puts the unison *design* — the
+detune distribution, the pan law, the gain normalisation — in one object that can
+be asserted on directly, rather than inferred from a render.
+
+Two consequences follow, and both are handled explicitly rather than left to
+convention. The layout mutates underneath the oscillators that point at it, so it
+carries a generation counter that an oscillator compares against its own cached
+value and re-derives its frequencies when it differs — nobody has to remember to
+notify anything. And because voices hold pointers into the engine, `VoiceEngine`
+is deliberately neither copyable nor movable: a copy would leave those pointers
+aimed at the original, which is a dangling read that would surface as
+intermittently wrong audio rather than as a crash.
+
+**Given up:** value semantics on the engine, and a test helper that returned one
+by value.
+
+---
+
+## ADR-0024 — Unison spread is anchored at unity in the centre; oscillator pan is a balance
+
+**Phase 4b · Accepted**
+
+Two stereo stages, with two different laws.
+
+**Inside the unison stack**, voices are panned by a constant-power law scaled so
+that a *centred* voice is unity on both channels, rather than the usual -3 dB.
+The anchor matters: Apollo's default patch is a single centred unison voice, and
+the engine's gain staging was measured for exactly that configuration
+(ADR-0017). The conventional law, anchored at the extremes, would have made every
+default patch 3 dB quieter than the measurement it is checked against — and the
+Phase 4b test suite asserts sample-exact equality with a plain oscillator, which
+that law would fail. Measured after the change: a single default note peaks at
+0.0800, the same value as before the source section existed.
+
+**On the oscillator output**, pan is a *balance*: it attenuates the far channel
+and leaves the near one alone. By that point the signal is already stereo, built
+by the spread, so a second pan would narrow the image the first one created. The
+balance law also has the property that no channel gain ever exceeds unity, so no
+pan setting can push a voice above the level the gain staging assumes.
+
+**Given up:** a hard-spread unison voice reaches 1.414 on one channel, and a
+hard-balanced oscillator is 3 dB quieter summed to mono than a centred one. Both
+are the expected behaviour of their respective laws.
+
+---
+
+## ADR-0025 — The headroom guarantee covers the default patch, not every patch
+
+**Phase 4b · Accepted · Extends ADR-0017**
+
+ADR-0017 fixed `VoiceEngine::outputGain` at 0.08 from measurement, and the suite
+asserts that maximum polyphony at full velocity stays inside full scale. Phase
+4b adds three more sources and 16-voice unison on two oscillators, so the scope
+of that guarantee now has to be stated rather than assumed.
+
+It covers the **default patch**: oscillator 1 alone, one unison voice, centred.
+Under that patch no voicing, velocity or polyphony reaches full scale, and that
+remains asserted.
+
+It does not cover every reachable combination. Four sources at full level with
+16-voice unison on both oscillators, at maximum polyphony, peaks at **7.63** —
+about 18 dB over full scale. Pricing that in would mean an `outputGain` near
+0.010 and a single default note at roughly -40 dBFS: an instrument nobody could
+use, defending against a patch nobody would build by accident. Stacked
+configurations are instead guaranteed only to stay finite and bounded, which is
+asserted separately.
+
+The measurement itself repeats a lesson from ADR-0017: which *voicing* is worst
+is not obvious. A single arbitrary voicing measured 1.8 and would have made the
+overshoot look like 6 dB; fifths are harmonically locked and reinforce, and only
+trying several found them.
+
+**Given up:** a universal no-clip claim. The master gain is the user's control,
+and metering arrives with the output stage in Phase 8.
+
+---
+
+## ADR-0026 — A voice's source section is configured by one struct, not by setters
+
+**Phase 4b · Accepted**
+
+`Voice::setSources` takes a `VoiceSourceSettings` and compares it wholesale
+against what the voice already holds, discarding the call if nothing moved. The
+engine resolves parameters into that struct once per block.
+
+Phase 4b took a voice from one oscillator to four sources with fifteen parameters
+between them. A setter each would have meant fifteen calls per voice in the audio
+callback and would have grown with every future source — the shape of change that
+ends with a parameter silently not reaching the engine because one call was
+forgotten. A single struct compared as a whole cannot develop that gap.
+
+It also draws the layer boundary cleanly. The struct holds *resolved* resources —
+a wavetable pointer, a unison layout, a tuning in semitones — while the engine's
+`SourceParameters` holds what the host and UI express: a table index, a unison
+count, a detune amount. Voices therefore never look up a table by index, never
+see a normalised parameter, and never need to know a `WavetableLibrary` exists.
+
+**Given up:** two structures that describe the same section, and the discipline
+of keeping them in step.

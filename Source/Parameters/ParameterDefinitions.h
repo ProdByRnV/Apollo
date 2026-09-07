@@ -47,7 +47,10 @@ enum class ParameterUnit
     milliseconds,
     decibels,
     normalised, ///< A unitless 0-1 quantity, usually presented as a percentage.
-    voices
+    voices,
+    semitones,
+    cents,
+    octaves
 };
 
 /** A single parameter's complete contract.
@@ -102,13 +105,15 @@ struct ParameterDefinition
     bool smoothed = false;
 };
 
-/** The initial registry.
+/** The registry.
 
-    Mirrors the parameters documented in UI_BINDINGS.md §3. The remaining
-    oscillator, envelope, LFO and effect parameters are added by the phases that
-    implement them, so no ID ships before the DSP that gives it meaning.
+    Grew from the ten parameters documented in UI_BINDINGS.md §3 as the phases
+    that implement them landed: `osc1_position` in Phase 4a with the wavetable
+    engine, and the source section in Phase 4b. The remaining envelope, LFO and
+    effect parameters are added by their own phases, so no ID ships before the
+    DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 10> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 25> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -136,6 +141,118 @@ inline constexpr std::array<ParameterDefinition, 10> parameterDefinitions { {
     { "osc1_detune", "Osc 1 Detune",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.2f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Added in Phase 4b with the unison stack and the source mixer. Detune
+    // without a stereo spread is a mono chorus, and an oscillator without a
+    // level and a balance cannot be mixed against oscillator 2, the sub or the
+    // noise — so these three arrive with the DSP that gives them meaning
+    // (Docs/PARAMETER-CONVENTIONS.md §6).
+    { "osc1_spread", "Osc 1 Spread",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "osc1_level", "Osc 1 Level",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Bipolar, so the default sits at the exact centre of the control's travel
+    // rather than at one end of a 0-1 range that has to be re-centred for
+    // display.
+    { "osc1_pan", "Osc 1 Pan",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Oscillator 2 -----------------------------------------------------------
+    // Structurally identical to oscillator 1 apart from its tuning controls and
+    // its default level. It is silent by default: adding a second oscillator
+    // must not change how an existing patch sounds, and layering is a decision
+    // the user makes rather than one Apollo makes for them.
+    { "osc2_wavetable", "Osc 2 Wavetable",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 3.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc2_position", "Osc 2 Position",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "osc2_unison", "Osc 2 Unison",
+      ParameterType::integer, ParameterUnit::voices,
+      1.0f, 16.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc2_detune", "Osc 2 Detune",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.2f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "osc2_spread", "Osc 2 Spread",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "osc2_level", "Osc 2 Level",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "osc2_pan", "Osc 2 Pan",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Two octaves either way covers the intervals a second oscillator is
+    // actually used for — octaves, fifths, and the occasional detuned third —
+    // without offering transpositions that would put the oscillator outside the
+    // range its wavetable mipmap is built for.
+    { "osc2_semitones", "Osc 2 Semitones",
+      ParameterType::integer, ParameterUnit::semitones,
+      -24.0f, 24.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Separate from the semitone control rather than folded into one continuous
+    // range: a coarse control that snaps to intervals and a fine control that
+    // does not are two different gestures, and merging them makes both worse.
+    { "osc2_fine", "Osc 2 Fine",
+      ParameterType::floatingPoint, ParameterUnit::cents,
+      -100.0f, 100.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Sub oscillator ---------------------------------------------------------
+    { "sub_level", "Sub Level",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "sub_octave", "Sub Octave",
+      ParameterType::integer, ParameterUnit::octaves,
+      -2.0f, -1.0f, -1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Noise ------------------------------------------------------------------
+    { "noise_level", "Noise Level",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
 
@@ -220,6 +337,9 @@ inline constexpr std::array<ParameterDefinition, 10> parameterDefinitions { {
         case ParameterUnit::decibels:     return "dB";
         case ParameterUnit::normalised:   return "%";
         case ParameterUnit::voices:       return "voices";
+        case ParameterUnit::semitones:    return "st";
+        case ParameterUnit::cents:        return "cents";
+        case ParameterUnit::octaves:      return "oct";
     }
 
     return "";

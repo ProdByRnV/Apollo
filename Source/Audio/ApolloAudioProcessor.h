@@ -152,8 +152,8 @@ private:
     */
     void handleMidiMessage (const juce::MidiMessage& message) noexcept;
 
-    /** Pushes the oscillator parameters into the engine. Audio thread. */
-    void applyOscillatorParameters() noexcept;
+    /** Pushes the source-section parameters into the engine. Audio thread. */
+    void applySourceParameters() noexcept;
 
     /** @returns the master gain as a linear multiplier. */
     [[nodiscard]] float readMasterGainLinear() const noexcept;
@@ -188,9 +188,40 @@ private:
     */
     std::atomic<float>* masterGainParameter = nullptr;
 
-    /** Oscillator parameters, resolved once for the same reason. */
-    std::atomic<float>* wavetableParameter = nullptr;
-    std::atomic<float>* positionParameter = nullptr;
+    /** One primary oscillator's raw parameter values.
+
+        Grouped rather than declared as sixteen separate members so that the two
+        oscillators are resolved and read by the same code, and a control added
+        to one cannot quietly be forgotten on the other.
+    */
+    struct OscillatorParameterPointers
+    {
+        std::atomic<float>* wavetable = nullptr;
+        std::atomic<float>* position = nullptr;
+        std::atomic<float>* unison = nullptr;
+        std::atomic<float>* detune = nullptr;
+        std::atomic<float>* spread = nullptr;
+        std::atomic<float>* level = nullptr;
+        std::atomic<float>* pan = nullptr;
+
+        /** Null for oscillator 1, which tracks the played note exactly. */
+        std::atomic<float>* semitones = nullptr;
+        std::atomic<float>* fine = nullptr;
+
+        /** Resolves every pointer for the oscillator with this ID prefix.
+
+            @param prefix  "osc1_" or "osc2_".
+        */
+        void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
+    };
+
+    /** Source-section parameters, resolved once for the same reason. */
+    OscillatorParameterPointers osc1Parameters;
+    OscillatorParameterPointers osc2Parameters;
+
+    std::atomic<float>* subLevelParameter = nullptr;
+    std::atomic<float>* subOctaveParameter = nullptr;
+    std::atomic<float>* noiseLevelParameter = nullptr;
 
     /** Master gain is declared `smoothed` in the registry, and a jump in gain is
         a click. Multiplicative smoothing ramps evenly in dB, which is how gain

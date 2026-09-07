@@ -147,12 +147,16 @@ public:
     }
 
 private:
-    static VoiceEngine makePreparedEngine (int polyphony = VoiceEngine::defaultPolyphony)
+    /** Prepares an engine in place.
+
+        By reference rather than by value because VoiceEngine is deliberately
+        neither copyable nor movable: its voices hold pointers to unison layouts
+        that live inside it.
+    */
+    static void prepareEngine (VoiceEngine& engine, int polyphony = VoiceEngine::defaultPolyphony)
     {
-        VoiceEngine engine;
         engine.prepare (testSampleRate);
         engine.setPolyphony (polyphony);
-        return engine;
     }
 
     static void render (VoiceEngine& engine, RenderBuffer& buffer)
@@ -164,7 +168,8 @@ private:
     {
         beginTest ("A prepared engine is silent and has no active voices");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
         RenderBuffer buffer (2, 512);
         render (engine, buffer);
 
@@ -176,7 +181,8 @@ private:
     {
         beginTest ("A note produces audio");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
         engine.noteOn (69, 1.0f);
 
         expectEquals (engine.getActiveVoiceCount(), 1);
@@ -210,7 +216,8 @@ private:
 
         for (const auto& testCase : cases)
         {
-            auto engine = makePreparedEngine();
+            VoiceEngine engine;
+            prepareEngine (engine);
             engine.noteOn (testCase.note, 1.0f);
 
             RenderBuffer buffer (1, static_cast<int> (testSampleRate / 2));
@@ -233,7 +240,8 @@ private:
 
         const auto peakForVelocity = [this] (float velocity)
         {
-            auto engine = makePreparedEngine();
+            VoiceEngine engine;
+            prepareEngine (engine);
             engine.noteOn (69, velocity);
 
             RenderBuffer buffer (1, 4800);
@@ -249,7 +257,8 @@ private:
                                    "velocity should scale amplitude proportionally");
 
         // Velocity zero is a note-off by convention, not a silent note-on.
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
         engine.noteOn (69, 0.0f);
         expectEquals (engine.getActiveVoiceCount(), 0,
                       "note-on with zero velocity must not start a voice");
@@ -259,7 +268,8 @@ private:
     {
         beginTest ("Note-off releases the voice to silence");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
         engine.noteOn (69, 1.0f);
 
         RenderBuffer sounding (1, 2400);
@@ -289,7 +299,8 @@ private:
     {
         beginTest ("Multiple notes sound simultaneously");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
 
         for (const int note : { 60, 64, 67, 72 })
             engine.noteOn (note, 0.8f);
@@ -299,7 +310,8 @@ private:
         RenderBuffer chord (1, 4800);
         render (engine, chord);
 
-        auto single = makePreparedEngine();
+        VoiceEngine single;
+        prepareEngine (single);
         single.noteOn (60, 0.8f);
 
         RenderBuffer one (1, 4800);
@@ -314,7 +326,9 @@ private:
     {
         beginTest ("Allocation uses free voices before stealing");
 
-        auto engine = makePreparedEngine (4);
+        VoiceEngine engine;
+
+        prepareEngine (engine, 4);
 
         for (int i = 0; i < 4; ++i)
         {
@@ -332,7 +346,8 @@ private:
     {
         beginTest ("Polyphony is configurable and clamped to a valid range");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
 
         engine.setPolyphony (8);
         expectEquals (engine.getPolyphony(), 8);
@@ -402,7 +417,9 @@ private:
     {
         beginTest ("Stealing takes a releasing voice before a held one");
 
-        auto engine = makePreparedEngine (2);
+        VoiceEngine engine;
+
+        prepareEngine (engine, 2);
 
         engine.noteOn (60, 1.0f);  // oldest, will be released
         engine.noteOn (62, 1.0f);  // still held
@@ -423,7 +440,9 @@ private:
     {
         beginTest ("Stealing a sounding voice does not produce a step");
 
-        auto engine = makePreparedEngine (1);
+        VoiceEngine engine;
+
+        prepareEngine (engine, 1);
         engine.noteOn (69, 1.0f);
 
         // Let the note reach full amplitude, so stealing it is the worst case.
@@ -450,7 +469,8 @@ private:
     {
         beginTest ("The sustain pedal holds notes past note-off");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
 
         engine.setSustainPedal (true);
         engine.noteOn (60, 1.0f);
@@ -524,7 +544,9 @@ private:
     {
         beginTest ("A reused voice starts from a clean state");
 
-        auto engine = makePreparedEngine (1);
+        VoiceEngine engine;
+
+        prepareEngine (engine, 1);
 
         engine.noteOn (60, 1.0f);
         engine.noteOff (60);
@@ -539,7 +561,9 @@ private:
         RenderBuffer reused (1, 4800);
         render (engine, reused);
 
-        auto fresh = makePreparedEngine (1);
+        VoiceEngine fresh;
+
+        prepareEngine (fresh, 1);
         fresh.noteOn (69, 1.0f);
         RenderBuffer first (1, 4800);
         render (fresh, first);
@@ -552,7 +576,8 @@ private:
     {
         beginTest ("All-notes-off releases and reset silences immediately");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
 
         for (const int note : { 60, 62, 64, 65, 67 })
             engine.noteOn (note, 1.0f);
@@ -585,7 +610,8 @@ private:
     {
         beginTest ("Extreme input stays finite");
 
-        auto engine = makePreparedEngine();
+        VoiceEngine engine;
+        prepareEngine (engine);
 
         // Range boundaries and out-of-range notes.
         for (const int note : { -1, 0, 1, 126, 127, 128, 1000 })
@@ -638,7 +664,8 @@ private:
 
         for (const auto& voicing : voicings)
         {
-            auto engine = makePreparedEngine();
+            VoiceEngine engine;
+            prepareEngine (engine);
 
             for (int i = 0; i < VoiceEngine::maxPolyphony; ++i)
                 engine.noteOn (juce::jlimit (0, 127, voicing.firstNote + i * voicing.step), 1.0f);

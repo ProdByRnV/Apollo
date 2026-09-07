@@ -37,8 +37,38 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
-    wavetableParameter = apvts.getRawParameterValue ("osc1_wavetable");
-    positionParameter = apvts.getRawParameterValue ("osc1_position");
+
+    osc1Parameters.resolve (apvts, "osc1_");
+    osc2Parameters.resolve (apvts, "osc2_");
+
+    subLevelParameter = apvts.getRawParameterValue ("sub_level");
+    subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
+    noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
+}
+
+void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state, juce::StringRef prefix)
+{
+    const juce::String base (prefix);
+
+    wavetable = state.getRawParameterValue (base + "wavetable");
+    position = state.getRawParameterValue (base + "position");
+    unison = state.getRawParameterValue (base + "unison");
+    detune = state.getRawParameterValue (base + "detune");
+    spread = state.getRawParameterValue (base + "spread");
+    level = state.getRawParameterValue (base + "level");
+    pan = state.getRawParameterValue (base + "pan");
+
+    // Absent for oscillator 1, which has no tuning controls of its own: it
+    // plays the note it was given. getRawParameterValue returns null for an
+    // unregistered ID, which is exactly the wanted result, but relying on that
+    // silently would also swallow a genuine typo — so the two that are expected
+    // to be absent are the only two not asserted.
+    semitones = state.getRawParameterValue (base + "semitones");
+    fine = state.getRawParameterValue (base + "fine");
+
+    jassert (wavetable != nullptr && position != nullptr && unison != nullptr
+             && detune != nullptr && spread != nullptr && level != nullptr && pan != nullptr);
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -87,13 +117,57 @@ float ApolloAudioProcessor::readMasterGainLinear() const noexcept
     return juce::Decibels::decibelsToGain (masterGainParameter->load (std::memory_order_relaxed));
 }
 
-void ApolloAudioProcessor::applyOscillatorParameters() noexcept
+namespace
 {
-    if (wavetableParameter != nullptr)
-        voiceEngine.setWavetableIndex (static_cast<int> (wavetableParameter->load (std::memory_order_relaxed)));
 
-    if (positionParameter != nullptr)
-        voiceEngine.setWavetablePosition (positionParameter->load (std::memory_order_relaxed));
+/** @returns a raw parameter value, or @p fallback if the pointer is null.
+
+    A null pointer means the ID was not registered. That is a programming error
+    rather than a runtime condition, and it is asserted at construction — but
+    the audio thread still reads defensively, because a dereference here would
+    be a crash in the host's callback rather than a wrong sound.
+*/
+[[nodiscard]] float readParameter (const std::atomic<float>* parameter, float fallback) noexcept
+{
+    return parameter != nullptr ? parameter->load (std::memory_order_relaxed) : fallback;
+}
+
+} // namespace
+
+void ApolloAudioProcessor::applySourceParameters() noexcept
+{
+    const auto readOscillator = [] (const OscillatorParameterPointers& pointers,
+                                    float defaultLevel) noexcept
+    {
+        engine::OscillatorParameters result;
+
+        result.wavetableIndex = static_cast<int> (readParameter (pointers.wavetable, 0.0f));
+        result.position = readParameter (pointers.position, 0.0f);
+        result.unisonVoices = static_cast<int> (readParameter (pointers.unison, 1.0f));
+        result.detune = readParameter (pointers.detune, 0.0f);
+        result.spread = readParameter (pointers.spread, 0.0f);
+        result.level = readParameter (pointers.level, defaultLevel);
+        result.pan = readParameter (pointers.pan, 0.0f);
+
+        // Coarse and fine tuning are one quantity to the engine. Combining them
+        // here rather than in the voice keeps the DSP unaware that the user
+        // interface splits them into two controls.
+        result.tuneSemitones = readParameter (pointers.semitones, 0.0f)
+                             + readParameter (pointers.fine, 0.0f) / 100.0f;
+
+        return result;
+    };
+
+    engine::SourceParameters parameters;
+
+    parameters.osc1 = readOscillator (osc1Parameters, 1.0f);
+    parameters.osc2 = readOscillator (osc2Parameters, 0.0f);
+
+    parameters.subLevel = readParameter (subLevelParameter, 0.0f);
+    parameters.subOctave = static_cast<int> (readParameter (subOctaveParameter, -1.0f));
+    parameters.noiseLevel = readParameter (noiseLevelParameter, 0.0f);
+
+    voiceEngine.setSourceParameters (parameters);
 }
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
@@ -185,12 +259,13 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // one buffer, and quantising them to block boundaries would smear timing by
     // up to a full block — audible as loose timing at large buffer sizes, and
     // wrong in offline renders where it is trivially measurable.
-    // Oscillator parameters are applied once per block rather than per sample.
-    // Selecting a table is a discrete switch, and the scan position is smoothed
-    // inside the engine's own frame blending; per-block granularity is well
-    // inside what a listener can resolve and keeps the render loop free of
-    // parameter reads.
-    applyOscillatorParameters();
+    // Source parameters are applied once per block rather than per sample.
+    // Selecting a table is a discrete switch, and detune, spread and scan
+    // position are slow gestures whose per-block granularity is well inside what
+    // a listener can resolve. The two that would step audibly — source level and
+    // balance — are smoothed per sample inside the voice, so nothing here has to
+    // be read in the render loop.
+    applySourceParameters();
 
     int position = 0;
 

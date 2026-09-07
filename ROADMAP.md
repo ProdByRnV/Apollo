@@ -259,28 +259,28 @@ Implement Apollo's primary synthesis engine with high-quality, anti-aliased wave
 
 ### Oscillators
 
-- [ ] Implement oscillator 1.
-- [ ] Implement oscillator 2.
-- [ ] Implement continuous phase accumulation.
-- [ ] Implement phase wrapping.
-- [ ] Implement frequency/tuning control.
-- [ ] Implement wavetable selection.
-- [ ] Implement wavetable-position/frame scanning.
-- [ ] Implement high-quality interpolation.
-- [ ] Implement oscillator level/pan controls.
-- [ ] Implement unison.
-- [ ] Implement detune/spread.
-- [ ] Implement sub oscillator.
-- [ ] Implement stereo noise generator.
+- [x] Implement oscillator 1. — `UnisonOscillator` over the mipmap wavetable (4a, 4b)
+- [x] Implement oscillator 2. — structurally identical, with its own coarse and fine tuning; silent by default (4b)
+- [x] Implement continuous phase accumulation. (4a)
+- [x] Implement phase wrapping. — wrapped before scaling to an index, see ADR-0022 (4a)
+- [x] Implement frequency/tuning control. — note tracking, pitch bend, and coarse/fine on oscillator 2 (4a, 4b)
+- [x] Implement wavetable selection. — four built-in morph tables (4a)
+- [x] Implement wavetable-position/frame scanning. (4a)
+- [x] Implement high-quality interpolation. — 4-point cubic Hermite with wrapped neighbours (4a)
+- [x] Implement oscillator level/pan controls. — level and stereo balance, smoothed per sample (4b)
+- [x] Implement unison. — up to 16 voices per oscillator, from a layout shared by the whole engine (4b)
+- [x] Implement detune/spread. — symmetric in cents, constant-power stereo spread, ADR-0024 (4b)
+- [x] Implement sub oscillator. — sine, one or two octaves below the note (4b)
+- [x] Implement stereo noise generator. — decorrelated channels, one seed per voice (4b)
 
 ### Anti-aliasing
 
-- [ ] Establish wavetable band-limiting strategy.
-- [ ] Test oscillator output spectrally across the frequency range.
-- [ ] Measure aliasing at different pitches.
-- [ ] Test high-frequency table scanning.
-- [ ] Validate interpolation artifacts.
-- [ ] Document acceptable aliasing thresholds.
+- [x] Establish wavetable band-limiting strategy. — additive mipmap synthesis, ADR-0020 (4a)
+- [x] Test oscillator output spectrally across the frequency range. (4a)
+- [x] Measure aliasing at different pitches. — worst measured -98.5 dBc (4a)
+- [x] Test high-frequency table scanning. (4a)
+- [x] Validate interpolation artifacts. (4a)
+- [x] Document acceptable aliasing thresholds. — -60 dBc, stated and enforced in `Tests/DSP/WavetableTests.cpp` (4a)
 
 ### Nonlinear preparation
 
@@ -290,11 +290,15 @@ Implement Apollo's primary synthesis engine with high-quality, anti-aliased wave
 
 ## Exit Criteria
 
-- Oscillators track pitch accurately.
-- Wavetable scanning is smooth.
-- Unison remains stable at high voice counts.
-- Spectral testing demonstrates acceptable anti-aliasing performance.
-- CPU cost is measured across representative polyphony levels.
+- [x] Oscillators track pitch accurately. — verified against reference notes, oscillator 2 transpositions and both sub octaves, to within a sixth of a semitone
+- [x] Wavetable scanning is smooth. — a full position sweep produces no discontinuity, and aliasing stays inside budget at every scan position
+- [x] Unison remains stable at high voice counts. — 32 voices with 16-voice unison on both oscillators and every source sounding stays finite and bounded
+- [x] Spectral testing demonstrates acceptable anti-aliasing performance. — worst measured -98.5 dBc against a -60 dBc budget
+- [ ] CPU cost is measured across representative polyphony levels. — **open**, Phase 4c
+
+> **Phase status:** oscillators and the source section are complete (4a, 4b);
+> 206757 assertions passing. Outstanding: the oversampling infrastructure and
+> the CPU measurement, which are the whole of Phase 4c.
 
 ---
 

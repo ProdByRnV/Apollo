@@ -49,6 +49,21 @@ public:
     */
     static constexpr int framesPerTable = 16;
 
+    /** Frames in the sub-oscillator table.
+
+        One. The sub is a pure sine, so there is no second shape to scan
+        towards, and a single-harmonic table is correct at every pitch without
+        needing its mipmap consulted for anything but interpolation quality.
+
+        A sine sub is a deliberate minimum, not an oversight: it adds weight at
+        the fundamental without competing spectrally with the primary
+        oscillators, and it cannot alias at any note or octave transposition.
+        Offering square or triangle subs later is purely additive — a wider
+        table and one new parameter ID — and is not invented here before
+        anything asks for it.
+    */
+    static constexpr int subTableFrames = 1;
+
     /** Builds every table. Allocates; never call from the audio thread. */
     WavetableLibrary();
 
@@ -59,8 +74,17 @@ public:
     */
     [[nodiscard]] const Wavetable& getTable (int index) const noexcept;
 
+    /** @returns the sub oscillator's table.
+
+        Separate from the indexed set on purpose: `numTables` is the range of
+        the `oscN_wavetable` parameter, and the sub must not appear as a
+        selectable primary waveform.
+    */
+    [[nodiscard]] const Wavetable& getSubTable() const noexcept;
+
 private:
     std::array<Wavetable, static_cast<std::size_t> (numTables)> tables;
+    Wavetable subTable;
 };
 
 } // namespace apollo::dsp

@@ -5,8 +5,8 @@
 
     Owns the voice pool, decides which voice plays which note, and sums the
     result. Like Voice, it is free of JUCE and of any plugin concept: the
-    processor translates MIDI into the calls below, and this class never sees a
-    juce::MidiBuffer, a parameter, or a host.
+    processor translates MIDI and parameters into the calls below, and this
+    class never sees a juce::MidiBuffer, an APVTS, or a host.
 
     OWNERSHIP MODEL. The processor owns exactly one VoiceEngine. The engine owns
     every Voice by value, in a fixed-size array sized at compile time. Nothing
@@ -14,11 +14,21 @@
     audio is running — `setPolyphony` only changes how many of the existing
     voices are eligible for allocation (CLAUDE.md §9.1, ARCHITECTURE.md §3.1).
 
+    The engine is also where parameters become resources. It holds the wavetable
+    library and the unison layouts, resolves a table index into a pointer and a
+    unison configuration into a layout exactly once per block, and hands voices
+    only the resolved form (see SourceSettings.h). Deriving a unison layout is
+    the same work for every voice, so doing it here rather than per voice is the
+    difference between a few dozen transcendental calls per block and a few
+    thousand.
+
     REAL-TIME CONTRACT: every function except `prepare` is callable from the
     audio thread and none of them allocate, lock, log or perform I/O.
 */
 
 #include "DSP/Oscillators/WavetableLibrary.h"
+#include "DSP/Unison/UnisonLayout.h"
+#include "Engine/SourceSettings.h"
 #include "Engine/Voice.h"
 
 #include <array>
@@ -26,6 +36,63 @@
 
 namespace apollo::engine
 {
+
+/** One primary oscillator's parameters, as the host and UI express them.
+
+    Distinct from OscillatorSourceSettings, which is the *resolved* form the
+    voices consume: this holds a table index rather than a pointer and a unison
+    configuration rather than a layout. Keeping the two apart is what stops a
+    voice from ever needing to know that a wavetable library exists.
+*/
+struct OscillatorParameters
+{
+    int wavetableIndex = 0;
+
+    /** Scan position across the table, normalised to [0, 1]. */
+    float position = 0.0f;
+
+    /** Unison voices, clamped to [1, UnisonLayout::maxVoices]. */
+    int unisonVoices = 1;
+
+    /** Unison detune, normalised to [0, 1]. */
+    float detune = 0.0f;
+
+    /** Unison stereo spread, normalised to [0, 1]. */
+    float spread = 0.0f;
+
+    /** Output level, [0, 1]. Exactly zero skips the oscillator. */
+    float level = 0.0f;
+
+    /** Stereo balance: -1 hard left, 0 centre, +1 hard right. */
+    float pan = 0.0f;
+
+    /** Transposition from the played note, in semitones. Fractional values
+        express a fine-tune control.
+    */
+    float tuneSemitones = 0.0f;
+
+    [[nodiscard]] bool operator== (const OscillatorParameters&) const = default;
+};
+
+/** The complete source section, as parameters.
+
+    The defaults are Apollo's default patch: oscillator 1 alone, centred, no
+    unison, with the other three sources silent. That is deliberate and load
+    bearing — it is the configuration the engine's headroom guarantee is stated
+    for (see `outputGain`).
+*/
+struct SourceParameters
+{
+    OscillatorParameters osc1 { .unisonVoices = 1, .detune = 0.2f, .spread = 0.5f, .level = 1.0f };
+    OscillatorParameters osc2 { .unisonVoices = 1, .detune = 0.2f, .spread = 0.5f, .level = 0.0f };
+
+    float subLevel = 0.0f;
+    int subOctave = -1;
+
+    float noiseLevel = 0.0f;
+
+    [[nodiscard]] bool operator== (const SourceParameters&) const = default;
+};
 
 class VoiceEngine
 {
@@ -42,10 +109,11 @@ public:
 
     /** Output gain applied to the summed voices.
 
-        This is the engine's whole gain-staging rule: voices carry velocity only,
-        the sum is scaled once here, and master gain is applied downstream by the
-        processor. No stage silently makes up gain for another, and nothing
-        limits or clips to hide a mistake (ARCHITECTURE.md §3.4).
+        This is the engine's whole gain-staging rule: voices carry velocity and
+        their own source levels, the sum is scaled once here, and master gain is
+        applied downstream by the processor. No stage silently makes up gain for
+        another, and nothing limits or clips to hide a mistake
+        (ARCHITECTURE.md §3.4).
 
         The value is measured, not derived. The textbook 1/sqrt(N) assumes
         uncorrelated voices, and Apollo's voices are not: 32 notes an octave
@@ -58,15 +126,45 @@ public:
         1/12.5 covers the worst of those with ~9% margin, and the test suite
         renders all of them and asserts the result stays inside full scale.
 
+        WHAT THE GUARANTEE COVERS. It is stated for the *default patch*:
+        oscillator 1 alone, one unison voice, centred. Under that patch no
+        voicing, velocity or polyphony can drive the output past full scale, and
+        that is asserted. A single default note peaks at 0.080, measured.
+
+        It is deliberately not claimed for every reachable parameter
+        combination. Four sources at full level with 16-voice unison on both
+        oscillators peaks at 7.63 across the same voicings — about 18 dB over
+        full scale — and pricing that in would put a single default note near
+        -40 dBFS: an instrument nobody could use, defending against a patch
+        nobody would build by accident. Stacked sources are instead guaranteed
+        only to stay *finite* and bounded, which is also asserted; the master
+        gain is the user's control, and metering arrives with the output stage
+        in Phase 8.
+
         The consequence is a deliberately conservative level: one note peaks
         around -22 dBFS. That is the right trade while the instrument has no
         output stage — headroom is recoverable with master gain, clipping is
-        not. Revisit when the oscillator (Phase 4) and effects (Phase 8) make
-        the real signal chain measurable.
+        not.
     */
     static constexpr float outputGain = 0.08f;
 
-    VoiceEngine() = default;
+    VoiceEngine();
+
+    /** Not copyable or movable.
+
+        Every voice holds a pointer to a unison layout that lives inside this
+        object. A copy or a move would leave those pointers aimed at the
+        original, which becomes a dangling read the moment the source goes out of
+        scope — and one that would surface as intermittently wrong audio rather
+        than as a crash. Deleting these turns that mistake into a compile error.
+
+        Copying would also duplicate several megabytes of wavetables, which no
+        caller has ever wanted.
+    */
+    VoiceEngine (const VoiceEngine&) = delete;
+    VoiceEngine& operator= (const VoiceEngine&) = delete;
+    VoiceEngine (VoiceEngine&&) = delete;
+    VoiceEngine& operator= (VoiceEngine&&) = delete;
 
     /** Prepares every voice for a sample rate.
 
@@ -99,22 +197,43 @@ public:
     /** Pitch bend for every sounding and future voice, in semitones. */
     void setPitchBendSemitones (float semitones) noexcept;
 
-    /** Selects the wavetable, by index into the built-in library.
+    //==============================================================================
+    // Source configuration.
 
-        Applied to sounding voices as well as future ones, so changing the table
+    /** Replaces the whole source section.
+
+        Applied to sounding voices as well as future ones, so a parameter change
         while notes are held takes effect immediately rather than on the next
-        note. An out-of-range index is clamped, never silencing the instrument.
+        note. Cheap enough to call every block: unison layouts are rebuilt only
+        when their inputs move, and each voice discards settings identical to
+        the ones it already holds.
+    */
+    void setSourceParameters (const SourceParameters& newParameters) noexcept;
+
+    [[nodiscard]] const SourceParameters& getSourceParameters() const noexcept { return parameters; }
+
+    /** Selects oscillator 1's wavetable, by index into the built-in library.
+
+        A convenience over `setSourceParameters` for the common case of moving
+        one control. An out-of-range index is clamped, never silencing the
+        instrument.
     */
     void setWavetableIndex (int index) noexcept;
 
-    /** Sets the scan position across the table, normalised to [0, 1]. */
+    /** Sets oscillator 1's scan position, normalised to [0, 1]. */
     void setWavetablePosition (float normalisedPosition) noexcept;
 
-    [[nodiscard]] int getWavetableIndex() const noexcept { return wavetableIndex; }
-    [[nodiscard]] float getWavetablePosition() const noexcept { return wavetablePosition; }
+    [[nodiscard]] int getWavetableIndex() const noexcept { return parameters.osc1.wavetableIndex; }
+    [[nodiscard]] float getWavetablePosition() const noexcept { return parameters.osc1.position; }
 
     /** The built-in tables. Exposed for tests and for the future resource layer. */
     [[nodiscard]] const dsp::WavetableLibrary& getWavetableLibrary() const noexcept { return library; }
+
+    /** The unison layouts in force, for tests and for future visualisation. */
+    [[nodiscard]] const dsp::UnisonLayout& getUnisonLayout (int oscillatorIndex) const noexcept
+    {
+        return oscillatorIndex <= 0 ? unison1 : unison2;
+    }
 
     /** Releases all notes, as an all-notes-off controller would. */
     void allNotesOff() noexcept;
@@ -127,10 +246,10 @@ public:
         of the signal, and clearing here means the processor never has to
         remember to.
 
-        Mono/stereo convention: every voice is centred, so both channels receive
-        identical signal. Panning and stereo spread arrive with the oscillator
-        and unison work in Phase 4; until then a stereo output is two copies of
-        one mono source rather than a fake width.
+        Stereo convention: channel 0 is left, channel 1 is right. Width comes
+        from the unison spread and the per-oscillator balance; a patch with one
+        unison voice and everything centred is genuinely mono, and both channels
+        then carry the same signal rather than a fabricated width.
     */
     void render (float* const* output, int numChannels, int startSample, int numSamples) noexcept;
 
@@ -144,6 +263,11 @@ public:
 private:
     [[nodiscard]] Voice* findVoiceForNewNote() noexcept;
 
+    /** Resolves `parameters` into voice settings and pushes them to every
+        voice, rebuilding the unison layouts if their inputs moved.
+    */
+    void applySourceParameters() noexcept;
+
     std::array<Voice, static_cast<std::size_t> (maxPolyphony)> voices {};
 
     /** Built once at construction, off the audio thread, and immutable
@@ -152,8 +276,13 @@ private:
     */
     dsp::WavetableLibrary library;
 
-    int wavetableIndex = 0;
-    float wavetablePosition = 0.0f;
+    /** One layout per primary oscillator, shared by every voice. Mutated on the
+        audio thread before any voice reads it in the same callback.
+    */
+    dsp::UnisonLayout unison1;
+    dsp::UnisonLayout unison2;
+
+    SourceParameters parameters;
 
     int polyphony = defaultPolyphony;
     bool sustainPedalDown = false;

@@ -15,7 +15,24 @@ namespace
 
     return requested;
 }
+
+[[nodiscard]] int clampWavetableIndex (int index) noexcept
+{
+    if (index < 0)
+        return 0;
+
+    return index >= dsp::WavetableLibrary::numTables ? dsp::WavetableLibrary::numTables - 1 : index;
+}
 } // namespace
+
+VoiceEngine::VoiceEngine()
+{
+    // The voices start out holding default settings, which point at no table
+    // and would render silence. Resolving the default parameters here means an
+    // engine is playable the moment it is constructed, without waiting for the
+    // processor's first block.
+    applySourceParameters();
+}
 
 void VoiceEngine::prepare (double sampleRate) noexcept
 {
@@ -27,9 +44,13 @@ void VoiceEngine::prepare (double sampleRate) noexcept
         // rendering stays reproducible, but distinct across voices so a chord
         // attack does not sum coherently — see Voice::setStartPhase.
         voices[i].setStartPhase (static_cast<double> (i) / static_cast<double> (voices.size()));
-        voices[i].setWavetable (&library.getTable (wavetableIndex));
-        voices[i].setWavetablePosition (wavetablePosition);
+
+        // A distinct, non-zero seed per voice, so simultaneous voices produce
+        // independent noise rather than N copies of one stream.
+        voices[i].setNoiseSeed (static_cast<std::uint32_t> (i) + 1u);
     }
+
+    applySourceParameters();
 
     reset();
 }
@@ -173,30 +194,72 @@ void VoiceEngine::setPitchBendSemitones (float semitones) noexcept
         voice.setPitchBendSemitones (semitones);
 }
 
-void VoiceEngine::setWavetableIndex (int index) noexcept
-{
-    const auto clamped = index < 0 ? 0
-                                   : (index >= dsp::WavetableLibrary::numTables
-                                          ? dsp::WavetableLibrary::numTables - 1
-                                          : index);
+//==============================================================================
+// Source configuration
 
-    if (clamped == wavetableIndex)
+void VoiceEngine::setSourceParameters (const SourceParameters& newParameters) noexcept
+{
+    if (newParameters == parameters)
         return;
 
-    wavetableIndex = clamped;
+    parameters = newParameters;
+    parameters.osc1.wavetableIndex = clampWavetableIndex (parameters.osc1.wavetableIndex);
+    parameters.osc2.wavetableIndex = clampWavetableIndex (parameters.osc2.wavetableIndex);
 
-    const auto& table = library.getTable (wavetableIndex);
+    applySourceParameters();
+}
 
-    for (auto& voice : voices)
-        voice.setWavetable (&table);
+void VoiceEngine::setWavetableIndex (int index) noexcept
+{
+    auto updated = parameters;
+    updated.osc1.wavetableIndex = clampWavetableIndex (index);
+
+    setSourceParameters (updated);
 }
 
 void VoiceEngine::setWavetablePosition (float normalisedPosition) noexcept
 {
-    wavetablePosition = normalisedPosition;
+    auto updated = parameters;
+    updated.osc1.position = normalisedPosition;
+
+    setSourceParameters (updated);
+}
+
+void VoiceEngine::applySourceParameters() noexcept
+{
+    // Rebuilt only when their inputs actually moved: a layout costs a handful
+    // of transcendental calls per unison voice, and the inputs are static for
+    // the overwhelming majority of blocks.
+    if (! unison1.matches (parameters.osc1.unisonVoices, parameters.osc1.detune, parameters.osc1.spread))
+        unison1.update (parameters.osc1.unisonVoices, parameters.osc1.detune, parameters.osc1.spread);
+
+    if (! unison2.matches (parameters.osc2.unisonVoices, parameters.osc2.detune, parameters.osc2.spread))
+        unison2.update (parameters.osc2.unisonVoices, parameters.osc2.detune, parameters.osc2.spread);
+
+    VoiceSourceSettings settings;
+
+    settings.osc1.table = &library.getTable (parameters.osc1.wavetableIndex);
+    settings.osc1.unison = &unison1;
+    settings.osc1.position = parameters.osc1.position;
+    settings.osc1.level = parameters.osc1.level;
+    settings.osc1.pan = parameters.osc1.pan;
+    settings.osc1.tuneSemitones = parameters.osc1.tuneSemitones;
+
+    settings.osc2.table = &library.getTable (parameters.osc2.wavetableIndex);
+    settings.osc2.unison = &unison2;
+    settings.osc2.position = parameters.osc2.position;
+    settings.osc2.level = parameters.osc2.level;
+    settings.osc2.pan = parameters.osc2.pan;
+    settings.osc2.tuneSemitones = parameters.osc2.tuneSemitones;
+
+    settings.subTable = &library.getSubTable();
+    settings.subLevel = parameters.subLevel;
+    settings.subOctave = parameters.subOctave;
+
+    settings.noiseLevel = parameters.noiseLevel;
 
     for (auto& voice : voices)
-        voice.setWavetablePosition (normalisedPosition);
+        voice.setSources (settings);
 }
 
 void VoiceEngine::allNotesOff() noexcept

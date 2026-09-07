@@ -27,12 +27,19 @@ configure_file(
     @ONLY)
 
 add_library(apollo_core STATIC
+    DSP/Noise/NoiseGenerator.h
+    DSP/Oscillators/UnisonOscillator.cpp
+    DSP/Oscillators/UnisonOscillator.h
     DSP/Oscillators/Wavetable.cpp
     DSP/Oscillators/Wavetable.h
     DSP/Oscillators/WavetableLibrary.cpp
     DSP/Oscillators/WavetableLibrary.h
     DSP/Oscillators/WavetableOscillator.cpp
     DSP/Oscillators/WavetableOscillator.h
+    DSP/Unison/UnisonLayout.cpp
+    DSP/Unison/UnisonLayout.h
+    DSP/Utilities/LinearSmoothedValue.h
+    Engine/SourceSettings.h
     Engine/Voice.cpp
     Engine/Voice.h
     Engine/VoiceEngine.cpp

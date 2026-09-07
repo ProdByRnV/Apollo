@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-06
+**Last verified:** 2026-09-07
 **Apollo version:** 0.1.0
 
 ---
@@ -16,15 +16,20 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 3 — Audio Engine & Voice Architecture |
-| **Status** | **Complete** |
-| **Milestone** | M3 — First Sound |
-| **Next step** | Phase 4 — Wavetable Oscillator System |
+| **Phase** | Phase 4 — Wavetable Oscillator System |
+| **Status** | **4a and 4b complete; 4c open** |
+| **Milestone** | M4 — Synthesis Core |
+| **Next step** | Phase 4c — oversampling infrastructure and CPU measurement |
 
-**Apollo makes sound.** A polyphonic sine engine with velocity, sustain, pitch
-bend and deterministic voice stealing renders through the VST3 and standalone
-builds. The oscillator is a placeholder: the wavetable engine is Phase 4 and the
-DAHDSR envelopes are Phase 5.
+**Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
+each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
+a stereo noise generator, mixed with per-source level and balance and played
+polyphonically through the VST3 and standalone builds. Aliasing is measured, not
+asserted: worst case -98.5 dBc against a -60 dBc budget.
+
+Still placeholders: the amplitude envelope is a linear attack/release (the four
+DAHDSR envelopes are Phase 5), and the four built-in wavetables are
+mathematically defined morphs rather than designed factory content (Phase 9).
 
 ---
 
@@ -46,7 +51,7 @@ Everything below was configured, built and executed on this machine.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `apollo_core` | STATIC, JUCE-free | Parameter ID conventions, the parameter registry, version header. Strict warnings. |
+| `apollo_core` | STATIC, JUCE-free | The whole synthesis engine — wavetables, oscillators, unison, noise, voices — plus parameter ID conventions, the parameter registry and the version header. Strict warnings. |
 | `apollo_engine` | INTERFACE | Processor, parameter layout, state, bridge protocol, parameter bridge. |
 | `apollo_editor` | INTERFACE | The WebView editor, kept out of the engine (ADR-0016). |
 | `Apollo` | `juce_add_plugin` | **VST3 + Standalone**, both from one engine. |
@@ -117,8 +122,54 @@ Everything below was configured, built and executed on this machine.
   stop chord attacks summing coherently (ADR-0017).
 - Master gain is smoothed multiplicatively over 20 ms.
 
-The oscillator is a sine and the envelope a linear attack/release. Both are
-deliberate placeholders for Phase 4 and Phase 5 respectively.
+### Wavetable oscillator engine (Phase 4a)
+
+- `Wavetable` stores each waveform as an **11-level mipmap**, each level
+  band-limited to half as many harmonics as the last. The oscillator selects the
+  most detailed level whose harmonics all stay below Nyquist, once per note
+  rather than per sample, so aliasing is removed at the source.
+- Levels are generated **additively** — only the harmonics a level may keep are
+  ever synthesised — so band-limiting is exact by construction, with no filter
+  design and no ringing (ADR-0020).
+- Coarse levels keep a 512-sample floor, and all levels of a frame share one
+  normalisation taken from the loudest level. Both were reversed from the obvious
+  implementation after measurement (ADR-0021).
+- Interpolation is 4-point cubic Hermite with wrapped neighbours, across samples,
+  and linear across frames for scanning.
+- Four built-in morph tables of 16 frames: sine→saw, sine→square, triangle→saw,
+  saw→square. Placeholder factory content.
+- Phase is wrapped into range **before** it is scaled to a table index, and
+  non-finite phase is rejected — a fix for undefined behaviour that MSVC hid and
+  only the Linux/Clang sanitizer job caught (ADR-0022).
+
+### Source section (Phase 4b)
+
+- **Two primary oscillators**, structurally identical. Oscillator 2 adds coarse
+  (±24 semitones) and fine (±100 cents) tuning and is silent by default, so
+  adding it changed no existing patch.
+- **Unison**, up to 16 voices per oscillator, symmetrically detuned in cents
+  (±50 at full) and distributed across the stereo field. The layout is derived
+  once per block by the engine and shared by every voice, rather than recomputed
+  per voice (ADR-0023).
+- **Per-oscillator level and stereo balance**, smoothed per sample over 20 ms so
+  automation cannot step. The unison spread is anchored at unity in the centre,
+  which is what keeps the default patch at exactly the level the Phase 3 gain
+  staging was measured for — verified as 0.0800, unchanged (ADR-0024).
+- **Sub oscillator**: a sine, one or two octaves below the note. It cannot alias
+  at any pitch or transposition.
+- **Stereo noise generator**: independent xorshift streams per channel, seeded
+  per voice so simultaneous voices produce independent noise rather than N copies
+  of one stream.
+- A source at exactly zero level, and not still ramping down to it, is skipped
+  rather than rendered and multiplied by nothing — which is why the default patch
+  costs what it did before the other three sources existed.
+- The voice's whole source section is set by **one struct**, compared wholesale,
+  so a parameter cannot silently fail to reach the engine (ADR-0026).
+- `VoiceEngine` is deliberately non-copyable and non-movable: voices hold
+  pointers into it.
+
+The amplitude envelope remains a linear attack/release, a deliberate placeholder
+for the DAHDSR envelopes in Phase 5.
 
 ---
 
@@ -126,7 +177,7 @@ deliberate placeholders for Phase 4 and Phase 5 respectively.
 
 | Phase | Absent |
 |---|---|
-| 4 | Wavetable oscillators, unison, sub oscillator, noise, anti-aliasing |
+| 4c | Oversampling infrastructure for nonlinear stages; CPU cost measured across polyphony levels |
 | 5 | Filters, envelopes, LFOs, modulation matrix |
 | 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
 | 7 | The `WebUI/` React frontend, visualizers, telemetry |
@@ -134,9 +185,11 @@ deliberate placeholders for Phase 4 and Phase 5 respectively.
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-Of the nine registered parameters, only `master_gain` currently affects audio.
-The rest are exposed to hosts and to the UI but have nothing to act on until the
-oscillator, filter and effect stages exist.
+**20 of the 25 registered parameters now affect audio** — the whole source
+section plus `master_gain`. The remaining five (`filter_cutoff`,
+`filter_resonance`, `filter_drive`, `fx_distortion_mix`, `fx_delay_time`) are
+exposed to hosts and to the UI but have nothing to act on until the filter and
+effect stages exist in Phases 5 and 8.
 
 ---
 
@@ -147,24 +200,25 @@ oscillator, filter and effect stages exist.
 
 | Configuration | Result |
 |---|---|
-| `RelWithDebInfo` | Builds clean, no warnings |
-| `Debug` | Builds clean, no warnings |
-| `Release` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate |
+| `RelWithDebInfo` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate. `ApolloTests`, `Apollo_All`, the VST3 bundle and the standalone binary all built and linked; the suite passes. |
+| `Debug` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings; the suite passes |
+| `Release` | Builds clean, no warnings |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-**Verified by CI** (run 34063779201, all four jobs green): Linux (GCC), macOS
+**Verified by CI** (run 34113306439, all four jobs green): Linux (GCC), macOS
 (Apple Clang), Windows (MSVC) and the Linux Clang sanitizer job all configure,
 build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`. The Linux job was confirmed
 to link both the VST3 and the standalone artefact and to actually execute the
 suite, rather than passing by building nothing.
 
-**Still unverified:** ARM64, and the CI matrix against Phase 3 code.
+**Still unverified:** ARM64, and the CI matrix against Phase 4b code — this
+change has not yet been through CI at the time of writing.
 
 ---
 
 ## 5. Test status
 
-**1637 assertions, 0 failures**, across 9 test classes:
+**206,757 assertions, 0 failures**, across 12 test classes:
 
 | Category | Class | Covers |
 |---|---|---|
@@ -189,7 +243,7 @@ Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 | 1 | The editor has never been seen running | Medium | It compiles and links, and the bridge beneath it is thoroughly tested, but no one has opened the plugin and watched the WebView render. This needs a DAW or the standalone app. |
 | 2 | VST3 has not been loaded in a DAW | Medium | The artefact builds; loading needs a host. A Phase 1 exit criterion still open. |
 | 3 | Standalone has not been launched against an audio device | Medium | Same: manual verification, including device selection. |
-| 4 | Linux CI job fails | Medium | Two distinct causes, found in sequence by reading the logs with `gh`. **(a) GTK include paths, fixed and confirmed.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. The next run compiled past it. **(b) Runner memory exhaustion, fix unconfirmed.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. |
+| 4 | Linux CI job failed twice, both causes fixed and confirmed | Resolved | Kept as a record rather than deleted, because both fixes are load-bearing and neither is obvious from the code. **(a) GTK include paths.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. **(b) Runner memory exhaustion.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. Both fixes are confirmed by the green run recorded in §4. |
 | 5 | Symbol visibility still unresolved | Low | ADR-0009 deferred the decision to Phase 1. Plugin targets now exist, so it can be closed. |
 | 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Phase 10. |
 | 7 | ARM64 unverified | Low | No ARM64 runner in the matrix. Phase 11. |
@@ -202,40 +256,56 @@ Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
 ## 7. Blockers
 
-**None.** Phase 3 can begin.
+**None.** Phase 4c can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Begin **Phase 3 — Audio Engine & Voice Architecture**, the path to first sound
-(M3). Its scope:
+Begin **Phase 4c — nonlinear preparation**, the last of Phase 4. Its scope is
+the three unticked `ROADMAP.md` tasks plus the one open exit criterion:
 
-1. The audio engine ownership model and voice/global processing boundaries.
-2. Voice allocation with configurable polyphony and a deterministic voice-stealing
-   policy.
-3. Note-on/note-off, velocity, sustain and pitch bend, driven by the MIDI buffer
-   `processBlock` currently ignores.
-4. Per-voice state reset and reuse, with all voice resources preallocated.
-5. Gain-staging rules through the engine.
-6. Real-time requirements enforced throughout: no allocation, no locks, no
-   filesystem, no WebView calls in the audio callback.
+1. Decide where oversampling is required, and record why. Everything Apollo has
+   built so far is linear, and a linear stage cannot fold, so this is a decision
+   about the distortion, waveshaping and aggressive warp stages still to come
+   rather than about anything currently in the signal path.
+2. State explicitly which stages are *not* oversampled, so the absence is a
+   recorded decision rather than an oversight (CLAUDE.md §23).
+3. Build the reusable oversampling infrastructure those stages will use, with
+   its own tests, ahead of the first stage that needs it.
+4. Measure CPU cost across representative polyphony levels — the one Phase 4
+   exit criterion still open. It needs a real measurement on real hardware
+   rather than an estimate, and it is the number that will say whether 32 voices
+   with 16-voice unison on both oscillators is a configuration Apollo can
+   honestly offer.
 
-Worth doing early in Phase 3, both cheap: close ADR-0009 (symbol visibility) now
-that plugin targets exist, and open the plugin once to confirm the editor renders.
+Still worth doing, both cheap and both carried since Phase 3: close ADR-0009
+(symbol visibility) now that plugin targets exist, and open the plugin once to
+confirm the editor renders (§6, issues 1-3).
 
 ---
 
 ## 9. Version control policy
 
-Set by the developer and not subject to agent discretion:
+Set by the developer and not subject to agent discretion. The developer changed
+this policy after the first round of feature branches produced pull requests
+they did not want; the rules below supersede the earlier "the agent never
+pushes, feature work goes on its own branch" wording.
 
 - **Remote:** `https://github.com/ProdByRnV/Apollo`
-- **The agent never pushes.** When a push is needed, the agent prints the exact
-  commands and the developer runs them.
-- **The agent does not initialise or alter version-control state** on its own
-  initiative.
-- **Feature work goes on its own branch, never directly on `main`.**
+- **The agent runs the git commands itself**, and the developer approves each
+  push at the permission prompt. Whatever commands the agent shows must be
+  exactly the commands it runs.
+- **Work goes directly on `main`.** Everything was reset onto `main` during that
+  consolidation, and `main` is now the only branch.
+- **No Claude attribution anywhere** — no `Co-Authored-By` trailer, no "generated
+  with" line, no session link, in commit messages or anywhere else. This is
+  enforced in the developer's Claude Code settings rather than left to habit.
+- **After pushing, the agent verifies CI rather than assuming it passes**,
+  diagnoses any failure from the run logs, and fixes and pushes again until the
+  run is green.
+- **The agent does not initialise or alter version-control state** — creating
+  repositories, branches or remotes — on its own initiative.
 
 ---
 

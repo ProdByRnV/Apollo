@@ -14,21 +14,35 @@
         that set exists to catch;
       - it keeps the DSP independent of the plugin wrapper (ARCHITECTURE.md §2).
 
+    SOURCE SECTION (Phase 4b). A voice sums four sources into a stereo pair:
+
+        osc 1   unison stack of band-limited wavetable oscillators
+        osc 2   the same, transposable relative to the played note
+        sub     a sine one or two octaves down
+        noise   decorrelated stereo white noise
+
+    Each source has its own level, and the two primary oscillators have a
+    stereo balance on top of the image their unison spread creates. A source
+    whose level is exactly zero, and which is not still ramping down to it, is
+    skipped rather than rendered and multiplied by nothing — which is what makes
+    the default patch (oscillator 1 alone) cost what it did before the other
+    three existed.
+
     REAL-TIME CONTRACT: every function here is callable from the audio thread.
     None of them allocate, lock, log, or perform I/O. `prepare` is the only
     function that may be called from another thread, and only while audio is
     stopped.
 
-    PLACEHOLDERS. Two parts of this voice are deliberate stand-ins:
-
-      - the amplitude envelope is a linear attack/release. The four DAHDSR
-        envelopes are Phase 5. It exists so note transitions are click-free
-        without pre-empting the phase that owns envelopes.
-
-    The oscillator is now a band-limited wavetable (Phase 4).
+    PLACEHOLDER. The amplitude envelope is a linear attack/release. The four
+    DAHDSR envelopes are Phase 5. It exists so note transitions are click-free
+    without pre-empting the phase that owns envelopes.
 */
 
+#include "DSP/Noise/NoiseGenerator.h"
+#include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableOscillator.h"
+#include "DSP/Utilities/LinearSmoothedValue.h"
+#include "Engine/SourceSettings.h"
 
 #include <cstdint>
 
@@ -62,13 +76,23 @@ public:
     static constexpr double releaseSeconds = 0.050;
     static constexpr double stealSeconds = 0.002;
 
+    /** Ramp length for a source level or balance change, in seconds.
+
+        Level and balance are the two source parameters where a per-block step
+        is an audible click rather than a small pitch or timbre jump, so they
+        are the two that are smoothed per sample (CLAUDE.md §36). 20 ms matches
+        the master gain ramp: long enough to remove the step from automation,
+        short enough that a deliberate move still feels immediate.
+    */
+    static constexpr double gainRampSeconds = 0.02;
+
     /** Prepares for a sample rate. Not real-time safe; call while stopped. */
     void prepare (double newSampleRate) noexcept;
 
     /** Sets the phase this voice starts every note from, in the range [0, 1).
 
         Voices are given distinct offsets by the engine. Starting every voice at
-        phase zero makes a chord's attack sum *coherently* rather than as the
+        phase zero makes a chord attack sum *coherently* rather than as the
         root-N of uncorrelated signals, and a 32-note chord then peaks several
         times higher than the gain staging assumes — measured at 1.95 before
         this existed. Distinct fixed offsets decorrelate the attack while
@@ -76,8 +100,26 @@ public:
     */
     void setStartPhase (double newStartPhase) noexcept;
 
+    /** Sets the noise generator seed.
+
+        Given a distinct value per voice by the engine, so that several voices
+        sounding at once produce independent noise. Identical noise across
+        voices would sum coherently and be N times louder than the level asks
+        for, as well as sounding like one source rather than many.
+    */
+    void setNoiseSeed (std::uint32_t seed) noexcept;
+
     /** Returns the voice to silence immediately, discarding any pending note. */
     void reset() noexcept;
+
+    /** Replaces the source configuration.
+
+        Cheap to call every block: identical settings are recognised and
+        discarded before any work is done.
+    */
+    void setSources (const VoiceSourceSettings& newSources) noexcept;
+
+    [[nodiscard]] const VoiceSourceSettings& getSources() const noexcept { return sources; }
 
     /** Starts a note.
 
@@ -103,24 +145,21 @@ public:
     /** Sets pitch bend, in semitones, applied on the next sample. */
     void setPitchBendSemitones (float semitones) noexcept;
 
-    /** Points the voice's oscillator at a wavetable.
-
-        The table is owned elsewhere and outlives the voice; voices only read
-        from it, and it is immutable once built, so no synchronisation is needed.
-    */
-    void setWavetable (const dsp::Wavetable* table) noexcept;
-
-    /** Sets the scan position across the table, normalised to [0, 1]. */
-    void setWavetablePosition (float normalisedPosition) noexcept;
-
-    /** Adds this voice's output into @p output.
+    /** Adds this voice output into @p output.
 
         Additive so that voices can be summed straight into the destination
         without a per-voice scratch buffer — no temporary allocation, and no
         preallocated scratch to size and own.
 
+        Channel convention: channel 0 is left and channel 1 is right. A mono
+        destination receives the *average* of the pair rather than their sum, so
+        the mono peak can never exceed the stereo peak and the headroom
+        guarantee holds for both layouts. Any channel beyond the second
+        receives the same average, which keeps an unexpected layout audible
+        rather than silent.
+
         @param output       array of @p numChannels writable channel pointers.
-        @param numChannels  1 or 2.
+        @param numChannels  1 or more.
         @param startSample  first sample to write.
         @param numSamples   samples to write.
     */
@@ -143,13 +182,54 @@ public:
 private:
     void beginNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept;
     void updatePhaseIncrement() noexcept;
+    void updateGainTargets() noexcept;
+    void snapGainsToTargets() noexcept;
     [[nodiscard]] double nextEnvelopeValue() noexcept;
+
+    /** A smoothed stereo gain pair for one source, and whether it is worth
+        rendering.
+
+        The two are kept together because they are the same question: a source
+        is skippable exactly when its level is zero *and* neither of its gains
+        is still ramping down to zero. Testing only the level would cut a
+        fading-out source off mid-ramp, which is the click the smoothing exists
+        to prevent.
+    */
+    struct SourceGain
+    {
+        dsp::LinearSmoothedValue left;
+        dsp::LinearSmoothedValue right;
+
+        void reset (double sampleRate) noexcept;
+        void setTargets (float level, float pan) noexcept;
+        void snap() noexcept;
+
+        [[nodiscard]] bool isAudible() const noexcept
+        {
+            return left.getTargetValue() > 0.0f || right.getTargetValue() > 0.0f
+                || left.isSmoothing() || right.isSmoothing();
+        }
+    };
 
     double sampleRate = 44100.0;
     double startPhase = 0.0;
 
-    /** The oscillator owns phase, frequency and mip selection. */
-    dsp::WavetableOscillator oscillator;
+    dsp::UnisonOscillator oscillator1;
+    dsp::UnisonOscillator oscillator2;
+    dsp::WavetableOscillator subOscillator;
+    dsp::NoiseGenerator noise;
+
+    /** Kept so that reset can restore the noise stream to a known point rather
+        than leaving it wherever the last render finished.
+    */
+    std::uint32_t noiseSeed = 1u;
+
+    VoiceSourceSettings sources;
+
+    SourceGain gain1;
+    SourceGain gain2;
+    SourceGain subGain;
+    SourceGain noiseGain;
 
     double envelopeLevel = 0.0;
     double attackIncrement = 0.0;
