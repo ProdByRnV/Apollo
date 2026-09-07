@@ -108,13 +108,24 @@ struct ParameterDefinition
     oscillator, envelope, LFO and effect parameters are added by the phases that
     implement them, so no ID ships before the DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 9> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 10> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
       0.0f, 3.0f, 0.0f,
       1.0f, 1.0f,
       /* automatable */ true, /* modulatable */ false, /* smoothed */ false },
+
+    // Added in Phase 4, when the wavetable engine gave it something to mean.
+    // PRD §8.1 requires a wavetable position control; UI_BINDINGS.md §3's
+    // initial registry predates the oscillator and does not list one. Following
+    // Docs/PARAMETER-CONVENTIONS.md §6: the ID is new rather than a reuse, and
+    // is permanent from here.
+    { "osc1_position", "Osc 1 Position",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      /* automatable */ true, /* modulatable */ true, /* smoothed */ true },
 
     { "osc1_unison", "Osc 1 Unison",
       ParameterType::integer, ParameterUnit::voices,

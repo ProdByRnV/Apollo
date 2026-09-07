@@ -27,6 +27,12 @@ configure_file(
     @ONLY)
 
 add_library(apollo_core STATIC
+    DSP/Oscillators/Wavetable.cpp
+    DSP/Oscillators/Wavetable.h
+    DSP/Oscillators/WavetableLibrary.cpp
+    DSP/Oscillators/WavetableLibrary.h
+    DSP/Oscillators/WavetableOscillator.cpp
+    DSP/Oscillators/WavetableOscillator.h
     Engine/Voice.cpp
     Engine/Voice.h
     Engine/VoiceEngine.cpp

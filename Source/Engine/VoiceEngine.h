@@ -18,6 +18,7 @@
     audio thread and none of them allocate, lock, log or perform I/O.
 */
 
+#include "DSP/Oscillators/WavetableLibrary.h"
 #include "Engine/Voice.h"
 
 #include <array>
@@ -98,6 +99,23 @@ public:
     /** Pitch bend for every sounding and future voice, in semitones. */
     void setPitchBendSemitones (float semitones) noexcept;
 
+    /** Selects the wavetable, by index into the built-in library.
+
+        Applied to sounding voices as well as future ones, so changing the table
+        while notes are held takes effect immediately rather than on the next
+        note. An out-of-range index is clamped, never silencing the instrument.
+    */
+    void setWavetableIndex (int index) noexcept;
+
+    /** Sets the scan position across the table, normalised to [0, 1]. */
+    void setWavetablePosition (float normalisedPosition) noexcept;
+
+    [[nodiscard]] int getWavetableIndex() const noexcept { return wavetableIndex; }
+    [[nodiscard]] float getWavetablePosition() const noexcept { return wavetablePosition; }
+
+    /** The built-in tables. Exposed for tests and for the future resource layer. */
+    [[nodiscard]] const dsp::WavetableLibrary& getWavetableLibrary() const noexcept { return library; }
+
     /** Releases all notes, as an all-notes-off controller would. */
     void allNotesOff() noexcept;
 
@@ -127,6 +145,15 @@ private:
     [[nodiscard]] Voice* findVoiceForNewNote() noexcept;
 
     std::array<Voice, static_cast<std::size_t> (maxPolyphony)> voices {};
+
+    /** Built once at construction, off the audio thread, and immutable
+        thereafter — so every voice can read it concurrently without
+        synchronisation.
+    */
+    dsp::WavetableLibrary library;
+
+    int wavetableIndex = 0;
+    float wavetablePosition = 0.0f;
 
     int polyphony = defaultPolyphony;
     bool sustainPedalDown = false;

@@ -37,6 +37,8 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
+    wavetableParameter = apvts.getRawParameterValue ("osc1_wavetable");
+    positionParameter = apvts.getRawParameterValue ("osc1_position");
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -83,6 +85,15 @@ float ApolloAudioProcessor::readMasterGainLinear() const noexcept
         return 1.0f;
 
     return juce::Decibels::decibelsToGain (masterGainParameter->load (std::memory_order_relaxed));
+}
+
+void ApolloAudioProcessor::applyOscillatorParameters() noexcept
+{
+    if (wavetableParameter != nullptr)
+        voiceEngine.setWavetableIndex (static_cast<int> (wavetableParameter->load (std::memory_order_relaxed)));
+
+    if (positionParameter != nullptr)
+        voiceEngine.setWavetablePosition (positionParameter->load (std::memory_order_relaxed));
 }
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
@@ -174,6 +185,13 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // one buffer, and quantising them to block boundaries would smear timing by
     // up to a full block — audible as loose timing at large buffer sizes, and
     // wrong in offline renders where it is trivially measurable.
+    // Oscillator parameters are applied once per block rather than per sample.
+    // Selecting a table is a discrete switch, and the scan position is smoothed
+    // inside the engine's own frame blending; per-block granularity is well
+    // inside what a listener can resolve and keeps the render loop free of
+    // parameter reads.
+    applyOscillatorParameters();
+
     int position = 0;
 
     for (const auto metadata : midiMessages)

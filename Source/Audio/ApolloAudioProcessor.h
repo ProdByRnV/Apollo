@@ -152,6 +152,9 @@ private:
     */
     void handleMidiMessage (const juce::MidiMessage& message) noexcept;
 
+    /** Pushes the oscillator parameters into the engine. Audio thread. */
+    void applyOscillatorParameters() noexcept;
+
     /** @returns the master gain as a linear multiplier. */
     [[nodiscard]] float readMasterGainLinear() const noexcept;
     /** Apollo's bus layout.
@@ -184,6 +187,10 @@ private:
         block would be an unbounded search in the audio callback.
     */
     std::atomic<float>* masterGainParameter = nullptr;
+
+    /** Oscillator parameters, resolved once for the same reason. */
+    std::atomic<float>* wavetableParameter = nullptr;
+    std::atomic<float>* positionParameter = nullptr;
 
     /** Master gain is declared `smoothed` in the registry, and a jump in gain is
         a click. Multiplicative smoothing ramps evenly in dB, which is how gain

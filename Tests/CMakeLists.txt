@@ -15,6 +15,7 @@ target_sources(ApolloTests PRIVATE
     Foundation/ParameterIdTests.cpp
     Audio/ProcessorLifecycleTests.cpp
     Engine/VoiceEngineTests.cpp
+    DSP/WavetableTests.cpp
     Audio/MidiRenderingTests.cpp
     Parameters/ParameterRegistryTests.cpp
     State/StateSerializationTests.cpp
@@ -39,8 +40,12 @@ target_compile_definitions(ApolloTests PRIVATE
 #
 # apollo::engine is linked so that the processor is tested as the plugin
 # actually builds it, from the same sources.
+# juce_dsp is linked for its FFT, which the spectral tests use to measure
+# aliasing. It is a JUCE module with no external dependency, and the DSP engine
+# itself does not use it — the analysis lives only in the tests.
 target_link_libraries(ApolloTests PRIVATE
     apollo::engine
+    juce::juce_dsp
     apollo::project_options
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)

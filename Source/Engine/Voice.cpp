@@ -8,8 +8,6 @@ namespace apollo::engine
 namespace
 {
 
-constexpr double twoPi = 6.283185307179586476925286766559;
-
 /** Concert-pitch reference. A4 = MIDI note 69 = 440 Hz.
 
     Fixed for now; a global tuning parameter is a product decision, not a
@@ -42,6 +40,8 @@ void Voice::prepare (double newSampleRate) noexcept
 {
     sampleRate = newSampleRate > 0.0 ? newSampleRate : 44100.0;
 
+    oscillator.setSampleRate (sampleRate);
+
     attackIncrement = rampIncrement (attackSeconds, sampleRate);
     releaseDecrement = rampIncrement (releaseSeconds, sampleRate);
     stealDecrement = rampIncrement (stealSeconds, sampleRate);
@@ -54,11 +54,21 @@ void Voice::setStartPhase (double newStartPhase) noexcept
     startPhase = newStartPhase - std::floor (newStartPhase);
 }
 
+void Voice::setWavetable (const dsp::Wavetable* table) noexcept
+{
+    oscillator.setTable (table);
+}
+
+void Voice::setWavetablePosition (float normalisedPosition) noexcept
+{
+    oscillator.setPosition (normalisedPosition);
+}
+
 void Voice::reset() noexcept
 {
     stage = VoiceStage::idle;
-    phase = startPhase;
-    phaseIncrement = 0.0;
+    oscillator.resetPhase (startPhase);
+    oscillator.setFrequency (0.0);
     envelopeLevel = 0.0;
     note = -1;
     noteVelocity = 0.0f;
@@ -82,8 +92,8 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // Every note restarts from this voice's own fixed offset. Reproducible,
     // because the offset is fixed per voice rather than random, but decorrelated
     // across voices so a chord attack does not sum coherently. Free-running and
-    // user-controlled phase are Phase 4 decisions.
-    phase = startPhase;
+    // user-controlled phase remain open oscillator design choices.
+    oscillator.resetPhase (startPhase);
     envelopeLevel = 0.0;
     stage = VoiceStage::attack;
 
@@ -131,7 +141,7 @@ void Voice::setPitchBendSemitones (float semitones) noexcept
 void Voice::updatePhaseIncrement() noexcept
 {
     const double bentNote = static_cast<double> (note) + static_cast<double> (pitchBendSemitones);
-    phaseIncrement = midiNoteToFrequency (bentNote) / sampleRate;
+    oscillator.setFrequency (midiNoteToFrequency (bentNote));
 }
 
 double Voice::nextEnvelopeValue() noexcept
@@ -212,17 +222,8 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
         if (stage == VoiceStage::idle && envelope <= 0.0)
             break;
 
-        const double oscillator = std::sin (twoPi * phase);
-
-        phase += phaseIncrement;
-
-        // Wrapped by subtraction rather than fmod: it is a single predictable
-        // branch, and phase advances by well under 1.0 per sample for any
-        // audible frequency.
-        if (phase >= 1.0)
-            phase -= 1.0;
-
-        const auto value = static_cast<float> (oscillator * envelope)
+        const auto value = oscillator.getNextSample()
+                         * static_cast<float> (envelope)
                          * noteVelocity;
 
         for (int channel = 0; channel < numChannels; ++channel)

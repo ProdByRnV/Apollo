@@ -22,7 +22,12 @@ using namespace apollo::params;
 
 // The registry is constexpr, so its structural invariants are proven at compile
 // time and a bad definition fails the build rather than a test run.
-static_assert (parameterCount() == 9, "the initial registry has nine parameters");
+// Nine from the initial registry documented in UI_BINDINGS.md §3, plus
+// osc1_position added in Phase 4 when the wavetable engine gave it meaning.
+// This assertion is deliberately exact: growing the registry is a permanent
+// change to the automation and preset contract, so it should never happen by
+// accident (Docs/PARAMETER-CONVENTIONS.md §1).
+static_assert (parameterCount() == 10, "the registry has ten parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 
@@ -122,7 +127,7 @@ private:
         beginTest ("Every parameter documented in UI_BINDINGS.md is registered");
 
         static constexpr std::string_view documented[] {
-            "osc1_wavetable", "osc1_unison", "osc1_detune",
+            "osc1_wavetable", "osc1_position", "osc1_unison", "osc1_detune",
             "filter_cutoff", "filter_resonance", "filter_drive",
             "fx_distortion_mix", "fx_delay_time", "master_gain"
         };

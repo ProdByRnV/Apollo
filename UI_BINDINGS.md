@@ -72,6 +72,7 @@ Initial registry:
 | Parameter ID | UI Element | Range / Type | Default | Description |
 |---|---|---|---:|---|
 | `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | Wavetable selection for oscillator 1 |
+| `osc1_position` | Rotary Knob | Normalized `[0, 1]` | `0` | Wavetable scan position for oscillator 1 |
 | `osc1_unison` | Rotary Knob | Integer `[1, 16]` | `1` | Unison voice count |
 | `osc1_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | Unison detune/spread amount |
 | `filter_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | Filter cutoff frequency |

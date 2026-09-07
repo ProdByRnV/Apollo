@@ -21,14 +21,14 @@
 
     PLACEHOLDERS. Two parts of this voice are deliberate stand-ins:
 
-      - the oscillator is a plain sine. The wavetable engine is Phase 4.
       - the amplitude envelope is a linear attack/release. The four DAHDSR
-        envelopes are Phase 5.
+        envelopes are Phase 5. It exists so note transitions are click-free
+        without pre-empting the phase that owns envelopes.
 
-    Both exist so Phase 3 can satisfy "polyphonic test tones render correctly"
-    and "no audible artifacts occur during normal note transitions" without
-    pre-empting the phases that own them.
+    The oscillator is now a band-limited wavetable (Phase 4).
 */
+
+#include "DSP/Oscillators/WavetableOscillator.h"
 
 #include <cstdint>
 
@@ -103,6 +103,16 @@ public:
     /** Sets pitch bend, in semitones, applied on the next sample. */
     void setPitchBendSemitones (float semitones) noexcept;
 
+    /** Points the voice's oscillator at a wavetable.
+
+        The table is owned elsewhere and outlives the voice; voices only read
+        from it, and it is immutable once built, so no synchronisation is needed.
+    */
+    void setWavetable (const dsp::Wavetable* table) noexcept;
+
+    /** Sets the scan position across the table, normalised to [0, 1]. */
+    void setWavetablePosition (float normalisedPosition) noexcept;
+
     /** Adds this voice's output into @p output.
 
         Additive so that voices can be summed straight into the destination
@@ -138,10 +148,8 @@ private:
     double sampleRate = 44100.0;
     double startPhase = 0.0;
 
-    // Phase is kept in double: at 192 kHz a float accumulator loses enough
-    // precision over a sustained note to drift audibly in pitch.
-    double phase = 0.0;
-    double phaseIncrement = 0.0;
+    /** The oscillator owns phase, frequency and mip selection. */
+    dsp::WavetableOscillator oscillator;
 
     double envelopeLevel = 0.0;
     double attackIncrement = 0.0;

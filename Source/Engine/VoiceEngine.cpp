@@ -27,6 +27,8 @@ void VoiceEngine::prepare (double sampleRate) noexcept
         // rendering stays reproducible, but distinct across voices so a chord
         // attack does not sum coherently — see Voice::setStartPhase.
         voices[i].setStartPhase (static_cast<double> (i) / static_cast<double> (voices.size()));
+        voices[i].setWavetable (&library.getTable (wavetableIndex));
+        voices[i].setWavetablePosition (wavetablePosition);
     }
 
     reset();
@@ -169,6 +171,32 @@ void VoiceEngine::setPitchBendSemitones (float semitones) noexcept
 
     for (auto& voice : voices)
         voice.setPitchBendSemitones (semitones);
+}
+
+void VoiceEngine::setWavetableIndex (int index) noexcept
+{
+    const auto clamped = index < 0 ? 0
+                                   : (index >= dsp::WavetableLibrary::numTables
+                                          ? dsp::WavetableLibrary::numTables - 1
+                                          : index);
+
+    if (clamped == wavetableIndex)
+        return;
+
+    wavetableIndex = clamped;
+
+    const auto& table = library.getTable (wavetableIndex);
+
+    for (auto& voice : voices)
+        voice.setWavetable (&table);
+}
+
+void VoiceEngine::setWavetablePosition (float normalisedPosition) noexcept
+{
+    wavetablePosition = normalisedPosition;
+
+    for (auto& voice : voices)
+        voice.setWavetablePosition (normalisedPosition);
 }
 
 void VoiceEngine::allNotesOff() noexcept
