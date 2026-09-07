@@ -205,14 +205,31 @@ effect stages exist in Phases 5 and 8.
 | `Release` | Builds clean, no warnings |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-**Verified by CI** (run 34113306439, all four jobs green): Linux (GCC), macOS
-(Apple Clang), Windows (MSVC) and the Linux Clang sanitizer job all configure,
-build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`. The Linux job was confirmed
-to link both the VST3 and the standalone artefact and to actually execute the
-suite, rather than passing by building nothing.
+**Verified by CI against Phase 4b code** (run 34160411849, all four jobs green):
+Linux (GCC), macOS (Apple Clang), Windows (MSVC) and the Linux Clang sanitizer
+job all configure, build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`. The macOS
+job was confirmed to link the VST3 bundle and the standalone `.app` and to
+actually execute the suite, rather than passing by building nothing.
 
-**Still unverified:** ARM64, and the CI matrix against Phase 4b code — this
-change has not yet been through CI at the time of writing.
+The first attempt (run 34159444471) failed on both Clang jobs, for two unrelated
+reasons, and neither reproduced on Windows or Linux/GCC:
+
+- **macOS, a `-Wshadow` error.** `Voice::SourceGain::reset` took a parameter
+  named `sampleRate`, and the struct is nested inside `Voice`, which has a
+  `sampleRate` field. Clang treats a nested class's parameter as shadowing the
+  enclosing class's member; GCC and MSVC do not. Every `apollo_core` translation
+  unit was afterwards re-checked against the full strict warning set under Clang
+  with `-Werror`, rather than only the file the build stopped at.
+- **Sanitizers, a CTest timeout — not a test failure.** The suite reached 92% of
+  its classes and was killed at 300.02 s. It now completes in **322.34 s** under
+  ASan and UBSan, so the limit was 22 seconds short of what the Phase 4b tests
+  legitimately need. Raised to 1800 s, with the reasoning recorded in
+  `Tests/CMakeLists.txt`: it is a deadlock guard, not a performance budget.
+
+Suite runtime, for scale: 24 s optimised and 82 s in Debug on the development
+machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
+
+**Still unverified:** ARM64 — no ARM64 runner is in the matrix (§6, issue 7).
 
 ---
 

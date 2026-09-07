@@ -57,6 +57,40 @@ The practical consequence is an architectural rule that is worth stating plainly
 This is the same boundary ARCHITECTURE.md §5.1 requires between the DSP engine
 and the plugin wrapper, enforced by the build system rather than by convention.
 
+### The compilers disagree, so a clean local build proves less than it looks
+
+The four CI jobs do not diagnose the same code identically, and the differences
+are not academic — each of the cases below reached `main` green on a developer
+machine and was caught only by CI.
+
+- **`-Wshadow` and nested classes.** Clang treats a nested class's function
+  parameter as shadowing a field of the *enclosing* class. GCC and MSVC do not.
+  A parameter named after an outer member therefore compiles cleanly on three
+  jobs and fails the two Clang ones (Phase 4b, `Voice::SourceGain::reset`).
+- **Undefined behaviour that optimises away quietly.** An out-of-range
+  floating-point to integer conversion produced plausible audio under MSVC and
+  was caught only by the Linux Clang sanitizer job (ADR-0022).
+
+The practical rule:
+
+> **A clean MSVC build is not evidence that the strict set passes.** Before
+> pushing work that touches `apollo_core`, check it against Clang, which is
+> stricter than MSVC on exactly the things Apollo enables the strict set for.
+
+A syntax-only pass is enough to catch the diagnostic differences and takes
+seconds, so there is no reason to skip it:
+
+```sh
+clang++ -std=c++20 -fsyntax-only -Werror -ISource \
+    -Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor -Woverloaded-virtual \
+    -Wold-style-cast -Wcast-align -Wunused -Wconversion -Wsign-conversion \
+    -Wdouble-promotion -Wformat=2 -Wnull-dereference \
+    Source/Engine/Voice.cpp
+```
+
+It does not replace the sanitizer job: undefined behaviour needs the code to
+actually run under ASan and UBSan, which only CI does.
+
 ---
 
 ## 3. Formatting
