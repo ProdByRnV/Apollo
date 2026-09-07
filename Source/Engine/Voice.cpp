@@ -52,10 +52,10 @@ constexpr double referenceNote = 69.0;
 
 //==============================================================================
 
-void Voice::SourceGain::reset (double sampleRate) noexcept
+void Voice::SourceGain::reset (double newSampleRate) noexcept
 {
-    left.reset (sampleRate, Voice::gainRampSeconds);
-    right.reset (sampleRate, Voice::gainRampSeconds);
+    left.reset (newSampleRate, Voice::gainRampSeconds);
+    right.reset (newSampleRate, Voice::gainRampSeconds);
 }
 
 void Voice::SourceGain::setTargets (float level, float pan) noexcept

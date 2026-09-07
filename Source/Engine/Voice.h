@@ -200,7 +200,16 @@ private:
         dsp::LinearSmoothedValue left;
         dsp::LinearSmoothedValue right;
 
-        void reset (double sampleRate) noexcept;
+        /** Prepares both ramps for a sample rate.
+
+            The parameter is `newSampleRate` rather than `sampleRate` because
+            this struct is nested inside Voice, which has a `sampleRate` field:
+            Clang's -Wshadow treats a nested class's parameter as shadowing the
+            enclosing class's member, and Apollo builds with warnings as errors.
+            GCC and MSVC accept the shorter name, so the mistake compiles
+            everywhere except the two Clang CI jobs.
+        */
+        void reset (double newSampleRate) noexcept;
         void setTargets (float level, float pan) noexcept;
         void snap() noexcept;
 
