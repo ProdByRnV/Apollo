@@ -601,3 +601,91 @@ to fall back to the IE control on a Windows machine with no WebView2 runtime.
 That runtime ships with Windows 11 and is redistributable for Windows 10, and a
 silent fallback to a control that cannot render Apollo's UI is worse than a
 visible failure.
+
+---
+
+## ADR-0028 — Apollo implements its own oversampling rather than using juce::dsp
+
+**Phase 4c · Accepted**
+
+`Source/DSP/Oversampling/` contains a linear-phase, polyphase halfband
+oversampler written for Apollo, in `apollo_core`, free of JUCE.
+`ARCHITECTURE.md` §2.3 says `juce::dsp::Oversampling` *may* be used; this
+supersedes that as the implementation choice, and §2.3 has been updated to match.
+
+The deciding factor is the same one that put the engine in `apollo_core` to begin
+with (ADR-0018). `apollo_core` is the only library held to Apollo's strict warning
+set, and `juce_dsp` cannot be compiled under it. Taking the JUCE class would have
+meant either relaxing the warnings over a per-sample DSP loop — exactly the code
+`-Wconversion` and `-Wdouble-promotion` exist to protect — or moving the
+oversampler out of the DSP layer, away from the nonlinear stages that use it.
+
+Three design decisions inside it are worth recording, because each had a cheaper
+alternative that was rejected for a reason:
+
+**Linear phase, not an IIR allpass cascade.** The allpass form is the classic
+cheap halfband: fewer operations, and a fraction of the delay. It is also
+phase-nonlinear, and a nonlinear stage is normally mixed against its own dry
+signal — `fx_distortion_mix` is already a registered parameter. A dry path summed
+with a phase-rotated wet path combs rather than blends, and no delay
+compensation can fix it. A linear-phase FIR only needs the dry path delayed by a
+whole number of samples.
+
+**Whole-sample latency, bought with mismatched tap counts.** A stage contributes
+`centre` samples of round-trip delay at its own input rate, so the second stage
+of a 4x cascade contributes `centre / 2` base-rate samples. Two identical stages
+would put the total on a half sample, which cannot be reported to a host or used
+to align a dry path. The stages therefore use 79 and 81 taps — odd and even
+centres — and 4x lands on exactly 59 samples.
+
+**79 taps, not 63.** A halfband's transition band straddles Nyquist, and a
+shorter filter's passband began rolling off around 19 kHz, inside the audible
+band. 79 taps holds the passband flat (±0.0001 dB) past 20 kHz with a -100.7 dB
+stopband, for 40 multiplies per converted sample. Measured, not assumed:
+`OversamplingTests` reports both figures.
+
+**Given up:** a well-tested third-party implementation, and the 8x factor JUCE
+offers. 8x is added when a stage is measured to need it, rather than because the
+option exists.
+
+---
+
+## ADR-0029 — Maximum polyphony is not achievable with the heaviest patch
+
+**Phase 4c · Accepted**
+
+Apollo keeps a 32-voice ceiling and a 16-voice unison ceiling, and does not
+attempt to keep every combination of the two inside real time. The measurement
+that forced the decision (PROJECT-STATE.md §5b):
+
+| Patch | 1 voice | 16 voices | 32 voices |
+|---|---|---|---|
+| Default (oscillator 1, no unison) | 0.15 % | 2.32 % | 4.86 % |
+| Heaviest (2 x 16 unison, sub, noise) | 4.17 % | 82.05 % | **150.33 %** |
+
+The default patch is cheap enough that polyphony is not a consideration: full
+32-voice polyphony costs under five per cent of one core. The heaviest patch is
+34 oscillators per voice, and at 32 voices that is 1088 oscillators, each doing
+four-point interpolation across two wavetable frames. It cannot run in real time
+on the development machine, and it is not close.
+
+Three responses were considered:
+
+- **Lower the ceilings** so every combination fits. Rejected: it would take a
+  configuration nobody has complained about away from everybody, to defend
+  against one that is reached only deliberately.
+- **Load-aware voice limiting** — drop voices as CPU rises. Rejected for now: it
+  makes the instrument's output depend on the machine and on what else is
+  running, which is a worse failure than a user hearing their patch is expensive.
+- **Optimise.** The right answer, and it belongs to Phase 10, which owns
+  profiling. The cost here is inherent arithmetic rather than a defect, so it
+  needs SIMD and interpolation work, not a bug fix.
+
+What is accepted meanwhile is that the ceilings are the *instrument's* limits,
+not a real-time guarantee, and the numbers are published rather than implied.
+This mirrors ADR-0025, which drew the same line for headroom: the guarantee
+covers the default patch, and stacked configurations are documented rather than
+defended.
+
+**Given up:** the ability to say "32 voices always work". Apollo can say it for
+the default patch, with a measurement behind it.

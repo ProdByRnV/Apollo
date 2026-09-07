@@ -96,7 +96,7 @@ Where practical, the engine should support band-limited or otherwise anti-aliase
 
 Nonlinear processors such as distortion and waveshaping can generate harmonics above the host sample rate's Nyquist frequency. Apollo therefore uses oversampling where it materially improves signal quality.
 
-`juce::dsp::Oversampling` may be used with:
+Apollo implements its own oversampling in `Source/DSP/Oversampling/`, rather than using `juce::dsp::Oversampling`, so that it can live in the JUCE-free `apollo_core` alongside the stages that use it and stay under Apollo's strict warning set (ADR-0028). It provides:
 
 - 2× oversampling as a baseline for appropriate nonlinear stages.
 - 4× oversampling where testing demonstrates a meaningful quality benefit.

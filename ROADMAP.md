@@ -286,9 +286,9 @@ Implement Apollo's primary synthesis engine with high-quality, anti-aliased wave
 
 ### Nonlinear preparation
 
-- [ ] Define where oversampling is required.
-- [ ] Avoid unnecessary oversampling of purely linear stages.
-- [ ] Build reusable oversampling infrastructure for nonlinear stages.
+- [x] Define where oversampling is required. — `Docs/OVERSAMPLING.md` §2, per stage, with the factor each is expected to want and a note that each is re-measured when the stage is built (4c)
+- [x] Avoid unnecessary oversampling of purely linear stages. — `Docs/OVERSAMPLING.md` §3 records what is deliberately excluded: the oscillators are band-limited at the source by their mipmap, the sub is a single harmonic, noise has nothing above Nyquist to fold, and linear stages create no new frequencies (4c)
+- [x] Build reusable oversampling infrastructure for nonlinear stages. — `Source/DSP/Oversampling/`: linear-phase polyphase halfband, 2x and 4x, JUCE-free and real-time safe, with whole-sample latency so a dry path can be aligned (ADR-0028) (4c)
 
 ## Exit Criteria
 
@@ -296,11 +296,13 @@ Implement Apollo's primary synthesis engine with high-quality, anti-aliased wave
 - [x] Wavetable scanning is smooth. — a full position sweep produces no discontinuity, and aliasing stays inside budget at every scan position
 - [x] Unison remains stable at high voice counts. — 32 voices with 16-voice unison on both oscillators and every source sounding stays finite and bounded
 - [x] Spectral testing demonstrates acceptable anti-aliasing performance. — worst measured -98.5 dBc against a -60 dBc budget
-- [ ] CPU cost is measured across representative polyphony levels. — **open**, Phase 4c
+- [x] CPU cost is measured across representative polyphony levels. — `ApolloTests --benchmark`, recorded in `PROJECT-STATE.md` §5b. The default patch costs 0.15 % of a core per voice and 4.86 % at full polyphony; the heaviest patch reaches 150 % at 32 voices and **cannot run in real time**, which is published as a limit rather than hidden (ADR-0029)
 
-> **Phase status:** oscillators and the source section are complete (4a, 4b);
-> 206757 assertions passing. Outstanding: the oversampling infrastructure and
-> the CPU measurement, which are the whole of Phase 4c.
+> **Phase status:** complete. Oscillators and the source section landed in 4a and
+> 4b; the oversampling infrastructure and the CPU measurement complete 4c.
+> 211024 assertions passing. The measurement produced one finding worth carrying
+> forward: the heaviest patch cannot sustain full polyphony in real time
+> (ADR-0029), which Phase 10 owns.
 
 ---
 

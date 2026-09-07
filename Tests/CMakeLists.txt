@@ -18,6 +18,8 @@ target_sources(ApolloTests PRIVATE
     Engine/SourceMixTests.cpp
     DSP/WavetableTests.cpp
     DSP/UnisonTests.cpp
+    DSP/OversamplingTests.cpp
+    Performance/Benchmarks.cpp
     DSP/NoiseTests.cpp
     Audio/MidiRenderingTests.cpp
     Parameters/ParameterRegistryTests.cpp
@@ -52,6 +54,10 @@ target_link_libraries(ApolloTests PRIVATE
     apollo::project_options
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags)
+
+# The test tree is on the include path so test-only headers (the benchmarks)
+# can be included by path, the same way Apollo headers are.
+target_include_directories(ApolloTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 set_target_properties(ApolloTests PROPERTIES FOLDER "Apollo/Tests")
 

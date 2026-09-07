@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 4 — Wavetable Oscillator System |
-| **Status** | **4a and 4b complete; 4c open** |
+| **Status** | **Complete (4a, 4b, 4c)** |
 | **Milestone** | M4 — Synthesis Core |
-| **Next step** | Phase 4c — oversampling infrastructure and CPU measurement |
+| **Next step** | Phase 5 — Filters, Envelopes & Modulation |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -282,6 +282,63 @@ automation, state save/restore through a project, transport. Those remain open.
 
 ---
 
+## 5b. CPU measurements
+
+Phase 4's remaining exit criterion. Produced by `ApolloTests --benchmark`, which
+is built on every platform but run by no CI job — a CPU figure is a measurement,
+not a pass or a fail, so it is recorded here rather than asserted in the suite
+(`Tests/Performance/Benchmarks.h`).
+
+**Machine:** the development laptop, Windows 11, MSVC, `RelWithDebInfo`,
+48 kHz, 512-sample blocks. Figures are **per cent of one core's real time**;
+lower is better, and 100 % means the render exactly keeps up with playback.
+
+### Voice engine
+
+| Voices | Default patch | Heaviest patch |
+|---:|---:|---:|
+| 1 | 0.15 % | 4.17 % |
+| 2 | 0.29 % | 8.47 % |
+| 4 | 0.59 % | 17.16 % |
+| 8 | 1.20 % | 41.07 % |
+| 16 | 2.32 % | 82.05 % |
+| 32 | **4.86 %** | **150.33 %** |
+
+"Default patch" is oscillator 1 alone with no unison — what Apollo loads with.
+"Heaviest patch" is both oscillators at 16-voice unison plus the sub and the
+noise generator: 34 oscillators per voice, and 1088 of them at 32 voices.
+
+Two things follow, and both are recorded rather than smoothed over:
+
+- **The default patch is cheap.** Cost is linear in voices at about 0.15 % each,
+  so full 32-voice polyphony costs under five per cent of one core. Polyphony is
+  not a performance consideration for ordinary patches.
+- **The heaviest patch cannot run at full polyphony.** 150 % of real time at 32
+  voices means it will not keep up on this machine, and 82 % at 16 voices is
+  already too close to the edge to be safe. This is inherent arithmetic rather
+  than a defect; ADR-0029 records the decision to publish the limit rather than
+  lower the ceilings, and Phase 10 owns the optimisation.
+
+Per-voice cost rises from 4.17 % to about 5.13 % between 1 and 8 voices before
+settling — cache behaviour, not an algorithmic change.
+
+### Oversampler
+
+Per channel, including a `tanh` drive, so the figure reflects a real oversampled
+stage rather than the conversion alone. A stereo stage costs twice this.
+
+| Setting | Cost | Round-trip latency |
+|---|---:|---|
+| Bypass (`Factor::none`) | 0.034 % | 0 samples |
+| 2x | 0.287 % | 39 samples (0.81 ms) |
+| 4x | 0.809 % | 59 samples (1.23 ms) |
+
+Cheap next to the voice engine: a stereo 4x-oversampled distortion costs about
+1.6 % of one core, which is why 4x is a reasonable default for a distortion stage
+rather than a luxury.
+
+---
+
 ## 6. Known issues
 
 | # | Issue | Severity | Notes |
@@ -298,6 +355,7 @@ automation, state save/restore through a project, transport. Those remain open.
 | 10 | `filter_*` parameters are un-indexed while the PRD specifies two filters | Low | A Phase 5 decision. **These IDs have now been written into the registry**, so changing them is a migration, not a rename (Docs/PARAMETER-CONVENTIONS.md §1). |
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
+| 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
 
 ---
 

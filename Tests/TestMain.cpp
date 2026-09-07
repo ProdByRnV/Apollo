@@ -10,6 +10,7 @@
         ApolloTests --category <name>   run one category only
         ApolloTests --list              list categories and tests, run nothing
         ApolloTests --seed <n>          use a fixed random seed (default 0)
+        ApolloTests --benchmark         run the CPU measurements, run no tests
         ApolloTests --help
 */
 
@@ -17,6 +18,8 @@
 
 #include <cstdlib>
 #include <iostream>
+
+#include "Performance/Benchmarks.h"
 
 namespace
 {
@@ -43,6 +46,7 @@ void printUsage()
         << "  --category <name>   run only the tests in one category\n"
         << "  --list              list categories and tests without running them\n"
         << "  --seed <n>          random seed for tests that use randomness (default 0)\n"
+        << "  --benchmark         run the CPU measurements instead of the tests\n"
         << "  --help              show this message\n"
         << std::endl;
 }
@@ -93,6 +97,15 @@ int main (int argc, char* argv[])
     if (args.contains ("--list"))
     {
         listTests();
+        return EXIT_SUCCESS;
+    }
+
+    // Measurements, not tests: they report numbers rather than passing or
+    // failing, so they are never part of a ctest run. See
+    // Tests/Performance/Benchmarks.h for why they live in this binary anyway.
+    if (args.contains ("--benchmark"))
+    {
+        apollo::benchmarks::run();
         return EXIT_SUCCESS;
     }
 
