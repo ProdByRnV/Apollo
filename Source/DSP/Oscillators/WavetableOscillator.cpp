@@ -1,5 +1,7 @@
 #include "DSP/Oscillators/WavetableOscillator.h"
 
+#include <cmath>
+
 namespace apollo::dsp
 {
 
@@ -17,7 +19,10 @@ void WavetableOscillator::setTable (const Wavetable* newTable) noexcept
 
 void WavetableOscillator::setFrequency (double frequencyHz) noexcept
 {
-    frequency = frequencyHz;
+    // A non-finite frequency would make the increment non-finite, and from
+    // there every downstream guard has to cope with NaN. Rejecting it once,
+    // here, keeps the invariant that phase is always finite.
+    frequency = std::isfinite (frequencyHz) ? frequencyHz : 0.0;
     updateIncrement();
 }
 
@@ -58,12 +63,16 @@ float WavetableOscillator::getNextSample() noexcept
 
     phase += phaseIncrement;
 
-    // Subtraction rather than fmod: the increment stays well below 1.0 for any
-    // frequency the mip selection permits, so one branch always suffices.
-    if (phase >= 1.0)
-        phase -= 1.0;
-    else if (phase < 0.0)
-        phase += 1.0;
+    // A single subtraction is not enough. It assumes the increment is below 1.0,
+    // which holds for any musical frequency but not for an absurd one — and mip
+    // selection clamps the *level*, not the increment. At 1 GHz the increment is
+    // over 20000, phase grows without bound, and the eventual conversion to a
+    // table index is undefined behaviour.
+    //
+    // floor() wraps correctly for any magnitude and is only reached once per
+    // cycle rather than once per sample, so the cost is nothing.
+    if (phase >= 1.0 || phase < 0.0)
+        phase -= std::floor (phase);
 
     return value;
 }

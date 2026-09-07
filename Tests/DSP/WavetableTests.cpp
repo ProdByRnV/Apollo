@@ -13,6 +13,7 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "DSP/Oscillators/Wavetable.h"
@@ -50,8 +51,9 @@ constexpr float maxAliasDecibels = -60.0f;
     relative to the loudest bin.
 
     The first samples are discarded so nothing but steady state is analysed, and
-    a Hann window is applied so a fundamental that does not land exactly on a bin
-    does not smear across the spectrum and masquerade as aliasing.
+    a window is applied so a fundamental that does not land exactly on a bin does
+    not smear across the spectrum and masquerade as aliasing. See the note on the
+    window choice below — it is not incidental.
 */
 [[nodiscard]] std::vector<float> renderSpectrum (const Wavetable& table,
                                                  double frequencyHz,
@@ -494,6 +496,53 @@ private:
             for (int i = 0; i < 256; ++i)
                 expect (std::isfinite (oscillator.getNextSample()),
                         "non-finite output at " + juce::String (frequency) + " Hz");
+        }
+
+        // Regression: an absurd frequency makes the phase increment enormous, so
+        // a wrap that subtracts 1.0 once never catches up and the phase grows
+        // without bound. Converting that to a table index is undefined
+        // behaviour — UBSan caught it as "2.15e+09 is outside the range of
+        // representable values of type 'int'" while MSVC silently produced
+        // usable-looking garbage. Phase must stay in [0, 1) no matter what.
+        for (const double frequency : { 1.0e6, 1.0e9, 1.0e15 })
+        {
+            oscillator.setFrequency (frequency);
+            oscillator.resetPhase (0.0);
+
+            for (int i = 0; i < 4096; ++i)
+                (void) oscillator.getNextSample();
+
+            expect (oscillator.getPhase() >= 0.0 && oscillator.getPhase() < 1.0,
+                    "phase escaped [0, 1) at " + juce::String (frequency)
+                        + " Hz: " + juce::String (oscillator.getPhase()));
+        }
+
+        // A non-finite frequency must be rejected rather than poisoning phase.
+        for (const double frequency : { std::numeric_limits<double>::infinity(),
+                                        -std::numeric_limits<double>::infinity(),
+                                        std::numeric_limits<double>::quiet_NaN() })
+        {
+            oscillator.setFrequency (frequency);
+            oscillator.resetPhase (0.0);
+
+            for (int i = 0; i < 256; ++i)
+                expect (std::isfinite (oscillator.getNextSample()),
+                        "a non-finite frequency produced non-finite output");
+
+            expect (std::isfinite (oscillator.getPhase()), "phase became non-finite");
+        }
+
+        // Reading the table directly with a hostile phase must also be safe:
+        // Wavetable is a public interface, not only the oscillator's private one.
+        const auto& table = library.getTable (0);
+
+        for (const double phase : { 0.0, 1.0, -1.0, 1.0e12, -1.0e12,
+                                    std::numeric_limits<double>::infinity(),
+                                    std::numeric_limits<double>::quiet_NaN() })
+        {
+            const auto sample = table.getSample (0, 0, phase);
+            expect (std::isfinite (sample),
+                    "table read returned non-finite output at phase " + juce::String (phase));
         }
 
         // Out-of-range positions clamp rather than read out of bounds.

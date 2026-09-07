@@ -69,16 +69,34 @@ float Wavetable::getSample (int level, int frameIndex, double phase) const noexc
         return 0.0f;
 
     const auto size = samplesAtLevel (level);
-    const auto position = phase * static_cast<double> (size);
+
+    // Phase is wrapped into [0, 1) *before* it is scaled, not after.
+    //
+    // Converting a double that exceeds INT_MAX to int is undefined behaviour,
+    // not a wrap — and it does not announce itself: MSVC produced usable-looking
+    // garbage while UBSan on Linux reported
+    // "2.15456e+09 is outside the range of representable values of type 'int'".
+    // Wrapping first bounds the value before the cast can see it, so the cast is
+    // always in range by construction rather than by the caller's good manners.
+    //
+    // Non-finite phase is rejected outright: floor(inf) is inf and floor(NaN) is
+    // NaN, either of which would put the same undefined cast right back.
+    if (! std::isfinite (phase))
+        return 0.0f;
+
+    const auto wrappedPhase = phase - std::floor (phase);
+    const auto position = wrappedPhase * static_cast<double> (size);
 
     auto index = static_cast<int> (position);
     const auto fraction = position - static_cast<double> (index);
 
-    // Guards against a phase of exactly 1.0, or a denormal drifting negative.
-    index %= size;
+    // Belt and braces against a phase of exactly 1.0 surviving the wrap through
+    // rounding, which would index one past the end.
+    if (index >= size)
+        index = size - 1;
 
     if (index < 0)
-        index += size;
+        index = 0;
 
     // 4-point cubic Hermite. The table is periodic, so the neighbours wrap
     // rather than clamp — clamping would flatten the waveform at the wrap point
