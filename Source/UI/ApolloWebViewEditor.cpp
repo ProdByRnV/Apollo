@@ -178,6 +178,65 @@ constexpr const char* placeholderPage = R"HTML(<!DOCTYPE html>
 </html>
 )HTML";
 
+/*
+    Selects the WebView backend for the platform Apollo is running on.
+
+    This exists because enabling JUCE's WebView2 support at build time is
+    necessary but *not* sufficient. `JUCE_USE_WIN_WEBVIEW2=1` compiles the
+    backend in, and `NEEDS_WEBVIEW2` links its loader, but JUCE still constructs
+    the legacy Internet Explorer control unless the backend is also selected
+    here, at the point the component is created — JUCE's own documentation for
+    the flag says so, and `createAndInitPlatformDependentPart` falls through to
+    `Platform::Win32WebView` for every backend value but `webview2`.
+
+    The failure that omission produces is quiet and misleading rather than loud.
+    Everything builds, links and passes its tests; the IE control simply cannot
+    serve a resource provider or the native integration, so it fails to reach
+    `https://juce.backend/` and renders "Navigation to the webpage was canceled"
+    where the UI should be. It is invisible to the whole test suite, which
+    exercises the bridge through its protocol layer with no browser at all.
+
+    Only Windows needs the explicit choice: JUCE's default is already WebKit on
+    macOS and WebKitGTK on Linux, which are the right backends there. Apollo
+    therefore names a backend per platform rather than assuming one
+    (CLAUDE.md §6.2, §46), and the platform-specific part is confined to this
+    function.
+*/
+[[nodiscard]] juce::WebBrowserComponent::Options withPlatformBackend (
+    juce::WebBrowserComponent::Options options)
+{
+   #if JUCE_WINDOWS
+    using Backend = juce::WebBrowserComponent::Options::Backend;
+
+    /*
+        The user-data folder is chosen explicitly rather than left to WebView2.
+
+        Left unset, WebView2 creates its folder beside the *running executable*.
+        For the standalone that is Apollo's own build or install directory, which
+        may be read-only; for the VST3 it is the host's program directory, which
+        very often is. If that folder cannot be created the environment fails to
+        initialise and JUCE silently falls back to the IE control — the same
+        broken page as above, appearing only for some users and only in some
+        hosts, which is close to undiagnosable from a bug report.
+
+        A per-user application data folder is writable in both cases and is
+        where this cache belongs. getSpecialLocation resolves it per platform,
+        so no path is hard-coded.
+    */
+    const auto userData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                              .getChildFile ("Apollo")
+                              .getChildFile ("WebView2");
+
+    userData.createDirectory();
+
+    return options.withBackend (Backend::webview2)
+                  .withWinWebView2Options (juce::WebBrowserComponent::Options::WinWebView2 {}
+                                               .withUserDataFolder (userData));
+   #else
+    return options;
+   #endif
+}
+
 std::vector<std::byte> toBytes (const juce::String& text)
 {
     const auto utf8 = text.toRawUTF8();
@@ -199,7 +258,7 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     : juce::AudioProcessorEditor (processorToUse),
       processor (processorToUse),
       bridge (processorToUse.getValueTreeState()),
-      webView (juce::WebBrowserComponent::Options {}
+      webView (withPlatformBackend (juce::WebBrowserComponent::Options {}
                    .withNativeIntegrationEnabled()
                    .withResourceProvider ([this] (const auto& path) { return provideResource (path); })
                    .withEventListener (juce::Identifier (inboundEventId),
@@ -213,7 +272,7 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
 
                                            if (reply.isNotEmpty())
                                                sendToWebView (reply);
-                                       }))
+                                       })))
 {
     addAndMakeVisible (webView);
 

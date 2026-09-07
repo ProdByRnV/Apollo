@@ -129,19 +129,21 @@ Create the smallest functional Apollo application capable of running as both a p
 
 - [x] Implement a clean audio pass-through.
 - [x] Validate input/output channel handling.
-- [ ] Validate standalone device selection. — requires manual verification on a real device
+- [x] Validate standalone device selection. — verified 2026-09-08: Windows Audio, Speakers (Realtek), 48 kHz, 480 samples, channels 1+2, MIDI inputs listed (PROJECT-STATE.md §5a)
 - [x] Verify operation without assuming a particular audio driver or physical connector.
 
 ## Exit Criteria
 
 - [ ] VST3 loads in a representative compatible host. — **requires a DAW; not verifiable in this environment**
-- [ ] Standalone launches and produces audio. — artefact builds; launch is manual verification. Interpreted as "the audio path runs cleanly": Apollo outputs silence until Phase 3, by design
+- [x] Standalone launches and produces audio. — verified 2026-09-08 by measurement, not by ear: a MIDI note drove Apollo's Windows audio-session peak to 0.1829 against 0.0000 either side (PROJECT-STATE.md §5a)
 - [x] Variable block sizes and sample-rate changes do not break processing. — covered by `Tests/Audio/ProcessorLifecycleTests.cpp`
 - [x] No known real-time thread violations exist in the foundation.
 
-> **Phase status:** implementation complete and unit-tested. The two unchecked
-> exit criteria need a DAW and an audio device, which are manual steps. See
-> `PROJECT-STATE.md` §6.
+> **Phase status:** implementation complete and unit-tested. The audio-device
+> criteria were closed on 2026-09-08 by running the standalone and measuring its
+> output (`PROJECT-STATE.md` §5a) — which is also how the WebView2 backend defect
+> in §6, issue 12 was found. One exit criterion remains open and needs a DAW:
+> loading the VST3 in a host.
 
 ---
 

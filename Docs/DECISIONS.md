@@ -555,3 +555,49 @@ see a normalised parameter, and never need to know a `WavetableLibrary` exists.
 
 **Given up:** two structures that describe the same section, and the discipline
 of keeping them in step.
+
+---
+
+## ADR-0027 — The WebView backend is named per platform, not left to JUCE's default
+
+**Phase 4b (verification) · Accepted**
+
+`ApolloWebViewEditor` selects its backend explicitly through a
+`withPlatformBackend` helper: `Backend::webview2` on Windows, JUCE's default
+elsewhere. It also names a user-data folder under the per-user application data
+directory rather than letting WebView2 choose one.
+
+Enabling WebView2 at build time is necessary but **not sufficient**, and nothing
+about the failure says so. `JUCE_USE_WIN_WEBVIEW2=1` compiles the backend in and
+`NEEDS_WEBVIEW2` links its loader — Apollo had both — but
+`createAndInitPlatformDependentPart` still constructs the legacy Internet
+Explorer control for every backend value except `webview2`, which is the
+documented behaviour of the flag rather than a bug in JUCE.
+
+The consequence was invisible to everything Apollo measures. The project built
+clean on four platforms, linked the VST3 and the standalone, and passed 206,757
+assertions, while the standalone's entire UI was the sentence "Navigation to the
+webpage was canceled": the IE control supports neither the resource provider that
+serves the page nor the native integration the bridge is built on, so it could
+not reach `https://juce.backend/`. The test suite could not have caught it — it
+builds headless with `APOLLO_WITH_WEBVIEW=0` and exercises the bridge through its
+protocol layer, where no browser exists. Only launching the application found it.
+
+The user-data folder is part of the same decision. Left unset, WebView2 creates
+its folder beside the running executable: Apollo's own directory for the
+standalone, and the *host's* program directory for the VST3, which is very often
+read-only. A folder it cannot create means the environment fails to initialise
+and JUCE falls back to the IE control — the same broken page, but appearing only
+for some users in some hosts, which is close to undiagnosable from a bug report.
+
+Naming the backend per platform also satisfies the standing rule against baking
+one operating system's WebView into the architecture (CLAUDE.md §6.2, §46). Only
+Windows needs the explicit choice; macOS and Linux already default to WebKit and
+WebKitGTK. The platform-specific part is confined to one function in the UI
+layer.
+
+**Given up:** a compile-time guard in the editor, and the (theoretical) ability
+to fall back to the IE control on a Windows machine with no WebView2 runtime.
+That runtime ships with Windows 11 and is redistributable for Windows 10, and a
+silent fallback to a control that cannot render Apollo's UI is worse than a
+visible failure.

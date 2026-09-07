@@ -253,13 +253,42 @@ Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
 ---
 
+## 5a. Manual verification of the running application
+
+Everything above this point is automated. This section records what was
+confirmed by **running Apollo**, on 2026-09-08, on the development machine
+(Windows 11, WebView2 runtime 152.0.4191.66, 1920x1080 at 150% display scaling).
+It is separate because it is the class of evidence the test suite structurally
+cannot produce: the suite builds headless with `APOLLO_WITH_WEBVIEW=0` and never
+opens a browser, a window or an audio device.
+
+| Checked | Result |
+|---|---|
+| Standalone launches and stays up | Window titled "Apollo"; exits cleanly with code 0 |
+| WebView editor renders | Yes — **after** the fix in §6, issue 12; before it, the UI was an error page |
+| Controls built from metadata | All 25 parameters present, each with name, ID, unit and value |
+| Defaults match the registry | Verified by eye across all 25, including `osc2_level` 0.00 %, `sub_octave` -1 oct, `osc2_fine` 0.00 cents, `filter_cutoff` 20000.00 Hz |
+| UI to engine round trip | Dragging `osc1_unison` produced **9 voices** — the correct integer quantisation of the drag position, echoed back from the engine rather than from the page |
+| Audio device selection | Windows Audio, Speakers (Realtek), 48 kHz, 480 samples (10.0 ms), output channels 1+2, MIDI inputs listed. No hard-coded device assumptions |
+| Audio actually produced | MIDI note to a virtual port; Apollo's Windows audio-session peak read **0.1829** while held, **0.0000** before and after |
+| Level is plausible | 0.08 engine gain x 0.787 velocity = 0.063 for one default note; the measured 0.18 is consistent with the 9-voice unison then in force, whose alignment reaches root-N (ADR-0024) |
+| Notes across the range | 48, 60 and 72 all sound, at identical peaks — expected, since level tracks velocity rather than pitch, and repeatable because voice start phases are fixed (ADR-0017) |
+| State reset resynchronises the UI | "Reset to default state" returned `osc1_unison` from 9 to 1 **in the UI**, exercising the reload-counter poll and full-snapshot path |
+| VST3 bundle | Loads as a library; exports `GetPluginFactory`, `InitDll`, `ExitDll`; `moduleinfo.json` correct. **Not** yet instantiated in a host |
+
+**Not verified, and needing something this machine does not have:** the VST3
+running inside a DAW (§6, issue 2), and any host-specific behaviour —
+automation, state save/restore through a project, transport. Those remain open.
+
+---
+
 ## 6. Known issues
 
 | # | Issue | Severity | Notes |
 |---|---|---|---|
-| 1 | The editor has never been seen running | Medium | It compiles and links, and the bridge beneath it is thoroughly tested, but no one has opened the plugin and watched the WebView render. This needs a DAW or the standalone app. |
-| 2 | VST3 has not been loaded in a DAW | Medium | The artefact builds; loading needs a host. A Phase 1 exit criterion still open. |
-| 3 | Standalone has not been launched against an audio device | Medium | Same: manual verification, including device selection. |
+| 1 | ~~The editor has never been seen running~~ | **Closed** | Verified 2026-09-08 by launching the standalone. The WebView renders, and the page builds all 25 controls from parameter metadata alone, with every default matching the registry. Finding it running is also what exposed the WebView2 backend defect below. |
+| 2 | VST3 has not been loaded in a DAW | Medium | **Partially verified.** The bundle loads as a library and exports `GetPluginFactory`, `InitDll` and `ExitDll`; `moduleinfo.json` declares the correct vendor, version and `Instrument`/`Synth` subcategories. That is not the same as instantiating in a host, which still needs a DAW. |
+| 3 | ~~Standalone has not been launched against an audio device~~ | **Closed** | Verified 2026-09-08. Windows Audio, Speakers (Realtek) at 48 kHz / 480 samples, output channels 1+2. A MIDI note sent to a virtual port drove Apollo's output to a measured session peak of **0.1829**, against 0.0000 before and after — read from the Windows audio-session meter, not inferred. |
 | 4 | Linux CI job failed twice, both causes fixed and confirmed | Resolved | Kept as a record rather than deleted, because both fixes are load-bearing and neither is obvious from the code. **(a) GTK include paths.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. **(b) Runner memory exhaustion.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. Both fixes are confirmed by the green run recorded in §4. |
 | 5 | Symbol visibility still unresolved | Low | ADR-0009 deferred the decision to Phase 1. Plugin targets now exist, so it can be closed. |
 | 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Phase 10. |
@@ -268,6 +297,7 @@ Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 | 9 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
 | 10 | `filter_*` parameters are un-indexed while the PRD specifies two filters | Low | A Phase 5 decision. **These IDs have now been written into the registry**, so changing them is a migration, not a rename (Docs/PARAMETER-CONVENTIONS.md §1). |
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
+| 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 
 ---
 
