@@ -219,6 +219,31 @@ private:
     OscillatorParameterPointers osc1Parameters;
     OscillatorParameterPointers osc2Parameters;
 
+    /** One DAHDSR envelope's raw parameter values.
+
+        Grouped for the same reason the oscillators are: envelopes 2-4 arrive
+        with the modulation matrix, and reading them all through one function
+        means a stage added to one cannot be forgotten on the others.
+    */
+    struct EnvelopeParameterPointers
+    {
+        std::atomic<float>* delayMs = nullptr;
+        std::atomic<float>* attackMs = nullptr;
+        std::atomic<float>* holdMs = nullptr;
+        std::atomic<float>* decayMs = nullptr;
+        std::atomic<float>* sustain = nullptr;
+        std::atomic<float>* releaseMs = nullptr;
+        std::atomic<float>* curve = nullptr;
+
+        /** Resolves every pointer for the envelope with this ID prefix.
+
+             prefix  "env1_" and, from the matrix onwards, "env2_" upward.
+        */
+        void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
+    };
+
+    EnvelopeParameterPointers envelope1;
+
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;

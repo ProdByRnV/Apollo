@@ -71,6 +71,8 @@ Registry as implemented. `Source/Parameters/ParameterDefinitions.h` is authorita
 
 Parameters are added by the phase that implements the DSP giving them meaning, so no ID ships before it does something. The phase column records when each arrived.
 
+Envelopes 2-4 and the four LFOs are deliberately absent: their generators exist or are coming, but they have nowhere to send their output until the modulation matrix, so their IDs ship with it.
+
 | Parameter ID | UI Element | Range / Type | Default | Phase | Description |
 |---|---|---|---:|---|---|
 | `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 2 | Wavetable selection for oscillator 1 |
@@ -92,6 +94,13 @@ Parameters are added by the phase that implements the DSP giving them meaning, s
 | `sub_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Sub oscillator level (silent by default) |
 | `sub_octave` | Selector / Dropdown | Integer `[-2, -1]` | `-1` | 4b | Sub oscillator octave below the note |
 | `noise_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Noise generator level (silent by default) |
+| `env1_delay` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 delay before the attack |
+| `env1_attack` | Rotary Knob | `0–10000 ms` | `5` | 5a | Envelope 1 attack time |
+| `env1_hold` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 hold at full level |
+| `env1_decay` | Rotary Knob | `0–10000 ms` | `100` | 5a | Envelope 1 decay to the sustain level |
+| `env1_sustain` | Rotary Knob | Normalized `[0, 1]` | `1` | 5a | Envelope 1 sustain level |
+| `env1_release` | Rotary Knob | `0–10000 ms` | `50` | 5a | Envelope 1 release time |
+| `env1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5a | Envelope 1 curve tension; 0 is linear, positive is the analog shape |
 | `filter_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 2 | Filter cutoff frequency |
 | `filter_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 2 | Filter resonance/Q |
 | `filter_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Filter/pre-filter drive |

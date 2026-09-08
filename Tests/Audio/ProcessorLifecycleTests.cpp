@@ -314,12 +314,23 @@ private:
         expect (processor.acceptsMidi(), "an instrument must accept MIDI");
         expect (! processor.producesMidi());
         expect (! processor.isMidiEffect());
-        // The tail is the voice release time: a host rendering offline must keep
-        // pulling until the note has finished ringing, or it truncates the
-        // ending. It was 0 before the engine existed.
-        expectWithinAbsoluteError (processor.getTailLengthSeconds(),
-                                   apollo::engine::Voice::releaseSeconds, 1.0e-9,
-                                   "the reported tail must match the voice release time");
+        // The tail is the amplitude envelope's release: a host rendering offline
+        // must keep pulling until the note has finished ringing, or it truncates
+        // the ending. Since Phase 5a the release is a user control, so the tail
+        // has to track the parameter rather than a constant.
+        expectWithinAbsoluteError (processor.getTailLengthSeconds(), 0.050, 1.0e-6,
+                                   "the reported tail must match the default release time");
+
+        if (auto* release = processor.getValueTreeState().getParameter ("env1_release"))
+        {
+            release->setValueNotifyingHost (release->convertTo0to1 (4000.0f));
+
+            expect (processor.getTailLengthSeconds() > 3.0,
+                    "a long release must lengthen the reported tail, or an offline"
+                    " render truncates the note");
+
+            release->setValueNotifyingHost (release->convertTo0to1 (50.0f));
+        }
         expect (processor.getNumPrograms() >= 1, "hosts misbehave when a plugin reports zero programs");
     }
 };

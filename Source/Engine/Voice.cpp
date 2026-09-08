@@ -96,9 +96,9 @@ void Voice::prepare (double newSampleRate) noexcept
     subGain.reset (sampleRate);
     noiseGain.reset (sampleRate);
 
-    attackIncrement = rampIncrement (attackSeconds, sampleRate);
-    releaseDecrement = rampIncrement (releaseSeconds, sampleRate);
-    stealDecrement = rampIncrement (stealSeconds, sampleRate);
+    amplitudeEnvelope.prepare (sampleRate);
+
+    stealDecrement = static_cast<float> (rampIncrement (stealSeconds, sampleRate));
 
     reset();
 }
@@ -112,6 +112,11 @@ void Voice::setNoiseSeed (std::uint32_t seed) noexcept
 {
     noiseSeed = seed;
     noise.setSeed (seed);
+}
+
+void Voice::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept
+{
+    amplitudeEnvelope.setSettings (newSettings);
 }
 
 void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
@@ -186,7 +191,9 @@ void Voice::reset() noexcept
     // level up from zero when it is next allocated.
     snapGainsToTargets();
 
-    envelopeLevel = 0.0;
+    amplitudeEnvelope.reset();
+    stealGain = 1.0f;
+
     note = -1;
     noteVelocity = 0.0f;
     sustainHeld = false;
@@ -223,8 +230,9 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // in rather than gliding up to it.
     snapGainsToTargets();
 
-    envelopeLevel = 0.0;
-    stage = VoiceStage::attack;
+    amplitudeEnvelope.noteOn();
+    stealGain = 1.0f;
+    stage = VoiceStage::sounding;
 
     updatePhaseIncrement();
 }
@@ -255,8 +263,8 @@ void Voice::steal (int midiNote, float velocity, std::uint64_t newStartOrder) no
 
 void Voice::releaseNote() noexcept
 {
-    if (stage == VoiceStage::attack || stage == VoiceStage::sustaining)
-        stage = VoiceStage::releasing;
+    if (stage == VoiceStage::sounding)
+        amplitudeEnvelope.noteOff();
 }
 
 void Voice::setPitchBendSemitones (float semitones) noexcept
@@ -281,68 +289,54 @@ void Voice::updatePhaseIncrement() noexcept
     subOscillator.setFrequency (midiNoteToFrequency (bentNote + 12.0 * static_cast<double> (octave)));
 }
 
-double Voice::nextEnvelopeValue() noexcept
+float Voice::nextAmplitude() noexcept
 {
-    switch (stage)
+    if (stage == VoiceStage::idle)
+        return 0.0f;
+
+    if (stage == VoiceStage::stealing)
     {
-        case VoiceStage::attack:
-            envelopeLevel += attackIncrement;
+        stealGain -= stealDecrement;
 
-            if (envelopeLevel >= 1.0)
+        if (stealGain <= 0.0f)
+        {
+            stealGain = 0.0f;
+
+            // Silence reached, so the waiting note can start without a step.
+            if (pendingNote >= 0)
             {
-                envelopeLevel = 1.0;
-                stage = VoiceStage::sustaining;
+                const int nextNote = pendingNote;
+                const float nextVelocity = pendingVelocity;
+                const std::uint64_t nextOrder = pendingStartOrder;
+
+                pendingNote = -1;
+                beginNote (nextNote, nextVelocity, nextOrder);
             }
-
-            break;
-
-        case VoiceStage::sustaining:
-            envelopeLevel = 1.0;
-            break;
-
-        case VoiceStage::releasing:
-            envelopeLevel -= releaseDecrement;
-
-            if (envelopeLevel <= 0.0)
+            else
             {
-                envelopeLevel = 0.0;
                 reset();
             }
 
-            break;
+            return 0.0f;
+        }
 
-        case VoiceStage::stealing:
-            envelopeLevel -= stealDecrement;
-
-            if (envelopeLevel <= 0.0)
-            {
-                envelopeLevel = 0.0;
-
-                // The fade has reached silence, so the waiting note can start
-                // without a discontinuity.
-                if (pendingNote >= 0)
-                {
-                    const int nextNote = pendingNote;
-                    const float nextVelocity = pendingVelocity;
-                    const std::uint64_t nextOrder = pendingStartOrder;
-
-                    pendingNote = -1;
-                    beginNote (nextNote, nextVelocity, nextOrder);
-                }
-                else
-                {
-                    reset();
-                }
-            }
-
-            break;
-
-        case VoiceStage::idle:
-        default:
-            return 0.0;
+        // The envelope is deliberately frozen for the duration of the steal.
+        // Advancing it as well would let it reach idle part-way through the
+        // fade and drop the level to zero in one sample — a click, from the
+        // very mechanism that exists to prevent one.
+        return amplitudeEnvelope.getCurrentValue() * stealGain;
     }
 
-    return envelopeLevel;
+    const auto value = amplitudeEnvelope.getNextValue();
+
+    // The release has run its course, so the voice is free.
+    if (! amplitudeEnvelope.isActive())
+    {
+        reset();
+        return 0.0f;
+    }
+
+    return value;
 }
 
 void Voice::renderAdding (float* const* output, int numChannels, int startSample, int numSamples) noexcept
@@ -361,11 +355,11 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
 
     for (int i = 0; i < numSamples; ++i)
     {
-        const double envelope = nextEnvelopeValue();
+        const auto envelope = nextAmplitude();
 
-        // reset() inside the envelope may have idled the voice mid-block; the
+        // The envelope may have idled the voice part-way through the block; the
         // remaining samples are silence and there is nothing left to add.
-        if (stage == VoiceStage::idle && envelope <= 0.0)
+        if (stage == VoiceStage::idle && envelope <= 0.0f)
             break;
 
         float left = 0.0f;
@@ -404,7 +398,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
                                        noiseGain.left.getNextValue(),
                                        noiseGain.right.getNextValue());
 
-        const auto amplitude = static_cast<float> (envelope) * noteVelocity;
+        const auto amplitude = envelope * noteVelocity;
 
         left *= amplitude;
         right *= amplitude;

@@ -36,6 +36,8 @@ add_library(apollo_core STATIC
     DSP/Oscillators/WavetableLibrary.h
     DSP/Oscillators/WavetableOscillator.cpp
     DSP/Oscillators/WavetableOscillator.h
+    DSP/Envelopes/Envelope.cpp
+    DSP/Envelopes/Envelope.h
     DSP/Oversampling/HalfbandFilter.cpp
     DSP/Oversampling/HalfbandFilter.h
     DSP/Oversampling/Oversampler.cpp

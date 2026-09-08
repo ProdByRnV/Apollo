@@ -24,14 +24,16 @@ using namespace apollo::params;
 // time and a bad definition fails the build rather than a test run.
 //
 // Nine from the initial registry documented in UI_BINDINGS.md §3; osc1_position
-// added in Phase 4a when the wavetable engine gave it meaning; and fifteen more
-// in Phase 4b with the source section — oscillator 1's spread, level and pan,
-// the whole of oscillator 2, the sub oscillator and the noise generator.
+// added in Phase 4a when the wavetable engine gave it meaning; fifteen more in
+// Phase 4b with the source section — oscillator 1's spread, level and pan, the
+// whole of oscillator 2, the sub oscillator and the noise generator; and seven
+// in Phase 5a for envelope 1, which shapes the voice amplitude. Envelopes 2-4
+// are deliberately absent until the modulation matrix gives them a destination.
 //
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 25, "the registry has twenty-five parameters");
+static_assert (parameterCount() == 32, "the registry has thirty-two parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

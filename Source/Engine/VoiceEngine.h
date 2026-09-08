@@ -26,6 +26,7 @@
     audio thread and none of them allocate, lock, log or perform I/O.
 */
 
+#include "DSP/Envelopes/Envelope.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Unison/UnisonLayout.h"
 #include "Engine/SourceSettings.h"
@@ -210,6 +211,20 @@ public:
     */
     void setSourceParameters (const SourceParameters& newParameters) noexcept;
 
+    /** Replaces the amplitude envelope shape on every voice.
+
+        Applied to sounding voices as well as future ones, so a change while
+        notes are held is audible immediately rather than on the next note.
+        Cheap to call every block: each voice discards settings identical to the
+        ones it holds.
+    */
+    void setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept;
+
+    [[nodiscard]] const dsp::EnvelopeSettings& getAmplitudeEnvelope() const noexcept
+    {
+        return amplitudeEnvelope;
+    }
+
     [[nodiscard]] const SourceParameters& getSourceParameters() const noexcept { return parameters; }
 
     /** Selects oscillator 1's wavetable, by index into the built-in library.
@@ -283,6 +298,8 @@ private:
     dsp::UnisonLayout unison2;
 
     SourceParameters parameters;
+
+    dsp::EnvelopeSettings amplitudeEnvelope;
 
     int polyphony = defaultPolyphony;
     bool sustainPedalDown = false;

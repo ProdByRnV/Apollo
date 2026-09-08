@@ -689,3 +689,75 @@ defended.
 
 **Given up:** the ability to say "32 voices always work". Apollo can say it for
 the default patch, with a measurement behind it.
+
+---
+
+## ADR-0030 — Envelope segments are shaped incrementally, with exact endpoints
+
+**Phase 5a · Accepted**
+
+Each DAHDSR segment travels from the envelope's current level to that segment's
+endpoint over exactly the time the user set, along
+
+    level = start + (end - start) * (1 - e^(-k*p)) / (1 - e^(-k))
+
+evaluated **incrementally**: `e^(-k*p)` is one multiply per sample by a ratio
+computed once when the segment begins. One `exp()` per segment, none per sample.
+
+Two properties were the point.
+
+**Exact endpoints.** The obvious analog envelope is a one-pole filter chasing a
+target, which approaches asymptotically and never arrives. That leaves an attack
+that does not quite reach full scale, a sustain slightly below the level the user
+dialled, and a release that decays toward a denormal instead of silence — so a
+voice needs a threshold to decide it has finished, and the threshold is audible
+as a truncated tail. The form above lands on its target exactly, which is why
+`Envelope` can report `idle` truthfully and the voice can free itself with
+nothing left over. The tests assert the endpoints at every curve setting.
+
+**Exact durations.** The user sets a time, and the segment takes that time.
+A one-pole's time constant is not its duration, so "100 ms decay" would mean
+something the user has to learn rather than something they set.
+
+The alternative considered was a lookup table of shaping curves. Rejected: it
+adds a table, an interpolation, and a resolution question, to approximate a
+function that costs one multiply.
+
+Curve tension is **one control per envelope**, not one per stage. PRD §15.1 asks
+for adjustable curve tension and lists per-stage curves as a later option; six
+controls where one will do is a worse instrument until someone asks.
+
+A change arriving mid-segment retimes that segment from wherever the envelope
+currently is, preserving the fraction already travelled. Applying only at the
+next segment boundary would make a decay knob feel dead while a decay is audibly
+in progress.
+
+**Given up:** the exact shape of a real RC circuit, which the asymptotic form
+does reproduce. What is kept is a curve that is indistinguishable by ear across
+the useful range, and endpoints that are exact.
+
+---
+
+## ADR-0031 — The steal fade is separate from the amplitude envelope
+
+**Phase 5a · Accepted**
+
+`Voice` multiplies its amplitude envelope by a second, independent linear ramp
+that runs only while the voice is being stolen, and freezes the envelope for the
+duration of that fade.
+
+Before Phase 5a the two were the same mechanism: one level with a `stealing`
+stage that ramped it down faster. That worked while the release was a fixed
+50 ms constant. It stops working the moment the release is a user control that
+reaches ten seconds, because voice stealing has to free a voice in about two
+milliseconds whatever the patch says — a stolen voice that took the musical
+release time to disappear would starve the pool exactly when polyphony is under
+pressure, which is when stealing happens.
+
+The envelope is deliberately **frozen** rather than advanced during the fade. An
+envelope allowed to run could reach `idle` part-way through, dropping the level
+to zero in a single sample — a click produced by the very mechanism that exists
+to prevent one (ADR-0019).
+
+**Given up:** one number describing a voice's amplitude. There are now two, and
+`getEnvelopeLevel()` returns their product.

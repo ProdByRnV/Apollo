@@ -18,6 +18,7 @@ target_sources(ApolloTests PRIVATE
     Engine/SourceMixTests.cpp
     DSP/WavetableTests.cpp
     DSP/UnisonTests.cpp
+    DSP/EnvelopeTests.cpp
     DSP/OversamplingTests.cpp
     Performance/Benchmarks.cpp
     DSP/NoiseTests.cpp

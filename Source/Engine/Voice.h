@@ -33,11 +33,12 @@
     function that may be called from another thread, and only while audio is
     stopped.
 
-    PLACEHOLDER. The amplitude envelope is a linear attack/release. The four
-    DAHDSR envelopes are Phase 5. It exists so note transitions are click-free
-    without pre-empting the phase that owns envelopes.
+    AMPLITUDE. The voice is shaped by a DAHDSR envelope (Phase 5a), multiplied
+    by note velocity, and — only while the voice is being stolen — by a separate
+    fast fade that is not part of the envelope at all (ADR-0019).
 */
 
+#include "DSP/Envelopes/Envelope.h"
 #include "DSP/Noise/NoiseGenerator.h"
 #include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableOscillator.h"
@@ -49,14 +50,19 @@
 namespace apollo::engine
 {
 
-/** Where a voice is in its lifecycle. */
+/** Where a voice is in its life.
+
+    Deliberately coarse. The musical detail — delay, attack, hold, decay,
+    sustain, release — belongs to the amplitude envelope, which owns its own
+    stages. This enum answers only the questions the engine asks when it is
+    deciding which voice to take: is this voice free, is it sounding, and is it
+    already on its way out.
+*/
 enum class VoiceStage
 {
-    idle,        ///< Silent and available for allocation.
-    attack,      ///< Ramping up from silence.
-    sustaining,  ///< Held at full level while the key is down.
-    releasing,   ///< Ramping down after note-off.
-    stealing     ///< Ramping down fast, with a new note waiting to start.
+    idle,     ///< Silent and available for allocation.
+    sounding, ///< Playing a note. The envelope says where within it.
+    stealing  ///< Fading out fast, with a new note waiting behind it.
 };
 
 class Voice
@@ -64,16 +70,14 @@ class Voice
 public:
     Voice() = default;
 
-    /** Envelope ramp lengths, in seconds.
+    /** How long a stolen voice takes to fade to silence, in seconds.
 
-        The attack is short enough to feel immediate on a percussive part, and
-        long enough that starting from silence is not a step discontinuity.
-        The steal ramp is deliberately much faster than the normal release: a
-        stolen voice must free itself promptly, but stopping a waveform at
-        full amplitude is exactly what a click is.
+        Deliberately separate from the amplitude envelope's release, and
+        deliberately much faster. A stolen voice must free itself promptly for
+        the note that is waiting, while a musical release may be seconds long —
+        making one control serve both would mean either clicks or a voice pool
+        that empties too slowly to keep up (ADR-0019).
     */
-    static constexpr double attackSeconds = 0.005;
-    static constexpr double releaseSeconds = 0.050;
     static constexpr double stealSeconds = 0.002;
 
     /** Ramp length for a source level or balance change, in seconds.
@@ -121,6 +125,15 @@ public:
 
     [[nodiscard]] const VoiceSourceSettings& getSources() const noexcept { return sources; }
 
+    /** Replaces the amplitude envelope's shape.
+
+        Cheap to call every block: the envelope discards settings identical to
+        the ones it already holds.
+    */
+    void setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept;
+
+    [[nodiscard]] const dsp::Envelope& getAmplitudeEnvelope() const noexcept { return amplitudeEnvelope; }
+
     /** Starts a note.
 
         @param midiNote     0-127.
@@ -166,7 +179,10 @@ public:
     void renderAdding (float* const* output, int numChannels, int startSample, int numSamples) noexcept;
 
     [[nodiscard]] bool isActive() const noexcept { return stage != VoiceStage::idle; }
-    [[nodiscard]] bool isReleasing() const noexcept { return stage == VoiceStage::releasing; }
+    [[nodiscard]] bool isReleasing() const noexcept
+    {
+        return stage == VoiceStage::sounding && amplitudeEnvelope.isReleasing();
+    }
 
     /** True once note-off has arrived but the key is still held by sustain. */
     [[nodiscard]] bool isSustainHeld() const noexcept { return sustainHeld; }
@@ -176,15 +192,20 @@ public:
     [[nodiscard]] VoiceStage getStage() const noexcept { return stage; }
     [[nodiscard]] std::uint64_t getStartOrder() const noexcept { return startOrder; }
 
-    /** Current envelope level, 0-1. Exposed for tests and metering. */
-    [[nodiscard]] float getEnvelopeLevel() const noexcept { return static_cast<float> (envelopeLevel); }
+    /** Current amplitude, 0-1, including any steal fade in progress. Exposed
+        for tests and for metering.
+    */
+    [[nodiscard]] float getEnvelopeLevel() const noexcept
+    {
+        return amplitudeEnvelope.getCurrentValue() * stealGain;
+    }
 
 private:
     void beginNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept;
     void updatePhaseIncrement() noexcept;
     void updateGainTargets() noexcept;
     void snapGainsToTargets() noexcept;
-    [[nodiscard]] double nextEnvelopeValue() noexcept;
+    [[nodiscard]] float nextAmplitude() noexcept;
 
     /** A smoothed stereo gain pair for one source, and whether it is worth
         rendering.
@@ -240,10 +261,14 @@ private:
     SourceGain subGain;
     SourceGain noiseGain;
 
-    double envelopeLevel = 0.0;
-    double attackIncrement = 0.0;
-    double releaseDecrement = 0.0;
-    double stealDecrement = 0.0;
+    dsp::Envelope amplitudeEnvelope;
+
+    /** Multiplies the envelope while a voice is being stolen, and is 1 at every
+        other time. Kept apart from the envelope so the anti-click fade and the
+        musical release stay independent controls.
+    */
+    float stealGain = 1.0f;
+    float stealDecrement = 0.0f;
 
     VoiceStage stage = VoiceStage::idle;
 

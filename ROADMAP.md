@@ -327,15 +327,15 @@ Build the expressive sound-design architecture around the oscillator core.
 
 ### Envelopes
 
-- [ ] Implement four DAHDSR envelopes.
-- [ ] Implement attack.
-- [ ] Implement hold.
-- [ ] Implement decay.
-- [ ] Implement sustain.
-- [ ] Implement release.
-- [ ] Implement delay if included in the final envelope definition.
-- [ ] Validate retrigger behavior.
-- [ ] Validate note-off behavior.
+- [ ] Implement four DAHDSR envelopes. — the generator is complete and one instance drives voice amplitude (5a); envelopes 2-4 arrive with the matrix that gives them destinations (5d)
+- [x] Implement attack. (5a)
+- [x] Implement hold. (5a)
+- [x] Implement decay. (5a)
+- [x] Implement sustain. (5a)
+- [x] Implement release. (5a)
+- [x] Implement delay if included in the final envelope definition. — included; PRD §15.1 specifies DAHDSR (5a)
+- [x] Validate retrigger behavior. — a retriggered envelope continues from its current level rather than restarting at zero, which is what keeps the restart click-free; asserted in `Tests/DSP/EnvelopeTests.cpp` (5a)
+- [x] Validate note-off behavior. — release begins from wherever the envelope is, from any stage, with no step; asserted across four note-off points (5a)
 
 ### LFOs
 

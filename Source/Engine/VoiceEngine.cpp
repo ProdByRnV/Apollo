@@ -52,6 +52,9 @@ void VoiceEngine::prepare (double sampleRate) noexcept
 
     applySourceParameters();
 
+    for (auto& voice : voices)
+        voice.setAmplitudeEnvelope (amplitudeEnvelope);
+
     reset();
 }
 
@@ -223,6 +226,17 @@ void VoiceEngine::setWavetablePosition (float normalisedPosition) noexcept
     updated.osc1.position = normalisedPosition;
 
     setSourceParameters (updated);
+}
+
+void VoiceEngine::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept
+{
+    if (newSettings == amplitudeEnvelope)
+        return;
+
+    amplitudeEnvelope = newSettings;
+
+    for (auto& voice : voices)
+        voice.setAmplitudeEnvelope (amplitudeEnvelope);
 }
 
 void VoiceEngine::applySourceParameters() noexcept

@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 4 — Wavetable Oscillator System |
-| **Status** | **Complete (4a, 4b, 4c)** |
-| **Milestone** | M4 — Synthesis Core |
-| **Next step** | Phase 5 — Filters, Envelopes & Modulation |
+| **Phase** | Phase 5 — Filters, Envelopes & Modulation |
+| **Status** | **5a complete; 5b, 5c, 5d open** |
+| **Milestone** | M5 — Sound Design |
+| **Next step** | Phase 5b — the two state-variable filters |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -27,9 +27,13 @@ a stereo noise generator, mixed with per-source level and balance and played
 polyphonically through the VST3 and standalone builds. Aliasing is measured, not
 asserted: worst case -98.5 dBc against a -60 dBc budget.
 
-Still placeholders: the amplitude envelope is a linear attack/release (the four
-DAHDSR envelopes are Phase 5), and the four built-in wavetables are
-mathematically defined morphs rather than designed factory content (Phase 9).
+Voices are now shaped by a real DAHDSR envelope with adjustable curve tension,
+not the linear placeholder.
+
+Still placeholders: the four built-in wavetables are mathematically defined
+morphs rather than designed factory content (Phase 9). Envelopes 2-4 and the
+LFOs exist as a plan rather than as code, and arrive with the modulation matrix
+that gives them somewhere to send their output.
 
 ---
 
@@ -168,28 +172,69 @@ Everything below was configured, built and executed on this machine.
 - `VoiceEngine` is deliberately non-copyable and non-movable: voices hold
   pointers into it.
 
-The amplitude envelope remains a linear attack/release, a deliberate placeholder
-for the DAHDSR envelopes in Phase 5.
+(The amplitude envelope was a linear placeholder here; Phase 5a replaced it.)
 
 ---
+
+### Oversampling (Phase 4c)
+
+- A linear-phase polyphase halfband oversampler, 2x and 4x, plus a genuine
+  pass-through setting so a quality control can switch it off without the
+  surrounding code branching. Apollo's own rather than JUCE's, so it can live in
+  the JUCE-free `apollo_core` under the strict warning set (ADR-0028).
+- Measured: passband flat to 20 kHz within 0.0001 dB, stopband -100.7 dB, and a
+  hard clipper's worst non-harmonic content improving -35.8 → -45.3 → -62.1 dBc.
+- Latency is whole samples by construction — 39 at 2x, 59 at 4x — so a dry path
+  can be aligned exactly. The two cascaded stages use different tap counts
+  purely to make that number whole.
+- **Nothing uses it yet.** It exists ahead of the nonlinear stages that need it.
+  `Docs/OVERSAMPLING.md` records where it will be applied and, more usefully,
+  where it deliberately will not be — including the oscillators, which are
+  band-limited at the source and gain nothing from it.
+
+### Amplitude envelope (Phase 5a)
+
+- A **DAHDSR** envelope generator: delay, attack, hold, decay, sustain, release,
+  with one curve-tension control spanning linear through analog-like shapes.
+- Segments are shaped incrementally — one multiply per sample, one `exp()` per
+  segment — and land on their endpoints **exactly**, so the attack reaches full
+  scale, the sustain sits where it was set, and the release reaches true silence
+  rather than a denormal tail the voice has to threshold away (ADR-0030).
+- Stage durations are exact and sample-rate independent: measured within one
+  sample at 48 kHz, and within 0.02 ms of the requested 20 ms across
+  44.1–192 kHz.
+- Zero-length stages are skipped rather than costing a sample each, so an
+  all-zero envelope arrives at its sustain level with no samples elapsed.
+- A time changed mid-segment retimes that segment from wherever the envelope is,
+  preserving the fraction already travelled, so a knob moved during a held note
+  is audible immediately.
+- The **steal fade is now separate** from the envelope and freezes it while it
+  runs (ADR-0031). It had to be: stealing must free a voice in about two
+  milliseconds whatever the patch says, and the release is now a user control
+  reaching ten seconds.
+- The host-reported tail length tracks `env1_release` instead of a constant, so
+  an offline render of a long-release patch is no longer truncated.
+- Only **envelope 1** is registered as parameters. Envelopes 2-4 have nowhere to
+  send their output until the modulation matrix, so their IDs ship with it.
 
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 4c | Oversampling infrastructure for nonlinear stages; CPU cost measured across polyphony levels |
-| 5 | Filters, envelopes, LFOs, modulation matrix |
+| 5b | The two state-variable filters, their routing and their modes |
+| 5c | The four LFOs |
+| 5d | Envelopes 2-4, the modulation matrix, velocity and key tracking, mod wheel and aftertouch sources |
 | 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
 | 7 | The `WebUI/` React frontend, visualizers, telemetry |
-| 8 | Every effect and the FX rack |
+| 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**20 of the 25 registered parameters now affect audio** — the whole source
-section plus `master_gain`. The remaining five (`filter_cutoff`,
+**27 of the 32 registered parameters now affect audio** — the whole source
+section, envelope 1, and `master_gain`. The remaining five (`filter_cutoff`,
 `filter_resonance`, `filter_drive`, `fx_distortion_mix`, `fx_delay_time`) are
 exposed to hosts and to the UI but have nothing to act on until the filter and
-effect stages exist in Phases 5 and 8.
+effect stages exist in Phases 5b and 8.
 
 ---
 
@@ -295,32 +340,40 @@ lower is better, and 100 % means the render exactly keeps up with playback.
 
 ### Voice engine
 
+Re-measured in Phase 5a, so these figures include the DAHDSR envelope.
+
 | Voices | Default patch | Heaviest patch |
 |---:|---:|---:|
-| 1 | 0.15 % | 4.17 % |
-| 2 | 0.29 % | 8.47 % |
-| 4 | 0.59 % | 17.16 % |
-| 8 | 1.20 % | 41.07 % |
-| 16 | 2.32 % | 82.05 % |
-| 32 | **4.86 %** | **150.33 %** |
+| 1 | 0.15–0.19 % | 4.4–5.4 % |
+| 8 | 1.66 % | 44.6 % |
+| 16 | 2.87 % | 86.9 % |
+| 32 | **5.2–5.8 %** | **163–165 %** |
 
 "Default patch" is oscillator 1 alone with no unison — what Apollo loads with.
 "Heaviest patch" is both oscillators at 16-voice unison plus the sub and the
 noise generator: 34 oscillators per voice, and 1088 of them at 32 voices.
 
+**On the ranges.** Repeating the whole benchmark gives figures that differ by
+about ±6 % run to run, even though each measurement is the best of three passes.
+That is the machine, not Apollo, and it is stated here because a single decimal
+place would imply a precision these numbers do not have. Anything below roughly
+a ten per cent difference should be read as unchanged.
+
+Against the Phase 4c figures (4.86 % and 150 %), the envelope costs a few per
+cent on the heaviest patch and nothing distinguishable from noise on the default
+one. That is the expected shape: a held note spends almost all its time in the
+sustain stage, which is a switch and a return.
+
 Two things follow, and both are recorded rather than smoothed over:
 
-- **The default patch is cheap.** Cost is linear in voices at about 0.15 % each,
-  so full 32-voice polyphony costs under five per cent of one core. Polyphony is
+- **The default patch is cheap.** Cost is linear in voices at under 0.2 % each,
+  so full 32-voice polyphony costs under six per cent of one core. Polyphony is
   not a performance consideration for ordinary patches.
-- **The heaviest patch cannot run at full polyphony.** 150 % of real time at 32
-  voices means it will not keep up on this machine, and 82 % at 16 voices is
+- **The heaviest patch cannot run at full polyphony.** Over 160 % of real time at
+  32 voices means it will not keep up on this machine, and 87 % at 16 voices is
   already too close to the edge to be safe. This is inherent arithmetic rather
   than a defect; ADR-0029 records the decision to publish the limit rather than
   lower the ceilings, and Phase 10 owns the optimisation.
-
-Per-voice cost rises from 4.17 % to about 5.13 % between 1 and 8 voices before
-settling — cache behaviour, not an algorithmic change.
 
 ### Oversampler
 

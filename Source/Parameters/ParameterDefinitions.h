@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 25> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 32> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -255,6 +255,67 @@ inline constexpr std::array<ParameterDefinition, 25> parameterDefinitions { {
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    // Envelope 1 — amplitude ------------------------------------------------
+    // Added in Phase 5a with the DAHDSR generator that gives them meaning. Only
+    // envelope 1 is registered: it shapes the voice amplitude, which is a
+    // destination that exists today. Envelopes 2-4 have nowhere to send their
+    // output until the modulation matrix, so their IDs ship with it
+    // (Docs/PARAMETER-CONVENTIONS.md §6).
+    //
+    // Times are in milliseconds with a strong skew, because envelope times are
+    // used logarithmically: the difference between 5 ms and 50 ms matters far
+    // more than the difference between 5 s and 5.05 s, and a linear control
+    // would spend most of its travel in the range nobody adjusts.
+    { "env1_delay", "Env 1 Delay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env1_attack", "Env 1 Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 5.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env1_hold", "Env 1 Hold",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env1_decay", "Env 1 Decay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 100.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    // Defaults to full, which is what keeps the Phase 3 gain staging valid: a
+    // held note sits at exactly the level every headroom measurement assumed
+    // (ADR-0025).
+    { "env1_sustain", "Env 1 Sustain",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env1_release", "Env 1 Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 50.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    // Bipolar curve tension. Positive is the analog shape — quick off the mark,
+    // easing into the target — which is why the default is positive rather than
+    // linear: a linear amplitude release sounds like a fade-out rather than
+    // like an instrument stopping. PRD §15.1 asks for one tension control;
+    // per-stage curves are listed there as a later option.
+    { "env1_curve", "Env 1 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, false },
 
     // Filter -----------------------------------------------------------------
     // Un-indexed because UI_BINDINGS.md §3 defines them that way, predating the

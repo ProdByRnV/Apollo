@@ -41,6 +41,8 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     osc1Parameters.resolve (apvts, "osc1_");
     osc2Parameters.resolve (apvts, "osc2_");
 
+    envelope1.resolve (apvts, "env1_");
+
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
@@ -69,6 +71,24 @@ void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
 
     jassert (wavetable != nullptr && position != nullptr && unison != nullptr
              && detune != nullptr && spread != nullptr && level != nullptr && pan != nullptr);
+}
+
+void ApolloAudioProcessor::EnvelopeParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state, juce::StringRef prefix)
+{
+    const juce::String base (prefix);
+
+    delayMs = state.getRawParameterValue (base + "delay");
+    attackMs = state.getRawParameterValue (base + "attack");
+    holdMs = state.getRawParameterValue (base + "hold");
+    decayMs = state.getRawParameterValue (base + "decay");
+    sustain = state.getRawParameterValue (base + "sustain");
+    releaseMs = state.getRawParameterValue (base + "release");
+    curve = state.getRawParameterValue (base + "curve");
+
+    jassert (delayMs != nullptr && attackMs != nullptr && holdMs != nullptr
+             && decayMs != nullptr && sustain != nullptr && releaseMs != nullptr
+             && curve != nullptr);
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -168,6 +188,21 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     parameters.noiseLevel = readParameter (noiseLevelParameter, 0.0f);
 
     voiceEngine.setSourceParameters (parameters);
+
+    // Envelope times reach the engine in seconds. Milliseconds are what a user
+    // reads on a control; seconds are what a sample count is derived from, and
+    // converting once here keeps the division out of the DSP.
+    dsp::EnvelopeSettings envelope;
+
+    envelope.delaySeconds = readParameter (envelope1.delayMs, 0.0f) * 0.001f;
+    envelope.attackSeconds = readParameter (envelope1.attackMs, 5.0f) * 0.001f;
+    envelope.holdSeconds = readParameter (envelope1.holdMs, 0.0f) * 0.001f;
+    envelope.decaySeconds = readParameter (envelope1.decayMs, 100.0f) * 0.001f;
+    envelope.releaseSeconds = readParameter (envelope1.releaseMs, 50.0f) * 0.001f;
+    envelope.sustainLevel = readParameter (envelope1.sustain, 1.0f);
+    envelope.curve = readParameter (envelope1.curve, 0.5f);
+
+    voiceEngine.setAmplitudeEnvelope (envelope);
 }
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
@@ -356,8 +391,12 @@ double ApolloAudioProcessor::getTailLengthSeconds() const
 {
     // The amplitude release is the only tail Apollo has so far. Reporting it
     // lets an offline render capture the note ending instead of truncating it.
+    //
+    // It tracks the envelope's release control rather than a constant: since
+    // Phase 5a that is a user parameter reaching ten seconds, and a fixed value
+    // would silently truncate every patch with a long tail.
     // Effects that ring out report their own tails in Phase 8.
-    return engine::Voice::releaseSeconds;
+    return static_cast<double> (readParameter (envelope1.releaseMs, 50.0f)) * 0.001;
 }
 
 //==============================================================================
