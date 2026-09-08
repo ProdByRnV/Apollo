@@ -43,6 +43,8 @@
 #include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableOscillator.h"
 #include "DSP/Utilities/LinearSmoothedValue.h"
+#include "DSP/Filters/FilterDrive.h"
+#include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
 
 #include <cstdint>
@@ -132,6 +134,16 @@ public:
     */
     void setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept;
 
+    /** Replaces the filter section.
+
+        Cheap to call every block: identical settings are recognised and
+        discarded before any state is touched. Coefficients arrive already
+        resolved, so this never computes a tangent.
+    */
+    void setFilters (const VoiceFilterSettings& newFilters) noexcept;
+
+    [[nodiscard]] const VoiceFilterSettings& getFilters() const noexcept { return filters; }
+
     [[nodiscard]] const dsp::Envelope& getAmplitudeEnvelope() const noexcept { return amplitudeEnvelope; }
 
     /** Starts a note.
@@ -207,6 +219,9 @@ private:
     void snapGainsToTargets() noexcept;
     [[nodiscard]] float nextAmplitude() noexcept;
 
+    /** Runs one stereo sample through the filter section, in place. */
+    void applyFilters (float& left, float& right) noexcept;
+
     /** A smoothed stereo gain pair for one source, and whether it is worth
         rendering.
 
@@ -262,6 +277,16 @@ private:
     SourceGain noiseGain;
 
     dsp::Envelope amplitudeEnvelope;
+
+    VoiceFilterSettings filters;
+
+    /** Two filters per channel. A stereo voice needs independent state per
+        side, or the two channels share integrators and the image collapses.
+    */
+    dsp::StateVariableFilter filter1Left;
+    dsp::StateVariableFilter filter1Right;
+    dsp::StateVariableFilter filter2Left;
+    dsp::StateVariableFilter filter2Right;
 
     /** Multiplies the envelope while a voice is being stolen, and is 1 at every
         other time. Kept apart from the envelope so the anti-click fade and the

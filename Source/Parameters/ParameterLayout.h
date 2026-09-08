@@ -24,6 +24,18 @@ namespace apollo::params
 */
 inline constexpr const char* stateTreeType = "ApolloState";
 
+/** ValueTree type of one saved parameter inside the state root.
+
+    JUCE writes an APVTS state as a flat list of these, and a migration step
+    that renames a parameter has to find them by tag. Named here rather than
+    spelled inline at the point of use, because it is part of the same
+    serialized-state contract as the root type above.
+*/
+inline constexpr const char* parameterTreeType = "PARAM";
+
+/** Property holding a saved parameter's identifier. */
+inline constexpr const char* parameterIdProperty = "id";
+
 /** VST3 parameter version hint.
 
     VST3 derives a parameter's identity from a hash that includes this hint. It

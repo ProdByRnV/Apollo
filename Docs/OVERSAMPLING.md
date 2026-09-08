@@ -32,15 +32,17 @@ stops improving on the unprocessed case by at least 10 dB.
 
 ## 2. Where Apollo oversamples
 
-Nothing yet, because Apollo has no nonlinear stage yet. The infrastructure exists
-ahead of the stages that need it, which is what Phase 4c is for.
+Nothing yet. Apollo has one nonlinear stage as of Phase 5b — the filter drive —
+and it is deliberately not oversampled; §3 and ADR-0033 record why, with the
+measurements that decided it. The infrastructure still waits for its first
+consumer, which is the distortion in Phase 8.
 
 The stages that **will** use it, and the factor each is expected to want:
 
 | Stage | Phase | Expected factor | Why |
 |---|---|---|---|
 | Distortion / waveshaping | 8 | 4x | The reason this exists. Hard clipping is the worst case measured above |
-| Filter drive (`filter_drive`) | 5 | 2x | A saturating filter input is nonlinear, but usually gentler than a clipper |
+| Filter drive (`filterN_drive`) | 5b | **none** | Re-measured when it was built, which is what this table said should happen. Its range was cut instead: a per-voice stage means up to 128 conversions and 39 samples of latency each. See ADR-0033 |
 | Aggressive oscillator warp | later | 2x, if measured | Warp reshapes a band-limited table and can break its band-limiting |
 | Compressor / gate gain computer | 8 | none | See below |
 
@@ -74,11 +76,26 @@ The sub is a single-harmonic sine: it cannot alias at any pitch or octave
 transposition. White noise generated at the sample rate has no content above
 Nyquist to fold. Neither needs it.
 
+### Filter drive — measured, and kept small instead
+
+The saturation in front of each filter is nonlinear and does fold. It is not
+oversampled, because it is a *per-voice* stage: two channels, two filters and
+thirty-two voices is up to 128 conversions, each adding 39 samples of latency.
+Latency that appears only when a control is turned up is worse for a host than a
+little aliasing, and always-on latency taxes every patch for a feature most do
+not use.
+
+The range was cut instead. `Tests/DSP/FilterTests.cpp` measures fold-back at
+-146 dBc with drive at zero and about -45 dBc at the maximum the control now
+reaches, against -25 dBc at the range it originally had. A drive worth calling
+distortion belongs to the FX rack, where one stage on a bus can carry one
+constant, reported latency (ADR-0033).
+
 ### Every linear stage
 
-Gain, pan, balance, mixing, summing, delay lines, EQ and filters in their linear
-region all produce no new frequencies. Oversampling them changes nothing except
-the CPU bill.
+Gain, pan, balance, mixing, summing, delay lines, EQ and the state variable
+filters themselves all produce no new frequencies. Oversampling them changes
+nothing except the CPU bill.
 
 ### Dynamics
 

@@ -28,7 +28,7 @@ namespace apollo::state
     would misinterpret. Adding an optional field with a safe default is not such
     a change.
 */
-inline constexpr int currentSchemaVersion = 1;
+inline constexpr int currentSchemaVersion = 2;
 
 /** The oldest schema version this build can still load, directly or by
     migration. Anything older is rejected rather than guessed at.

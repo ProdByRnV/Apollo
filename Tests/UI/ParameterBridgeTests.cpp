@@ -169,10 +169,10 @@ private:
         ui::ParameterBridge bridge (apvts);
 
         const auto reply = bridge.handleMessage (
-            R"({"type":"setParameter","version":1,"id":"filter_cutoff","normalizedValue":0.4})");
+            R"({"type":"setParameter","version":1,"id":"filter1_cutoff","normalizedValue":0.4})");
 
         expect (reply.isEmpty(), "a successful set needs no immediate reply");
-        expectWithinAbsoluteError (apvts.getParameter ("filter_cutoff")->getValue(), 0.4f, 1.0e-5f);
+        expectWithinAbsoluteError (apvts.getParameter ("filter1_cutoff")->getValue(), 0.4f, 1.0e-5f);
     }
 
     void testInvalidCommandsReturnErrorsAndChangeNothing()
@@ -183,11 +183,11 @@ private:
         auto& apvts = processor.getValueTreeState();
         ui::ParameterBridge bridge (apvts);
 
-        const auto before = apvts.getParameter ("filter_cutoff")->getValue();
+        const auto before = apvts.getParameter ("filter1_cutoff")->getValue();
 
         for (const auto* json : {
-                 R"({"type":"setParameter","version":1,"id":"filter_cutoff","normalizedValue":7})",
-                 R"({"type":"setParameter","version":2,"id":"filter_cutoff","normalizedValue":0.1})",
+                 R"({"type":"setParameter","version":1,"id":"filter1_cutoff","normalizedValue":7})",
+                 R"({"type":"setParameter","version":2,"id":"filter1_cutoff","normalizedValue":0.1})",
                  R"({"type":"setParameter","version":1,"id":"nope_nope","normalizedValue":0.1})",
                  R"({"type":"evaluate","version":1})",
                  "garbage" })
@@ -200,7 +200,7 @@ private:
                           juce::String ("expected an error reply for: ") + json);
         }
 
-        expectWithinAbsoluteError (apvts.getParameter ("filter_cutoff")->getValue(), before, 1.0e-6f,
+        expectWithinAbsoluteError (apvts.getParameter ("filter1_cutoff")->getValue(), before, 1.0e-6f,
                                    "a rejected command must not change any parameter");
     }
 
@@ -241,7 +241,7 @@ private:
         OutboundRecorder recorder;
         bridge.setOutboundHandler (recorder.handler());
 
-        auto* parameter = apvts.getParameter ("filter_cutoff");
+        auto* parameter = apvts.getParameter ("filter1_cutoff");
 
         for (int i = 0; i < 200; ++i)
             parameter->setValueNotifyingHost (static_cast<float> (i) / 200.0f);

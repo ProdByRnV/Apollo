@@ -9,17 +9,55 @@ namespace apollo::state
 namespace
 {
 
+/** Renames one APVTS parameter child in place, if it is present.
+
+    A saved state is a flat list of <PARAM id="..." value="..."/> children, so a
+    rename is exactly that: find the child, change its id. A document that never
+    contained the old parameter is untouched and is not an error — partial
+    documents are legal, and the loader fills anything absent from the defaults.
+*/
+void renameParameter (juce::ValueTree& state, const juce::String& from, const juce::String& to)
+{
+    for (auto child : state)
+    {
+        if (child.hasType (params::parameterTreeType)
+            && child.getProperty (params::parameterIdProperty).toString() == from)
+        {
+            child.setProperty (params::parameterIdProperty, to, nullptr);
+            return;
+        }
+    }
+}
+
 /** Upgrades a state tree from @p fromVersion to @p fromVersion + 1.
 
-    No steps are registered yet: currentSchemaVersion is still 1, so nothing
-    reaches this function today. It is the single extension point for the first
-    real schema change, and returning false by default is the safe behaviour —
-    an unrecognised version is refused rather than reinterpreted.
+    Each step upgrades exactly one version, so a document from any supported
+    version reaches the current one by walking the same path rather than through
+    a matrix of special cases. Returning false for an unrecognised version is
+    the safe default: it is refused rather than reinterpreted.
 */
 bool applyMigrationStep (juce::ValueTree& state, int fromVersion)
 {
-    juce::ignoreUnused (state, fromVersion);
-    return false;
+    switch (fromVersion)
+    {
+        case 1:
+            // Phase 5b indexed the filter parameters. Version 1 documents were
+            // written with a single, un-indexed filter because there was only
+            // one; they carry the same values under the new names, so the
+            // upgrade is a rename and nothing is lost or guessed at (ADR-0032).
+            //
+            // Filter 2 and the routing control are simply absent from a version
+            // 1 document, and the loader supplies their defaults — off, and
+            // series — which is exactly the silent, transparent second filter a
+            // patch saved before it existed should have.
+            renameParameter (state, "filter_cutoff", "filter1_cutoff");
+            renameParameter (state, "filter_resonance", "filter1_resonance");
+            renameParameter (state, "filter_drive", "filter1_drive");
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 } // namespace

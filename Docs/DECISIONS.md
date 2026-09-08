@@ -761,3 +761,94 @@ to prevent one (ADR-0019).
 
 **Given up:** one number describing a voice's amplitude. There are now two, and
 `getEnvelopeLevel()` returns their product.
+
+---
+
+## ADR-0032 — The filter parameters were renamed, with a state migration
+
+**Phase 5b · Accepted**
+
+`filter_cutoff`, `filter_resonance` and `filter_drive` became `filter1_cutoff`,
+`filter1_resonance` and `filter1_drive`, joined by a `filter2_*` set and a
+`filter_routing` control. Schema version 2 migrates version 1 documents by
+renaming the three children in place, carrying their saved values.
+
+The three original IDs predated the second filter the PRD specifies, and
+`PROJECT-STATE.md` had carried the question as an open issue since Phase 2 with
+"a Phase 5 decision" written against it. The alternative was to keep them and add
+`filter2_*` alongside, which would have left the instrument with `filter_cutoff`
+sitting next to `filter2_cutoff` in every automation lane and every preset for
+the rest of its life — a permanent asymmetry, visible to users, in exchange for
+avoiding one migration step.
+
+Apollo is 0.1.0 and unreleased, and `Docs/VERSIONING.md` §2 is explicit that
+public contracts are not frozen before 1.0 provided a break is recorded. This is
+that window, and it does not come back.
+
+The migration is also the first exercise of a code path built in Phase 2 and
+never used: `applyMigrationStep` returned false for everything, and no document
+had ever been through it. A migration architecture that has never migrated
+anything is a plan, not a mechanism. `Tests/State/StateSerializationTests.cpp`
+now drives a real version 1 document through it and checks the values survive,
+including the case where the old parameters are absent entirely.
+
+Filter 2 and the routing control are simply missing from a version 1 document,
+and the loader supplies their defaults — off, and series — which is exactly the
+transparent second filter a patch saved before it existed should get.
+
+**Given up:** version 1 documents now depend on a migration step being correct
+rather than on nothing happening at all. That is why the step is tested against a
+real document rather than only at its boundaries.
+
+---
+
+## ADR-0033 — Filter drive is deliberately gentle, because its aliasing was measured
+
+**Phase 5b · Accepted**
+
+`filter_drive` reaches 2x gain into a soft clipper and no further. The ceiling is
+a measurement rather than a taste.
+
+A nonlinearity folds harmonics back into the audible band, and folding is
+instantaneous — what comes back is already in band, so no filter downstream can
+separate it from signal. (An earlier comment in `FilterDrive.h` claimed the
+filter did remove it. That was wrong, and the measurement is what corrected it.)
+
+`Tests/DSP/FilterTests.cpp` measures fold-back against drive, on a full-scale
+tone chosen to be inharmonic with the sample rate so folded partials cannot hide
+on harmonics:
+
+| Drive | Gain | Worst fold-back |
+|---|---|---|
+| 0.00 | 1.0x | -146.5 dBc |
+| 0.25 | 1.25x | -57.1 dBc |
+| 0.50 | 1.5x | -52.6 dBc |
+| 1.00 | 2.0x | -45.1 dBc |
+
+and, before the range was cut, -25.1 dBc at 4x and -19.4 dBc at 16x — worse than
+the hard clipper the oversampling tests use as their worst case. A saturator with
+no knee at all was measured too, and is barely better: the cliff is the
+nonlinearity, not the shape chosen for it.
+
+So the -60 dBc budget the wavetable engine holds itself to cannot be met by any
+audible amount of drive at 48 kHz without oversampling. Three responses were
+considered:
+
+- **Widen the budget** and ship a hard drive. Rejected: the budget would then
+  mean nothing, and -19 dBc of inharmonic content is audible.
+- **Oversample the drive.** Correct, and rejected *here* on cost and latency.
+  This is a per-voice stage: two channels, two filters, thirty-two voices is up
+  to 128 conversions, and each adds 39 samples of latency. Latency that appears
+  only when a parameter is turned up is worse for a host than a little aliasing,
+  and always-on latency penalises every patch for a feature most do not use.
+- **Keep the range small.** Chosen. At 2x the worst case is about -45 dBc, which
+  is a colour rather than a defect, and the control does something audible.
+
+A drive worth calling distortion belongs to the FX rack in Phase 8, where it is
+one stage on a bus rather than 128 in the voices, and where the Phase 4c
+oversampler can carry it with a single, constant, reported latency. That is what
+`Docs/OVERSAMPLING.md` now says against the filter-drive row, replacing the "2x
+expected" it was written with in Phase 4c — the re-measurement clause in that
+document doing exactly what it was there for.
+
+**Given up:** a screaming filter. Apollo's filter drives; it does not distort.

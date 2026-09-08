@@ -78,11 +78,12 @@ separator, and is **1-based** to match how the UI presents it.
 | `fx` | Effects rack; the effect name is the next segment | `fx_delay_time` |
 | `master` | Global output stage | `master_gain` |
 
-`filter_cutoff`, `filter_resonance` and `filter_drive` appear un-indexed in
-UI_BINDINGS.md §3 because that registry predates the second filter. They are
-valid under these rules. Whether they are renamed or kept and joined by
-`filter2_*` is a Phase 2 decision that must be recorded in
-[DECISIONS.md](DECISIONS.md) — and, once shipped, is governed by §1.
+`filter_cutoff`, `filter_resonance` and `filter_drive` appeared un-indexed in the
+original registry, which predated the second filter. Phase 5b renamed them to
+`filter1_*` and added a `filter2_*` set, as a state migration rather than a
+rename, while Apollo was pre-1.0 and that window was still open (ADR-0032). The
+routing control stays un-indexed as `filter_routing`, because it describes how
+the two filters are connected rather than belonging to either of them.
 
 ### Name
 

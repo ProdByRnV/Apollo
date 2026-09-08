@@ -29,6 +29,7 @@
 #include "DSP/Envelopes/Envelope.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Unison/UnisonLayout.h"
+#include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
 #include "Engine/Voice.h"
 
@@ -93,6 +94,38 @@ struct SourceParameters
     float noiseLevel = 0.0f;
 
     [[nodiscard]] bool operator== (const SourceParameters&) const = default;
+};
+
+/** One filter slot, as the host and UI express it. */
+struct FilterSlotParameters
+{
+    dsp::StateVariableFilter::Mode mode = dsp::StateVariableFilter::Mode::off;
+
+    float cutoffHz = 20000.0f;
+
+    /** Resonance as a quality factor. 0.707 is Butterworth. */
+    float q = 0.707f;
+
+    /** Saturation in front of the filter, 0 to 1. */
+    float drive = 0.0f;
+
+    [[nodiscard]] bool operator== (const FilterSlotParameters&) const = default;
+};
+
+/** The filter section, as parameters.
+
+    The defaults are transparent: filter 1 is a lowpass wide open at 20 kHz and
+    filter 2 is off, so adding the section changed no existing patch and left
+    the Phase 3 gain staging intact.
+*/
+struct FilterParameters
+{
+    FilterSlotParameters filter1 { dsp::StateVariableFilter::Mode::lowpass, 20000.0f, 0.707f, 0.0f };
+    FilterSlotParameters filter2;
+
+    FilterRouting routing = FilterRouting::series;
+
+    [[nodiscard]] bool operator== (const FilterParameters&) const = default;
 };
 
 class VoiceEngine
@@ -220,6 +253,16 @@ public:
     */
     void setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept;
 
+    /** Replaces the filter section on every voice.
+
+        Resolves cutoff and resonance into coefficients exactly once, here,
+        rather than in each of the sixty-four voice filters that would otherwise
+        compute the same tangent.
+    */
+    void setFilterParameters (const FilterParameters& newParameters) noexcept;
+
+    [[nodiscard]] const FilterParameters& getFilterParameters() const noexcept { return filterParameters; }
+
     [[nodiscard]] const dsp::EnvelopeSettings& getAmplitudeEnvelope() const noexcept
     {
         return amplitudeEnvelope;
@@ -300,6 +343,16 @@ private:
     SourceParameters parameters;
 
     dsp::EnvelopeSettings amplitudeEnvelope;
+
+    FilterParameters filterParameters;
+
+    /** Rebuilds the resolved filter settings and pushes them to every voice. */
+    void applyFilterParameters() noexcept;
+
+    /** Kept because the filter coefficients are resolved here rather than in the
+        voices, and resolving them needs the rate.
+    */
+    double preparedSampleRate = 44100.0;
 
     int polyphony = defaultPolyphony;
     bool sustainPedalDown = false;

@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 32> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 38> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -317,30 +317,77 @@ inline constexpr std::array<ParameterDefinition, 32> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, false },
 
-    // Filter -----------------------------------------------------------------
-    // Un-indexed because UI_BINDINGS.md §3 defines them that way, predating the
-    // second filter the PRD specifies. Whether they gain an index is a Phase 5
-    // decision recorded in Docs/PARAMETER-CONVENTIONS.md §3; once shipped, the
-    // ID is permanent either way.
-    { "filter_cutoff", "Filter Cutoff",
+    // Filters ----------------------------------------------------------------
+    // Indexed from Phase 5b. These began life as un-indexed `filter_cutoff`,
+    // `filter_resonance` and `filter_drive`, which predated the second filter
+    // the PRD specifies. Keeping them would have left the instrument with
+    // `filter_cutoff` beside `filter2_cutoff` for the rest of its life; renaming
+    // them is a state migration rather than a rename, and schema version 2
+    // performs it (ADR-0032). Apollo is pre-1.0 and unreleased, which is the
+    // only window in which this is cheap (Docs/VERSIONING.md §2).
+    //
+    // Type is a discrete choice: 0 off, 1 lowpass, 2 highpass, 3 bandpass,
+    // 4 notch. "Off" is a mode rather than a separate enable, so one control
+    // cannot disagree with another about whether a filter is running.
+    { "filter1_type", "Filter 1 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "filter1_cutoff", "Filter 1 Cutoff",
       ParameterType::floatingPoint, ParameterUnit::hertz,
       20.0f, 20000.0f, 20000.0f,
       // Places 1 kHz near the centre of the control's travel.
       0.2298f, 0.0f,
       true, true, true },
 
-    { "filter_resonance", "Filter Resonance",
+    { "filter1_resonance", "Filter 1 Resonance",
       ParameterType::floatingPoint, ParameterUnit::none,
       0.1f, 10.0f, 0.707f,
       // Places Q = 1 near the centre. 0.707 is Butterworth.
       0.2890f, 0.0f,
       true, true, true },
 
-    { "filter_drive", "Filter Drive",
+    { "filter1_drive", "Filter 1 Drive",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    // Filter 2 is off by default, for the same reason oscillator 2 is silent:
+    // adding it must not change how an existing patch sounds.
+    { "filter2_type", "Filter 2 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 4.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "filter2_cutoff", "Filter 2 Cutoff",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 20000.0f,
+      0.2298f, 0.0f,
+      true, true, true },
+
+    { "filter2_resonance", "Filter 2 Resonance",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      0.1f, 10.0f, 0.707f,
+      0.2890f, 0.0f,
+      true, true, true },
+
+    { "filter2_drive", "Filter 2 Drive",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // 0 series, 1 parallel. Un-indexed because it describes how the two filters
+    // are connected rather than belonging to either of them.
+    { "filter_routing", "Filter Routing",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
 
     // Effects ----------------------------------------------------------------
     { "fx_distortion_mix", "Distortion Mix",

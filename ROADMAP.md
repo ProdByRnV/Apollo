@@ -316,14 +316,14 @@ Build the expressive sound-design architecture around the oscillator core.
 
 ### Filters
 
-- [ ] Implement filter 1.
-- [ ] Implement filter 2.
-- [ ] Implement required low-pass, high-pass, and band-pass modes.
-- [ ] Implement cutoff.
-- [ ] Implement resonance.
-- [ ] Implement filter drive where applicable.
-- [ ] Validate stability across supported sample rates.
-- [ ] Smooth filter parameter changes.
+- [x] Implement filter 1. — a topology-preserving state variable filter, stereo, per voice (5b)
+- [x] Implement filter 2. — identical, off by default so adding it changed no existing patch; series or parallel routing (5b)
+- [x] Implement required low-pass, high-pass, and band-pass modes. — plus notch, which the same two state variables give for free (5b)
+- [x] Implement cutoff. — measured at -3.01 dB at its cutoff across five frequencies and four sample rates (5b)
+- [x] Implement resonance. — as Q, the unit the registry already used; peaks land on 20·log₁₀(Q) (5b)
+- [x] Implement filter drive where applicable. — deliberately gentle, because its aliasing was measured rather than assumed (ADR-0033) (5b)
+- [x] Validate stability across supported sample rates. — 44.1 to 192 kHz, and under a cutoff swept full-range at 100 Hz, which is the case the topology was chosen for (5b)
+- [ ] Smooth filter parameter changes. — coefficients are resolved per block, which is inaudible for a slow gesture but is not yet per-sample smoothing; deferred to 5d, where the modulation matrix makes per-voice, per-sample cutoff movement the normal case rather than the exception
 
 ### Envelopes
 

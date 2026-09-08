@@ -43,6 +43,10 @@ ApolloAudioProcessor::ApolloAudioProcessor()
 
     envelope1.resolve (apvts, "env1_");
 
+    filter1Parameters.resolve (apvts, "filter1_");
+    filter2Parameters.resolve (apvts, "filter2_");
+    filterRoutingParameter = apvts.getRawParameterValue ("filter_routing");
+
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
@@ -89,6 +93,19 @@ void ApolloAudioProcessor::EnvelopeParameterPointers::resolve (
     jassert (delayMs != nullptr && attackMs != nullptr && holdMs != nullptr
              && decayMs != nullptr && sustain != nullptr && releaseMs != nullptr
              && curve != nullptr);
+}
+
+void ApolloAudioProcessor::FilterParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state, juce::StringRef prefix)
+{
+    const juce::String base (prefix);
+
+    type = state.getRawParameterValue (base + "type");
+    cutoff = state.getRawParameterValue (base + "cutoff");
+    resonance = state.getRawParameterValue (base + "resonance");
+    drive = state.getRawParameterValue (base + "drive");
+
+    jassert (type != nullptr && cutoff != nullptr && resonance != nullptr && drive != nullptr);
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -203,6 +220,34 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     envelope.curve = readParameter (envelope1.curve, 0.5f);
 
     voiceEngine.setAmplitudeEnvelope (envelope);
+
+    const auto readFilter = [] (const FilterParameterPointers& pointers, float defaultType)
+    {
+        engine::FilterSlotParameters slot;
+
+        const auto type = static_cast<int> (readParameter (pointers.type, defaultType));
+
+        // Clamped rather than cast blindly: the mode indexes a switch, and a
+        // corrupt preset must not be able to select something that is not there.
+        slot.mode = static_cast<dsp::StateVariableFilter::Mode> (
+            type < 0 ? 0 : (type > 4 ? 4 : type));
+
+        slot.cutoffHz = readParameter (pointers.cutoff, 20000.0f);
+        slot.q = readParameter (pointers.resonance, 0.707f);
+        slot.drive = readParameter (pointers.drive, 0.0f);
+
+        return slot;
+    };
+
+    engine::FilterParameters filters;
+
+    filters.filter1 = readFilter (filter1Parameters, 1.0f);
+    filters.filter2 = readFilter (filter2Parameters, 0.0f);
+    filters.routing = readParameter (filterRoutingParameter, 0.0f) >= 0.5f
+                        ? engine::FilterRouting::parallel
+                        : engine::FilterRouting::series;
+
+    voiceEngine.setFilterParameters (filters);
 }
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept

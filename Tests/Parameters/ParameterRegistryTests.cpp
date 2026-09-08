@@ -30,10 +30,14 @@ using namespace apollo::params;
 // in Phase 5a for envelope 1, which shapes the voice amplitude. Envelopes 2-4
 // are deliberately absent until the modulation matrix gives them a destination.
 //
+// Phase 5b then replaced the three un-indexed filter parameters with nine: four
+// per filter plus the routing between them. That is a migrated rename rather
+// than an addition, and schema version 2 performs it (ADR-0032).
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 32, "the registry has thirty-two parameters");
+static_assert (parameterCount() == 38, "the registry has thirty-eight parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 
@@ -138,7 +142,11 @@ private:
             "osc2_wavetable", "osc2_position", "osc2_unison", "osc2_detune",
             "osc2_spread", "osc2_level", "osc2_pan", "osc2_semitones", "osc2_fine",
             "sub_level", "sub_octave", "noise_level",
-            "filter_cutoff", "filter_resonance", "filter_drive",
+            "env1_delay", "env1_attack", "env1_hold", "env1_decay",
+            "env1_sustain", "env1_release", "env1_curve",
+            "filter1_type", "filter1_cutoff", "filter1_resonance", "filter1_drive",
+            "filter2_type", "filter2_cutoff", "filter2_resonance", "filter2_drive",
+            "filter_routing",
             "fx_distortion_mix", "fx_delay_time", "master_gain"
         };
 

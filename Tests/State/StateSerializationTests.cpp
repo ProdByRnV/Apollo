@@ -51,6 +51,7 @@ public:
         testUnsupportedVersionsAreRejected();
         testRejectionPreservesCurrentState();
         testMigrationBoundaries();
+        testFilterParameterMigration();
         testAllParametersSurviveRoundTrip();
         testReloadCounterTracksSuccessfulLoads();
     }
@@ -61,7 +62,7 @@ private:
         beginTest ("State round-trips through save and load");
 
         ApolloAudioProcessor source;
-        setNormalised (source.getValueTreeState(), "filter_cutoff", 0.25f);
+        setNormalised (source.getValueTreeState(), "filter1_cutoff", 0.25f);
         setNormalised (source.getValueTreeState(), "master_gain", 0.75f);
 
         juce::MemoryBlock saved;
@@ -75,7 +76,7 @@ private:
         expect (destination.getLastStateLoadResult() == state::StateLoadResult::ok,
                 "a document written by this build must load");
 
-        expectWithinAbsoluteError (getNormalised (destination.getValueTreeState(), "filter_cutoff"),
+        expectWithinAbsoluteError (getNormalised (destination.getValueTreeState(), "filter1_cutoff"),
                                    0.25f, 1.0e-4f);
         expectWithinAbsoluteError (getNormalised (destination.getValueTreeState(), "master_gain"),
                                    0.75f, 1.0e-4f);
@@ -209,11 +210,11 @@ private:
         ApolloAudioProcessor processor;
         auto& apvts = processor.getValueTreeState();
 
-        setNormalised (apvts, "filter_cutoff", 0.33f);
+        setNormalised (apvts, "filter1_cutoff", 0.33f);
         setNormalised (apvts, "master_gain", 0.66f);
         setNormalised (apvts, "osc1_detune", 0.9f);
 
-        const auto cutoffBefore = getNormalised (apvts, "filter_cutoff");
+        const auto cutoffBefore = getNormalised (apvts, "filter1_cutoff");
         const auto gainBefore = getNormalised (apvts, "master_gain");
         const auto detuneBefore = getNormalised (apvts, "osc1_detune");
 
@@ -223,7 +224,7 @@ private:
 
         expect (processor.getLastStateLoadResult() != state::StateLoadResult::ok);
 
-        expectWithinAbsoluteError (getNormalised (apvts, "filter_cutoff"), cutoffBefore, 1.0e-6f);
+        expectWithinAbsoluteError (getNormalised (apvts, "filter1_cutoff"), cutoffBefore, 1.0e-6f);
         expectWithinAbsoluteError (getNormalised (apvts, "master_gain"), gainBefore, 1.0e-6f);
         expectWithinAbsoluteError (getNormalised (apvts, "osc1_detune"), detuneBefore, 1.0e-6f);
     }
@@ -242,6 +243,67 @@ private:
 
         expect (! state::migrate (tree, state::minimumSupportedSchemaVersion - 1),
                 "a version below the supported floor must be refused");
+    }
+
+    /** The first real schema migration, and therefore the first exercise of a
+        code path that existed unused since Phase 2.
+    */
+    void testFilterParameterMigration()
+    {
+        beginTest ("A version 1 state migrates its un-indexed filter parameters");
+
+        // A version 1 document, as Apollo would have written it before Phase 5b
+        // indexed the filters.
+        juce::ValueTree tree (params::stateTreeType);
+        tree.setProperty (state::schemaVersionProperty, 1, nullptr);
+
+        const auto addParameter = [&tree] (const char* id, float value)
+        {
+            juce::ValueTree parameter (params::parameterTreeType);
+            parameter.setProperty (params::parameterIdProperty, id, nullptr);
+            parameter.setProperty ("value", value, nullptr);
+            tree.appendChild (parameter, nullptr);
+        };
+
+        addParameter ("filter_cutoff", 1234.0f);
+        addParameter ("filter_resonance", 3.5f);
+        addParameter ("filter_drive", 0.25f);
+        addParameter ("master_gain", -6.0f);
+
+        expect (state::migrate (tree, 1), "a version 1 document must migrate");
+
+        expectEquals (static_cast<int> (tree.getProperty (state::schemaVersionProperty)),
+                      state::currentSchemaVersion,
+                      "migration must stamp the new version");
+
+        const auto findValue = [&tree] (const juce::String& id) -> float
+        {
+            for (auto child : tree)
+                if (child.getProperty (params::parameterIdProperty).toString() == id)
+                    return static_cast<float> (child.getProperty ("value"));
+
+            return -1.0f;
+        };
+
+        // Renamed, and — the point of a migration rather than a reset — carrying
+        // the values the user actually saved.
+        expectWithinAbsoluteError (findValue ("filter1_cutoff"), 1234.0f, 1.0e-6f,
+                                   "the cutoff must survive the rename with its value");
+        expectWithinAbsoluteError (findValue ("filter1_resonance"), 3.5f, 1.0e-6f);
+        expectWithinAbsoluteError (findValue ("filter1_drive"), 0.25f, 1.0e-6f);
+
+        expect (findValue ("filter_cutoff") < 0.0f, "the old identifier must be gone");
+
+        // Untouched parameters must be left alone.
+        expectWithinAbsoluteError (findValue ("master_gain"), -6.0f, 1.0e-6f);
+
+        // A document that never had the old parameters is not an error: partial
+        // documents are legal and the loader fills the rest from defaults.
+        juce::ValueTree sparse (params::stateTreeType);
+        sparse.setProperty (state::schemaVersionProperty, 1, nullptr);
+
+        expect (state::migrate (sparse, 1),
+                "a version 1 document without filter parameters must still migrate");
     }
 
     /** Every registered parameter, not just a sample. A parameter that silently

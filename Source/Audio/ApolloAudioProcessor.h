@@ -244,6 +244,22 @@ private:
 
     EnvelopeParameterPointers envelope1;
 
+    /** One filter slot's raw parameter values. */
+    struct FilterParameterPointers
+    {
+        std::atomic<float>* type = nullptr;
+        std::atomic<float>* cutoff = nullptr;
+        std::atomic<float>* resonance = nullptr;
+        std::atomic<float>* drive = nullptr;
+
+        /**  prefix  "filter1_" or "filter2_". */
+        void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
+    };
+
+    FilterParameterPointers filter1Parameters;
+    FilterParameterPointers filter2Parameters;
+    std::atomic<float>* filterRoutingParameter = nullptr;
+
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;

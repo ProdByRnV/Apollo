@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 5 — Filters, Envelopes & Modulation |
-| **Status** | **5a complete; 5b, 5c, 5d open** |
+| **Status** | **5a and 5b complete; 5c, 5d open** |
 | **Milestone** | M5 — Sound Design |
-| **Next step** | Phase 5b — the two state-variable filters |
+| **Next step** | Phase 5c — the four LFOs |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -217,11 +217,38 @@ Everything below was configured, built and executed on this machine.
 - Only **envelope 1** is registered as parameters. Envelopes 2-4 have nowhere to
   send their output until the modulation matrix, so their IDs ship with it.
 
+### Filters (Phase 5b)
+
+- **Two state-variable filters per voice**, stereo, in a **topology-preserving**
+  form rather than a biquad. That choice is the reason the cutoff can be swept as
+  fast as anything can sweep it without the filter misbehaving — a biquad's
+  feedback path assumes coefficients it may no longer be using.
+- Modes: off, lowpass, highpass, bandpass, notch, all from the same two state
+  variables. "Off" is a mode rather than a separate switch, so nothing can
+  disagree about whether a filter is running.
+- Routing: **series or parallel**, with the parallel sum halved so switching
+  routing does not change loudness by 6 dB.
+- Measured, not assumed: the cutoff lands at **-3.01 dB** at 100 Hz, 500 Hz,
+  2 kHz, 8 kHz and 15 kHz, and at 44.1, 48, 96 and 192 kHz. Resonance peaks land
+  on 20·log₁₀(Q) — 0 dB at Q 1, +6.02 at Q 2, +20.00 at Q 10. The notch nulls to
+  -120 dB.
+- Coefficients are resolved **once per block by the engine** and shared by all
+  voices, the same pattern as the unison layout: 2 tangents per block rather than
+  128 (ADR-0023's reasoning, applied again).
+- **Filter drive** saturates the input, and its range is small because its
+  aliasing was measured rather than assumed. -146 dBc at zero, about -45 dBc at
+  full. It is the one place Apollo's -60 dBc budget is not met, and ADR-0033
+  records why that is the honest answer rather than a wider budget or a
+  per-voice oversampler.
+- The three un-indexed `filter_*` parameters became `filter1_*`, joined by
+  `filter2_*` and `filter_routing`. That is a **state migration**, schema version
+  1 to 2, and the first real use of a code path built in Phase 2 and never
+  exercised (ADR-0032).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 5b | The two state-variable filters, their routing and their modes |
 | 5c | The four LFOs |
 | 5d | Envelopes 2-4, the modulation matrix, velocity and key tracking, mod wheel and aftertouch sources |
 | 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
@@ -230,11 +257,10 @@ Everything below was configured, built and executed on this machine.
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**27 of the 32 registered parameters now affect audio** — the whole source
-section, envelope 1, and `master_gain`. The remaining five (`filter_cutoff`,
-`filter_resonance`, `filter_drive`, `fx_distortion_mix`, `fx_delay_time`) are
-exposed to hosts and to the UI but have nothing to act on until the filter and
-effect stages exist in Phases 5b and 8.
+**36 of the 38 registered parameters now affect audio** — the whole source
+section, envelope 1, both filters, and `master_gain`. Only two remain inert
+(`fx_distortion_mix` and `fx_delay_time`), and they wait on the effects rack in
+Phase 8.
 
 ---
 
@@ -340,14 +366,13 @@ lower is better, and 100 % means the render exactly keeps up with playback.
 
 ### Voice engine
 
-Re-measured in Phase 5a, so these figures include the DAHDSR envelope.
+Re-measured in Phase 5b, so these figures include the DAHDSR envelope and the
+filter section.
 
 | Voices | Default patch | Heaviest patch |
 |---:|---:|---:|
-| 1 | 0.15–0.19 % | 4.4–5.4 % |
-| 8 | 1.66 % | 44.6 % |
-| 16 | 2.87 % | 86.9 % |
-| 32 | **5.2–5.8 %** | **163–165 %** |
+| 1 | 0.26 % | 4.85 % |
+| 32 | **9.35 %** | **167 %** |
 
 "Default patch" is oscillator 1 alone with no unison — what Apollo loads with.
 "Heaviest patch" is both oscillators at 16-voice unison plus the sub and the
@@ -359,10 +384,22 @@ That is the machine, not Apollo, and it is stated here because a single decimal
 place would imply a precision these numbers do not have. Anything below roughly
 a ten per cent difference should be read as unchanged.
 
-Against the Phase 4c figures (4.86 % and 150 %), the envelope costs a few per
-cent on the heaviest patch and nothing distinguishable from noise on the default
-one. That is the expected shape: a held note spends almost all its time in the
-sustain stage, which is a switch and a return.
+**What the filters cost.** The default patch went from about 5.5 % to 9.35 % at
+full polyphony when the filter section landed. That is not noise: `filter1`
+defaults to a lowpass, so a stereo state variable filter runs on every voice even
+though it sits wide open at 20 kHz. Setting a filter to `off` costs nothing — it
+returns its input on the first line — so a patch that does not want one does not
+pay for it, but the *default* patch does.
+
+That default was kept deliberately. A subtractive synthesiser whose filter is
+out of circuit until you also change a type control is a worse instrument than
+one that costs four per cent of a core, and 9.35 % at 32 voices is still under a
+tenth of one core.
+
+The DAHDSR envelope before it cost a few per cent on the heaviest patch and
+nothing distinguishable from noise on the default one, which is the expected
+shape: a held note spends almost all its time in the sustain stage, which is a
+switch and a return.
 
 Two things follow, and both are recorded rather than smoothed over:
 
@@ -405,7 +442,7 @@ rather than a luxury.
 | 7 | ARM64 unverified | Low | No ARM64 runner in the matrix. Phase 11. |
 | 8 | `ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md` | Trivial | Not renamed silently; other documents cross-reference it. |
 | 9 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
-| 10 | `filter_*` parameters are un-indexed while the PRD specifies two filters | Low | A Phase 5 decision. **These IDs have now been written into the registry**, so changing them is a migration, not a rename (Docs/PARAMETER-CONVENTIONS.md §1). |
+| 10 | ~~`filter_*` parameters are un-indexed while the PRD specifies two filters~~ | **Closed** | Resolved in Phase 5b. They became `filter1_*`, joined by `filter2_*` and `filter_routing`, through a schema version 1 to 2 migration rather than a bare rename — the first real use of the migration path built in Phase 2 (ADR-0032). Done while Apollo is pre-1.0, which is the only window in which it is cheap. |
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 | 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |

@@ -69,11 +69,11 @@ private:
         beginTest ("A well-formed setParameter is accepted");
 
         const auto result = parseMessage (
-            R"({"type":"setParameter","version":1,"id":"filter_cutoff","normalizedValue":0.73})");
+            R"({"type":"setParameter","version":1,"id":"filter1_cutoff","normalizedValue":0.73})");
 
         expect (result.ok, "valid setParameter must be accepted");
         expect (result.command.type == BridgeCommandType::setParameter);
-        expectEquals (result.command.parameterId, juce::String ("filter_cutoff"));
+        expectEquals (result.command.parameterId, juce::String ("filter1_cutoff"));
         expectWithinAbsoluteError (result.command.normalisedValue, 0.73f, 1.0e-6f);
 
         // The range boundaries are legal values, not edge cases to reject.
@@ -87,12 +87,12 @@ private:
         beginTest ("Gesture begin and end are accepted");
 
         const auto begin = parseMessage (
-            R"({"type":"gesture","version":1,"id":"filter_cutoff","state":"begin"})");
+            R"({"type":"gesture","version":1,"id":"filter1_cutoff","state":"begin"})");
         expect (begin.ok);
         expect (begin.command.type == BridgeCommandType::gestureBegin);
 
         const auto end = parseMessage (
-            R"({"type":"gesture","version":1,"id":"filter_cutoff","state":"end"})");
+            R"({"type":"gesture","version":1,"id":"filter1_cutoff","state":"end"})");
         expect (end.ok);
         expect (end.command.type == BridgeCommandType::gestureEnd);
     }
@@ -208,7 +208,7 @@ private:
         const auto attempt = [this] (const juce::String& value)
         {
             const auto json = juce::String (R"({"type":"setParameter","version":1,)")
-                            + R"("id":"filter_cutoff","normalizedValue":)" + value + "}";
+                            + R"("id":"filter1_cutoff","normalizedValue":)" + value + "}";
             const auto result = parseMessage (json);
             expect (! result.ok, reject (json));
             expect (result.error == BridgeErrorCode::invalidParameterValue,
@@ -224,7 +224,7 @@ private:
         attempt ("true");
 
         // A missing value is an invalid value, not a malformed message.
-        expect (parseMessage (R"({"type":"setParameter","version":1,"id":"filter_cutoff"})").error
+        expect (parseMessage (R"({"type":"setParameter","version":1,"id":"filter1_cutoff"})").error
                     == BridgeErrorCode::invalidParameterValue);
     }
 
@@ -234,7 +234,7 @@ private:
 
         for (const auto* gestureState : { "start", "finish", "BEGIN", "" })
         {
-            const auto json = juce::String (R"({"type":"gesture","version":1,"id":"filter_cutoff","state":")")
+            const auto json = juce::String (R"({"type":"gesture","version":1,"id":"filter1_cutoff","state":")")
                             + gestureState + R"("})";
             const auto result = parseMessage (json);
             expect (! result.ok, reject (json));
@@ -242,9 +242,9 @@ private:
                     juce::String ("wrong error for gesture state: ") + gestureState);
         }
 
-        expect (parseMessage (R"({"type":"gesture","version":1,"id":"filter_cutoff"})").error
+        expect (parseMessage (R"({"type":"gesture","version":1,"id":"filter1_cutoff"})").error
                     == BridgeErrorCode::invalidGestureState);
-        expect (parseMessage (R"({"type":"gesture","version":1,"id":"filter_cutoff","state":3})").error
+        expect (parseMessage (R"({"type":"gesture","version":1,"id":"filter1_cutoff","state":3})").error
                     == BridgeErrorCode::invalidGestureState);
     }
 
@@ -286,8 +286,8 @@ private:
         };
 
         check (makeErrorMessage (BridgeErrorCode::unknownParameter), "error");
-        check (makeParameterChangedMessage ("filter_cutoff", 0.5f), "parameterChanged");
-        check (makeStateSnapshotMessage ({ { "filter_cutoff", 1.0f }, { "master_gain", 0.9f } }),
+        check (makeParameterChangedMessage ("filter1_cutoff", 0.5f), "parameterChanged");
+        check (makeStateSnapshotMessage ({ { "filter1_cutoff", 1.0f }, { "master_gain", 0.9f } }),
                "stateSnapshot");
         check (makeParameterMetadataMessage(), "parameterMetadata");
 

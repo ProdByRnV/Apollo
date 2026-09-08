@@ -101,9 +101,15 @@ Envelopes 2-4 and the four LFOs are deliberately absent: their generators exist 
 | `env1_sustain` | Rotary Knob | Normalized `[0, 1]` | `1` | 5a | Envelope 1 sustain level |
 | `env1_release` | Rotary Knob | `0–10000 ms` | `50` | 5a | Envelope 1 release time |
 | `env1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5a | Envelope 1 curve tension; 0 is linear, positive is the analog shape |
-| `filter_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 2 | Filter cutoff frequency |
-| `filter_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 2 | Filter resonance/Q |
-| `filter_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Filter/pre-filter drive |
+| `filter1_type` | Selector / Dropdown | Discrete `[0, 4]` | `1` | 5b | Filter 1 mode: 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch |
+| `filter1_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 1 cutoff frequency |
+| `filter1_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 1 resonance as Q; 0.707 is Butterworth |
+| `filter1_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 1 input saturation |
+| `filter2_type` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 5b | Filter 2 mode; off by default |
+| `filter2_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 2 cutoff frequency |
+| `filter2_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 2 resonance as Q |
+| `filter2_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 2 input saturation |
+| `filter_routing` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 5b | 0 series, 1 parallel |
 | `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix |
 | `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
@@ -167,7 +173,7 @@ Example:
 {
   "type": "parameterChanged",
   "version": 1,
-  "id": "filter_cutoff",
+  "id": "filter1_cutoff",
   "normalizedValue": 0.73
 }
 ```
@@ -191,7 +197,7 @@ Example:
 {
   "type": "setParameter",
   "version": 1,
-  "id": "filter_cutoff",
+  "id": "filter1_cutoff",
   "normalizedValue": 0.73
 }
 ```
@@ -254,9 +260,9 @@ Example response:
     "osc1_wavetable": 0.0,
     "osc1_unison": 0.0,
     "osc1_detune": 0.2,
-    "filter_cutoff": 1.0,
-    "filter_resonance": 0.067,
-    "filter_drive": 0.0,
+    "filter1_cutoff": 1.0,
+    "filter1_resonance": 0.067,
+    "filter1_drive": 0.0,
     "fx_distortion_mix": 0.0,
     "fx_delay_time": 0.25,
     "master_gain": 0.909
@@ -276,7 +282,7 @@ UI controls should distinguish gesture start, updates, and gesture end.
 {
   "type": "gesture",
   "version": 1,
-  "id": "filter_cutoff",
+  "id": "filter1_cutoff",
   "state": "begin"
 }
 ```
@@ -285,7 +291,7 @@ UI controls should distinguish gesture start, updates, and gesture end.
 {
   "type": "setParameter",
   "version": 1,
-  "id": "filter_cutoff",
+  "id": "filter1_cutoff",
   "normalizedValue": 0.73
 }
 ```
@@ -294,7 +300,7 @@ UI controls should distinguish gesture start, updates, and gesture end.
 {
   "type": "gesture",
   "version": 1,
-  "id": "filter_cutoff",
+  "id": "filter1_cutoff",
   "state": "end"
 }
 ```
@@ -521,7 +527,7 @@ Example:
 
 ```text
 <ParameterKnob
-    parameterId="filter_cutoff"
+    parameterId="filter1_cutoff"
     label="Cutoff"
 />
 ```

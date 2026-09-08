@@ -32,10 +32,13 @@ VoiceEngine::VoiceEngine()
     // engine is playable the moment it is constructed, without waiting for the
     // processor's first block.
     applySourceParameters();
+    applyFilterParameters();
 }
 
 void VoiceEngine::prepare (double sampleRate) noexcept
 {
+    preparedSampleRate = sampleRate > 0.0 ? sampleRate : 44100.0;
+
     for (std::size_t i = 0; i < voices.size(); ++i)
     {
         voices[i].prepare (sampleRate);
@@ -54,6 +57,10 @@ void VoiceEngine::prepare (double sampleRate) noexcept
 
     for (auto& voice : voices)
         voice.setAmplitudeEnvelope (amplitudeEnvelope);
+
+    // Coefficients depend on the sample rate, so they are rebuilt here rather
+    // than carried over from whatever rate the engine last ran at.
+    applyFilterParameters();
 
     reset();
 }
@@ -237,6 +244,38 @@ void VoiceEngine::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings
 
     for (auto& voice : voices)
         voice.setAmplitudeEnvelope (amplitudeEnvelope);
+}
+
+void VoiceEngine::setFilterParameters (const FilterParameters& newParameters) noexcept
+{
+    if (newParameters == filterParameters)
+        return;
+
+    filterParameters = newParameters;
+    applyFilterParameters();
+}
+
+void VoiceEngine::applyFilterParameters() noexcept
+{
+    VoiceFilterSettings settings;
+
+    const auto resolve = [this] (const FilterSlotParameters& slot)
+    {
+        FilterSlotSettings resolved;
+
+        resolved.mode = slot.mode;
+        resolved.drive = slot.drive;
+        resolved.coefficients.set (slot.cutoffHz, slot.q, preparedSampleRate);
+
+        return resolved;
+    };
+
+    settings.filter1 = resolve (filterParameters.filter1);
+    settings.filter2 = resolve (filterParameters.filter2);
+    settings.routing = filterParameters.routing;
+
+    for (auto& voice : voices)
+        voice.setFilters (settings);
 }
 
 void VoiceEngine::applySourceParameters() noexcept

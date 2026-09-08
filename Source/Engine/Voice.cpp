@@ -119,6 +119,71 @@ void Voice::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noex
     amplitudeEnvelope.setSettings (newSettings);
 }
 
+void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
+{
+    if (newFilters == filters)
+        return;
+
+    // A mode change reroutes which state variables reach the output, but the
+    // integrators themselves stay: clearing them on every parameter move would
+    // turn a mode switch into a click, and the state is valid for any mode.
+    filters = newFilters;
+
+    filter1Left.setMode (filters.filter1.mode);
+    filter1Right.setMode (filters.filter1.mode);
+    filter1Left.setCoefficients (filters.filter1.coefficients);
+    filter1Right.setCoefficients (filters.filter1.coefficients);
+
+    filter2Left.setMode (filters.filter2.mode);
+    filter2Right.setMode (filters.filter2.mode);
+    filter2Left.setCoefficients (filters.filter2.coefficients);
+    filter2Right.setCoefficients (filters.filter2.coefficients);
+}
+
+void Voice::applyFilters (float& left, float& right) noexcept
+{
+    const auto runSlot = [] (const FilterSlotSettings& slot,
+                             dsp::StateVariableFilter& leftFilter,
+                             dsp::StateVariableFilter& rightFilter,
+                             float& l,
+                             float& r)
+    {
+        if (slot.drive > 0.0f)
+        {
+            const auto gain = dsp::driveGain (slot.drive);
+            const auto makeup = dsp::driveCompensation (slot.drive);
+
+            l = dsp::softClip (l * gain) * makeup;
+            r = dsp::softClip (r * gain) * makeup;
+        }
+
+        l = leftFilter.processSample (l);
+        r = rightFilter.processSample (r);
+    };
+
+    if (filters.routing == FilterRouting::series)
+    {
+        runSlot (filters.filter1, filter1Left, filter1Right, left, right);
+        runSlot (filters.filter2, filter2Left, filter2Right, left, right);
+        return;
+    }
+
+    // Parallel: both slots see the same input.
+    auto leftA = left;
+    auto rightA = right;
+    runSlot (filters.filter1, filter1Left, filter1Right, leftA, rightA);
+
+    auto leftB = left;
+    auto rightB = right;
+    runSlot (filters.filter2, filter2Left, filter2Right, leftB, rightB);
+
+    // Halved, so two identical filters in parallel are as loud as one rather
+    // than twice as loud — which would put the engine's headroom measurements
+    // out by 6 dB the moment a user switched routing (ADR-0025).
+    left = (leftA + leftB) * 0.5f;
+    right = (rightA + rightB) * 0.5f;
+}
+
 void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
 {
     // The overwhelmingly common case: the parameters did not move this block.
@@ -193,6 +258,13 @@ void Voice::reset() noexcept
 
     amplitudeEnvelope.reset();
     stealGain = 1.0f;
+
+    // Integrators cleared with the voice, so a reused voice cannot start with
+    // the tail of the note before it still ringing in the filter.
+    filter1Left.reset();
+    filter1Right.reset();
+    filter2Left.reset();
+    filter2Right.reset();
 
     note = -1;
     noteVelocity = 0.0f;
@@ -397,6 +469,13 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             noise.addNextStereoSample (left, right,
                                        noiseGain.left.getNextValue(),
                                        noiseGain.right.getNextValue());
+
+        // Filter before the amplifier, which is the classic subtractive order and
+        // not an arbitrary one: filtering after the envelope would make a
+        // resonant tail fade with the note rather than ring through it, and
+        // would gate a self-oscillating filter with its own note.
+        if (! filters.isBypassed())
+            applyFilters (left, right);
 
         const auto amplitude = envelope * noteVelocity;
 
