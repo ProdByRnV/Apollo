@@ -1001,3 +1001,110 @@ generating those at compile time turns a readable list into an exercise.
 **Given up:** nothing structural. The generator is a one-off; the committed
 registry is the source of truth, and the count assertion in
 `ParameterRegistryTests` still has to be updated deliberately.
+
+---
+
+## ADR-0038 — The frontend is a set of real files, embedded at build time
+
+**Phase 6 (UI) · Accepted**
+
+The interface lives in `Source/UI/Web` as `index.html`, `apollo.css` and
+`apollo.js`. CMake compiles those three files into the binary with
+`juce_add_binary_data`, and `ApolloWebViewEditor::provideResource` serves them
+from a small table of path, resource name and MIME type.
+
+They were previously a single `constexpr const char*` raw string literal inside
+`ApolloWebViewEditor.cpp`. That was the right shape for a placeholder proving
+the bridge was live, and the wrong shape for an interface anybody has to work
+on: a stylesheet inside a string literal gets no highlighting, no formatter, no
+useful diff, and cannot be opened in a browser to check a layout. The interface
+is now the most frequently edited part of the project, so the cost was going to
+be paid repeatedly.
+
+Embedding rather than installing loose files is a separate choice from moving
+them out of C++. A plugin is copied around by users and hosts, and an asset
+directory that has to travel beside a `.vst3` is an asset directory that will
+eventually not be there. Embedding keeps Apollo one relocatable binary with no
+install-time path to resolve (CLAUDE.md §31.2), and keeps the WebView pointed at
+a fixed table rather than at the filesystem (UI_BINDINGS.md §14).
+
+Listing the three files in `CMakeLists.txt` is what makes them build inputs:
+editing the CSS relinks the plugin. That is the point of putting web assets
+through CMake rather than beside it (CLAUDE.md §31).
+
+**Given up:** editing the UI without rebuilding. A live-reload path that reads
+from the source tree in debug builds would restore it and is compatible with
+this decision; it is not needed yet.
+
+---
+
+## ADR-0039 — One interaction colour, and colour never carries meaning alone
+
+**Phase 6 (UI) · Accepted**
+
+The interface assigns each colour exactly one job, and nothing is coloured for
+decoration:
+
+| Colour | Means |
+|---|---|
+| violet | interaction — focus, hover, the value being held |
+| green | modulation and activity — something is moving |
+| amber | caution — a negative depth, approaching a limit |
+| red | clipping, danger, error |
+
+This is CLAUDE.md §24.2 made specific enough to hold. The rule that made it
+worth writing down is the second half: a state that is shown in colour is also
+shown some other way. A modulated knob turns green *and* the routing that moves
+it is a highlighted row in the matrix with a number beside it. A filter that is
+off is dimmed *and* reads OFF. A depth's sign is a fill direction *and* a signed
+percentage. Nothing in the interface can only be perceived as a hue
+(CLAUDE.md §39).
+
+Violet is the accent CLAUDE.md §24.1 asks for, used as an accent: it appears on
+the control under the hand and almost nowhere else. It is deliberately not a
+gradient wash across panels — surfaces are near-black graphite separated by
+hairlines, and depth comes from those rules rather than from shadows, because a
+tool that is stared at for six hours should recede and let the values be the
+brightest thing on screen.
+
+**Given up:** using colour for visual interest. Every hue in the interface is
+load-bearing, which is a constraint on future UI work rather than a
+one-off styling choice.
+
+---
+
+## ADR-0040 — The interface is laid out by signal flow, not by parameter list
+
+**Phase 6 (UI) · Accepted**
+
+Modules appear in the order the audio travels: oscillator 1 and 2, sub, noise,
+the two filters, envelopes, LFOs, the modulation matrix, output. Within a module
+the choice that defines what the module *is* — the wavetable, the filter type,
+the LFO shape — spans the module as a heading, with the knobs it governs
+beneath it.
+
+The page it replaced rendered one identical slider per parameter, 139 of them,
+in registry order. That is a correct rendering of the metadata and a useless
+instrument: the registry's order is a build history, so `env2_delay` sits beside
+`filter_routing` for reasons that are true and irrelevant to the person making a
+sound.
+
+Two consequences are worth stating because they constrain future work:
+
+- **Four envelopes and four LFOs are behind tab strips.** Sixty controls shown
+  at once is a wall; one section with four of everything is how they are used.
+- **Any parameter the layout does not place appears in an "Unassigned" module at
+  the bottom.** This is a safety net, not a section. Adding a parameter to the
+  registry and forgetting to give it a home makes it appear somewhere ugly
+  rather than making it invisible and un-editable.
+
+The layout is presentation and lives in `apollo.js`. Ranges, defaults, steps and
+skews are still read from the metadata the engine sends and are never restated
+there (UI_BINDINGS.md §16); the discrete *labels* — "LP", "S&H", "Mod Wheel" —
+are presentation and do live there, applied only when the table length matches
+the range the engine reported, so a list that falls out of step with its enum
+shows honest numbers instead of confidently wrong words.
+
+**Given up:** a UI that needs no edit when a parameter is added. A new parameter
+now needs one line in the layout to sit in the right module, and the Unassigned
+module is what makes forgetting that survivable rather than silent.

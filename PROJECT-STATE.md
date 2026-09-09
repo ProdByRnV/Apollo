@@ -17,7 +17,7 @@
 | | |
 |---|---|
 | **Phase** | Phase 5 — Filters, Envelopes & Modulation |
-| **Status** | **Complete (5a, 5b, 5c, 5d)** |
+| **Status** | **Complete (5a, 5b, 5c, 5d)**, plus the Phase 7 interface brought forward |
 | **Milestone** | M5 — Sound Design |
 | **Next step** | Phase 6 — MIDI, Control & Interaction |
 
@@ -30,10 +30,17 @@ asserted: worst case -98.5 dBc against a -60 dBc budget.
 Voices are now shaped by a real DAHDSR envelope with adjustable curve tension,
 not the linear placeholder.
 
+The instrument now has a real interface. The 139-slider placeholder page was
+replaced with a signal-flow layout of rotary controls, segmented switches and a
+sixteen-slot matrix, built from real files under `Source/UI/Web` and embedded at
+build time (ADR-0038, ADR-0039, ADR-0040). This is Phase 7 work pulled forward
+because the instrument had become unusable to audition by hand; it does not
+close Phase 7, which still owns the React migration and every visualizer.
+
 Still placeholders: the four built-in wavetables are mathematically defined
-morphs rather than designed factory content (Phase 9). Envelopes 2-4 and the
-LFOs exist as a plan rather than as code, and arrive with the modulation matrix
-that gives them somewhere to send their output.
+morphs rather than designed factory content (Phase 9). There are no
+oscilloscopes yet — per-source scopes are a Phase 7 requirement (PRD §30.1) and
+need a lock-free capture buffer per source, which does not exist.
 
 ---
 
@@ -100,10 +107,29 @@ Everything below was configured, built and executed on this machine.
   coalesces those into outbound messages (ADR-0013).
 - `ApolloWebViewEditor` — a `juce::WebBrowserComponent` wired to the bridge via
   `withNativeFunction` inbound and `emitEventIfBrowserIsVisible` outbound. It
-  serves a built-in placeholder page that builds its controls **from the
-  parameter metadata alone**, never from hard-coded ranges, and detects preset or
-  project loads to resynchronise wholesale. The React frontend that replaces that
-  page is Phase 7.
+  detects preset or project loads and resynchronises wholesale, and serves the
+  frontend from a fixed table of path, resource name and MIME type; any other
+  path is refused rather than mapped onto the filesystem.
+
+### Frontend (Phase 7, brought forward)
+
+- `Source/UI/Web/{index.html, apollo.css, apollo.js}`, compiled into the binary
+  by `juce_add_binary_data` (ADR-0038). Editing the CSS relinks the plugin.
+- Controls are built **from the parameter metadata alone** — ranges, defaults,
+  steps and skews are never restated in the page (UI_BINDINGS.md §16). Discrete
+  *labels* are presentation and do live in the page, applied only when the label
+  count matches the range the engine reported.
+- Rotary knobs with 270° travel, shift for fine, double-click or Delete to
+  reset, and full keyboard control; segmented switches for short enumerations;
+  a two-bank table for the sixteen matrix slots with bipolar depth rails.
+- Laid out by signal flow, with envelopes and LFOs behind tab strips, and an
+  "Unassigned" module that catches any parameter the layout forgot (ADR-0040).
+- Accessibility: `role="slider"` with live `aria-valuenow`/`aria-valuetext`,
+  `radiogroup` semantics on switches, visible focus, and no state signalled by
+  colour alone (ADR-0039, CLAUDE.md §39).
+- No framework and no network: the page has no dependencies and loads nothing
+  over the wire (CLAUDE.md §40). The React migration remains Phase 7's.
+- **Not yet present:** oscilloscopes and any other visualizer.
 
 ### Synthesis engine (Phase 3)
 
@@ -310,7 +336,7 @@ Everything below was configured, built and executed on this machine.
 | Phase | Absent |
 |---|---|
 | 6 | MIDI Learn, controller profiles, polyphonic aftertouch, MPE. Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources |
-| 7 | The `WebUI/` React frontend and every visualizer — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry |
+| 7 | The React migration and **every visualizer** — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry. The interface itself landed early (§2, Frontend): it is a framework-free page, and nothing in it draws a waveform yet |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
@@ -412,6 +438,26 @@ opens a browser, a window or an audio device.
 **Not verified, and needing something this machine does not have:** the VST3
 running inside a DAW (§6, issue 2), and any host-specific behaviour —
 automation, state save/restore through a project, transport. Those remain open.
+
+### Interface, 2026-09-10
+
+Re-run against the rebuilt frontend, on the same machine and runtime.
+
+| Checked | Result |
+|---|---|
+| All parameters reach the page | Footer reads **139 parameters bound · protocol v1**, and the "Unassigned" safety-net module does not appear — so every registry entry has a home in the layout |
+| Defaults match the registry | Verified by eye across the sections: `env1_attack` 5.0 ms, `env1_decay` 100 ms, `env1_sustain` 100 %, `env1_release` 50 ms, `env1_curve` 0.50, `lfo1_rate` 1.00 Hz, `lfo1_steps` 8, `master_gain` +0.0 dB, `filter2_cutoff` 20.00 kHz |
+| Tab strips switch pages | ENV 1-4 and LFO 1-4 each show one page. A first version showed all four at once — `.cluster { display: flex }` beat the `hidden` attribute — and is fixed with an explicit `[hidden]` rule |
+| Inactive modules recede | Oscillator 2, sub, noise (all at level 0) and filter 2 (type OFF) render dimmed while staying readable |
+| Discrete controls | Wavetable, filter type, filter routing, LFO shape, trigger and polarity all show named positions, not indices |
+| Matrix round trip | Slot 01 set to **LFO 1 → Filter 1 Cutoff** at depth **+95 %** through the page's own selects and depth rail |
+| Modulation is shown, not just stored | The slot 01 row lit green with its number in green, the masthead lamp lit and read **MOD 1/16**, and the Filter 1 Cutoff knob's arc turned green — the destination knob, found through the destination enum |
+| The page reaches the DSP | With that routing live, the audio-session peak traced a clean periodic sweep: 91 samples over 3.0 s (≈33 ms each), nulls 31 samples apart ≈ 1.02 s ≈ **0.98 Hz**, matching LFO 1's 1.00 Hz. The UI's writes are audible, not merely stored |
+| State restored | Slot 01 returned to source —, destination —, depth 0 %; lamp off, **MOD 0/16** |
+
+Two defects were found by looking rather than by testing, and both are fixed:
+the hidden-page bug above, and "20.00 kHz" wrapping inside a 66 px knob, which
+pushed its own label down and broke the alignment of every knob beside it.
 
 ---
 

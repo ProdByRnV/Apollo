@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apollo</title>
+
+<!--
+    Apollo's interface shell.
+
+    Deliberately almost empty. Every control on the page is built from the
+    parameter metadata the native side sends, never from markup written here,
+    because a control hard-coded in HTML can disagree with the engine about a
+    range or a default and there is nothing to catch it when it does
+    (UI_BINDINGS.md §16). What this file provides is the frame those controls
+    are placed into: the signal path, in order, as headings.
+
+    The stylesheet and script are fetched from the resource provider on the
+    native side; nothing here is loaded over a network (CLAUDE.md §40).
+-->
+
+<link rel="stylesheet" href="apollo.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header class="masthead">
+    <div>
+      <div class="wordmark">Apollo</div>
+    </div>
+    <span class="masthead__tag">wavetable synthesiser</span>
+
+    <div class="masthead__spacer"></div>
+
+    <div class="readout">
+      <span class="lamp" id="mod-lamp" data-on="false" aria-hidden="true"></span>
+      <span>MOD <strong id="mod-count">0</strong>/16</span>
+    </div>
+    <div class="readout">
+      <span>SR <strong id="protocol">v1</strong></span>
+    </div>
+  </header>
+
+  <main class="workspace" id="workspace">
+    <!-- Modules are inserted here by apollo.js, in signal order. -->
+  </main>
+
+  <footer class="footer">
+    <span id="status" role="status">Connecting to engine&hellip;</span>
+    <span class="footer__spacer"></span>
+    <span id="hint">Drag a knob &middot; Shift for fine &middot; Double-click or Delete to reset</span>
+  </footer>
+
+</div>
+
+<script src="apollo.js"></script>
+</body>
+</html>

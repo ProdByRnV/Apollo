@@ -422,40 +422,58 @@ Build the complete interactive Apollo interface on top of the established bindin
 
 ## Tasks
 
+Part of this phase was brought forward and landed against the Phase 5 engine:
+the interface itself, as a dependency-free page under `Source/UI/Web` embedded
+by CMake (ADR-0038, ADR-0039, ADR-0040). What remains here is the React
+migration, the browsers the engine cannot yet feed, and every visualizer.
+
 ### Frontend foundation
 
-- [ ] Establish React/TypeScript project structure.
+- [ ] Establish React/TypeScript project structure. — the current page is
+      framework-free; the design tokens and control behaviour transfer as-is
 - [ ] Establish frontend build process.
-- [ ] Integrate compiled assets with CMake/JUCE.
-- [ ] Establish reusable UI component system.
-- [ ] Implement parameter-control abstraction.
+- [x] Integrate compiled assets with CMake/JUCE. — `juce_add_binary_data`, with
+      the editor serving a fixed path/MIME table (ADR-0038)
+- [x] Establish reusable UI component system. — knob, segmented switch, select,
+      bipolar rail, module frame and tab strip, all built from metadata
+- [x] Implement parameter-control abstraction. — one `bind(id, control)` path,
+      normalised↔plain mapping mirroring `juce::NormalisableRange`, gesture
+      begin/end around every edit, and echo suppression while a control is held
 
 ### Core interface
 
-- [ ] Oscillator panels.
-- [ ] Wavetable selectors.
-- [ ] Unison controls.
-- [ ] Detune controls.
-- [ ] Filter controls.
-- [ ] Envelope controls.
-- [ ] LFO controls.
-- [ ] Modulation matrix.
-- [ ] FX rack.
-- [ ] Master/output controls.
-- [ ] Preset browser.
-- [ ] MIDI Learn interface.
+- [x] Oscillator panels.
+- [x] Wavetable selectors.
+- [x] Unison controls.
+- [x] Detune controls.
+- [x] Filter controls. — both filters and the routing switch
+- [x] Envelope controls. — all four, behind a tab strip
+- [x] LFO controls. — all four, behind a tab strip
+- [x] Modulation matrix. — sixteen slots in two banks, bipolar depth rails, with
+      assigned routings marked and their destination knobs lit
+- [ ] FX rack. — the two FX parameters that exist are in the Output module;
+      the rack itself is Phase 8
+- [x] Master/output controls.
+- [ ] Preset browser. — Phase 9 owns the preset system
+- [ ] MIDI Learn interface. — Phase 6 owns the mapping engine
 
 ### Visual system
 
-- [ ] Implement dark UI foundation.
-- [ ] Implement deep-purple visual language.
-- [ ] Implement green active-state indicators.
-- [ ] Implement red warning/error indicators.
-- [ ] Define typography.
-- [ ] Define spacing.
-- [ ] Define control states.
-- [ ] Define disabled/error/focus states.
-- [ ] Support appropriate display scaling and window sizes.
+- [x] Implement dark UI foundation.
+- [x] Implement deep-purple visual language. — as a single interaction accent
+      rather than as decoration (ADR-0039)
+- [x] Implement green active-state indicators. — modulation and activity only
+- [ ] Implement red warning/error indicators. — the token and its meaning are
+      defined; nothing yet produces a clipping or overload state to show
+- [x] Define typography. — UI sans for labels, tabular monospace for every
+      number so a readout cannot jitter as it counts
+- [x] Define spacing. — a 4 px scale, with every value taken from a token
+- [x] Define control states. — hover, focus-visible, held, modulated, inactive
+- [ ] Define disabled/error/focus states. — focus and inactive are done;
+      disabled and error need states the engine does not yet report
+- [x] Support appropriate display scaling and window sizes. — verified at
+      1920x1080 with 150 % scaling; modules reflow and the matrix falls back
+      from two banks to one
 
 ### Visualization
 

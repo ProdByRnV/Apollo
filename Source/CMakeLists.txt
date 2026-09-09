@@ -126,12 +126,41 @@ add_library(apollo_editor INTERFACE)
 add_library(apollo::editor ALIAS apollo_editor)
 
 if(APOLLO_ENABLE_WEBVIEW)
+    # The frontend, compiled into the binary.
+    #
+    # The page lives in UI/Web as real .html, .css and .js files rather than as
+    # raw string literals in C++, because an interface is edited far more often
+    # than the code that serves it and a stylesheet trapped in a string literal
+    # gets no syntax highlighting, no diff that reads sensibly, and no way to
+    # open it in a browser. Embedding rather than shipping loose files keeps the
+    # plugin a single relocatable binary with no install-time asset path to get
+    # wrong (CLAUDE.md §31.2), and means the WebView is never pointed at the
+    # filesystem (UI_BINDINGS.md §14).
+    #
+    # Listing the files here is what makes them build inputs: touch the CSS and
+    # the plugin relinks, which is the whole point of putting web assets through
+    # CMake rather than beside it (CLAUDE.md §31).
+    juce_add_binary_data(apollo_web_assets
+        NAMESPACE ApolloWebAssets
+        HEADER_NAME ApolloWebAssets.h
+        SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/index.html"
+            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/apollo.css"
+            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/apollo.js")
+
+    # The VST3 is a shared library, so everything linked into it must be
+    # position independent or the link fails on Linux.
+    set_target_properties(apollo_web_assets PROPERTIES
+        FOLDER "Apollo"
+        POSITION_INDEPENDENT_CODE ON)
+
     target_sources(apollo_editor INTERFACE
         "${CMAKE_CURRENT_SOURCE_DIR}/UI/ApolloWebViewEditor.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/UI/ApolloWebViewEditor.h")
 
     target_link_libraries(apollo_editor INTERFACE
         apollo::engine
+        apollo_web_assets
         juce::juce_gui_extra)
 
     # JUCE_WEB_BROWSER is deliberately NOT defined here. On Linux JUCE sets it
