@@ -20,6 +20,7 @@ target_sources(ApolloTests PRIVATE
     DSP/UnisonTests.cpp
     DSP/EnvelopeTests.cpp
     DSP/FilterTests.cpp
+    DSP/LfoTests.cpp
     DSP/OversamplingTests.cpp
     Performance/Benchmarks.cpp
     DSP/NoiseTests.cpp

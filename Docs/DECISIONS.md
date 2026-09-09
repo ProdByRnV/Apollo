@@ -852,3 +852,54 @@ expected" it was written with in Phase 4c — the re-measurement clause in that
 document doing exactly what it was there for.
 
 **Given up:** a screaming filter. Apollo's filter drives; it does not distort.
+
+---
+
+## ADR-0034 — LFOs run at audio rate, and are not band-limited
+
+**Phase 5c · Accepted**
+
+`Lfo` produces a value every sample, and its shapes are exact rather than
+band-limited. Both are the opposite of what the wavetable oscillators do, and
+both are deliberate.
+
+**Audio rate, not control rate.** The cheap alternative is one value per block,
+which is what many synthesisers do for modulation. Apollo does not, for two
+reasons. A block-rate LFO moving a filter cutoff produces a staircase, and the
+Phase 5 exit criteria ask for behaviour "free from zipper artifacts" — a
+staircase is exactly that artefact. And Apollo's LFOs reach 400 Hz, which is
+well inside the audio range and useful there; a control-rate LFO at 400 Hz with
+a 512-sample block would be sampling its own shape about twice per cycle.
+
+The cost was measured before the decision rather than assumed
+(`ApolloTests --benchmark`, PROJECT-STATE.md §5b): a single LFO costs 0.014 % of
+a core per sample for the cheap shapes and 0.034 % for the sine. Four LFOs across
+32 voices is 128 instances, so between 1.7 % and 4.4 % — comparable to the entire
+default voice engine, and affordable.
+
+The sine is two and a half times the cost of every other shape, because it calls
+`std::sin` per sample. If the modulation matrix pushes the total somewhere
+uncomfortable, that is the first thing to replace with a polynomial or a small
+table, and the benchmark will say whether it was worth it.
+
+**Not band-limited.** A wavetable oscillator must be, because it is heard, and
+Apollo goes to considerable lengths there (ADR-0020). An LFO is not heard: it
+moves a control. Band-limiting a square-wave LFO would round off exactly the edge
+that makes it useful as a switch, in exchange for suppressing harmonics that
+nothing will ever listen to. So a square is exactly ±1, and the tests assert that
+it has no intermediate values at all.
+
+The smoothing control exists for the case where those edges *are* a problem —
+a square or a sample-and-hold stepping a filter cutoff clicks — and it is a slew
+on the output, which is the right tool because it is adjustable and can be turned
+off. Band-limiting would apply that rounding always, whether it helped or not.
+
+**`step` is a staircase, not a sequence.** PRD §15.2 lists "Step" among the
+shapes and also lists custom drawable curves separately. What is implemented is
+the ramp quantised into equal steps, which is well defined and needs nothing from
+the user. A drawable step sequence is a resource the user creates, so it needs
+the editor that draws it (Phase 7) and the preset format that stores it
+(Phase 9), and inventing a default pattern here would be inventing content.
+
+**Given up:** the CPU a control-rate LFO would have saved, and the option of
+running LFOs so fast they alias — which the 400 Hz ceiling forecloses.

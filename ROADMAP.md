@@ -339,12 +339,12 @@ Build the expressive sound-design architecture around the oscillator core.
 
 ### LFOs
 
-- [ ] Implement four LFOs.
-- [ ] Implement selectable waveform shapes.
-- [ ] Implement rate.
-- [ ] Implement phase/reset behavior.
-- [ ] Define free-running and note-synced behavior where required.
-- [ ] Define control-rate/audio-rate usage.
+- [ ] Implement four LFOs. — the generator is complete and tested (5c); the four instances are created and routed by the modulation matrix, which is what gives them destinations (5d)
+- [x] Implement selectable waveform shapes. — sine, triangle, saw, reverse saw, square, sample & hold and step, the set PRD §15.2 specifies. Custom drawable curves need the editor that draws them and the preset format that stores them, so they follow Phases 7 and 9 (5c)
+- [x] Implement rate. — 0.01 to 400 Hz, measured accurate to three decimal places and unchanged from 44.1 to 192 kHz; plus `tempoSyncedRateHz`, which converts a host tempo and a note division into hertz and falls back to 120 bpm when the host reports nothing usable (5c)
+- [x] Implement phase/reset behavior. — a phase offset that starts the shape where it says, and a reset that returns it to that offset (5c)
+- [x] Implement free-running and note-synced behavior. — retrigger restarts the shape on every note; free-running adopts a phase handed in by the engine, so voices started at different times stay in step with one another (5c)
+- [x] Define control-rate/audio-rate usage. — **audio rate**, decided on measurement rather than assumption: a block-rate LFO on a filter cutoff is the zipper artefact the exit criteria forbid, and 128 instances cost 1.7–4.4 % of a core (ADR-0034) (5c)
 
 ### Modulation matrix
 

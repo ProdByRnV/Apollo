@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 5 — Filters, Envelopes & Modulation |
-| **Status** | **5a and 5b complete; 5c, 5d open** |
+| **Status** | **5a, 5b and 5c complete; 5d open** |
 | **Milestone** | M5 — Sound Design |
-| **Next step** | Phase 5c — the four LFOs |
+| **Next step** | Phase 5d — the modulation matrix |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -245,11 +245,35 @@ Everything below was configured, built and executed on this machine.
   1 to 2, and the first real use of a code path built in Phase 2 and never
   exercised (ADR-0032).
 
+### LFO generator (Phase 5c)
+
+- Seven shapes — sine, triangle, saw, reverse saw, square, sample & hold and a
+  stepped staircase — plus rate, phase offset, retrigger or free-running,
+  fade-in, output smoothing and a polarity switch.
+- **Not band-limited, and that is the point.** An LFO is never heard, so a square
+  is exactly ±1 with no intermediate values at all, which the tests assert. The
+  smoothing control exists for when those edges do need rounding, because it can
+  be adjusted and switched off; band-limiting would round them always (ADR-0034).
+- **Audio rate**, decided on a measurement: a block-rate LFO on a filter cutoff is
+  the zipper artefact the phase's exit criteria forbid, and 128 instances cost
+  1.7–4.4 % of a core.
+- Measured: rates land on 0.500, 1.000, 5.000 and 20.000 Hz exactly, and stay
+  there from 44.1 to 192 kHz. Smoothing at 0.5 reduces the largest sample-to-
+  sample step of a square from 2.0 to 0.000333.
+- Free-running LFOs adopt a phase handed in by the caller, so voices started at
+  different times stay in step. Sample & hold is seeded per instance, so several
+  voices produce independent random values rather than one value applied N times.
+- `tempoSyncedRateHz` converts a host tempo and a note division into hertz, and
+  falls back to 120 bpm when the host reports nothing usable (CLAUDE.md §38).
+- **Nothing instantiates one yet.** Four LFOs per voice, and the host-tempo
+  plumbing that feeds a sync division, arrive with the modulation matrix that
+  gives them destinations — the same reason envelopes 2-4 are not registered.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 5c | The four LFOs |
+| 5c | Four LFO *instances* — the generator exists and is tested; nothing creates or routes one yet |
 | 5d | Envelopes 2-4, the modulation matrix, velocity and key tracking, mod wheel and aftertouch sources |
 | 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
 | 7 | The `WebUI/` React frontend, visualizers, telemetry |
@@ -411,6 +435,25 @@ Two things follow, and both are recorded rather than smoothed over:
   already too close to the edge to be safe. This is inherent arithmetic rather
   than a defect; ADR-0029 records the decision to publish the limit rather than
   lower the ceilings, and Phase 10 owns the optimisation.
+
+### LFO
+
+Per instance, per sample. Nothing runs one yet; this was measured in Phase 5c
+specifically to decide whether LFOs could afford to run at audio rate, and the
+right-hand column is what four LFOs across 32 voices would cost.
+
+| Shape | One instance | x128 |
+|---|---:|---:|
+| Sine | 0.034 % | 4.41 % |
+| Triangle | 0.015 % | 1.91 % |
+| Square | 0.014 % | 1.74 % |
+| Sample & hold | 0.014 % | 1.74 % |
+| Sine, smoothed | 0.037 % | 4.69 % |
+
+Affordable, so audio rate it is (ADR-0034). The sine costs two and a half times
+every other shape because it calls `std::sin` per sample — the first thing to
+replace with a polynomial or a small table if Phase 5d pushes the total
+somewhere uncomfortable.
 
 ### Oversampler
 

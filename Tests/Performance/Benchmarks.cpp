@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "DSP/LFO/Lfo.h"
 #include "DSP/Oversampling/Oversampler.h"
 #include "Engine/VoiceEngine.h"
 
@@ -173,6 +174,58 @@ void benchmarkPolyphony()
         printRow (std::to_string (voices) + " voices", measureEngine (heaviestPatch(), voices), voices);
 }
 
+void benchmarkLfos()
+{
+    printHeading ("LFO, one instance at audio rate (per sample)");
+
+    // The number that decides whether LFOs can run per sample per voice. Four
+    // LFOs across 32 voices is 128 of these, so the per-instance cost is
+    // multiplied by that before it is compared with the voice engine's own.
+    struct Case { const char* name; dsp::LfoShape shape; float smoothing; };
+
+    const Case cases[] = {
+        { "sine", dsp::LfoShape::sine, 0.0f },
+        { "triangle", dsp::LfoShape::triangle, 0.0f },
+        { "square", dsp::LfoShape::square, 0.0f },
+        { "sample and hold", dsp::LfoShape::sampleAndHold, 0.0f },
+        { "sine, smoothed", dsp::LfoShape::sine, 0.5f },
+    };
+
+    for (const auto& testCase : cases)
+    {
+        static dsp::Lfo lfo;
+
+        dsp::LfoSettings settings;
+        settings.shape = testCase.shape;
+        settings.rateHz = 5.0f;
+        settings.smoothing = testCase.smoothing;
+
+        lfo.prepare (sampleRate);
+        lfo.setSettings (settings);
+        lfo.noteOn (0.0);
+
+        // Accumulated into a volatile so the whole loop cannot be optimised
+        // away, which would make an LFO look free.
+        static volatile float sink = 0.0f;
+
+        const auto measurement = measure (secondsPerMeasurement, [&]
+        {
+            float total = 0.0f;
+
+            for (int i = 0; i < blockSize; ++i)
+                total += lfo.getNextValue();
+
+            sink = total;
+        });
+
+        printRow (testCase.name, measurement, 0);
+
+        std::cout << "      x128 (4 LFOs on 32 voices): "
+                  << std::fixed << std::setprecision (2)
+                  << (measurement.realtimeFraction * 100.0 * 128.0) << " %" << std::endl;
+    }
+}
+
 void benchmarkOversampling()
 {
     printHeading ("Oversampler, one channel (cost per stereo FX stage is twice this)");
@@ -234,6 +287,7 @@ void run()
               << "==========================================================" << std::endl;
 
     benchmarkPolyphony();
+    benchmarkLfos();
     benchmarkOversampling();
 
     std::cout << "\nMeasured on this machine, in this configuration. These numbers are\n"
