@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 5 — Filters, Envelopes & Modulation |
-| **Status** | **5a, 5b and 5c complete; 5d open** |
+| **Status** | **Complete (5a, 5b, 5c, 5d)** |
 | **Milestone** | M5 — Sound Design |
-| **Next step** | Phase 5d — the modulation matrix |
+| **Next step** | Phase 6 — MIDI, Control & Interaction |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -269,22 +269,60 @@ Everything below was configured, built and executed on this machine.
   plumbing that feeds a sync division, arrive with the modulation matrix that
   gives them destinations — the same reason envelopes 2-4 are not registered.
 
+### Modulation matrix (Phase 5d)
+
+- **Sixteen routing slots**, each a source, a destination and a bipolar depth, in
+  the generic model CLAUDE.md §15 asks for: nothing in the engine knows which
+  pairings are musically sensible, because a matrix that only allows the
+  combinations someone thought of is a list of features.
+- **Fifteen sources**: four envelopes, four LFOs, velocity, key tracking, mod
+  wheel, pitch bend, aftertouch, and a random value chosen once per note.
+- **Seventeen destinations**: pitch (all three sources together, or either
+  oscillator alone), wavetable position, level, pan, sub and noise level, both
+  filters' cutoff and resonance, and voice amplitude. They are engine concepts
+  rather than parameter IDs — oscillator 1's pitch, the most obvious target of
+  all, has no parameter behind it.
+- Depth is scaled by each destination's own range, so half a depth feels like
+  half whether it lands on a cutoff measured in octaves or a pan measured in
+  fractions.
+- Contributions to one destination **add**, and are clamped by the consumer
+  rather than centrally: a level cannot go below zero, a pitch can go anywhere,
+  and amplitude attenuates but never boosts, which is what keeps the headroom
+  guarantee intact (ADR-0036).
+- Evaluated every **16 samples** — a 3 kHz rate — rather than per sample, because
+  a modulated cutoff costs a `tan` and a modulated pitch a `pow`. Measured
+  against the zipper criterion rather than argued: a resonant LFO sweep's largest
+  sample step is 0.002167 against 0.001292 unmodulated (ADR-0035).
+- **Base parameters are never written to.** Modulation is an offset applied on
+  the way to the consumer, asserted directly: after a heavily modulated note
+  every base value reads back exactly as set, and removing the routing returns
+  the engine to within 1e-6 of one that never had it.
+- Free-running LFO phases belong to the *engine*, not to a note, so voices
+  started at different times move together.
+- A voice with no active slot skips evaluation entirely and only advances the
+  generators something actually routes, which is why an unmodulated patch costs
+  what it did in Phase 5b.
+- Envelopes 2-4 and the four LFOs became reachable here; mod wheel (CC 1) and
+  channel aftertouch are now read from MIDI as first-class sources.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 5c | Four LFO *instances* — the generator exists and is tested; nothing creates or routes one yet |
-| 5d | Envelopes 2-4, the modulation matrix, velocity and key tracking, mod wheel and aftertouch sources |
-| 6 | MIDI Learn, controller profiles, aftertouch, MPE (basic note/CC handling landed in Phase 3) |
-| 7 | The `WebUI/` React frontend, visualizers, telemetry |
+| 6 | MIDI Learn, controller profiles, polyphonic aftertouch, MPE. Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources |
+| 7 | The `WebUI/` React frontend and every visualizer — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**36 of the 38 registered parameters now affect audio** — the whole source
-section, envelope 1, both filters, and `master_gain`. Only two remain inert
-(`fx_distortion_mix` and `fx_delay_time`), and they wait on the effects rack in
-Phase 8.
+**137 of the 139 registered parameters now affect audio** — the whole source
+section, four envelopes, four LFOs, both filters, sixteen modulation slots and
+`master_gain`. Only two remain inert (`fx_distortion_mix` and `fx_delay_time`),
+and they wait on the effects rack in Phase 8.
+
+The registry grew from 38 to 139 in Phase 5d, which is what a modulation matrix
+costs: 21 for envelopes 2-4, 32 for the four LFOs, and 48 for sixteen routing
+slots. They were generated rather than typed (ADR-0037).
 
 ---
 
@@ -390,13 +428,15 @@ lower is better, and 100 % means the render exactly keeps up with playback.
 
 ### Voice engine
 
-Re-measured in Phase 5b, so these figures include the DAHDSR envelope and the
-filter section.
+Re-measured in Phase 5d. These figures include the DAHDSR envelope and the filter
+section but **no active modulation** — see the modulation table below for what
+the matrix costs when it is used.
 
 | Voices | Default patch | Heaviest patch |
 |---:|---:|---:|
-| 1 | 0.26 % | 4.85 % |
-| 32 | **9.35 %** | **167 %** |
+| 1 | 0.23 % | 4.52 % |
+| 8 | 1.79 % | 37.7 % |
+| 32 | **7.14 %** | **175 %** |
 
 "Default patch" is oscillator 1 alone with no unison — what Apollo loads with.
 "Heaviest patch" is both oscillators at 16-voice unison plus the sub and the
@@ -408,12 +448,14 @@ That is the machine, not Apollo, and it is stated here because a single decimal
 place would imply a precision these numbers do not have. Anything below roughly
 a ten per cent difference should be read as unchanged.
 
-**What the filters cost.** The default patch went from about 5.5 % to 9.35 % at
-full polyphony when the filter section landed. That is not noise: `filter1`
-defaults to a lowpass, so a stereo state variable filter runs on every voice even
-though it sits wide open at 20 kHz. Setting a filter to `off` costs nothing — it
-returns its input on the first line — so a patch that does not want one does not
-pay for it, but the *default* patch does.
+**What the filters cost.** The default patch rose when the filter section landed:
+`filter1` defaults to a lowpass, so a stereo state variable filter runs on every
+voice even though it sits wide open at 20 kHz. Setting a filter to `off` costs
+nothing — it returns its input on the first line — so a patch that does not want
+one does not pay for it, but the *default* patch does. Phase 5b measured 9.35 %
+at full polyphony and Phase 5d measures 7.14 %; the two differ by more than the
+stated variance, so the honest reading is that the machine was busier during the
+first measurement, not that anything got faster.
 
 That default was kept deliberately. A subtractive synthesiser whose filter is
 out of circuit until you also change a type control is a worse instrument than
@@ -435,6 +477,23 @@ Two things follow, and both are recorded rather than smoothed over:
   already too close to the edge to be safe. This is inherent arithmetic rather
   than a defect; ADR-0029 records the decision to publish the limit rather than
   lower the ceilings, and Phase 10 owns the optimisation.
+
+### Modulation
+
+The default patch again, with four routings active — a filter sweep from an
+envelope, a vibrato, velocity on level and an LFO on pan.
+
+| Voices | Unmodulated | With four routings |
+|---:|---:|---:|
+| 1 | 0.232 % | 0.368 % |
+| 8 | 1.786 % | 3.143 % |
+| 32 | **7.14 %** | **12.51 %** |
+
+About 0.39 % per voice against 0.22 % — three quarters more for a patch that is
+using the matrix. A voice with **no** active slot skips evaluation entirely and
+advances only the generators something routes, so the unmodulated column is
+unchanged from Phase 5b and an unmodulated patch pays nothing at all for the
+matrix existing.
 
 ### LFO
 

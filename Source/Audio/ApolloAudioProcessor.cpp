@@ -41,7 +41,15 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     osc1Parameters.resolve (apvts, "osc1_");
     osc2Parameters.resolve (apvts, "osc2_");
 
-    envelope1.resolve (apvts, "env1_");
+    for (std::size_t i = 0; i < envelopeParameters.size(); ++i)
+        envelopeParameters[i].resolve (apvts, "env" + juce::String (i + 1) + "_");
+
+    for (std::size_t i = 0; i < lfoParameters.size(); ++i)
+        lfoParameters[i].resolve (apvts, "lfo" + juce::String (i + 1) + "_");
+
+    for (std::size_t i = 0; i < modulationParameters.size(); ++i)
+        modulationParameters[i].resolve (
+            apvts, "mod" + juce::String (i + 1).paddedLeft ('0', 2) + "_");
 
     filter1Parameters.resolve (apvts, "filter1_");
     filter2Parameters.resolve (apvts, "filter2_");
@@ -106,6 +114,37 @@ void ApolloAudioProcessor::FilterParameterPointers::resolve (
     drive = state.getRawParameterValue (base + "drive");
 
     jassert (type != nullptr && cutoff != nullptr && resonance != nullptr && drive != nullptr);
+}
+
+void ApolloAudioProcessor::LfoParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state, juce::StringRef prefix)
+{
+    const juce::String base (prefix);
+
+    shape = state.getRawParameterValue (base + "shape");
+    rate = state.getRawParameterValue (base + "rate");
+    phase = state.getRawParameterValue (base + "phase");
+    retrigger = state.getRawParameterValue (base + "retrigger");
+    fadeMs = state.getRawParameterValue (base + "fade");
+    smoothing = state.getRawParameterValue (base + "smoothing");
+    polarity = state.getRawParameterValue (base + "polarity");
+    steps = state.getRawParameterValue (base + "steps");
+
+    jassert (shape != nullptr && rate != nullptr && phase != nullptr && retrigger != nullptr
+             && fadeMs != nullptr && smoothing != nullptr && polarity != nullptr
+             && steps != nullptr);
+}
+
+void ApolloAudioProcessor::ModSlotParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state, juce::StringRef prefix)
+{
+    const juce::String base (prefix);
+
+    source = state.getRawParameterValue (base + "source");
+    destination = state.getRawParameterValue (base + "destination");
+    depth = state.getRawParameterValue (base + "depth");
+
+    jassert (source != nullptr && destination != nullptr && depth != nullptr);
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor() = default;
@@ -209,17 +248,76 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     // Envelope times reach the engine in seconds. Milliseconds are what a user
     // reads on a control; seconds are what a sample count is derived from, and
     // converting once here keeps the division out of the DSP.
-    dsp::EnvelopeSettings envelope;
+    for (std::size_t i = 0; i < envelopeParameters.size(); ++i)
+    {
+        const auto& pointers = envelopeParameters[i];
 
-    envelope.delaySeconds = readParameter (envelope1.delayMs, 0.0f) * 0.001f;
-    envelope.attackSeconds = readParameter (envelope1.attackMs, 5.0f) * 0.001f;
-    envelope.holdSeconds = readParameter (envelope1.holdMs, 0.0f) * 0.001f;
-    envelope.decaySeconds = readParameter (envelope1.decayMs, 100.0f) * 0.001f;
-    envelope.releaseSeconds = readParameter (envelope1.releaseMs, 50.0f) * 0.001f;
-    envelope.sustainLevel = readParameter (envelope1.sustain, 1.0f);
-    envelope.curve = readParameter (envelope1.curve, 0.5f);
+        // Envelope 1 shapes amplitude and sustains at full; 2 to 4 are
+        // modulators, whose defaults decay away so an unrouted one does nothing.
+        const auto isAmplitude = (i == 0);
 
-    voiceEngine.setAmplitudeEnvelope (envelope);
+        dsp::EnvelopeSettings envelope;
+
+        envelope.delaySeconds = readParameter (pointers.delayMs, 0.0f) * 0.001f;
+        envelope.attackSeconds = readParameter (pointers.attackMs, 5.0f) * 0.001f;
+        envelope.holdSeconds = readParameter (pointers.holdMs, 0.0f) * 0.001f;
+        envelope.decaySeconds = readParameter (pointers.decayMs, isAmplitude ? 100.0f : 300.0f) * 0.001f;
+        envelope.releaseSeconds = readParameter (pointers.releaseMs, isAmplitude ? 50.0f : 300.0f) * 0.001f;
+        envelope.sustainLevel = readParameter (pointers.sustain, isAmplitude ? 1.0f : 0.0f);
+        envelope.curve = readParameter (pointers.curve, 0.5f);
+
+        voiceEngine.setEnvelopeSettings (static_cast<int> (i), envelope);
+    }
+
+    for (std::size_t i = 0; i < lfoParameters.size(); ++i)
+    {
+        const auto& pointers = lfoParameters[i];
+
+        dsp::LfoSettings lfo;
+
+        // Clamped rather than cast blindly: the shape indexes a switch, and a
+        // corrupt preset must not be able to select something that is not there.
+        const auto shape = static_cast<int> (readParameter (pointers.shape, 0.0f));
+        lfo.shape = static_cast<dsp::LfoShape> (shape < 0 ? 0 : (shape > 6 ? 6 : shape));
+
+        lfo.rateHz = readParameter (pointers.rate, 1.0f);
+        lfo.phaseOffset = readParameter (pointers.phase, 0.0f);
+        lfo.retrigger = readParameter (pointers.retrigger, 1.0f) >= 0.5f;
+        lfo.fadeInSeconds = readParameter (pointers.fadeMs, 0.0f) * 0.001f;
+        lfo.smoothing = readParameter (pointers.smoothing, 0.0f);
+        lfo.bipolar = readParameter (pointers.polarity, 1.0f) >= 0.5f;
+        lfo.stepCount = static_cast<int> (readParameter (pointers.steps, 8.0f));
+
+        voiceEngine.setLfoSettings (static_cast<int> (i), lfo);
+    }
+
+    dsp::ModulationRouting routing;
+
+    for (std::size_t i = 0; i < modulationParameters.size(); ++i)
+    {
+        const auto& pointers = modulationParameters[i];
+
+        const auto source = static_cast<int> (readParameter (pointers.source, 0.0f));
+        const auto destination = static_cast<int> (readParameter (pointers.destination, 0.0f));
+
+        constexpr auto sourceCount = static_cast<int> (dsp::ModSource::count);
+        constexpr auto destinationCount = static_cast<int> (dsp::ModDestination::count);
+
+        // Out-of-range indices become "none" rather than being clamped onto a
+        // real routing: a preset that names a source this build does not have
+        // should do nothing, not silently modulate something else.
+        routing.slots[i].source = (source > 0 && source < sourceCount)
+                                    ? static_cast<dsp::ModSource> (source)
+                                    : dsp::ModSource::none;
+
+        routing.slots[i].destination = (destination > 0 && destination < destinationCount)
+                                         ? static_cast<dsp::ModDestination> (destination)
+                                         : dsp::ModDestination::none;
+
+        routing.slots[i].depth = readParameter (pointers.depth, 0.0f);
+    }
+
+    voiceEngine.setModulationRouting (routing);
 
     const auto readFilter = [] (const FilterParameterPointers& pointers, float defaultType)
     {
@@ -266,6 +364,20 @@ void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) 
         constexpr float centre = 8192.0f;
         const auto normalised = (static_cast<float> (message.getPitchWheelValue()) - centre) / centre;
         voiceEngine.setPitchBendSemitones (normalised * pitchBendRangeSemitones);
+    }
+    else if (message.isControllerOfType (1))
+    {
+        // The mod wheel, which is CC 1 on every controller that has one. It is
+        // handled here rather than through MIDI Learn because it is a modulation
+        // source in its own right (CLAUDE.md §15), not a mapping to a parameter.
+        voiceEngine.setModWheel (static_cast<float> (message.getControllerValue()) / 127.0f);
+    }
+    else if (message.isChannelPressure())
+    {
+        // Channel aftertouch. Polyphonic aftertouch is a per-note source and
+        // needs the per-note controller routing that arrives with MPE in
+        // Phase 6, so it is deliberately not folded into this one.
+        voiceEngine.setAftertouch (static_cast<float> (message.getChannelPressureValue()) / 127.0f);
     }
     else if (message.isSustainPedalOn())
     {
@@ -441,7 +553,7 @@ double ApolloAudioProcessor::getTailLengthSeconds() const
     // Phase 5a that is a user parameter reaching ten seconds, and a fixed value
     // would silently truncate every patch with a long tail.
     // Effects that ring out report their own tails in Phase 8.
-    return static_cast<double> (readParameter (envelope1.releaseMs, 50.0f)) * 0.001;
+    return static_cast<double> (readParameter (envelopeParameters[0].releaseMs, 50.0f)) * 0.001;
 }
 
 //==============================================================================

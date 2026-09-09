@@ -242,7 +242,41 @@ private:
         void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
     };
 
-    EnvelopeParameterPointers envelope1;
+    std::array<EnvelopeParameterPointers, static_cast<std::size_t> (engine::Voice::numEnvelopes)>
+        envelopeParameters;
+
+    /** One LFO's raw parameter values. */
+    struct LfoParameterPointers
+    {
+        std::atomic<float>* shape = nullptr;
+        std::atomic<float>* rate = nullptr;
+        std::atomic<float>* phase = nullptr;
+        std::atomic<float>* retrigger = nullptr;
+        std::atomic<float>* fadeMs = nullptr;
+        std::atomic<float>* smoothing = nullptr;
+        std::atomic<float>* polarity = nullptr;
+        std::atomic<float>* steps = nullptr;
+
+        /** @param prefix  "lfo1_" through "lfo4_". */
+        void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
+    };
+
+    std::array<LfoParameterPointers, static_cast<std::size_t> (engine::Voice::numLfos)>
+        lfoParameters;
+
+    /** One modulation slot's raw parameter values. */
+    struct ModSlotParameterPointers
+    {
+        std::atomic<float>* source = nullptr;
+        std::atomic<float>* destination = nullptr;
+        std::atomic<float>* depth = nullptr;
+
+        /** @param prefix  "mod01_" through "mod16_". */
+        void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
+    };
+
+    std::array<ModSlotParameterPointers, static_cast<std::size_t> (dsp::maxModulationSlots)>
+        modulationParameters;
 
     /** One filter slot's raw parameter values. */
     struct FilterParameterPointers

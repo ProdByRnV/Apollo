@@ -71,7 +71,7 @@ Registry as implemented. `Source/Parameters/ParameterDefinitions.h` is authorita
 
 Parameters are added by the phase that implements the DSP giving them meaning, so no ID ships before it does something. The phase column records when each arrived.
 
-Envelopes 2-4 and the four LFOs are deliberately absent: their generators exist or are coming, but they have nowhere to send their output until the modulation matrix, so their IDs ship with it.
+Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix that gave them destinations — which is the rule this table follows throughout: an identifier appears when the DSP behind it does something, not before.
 
 | Parameter ID | UI Element | Range / Type | Default | Phase | Description |
 |---|---|---|---:|---|---|
@@ -110,6 +110,107 @@ Envelopes 2-4 and the four LFOs are deliberately absent: their generators exist 
 | `filter2_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 2 resonance as Q |
 | `filter2_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 2 input saturation |
 | `filter_routing` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 5b | 0 series, 1 parallel |
+| `env2_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 2 delay |
+| `env2_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 2 attack |
+| `env2_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 2 hold |
+| `env2_decay` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 2 decay |
+| `env2_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 2 sustain; zero by default so an unrouted modulator does nothing |
+| `env2_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 2 release |
+| `env2_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 2 curve tension |
+| `env3_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 delay |
+| `env3_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 3 attack |
+| `env3_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 hold |
+| `env3_decay` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 3 decay |
+| `env3_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 3 sustain; zero by default so an unrouted modulator does nothing |
+| `env3_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 3 release |
+| `env3_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 3 curve tension |
+| `env4_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 delay |
+| `env4_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 4 attack |
+| `env4_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 hold |
+| `env4_decay` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 4 decay |
+| `env4_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 4 sustain; zero by default so an unrouted modulator does nothing |
+| `env4_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 4 release |
+| `env4_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 4 curve tension |
+| `lfo1_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 1: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
+| `lfo1_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 1 rate |
+| `lfo1_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 1 start phase |
+| `lfo1_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 1: 0 free-running, 1 retrigger per note |
+| `lfo1_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 1 fade-in |
+| `lfo1_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 1 output slew |
+| `lfo1_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 1: 0 unipolar, 1 bipolar |
+| `lfo1_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 1 steps, for the step shape |
+| `lfo2_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 2: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
+| `lfo2_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 2 rate |
+| `lfo2_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 2 start phase |
+| `lfo2_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 2: 0 free-running, 1 retrigger per note |
+| `lfo2_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 2 fade-in |
+| `lfo2_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 2 output slew |
+| `lfo2_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 2: 0 unipolar, 1 bipolar |
+| `lfo2_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 2 steps, for the step shape |
+| `lfo3_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 3: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
+| `lfo3_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 3 rate |
+| `lfo3_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 3 start phase |
+| `lfo3_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 3: 0 free-running, 1 retrigger per note |
+| `lfo3_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 3 fade-in |
+| `lfo3_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 3 output slew |
+| `lfo3_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 3: 0 unipolar, 1 bipolar |
+| `lfo3_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 3 steps, for the step shape |
+| `lfo4_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 4: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
+| `lfo4_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 4 rate |
+| `lfo4_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 4 start phase |
+| `lfo4_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 4: 0 free-running, 1 retrigger per note |
+| `lfo4_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 4 fade-in |
+| `lfo4_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 4 output slew |
+| `lfo4_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 4: 0 unipolar, 1 bipolar |
+| `lfo4_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 4 steps, for the step shape |
+| `mod01_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 1 source; index into `dsp::ModSource` |
+| `mod01_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 1 destination; index into `dsp::ModDestination` |
+| `mod01_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 1 depth; negative inverts the source |
+| `mod02_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 2 source; index into `dsp::ModSource` |
+| `mod02_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 2 destination; index into `dsp::ModDestination` |
+| `mod02_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 2 depth; negative inverts the source |
+| `mod03_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 3 source; index into `dsp::ModSource` |
+| `mod03_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 3 destination; index into `dsp::ModDestination` |
+| `mod03_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 3 depth; negative inverts the source |
+| `mod04_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 4 source; index into `dsp::ModSource` |
+| `mod04_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 4 destination; index into `dsp::ModDestination` |
+| `mod04_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 4 depth; negative inverts the source |
+| `mod05_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 5 source; index into `dsp::ModSource` |
+| `mod05_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 5 destination; index into `dsp::ModDestination` |
+| `mod05_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 5 depth; negative inverts the source |
+| `mod06_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 6 source; index into `dsp::ModSource` |
+| `mod06_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 6 destination; index into `dsp::ModDestination` |
+| `mod06_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 6 depth; negative inverts the source |
+| `mod07_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 7 source; index into `dsp::ModSource` |
+| `mod07_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 7 destination; index into `dsp::ModDestination` |
+| `mod07_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 7 depth; negative inverts the source |
+| `mod08_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 8 source; index into `dsp::ModSource` |
+| `mod08_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 8 destination; index into `dsp::ModDestination` |
+| `mod08_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 8 depth; negative inverts the source |
+| `mod09_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 9 source; index into `dsp::ModSource` |
+| `mod09_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 9 destination; index into `dsp::ModDestination` |
+| `mod09_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 9 depth; negative inverts the source |
+| `mod10_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 10 source; index into `dsp::ModSource` |
+| `mod10_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 10 destination; index into `dsp::ModDestination` |
+| `mod10_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 10 depth; negative inverts the source |
+| `mod11_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 11 source; index into `dsp::ModSource` |
+| `mod11_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 11 destination; index into `dsp::ModDestination` |
+| `mod11_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 11 depth; negative inverts the source |
+| `mod12_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 12 source; index into `dsp::ModSource` |
+| `mod12_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 12 destination; index into `dsp::ModDestination` |
+| `mod12_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 12 depth; negative inverts the source |
+| `mod13_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 13 source; index into `dsp::ModSource` |
+| `mod13_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 13 destination; index into `dsp::ModDestination` |
+| `mod13_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 13 depth; negative inverts the source |
+| `mod14_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 14 source; index into `dsp::ModSource` |
+| `mod14_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 14 destination; index into `dsp::ModDestination` |
+| `mod14_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 14 depth; negative inverts the source |
+| `mod15_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 15 source; index into `dsp::ModSource` |
+| `mod15_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 15 destination; index into `dsp::ModDestination` |
+| `mod15_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 15 depth; negative inverts the source |
+| `mod16_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 16 source; index into `dsp::ModSource` |
+| `mod16_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 16 destination; index into `dsp::ModDestination` |
+| `mod16_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 16 depth; negative inverts the source |
 | `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix |
 | `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |

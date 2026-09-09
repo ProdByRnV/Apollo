@@ -990,15 +990,29 @@ Ask for clarification when a decision would materially affect:
 
 Apollo should provide real-time visual feedback.
 
-## 26.1 Oscilloscope
+## 26.1 Oscilloscopes
 
-The oscilloscope should:
+Apollo provides a scope for the final output **and one for every individual
+source**, so the user can see the waveform each part is producing on its own
+rather than only the sum — the wave being crafted, visible while it is being
+crafted.
 
-- Display output waveform data.
+Per-source scopes cover oscillator 1, oscillator 2, the sub oscillator, the
+noise generator, the post-filter signal and the final output. Envelopes and LFOs
+are shown the same way: a live trace of the value each is currently producing,
+not a static picture of its shape.
+
+Each scope should:
+
+- Display the waveform of its own source, not the mix.
 - Update smoothly.
 - Run independently from audio rendering.
-- Use a safe visualization buffer.
+- Use a safe visualization buffer, one per source.
 - Avoid audio-thread blocking.
+- Show a silent source as silent, rather than leaving a stale trace.
+
+Capture cost must be measured rather than assumed: scopes for every source must
+not materially reduce polyphony (PRD §30.1).
 
 ## 26.2 Wavetable Visualization
 

@@ -574,14 +574,31 @@ The exact layout may evolve during implementation.
 ---
 30. Visualizers
 Apollo shall provide real-time visual feedback.
-30.1 Oscilloscope
-The oscilloscope should display the current output waveform.
+30.1 Oscilloscopes
+Apollo shall provide an oscilloscope for the final output and, separately, for
+every individual sound source the instrument offers.
+The user must be able to see the waveform each source is producing on its own,
+not only the sum, so that the wave being crafted is visible while it is being
+crafted.
+Sources requiring their own scope:
+Oscillator 1, including its wavetable position, warp and unison.
+Oscillator 2, likewise.
+Sub oscillator.
+Noise generator.
+The post-filter signal, so the effect of the filters is visible.
+The final output.
+Where a source is a modulator rather than a sound, its motion shall be shown in
+the same way: each envelope and each LFO must be visible as a live trace of the
+value it is currently producing, not merely as a static picture of its shape.
 Requirements:
 Smooth rendering.
 High refresh rate.
 No blocking of the audio thread.
-Decoupled visualization buffer.
+Decoupled visualization buffer per source.
 Graceful degradation under CPU load.
+A source that is silent or disabled shall be shown as silent rather than stale.
+Capture must be cheap enough that scopes for every source do not materially
+affect polyphony, and shall be measured rather than assumed.
 30.2 Wavetable Visualizer
 The wavetable display should show:
 Current waveform.

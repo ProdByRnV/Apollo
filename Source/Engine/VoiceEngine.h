@@ -253,6 +253,37 @@ public:
     */
     void setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept;
 
+    //==============================================================================
+    // Modulation.
+
+    /** Replaces one envelope's shape on every voice.
+
+        Envelope 0 is the amplitude envelope, so `setAmplitudeEnvelope` and
+        `setEnvelopeSettings (0, ...)` are the same thing said two ways; the
+        first exists because the amplitude envelope had a name before the others
+        existed.
+    */
+    void setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSettings) noexcept;
+
+    /** Replaces one LFO's configuration on every voice. */
+    void setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept;
+
+    /** Replaces the modulation routing on every voice. */
+    void setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept;
+
+    [[nodiscard]] const dsp::ModulationRouting& getModulationRouting() const noexcept
+    {
+        return routing;
+    }
+
+    /** Channel-wide controller values, which reach every voice.
+
+        Held here and pushed down rather than read upward by voices, so a voice
+        stays a self-contained thing that can be tested without an engine.
+    */
+    void setModWheel (float value) noexcept;
+    void setAftertouch (float value) noexcept;
+
     /** Replaces the filter section on every voice.
 
         Resolves cutoff and resonance into coefficients exactly once, here,
@@ -343,6 +374,26 @@ private:
     SourceParameters parameters;
 
     dsp::EnvelopeSettings amplitudeEnvelope;
+
+    dsp::ModulationRouting routing;
+
+    /** One phase per LFO, advanced by the engine whether or not anything is
+        sounding, and handed to a voice when it starts a note.
+
+        This is what "free-running" means: the motion belongs to the instrument
+        rather than to the note, so a chord played one note at a time still moves
+        as one instead of each note carrying its own phase. Advanced once per
+        block rather than per sample — the phase is only ever sampled at a note
+        start, so nothing between blocks can observe the difference.
+    */
+    std::array<double, static_cast<std::size_t> (Voice::numLfos)> freeRunningLfoPhase {};
+    std::array<double, static_cast<std::size_t> (Voice::numLfos)> freeRunningIncrement {};
+
+    /** Kept so the free-running phases advance at the rate the LFOs are set to. */
+    std::array<dsp::LfoSettings, static_cast<std::size_t> (Voice::numLfos)> lfoSettings;
+
+    float modWheel = 0.0f;
+    float aftertouch = 0.0f;
 
     FilterParameters filterParameters;
 

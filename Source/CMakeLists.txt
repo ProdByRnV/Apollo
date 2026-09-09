@@ -43,6 +43,8 @@ add_library(apollo_core STATIC
     DSP/Filters/StateVariableFilter.h
     DSP/LFO/Lfo.cpp
     DSP/LFO/Lfo.h
+    DSP/Modulation/ModulationTypes.cpp
+    DSP/Modulation/ModulationTypes.h
     Engine/FilterSettings.h
     DSP/Oversampling/HalfbandFilter.cpp
     DSP/Oversampling/HalfbandFilter.h

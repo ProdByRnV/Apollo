@@ -1,5 +1,7 @@
 #include "Engine/VoiceEngine.h"
 
+#include <cmath>
+
 namespace apollo::engine
 {
 
@@ -51,6 +53,19 @@ void VoiceEngine::prepare (double sampleRate) noexcept
         // A distinct, non-zero seed per voice, so simultaneous voices produce
         // independent noise rather than N copies of one stream.
         voices[i].setNoiseSeed (static_cast<std::uint32_t> (i) + 1u);
+
+        // And a separate one for the modulation random sources, for the same
+        // reason: a chord whose notes all drew the same "random" value is one
+        // modulation applied N times.
+        voices[i].setModulationSeed (static_cast<std::uint32_t> (i) * 2654435761u + 17u);
+    }
+
+    // Free-running phases restart with the sample rate, and their increments are
+    // re-derived from it.
+    for (std::size_t i = 0; i < freeRunningLfoPhase.size(); ++i)
+    {
+        freeRunningLfoPhase[i] = 0.0;
+        freeRunningIncrement[i] = static_cast<double> (lfoSettings[i].rateHz) / preparedSampleRate;
     }
 
     applySourceParameters();
@@ -148,6 +163,11 @@ void VoiceEngine::noteOn (int midiNote, float velocity) noexcept
     const auto order = nextStartOrder++;
 
     voice->setPitchBendSemitones (pitchBendSemitones);
+
+    // Handed over before the note starts, so a free-running LFO adopts the
+    // instrument's current phase rather than one block's worth behind it.
+    for (int i = 0; i < Voice::numLfos; ++i)
+        voice->setFreeRunningLfoPhase (i, freeRunningLfoPhase[static_cast<std::size_t> (i)]);
 
     if (voice->isActive())
         voice->steal (midiNote, velocity, order);
@@ -255,6 +275,77 @@ void VoiceEngine::setFilterParameters (const FilterParameters& newParameters) no
     applyFilterParameters();
 }
 
+void VoiceEngine::setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSettings) noexcept
+{
+    if (index < 0 || index >= Voice::numEnvelopes)
+        return;
+
+    if (index == 0)
+    {
+        // Envelope 0 is the amplitude envelope, which already has a setter that
+        // keeps its own copy for comparison. Routing through it keeps one path.
+        setAmplitudeEnvelope (newSettings);
+        return;
+    }
+
+    for (auto& voice : voices)
+        voice.setEnvelopeSettings (index, newSettings);
+}
+
+void VoiceEngine::setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept
+{
+    if (index < 0 || index >= Voice::numLfos)
+        return;
+
+    const auto slot = static_cast<std::size_t> (index);
+
+    if (newSettings == lfoSettings[slot])
+        return;
+
+    lfoSettings[slot] = newSettings;
+
+    // The engine's own free-running phase has to advance at the same rate as the
+    // voices' LFOs, or a note started later would adopt a phase that no longer
+    // matches what the sounding voices are doing.
+    freeRunningIncrement[slot] = static_cast<double> (newSettings.rateHz) / preparedSampleRate;
+
+    for (auto& voice : voices)
+        voice.setLfoSettings (index, newSettings);
+}
+
+void VoiceEngine::setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept
+{
+    if (newRouting == routing)
+        return;
+
+    routing = newRouting;
+
+    for (auto& voice : voices)
+        voice.setModulationRouting (routing);
+}
+
+void VoiceEngine::setModWheel (float value) noexcept
+{
+    if (value == modWheel)
+        return;
+
+    modWheel = value;
+
+    for (auto& voice : voices)
+        voice.setModWheel (modWheel);
+}
+
+void VoiceEngine::setAftertouch (float value) noexcept
+{
+    if (value == aftertouch)
+        return;
+
+    aftertouch = value;
+
+    for (auto& voice : voices)
+        voice.setAftertouch (aftertouch);
+}
+
 void VoiceEngine::applyFilterParameters() noexcept
 {
     VoiceFilterSettings settings;
@@ -265,6 +356,8 @@ void VoiceEngine::applyFilterParameters() noexcept
 
         resolved.mode = slot.mode;
         resolved.drive = slot.drive;
+        resolved.cutoffHz = slot.cutoffHz;
+        resolved.q = slot.q;
         resolved.coefficients.set (slot.cutoffHz, slot.q, preparedSampleRate);
 
         return resolved;
@@ -350,6 +443,20 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
 
         for (int i = 0; i < numSamples; ++i)
             destination[startSample + i] = 0.0f;
+    }
+
+    // The shared phases advance whether or not anything is sounding, which is
+    // the whole point of a free-running LFO. Advanced once per block rather than
+    // per sample: nothing reads them except a note start, so no observer exists
+    // between blocks that could tell the difference.
+    for (std::size_t i = 0; i < freeRunningLfoPhase.size(); ++i)
+    {
+        auto phase = freeRunningLfoPhase[i]
+                   + freeRunningIncrement[i] * static_cast<double> (numSamples);
+
+        phase -= std::floor (phase);
+
+        freeRunningLfoPhase[i] = std::isfinite (phase) ? phase : 0.0;
     }
 
     // Voices beyond the polyphony limit may still be releasing after a

@@ -903,3 +903,101 @@ the editor that draws it (Phase 7) and the preset format that stores it
 
 **Given up:** the CPU a control-rate LFO would have saved, and the option of
 running LFOs so fast they alias — which the 400 Hz ceiling forecloses.
+
+---
+
+## ADR-0035 — Modulation is evaluated on a 16-sample control block
+
+**Phase 5d · Accepted**
+
+A voice re-evaluates its modulation every 16 samples rather than every sample —
+a 3 kHz modulation rate at 48 kHz — and pushes the result into destinations that
+are themselves smoothed per sample.
+
+Per-sample evaluation is the obvious thing and is not affordable. A modulated
+cutoff needs a `tan` to re-resolve the filter coefficients and a modulated pitch
+needs a `pow`; doing either per sample per voice multiplies the most expensive
+part of the engine by the sample rate. PROJECT-STATE.md §5b already showed the
+voice engine dominating Apollo's cost before the matrix existed.
+
+The risk of a control block is a staircase, and the Phase 5 exit criteria
+explicitly forbid one. Three things keep it away, and the third is measured:
+
+- **3 kHz is far above where stepping is audible.** The artefact people mean by
+  "zipper" comes from updating once per *buffer* — roughly 94 Hz at a 512-sample
+  block, which is squarely in the audible range. 16 samples is thirty-two times
+  finer.
+- **The fastest LFO is still oversampled.** Apollo's LFOs top out at 400 Hz, so
+  even the worst case is sampled seven and a half times per cycle.
+- **The destinations that would step are smoothed anyway.** Levels and balances
+  go through the same per-sample smoothers the parameters use, so they
+  interpolate between updates rather than jumping to them.
+
+`ModulationTests` measures it rather than arguing it: an LFO sweeping a resonant
+cutoff produces a largest sample-to-sample step of 0.002167, against 0.001292 for
+the identical patch with the modulation switched off. A staircase would be orders
+of magnitude larger, not 1.7 times.
+
+The cost, measured: a voice with four routings costs 0.391 % of a core against
+0.223 % unmodulated, so 12.5 % at full polyphony. A voice with **no** active slot
+skips the whole evaluation and costs exactly nothing, which is why the
+unmodulated figures are unchanged from Phase 5b.
+
+**Given up:** sample-exact modulation. Nothing in Apollo can currently hear the
+difference, and if something later can — an audio-rate FM destination, say — the
+block size is one constant.
+
+---
+
+## ADR-0036 — Amplitude modulation attenuates and never boosts
+
+**Phase 5d · Accepted**
+
+A routing to `ModDestination::amplitude` multiplies the voice by
+`clamp (1 + offset, 0, 1)`. A positive offset therefore does nothing once the
+voice is already at full level.
+
+The alternative is to let it reach 2, which is what an unclamped offset would
+give. That would put every gain-staging measurement Apollo has out by up to 6 dB
+the moment a user drew a tremolo, and the headroom guarantee (ADR-0025) is stated
+for a voice at full level. A guarantee that any routing can silently double is
+not a guarantee.
+
+It also costs nothing musically. A tremolo *is* an attenuation — it is the
+quiet parts that make it audible — and a patch that wants more level raises the
+level control and modulates downward from it, which is the same sound with the
+peak in a known place.
+
+This is the same line ADR-0024 drew for the unison spread and ADR-0025 for
+stacked sources: where a control could push past the level the engine was
+measured for, the engine keeps the ceiling and the documentation says so.
+
+**Given up:** modulation that can make a voice louder than its own level control.
+
+---
+
+## ADR-0037 — The matrix's repetitive parameters are generated, not typed
+
+**Phase 5d · Accepted**
+
+Envelopes 2-4, the four LFOs and the sixteen routing slots are 101 parameter
+definitions, and they were produced by a script rather than typed
+(`genparams.sh`, kept with the session scratch rather than in the repository —
+the generated text is the artefact, and it lives in the registry where it can be
+read).
+
+101 near-identical entries typed by hand invites exactly one of them to differ by
+a digit — a skew, a default, a range — and a parameter's range is a permanent
+part of the automation and preset contract (Docs/PARAMETER-CONVENTIONS.md §1). A
+wrong digit in slot 11's depth would not fail a build or a test; it would be
+discovered by a user whose eleventh routing behaved differently from the other
+fifteen.
+
+The registry itself stays what it was: a flat, readable `constexpr` array with
+every identifier visible. The alternative — building the array with a
+`constexpr` loop — was rejected because the identifiers are string literals, and
+generating those at compile time turns a readable list into an exercise.
+
+**Given up:** nothing structural. The generator is a one-off; the committed
+registry is the source of truth, and the count assertion in
+`ParameterRegistryTests` still has to be updated deliberately.

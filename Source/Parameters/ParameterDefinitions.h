@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 38> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -388,6 +388,636 @@ inline constexpr std::array<ParameterDefinition, 38> parameterDefinitions { {
       0.0f, 1.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
+
+    // Envelopes 2-4 ----------------------------------------------------------
+    // Added in Phase 5d, when the modulation matrix gave them destinations. They
+    // are identical to envelope 1 apart from their defaults: envelope 1 shapes
+    // amplitude and sustains at full, while a modulation envelope that sustained
+    // at full would be a constant offset rather than a shape, so these decay to
+    // nothing by default and do audibly nothing until they are routed.
+    { "env2_delay", "Env 2 Delay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env2_attack", "Env 2 Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 5.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env2_hold", "Env 2 Hold",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env2_decay", "Env 2 Decay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env2_sustain", "Env 2 Sustain",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env2_release", "Env 2 Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env2_curve", "Env 2 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env3_delay", "Env 3 Delay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env3_attack", "Env 3 Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 5.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env3_hold", "Env 3 Hold",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env3_decay", "Env 3 Decay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env3_sustain", "Env 3 Sustain",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env3_release", "Env 3 Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env3_curve", "Env 3 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env4_delay", "Env 4 Delay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env4_attack", "Env 4 Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 5.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env4_hold", "Env 4 Hold",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 2000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env4_decay", "Env 4 Decay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env4_sustain", "Env 4 Sustain",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "env4_release", "Env 4 Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 300.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "env4_curve", "Env 4 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    // LFOs 1-4 ---------------------------------------------------------------
+    // Shape is a discrete choice: 0 sine, 1 triangle, 2 saw, 3 reverse saw,
+    // 4 square, 5 sample and hold, 6 step. The order matches dsp::LfoShape and,
+    // like every identifier here, is permanent once released.
+    //
+    // Rate is skewed hard because LFO rates are used logarithmically: the
+    // difference between 0.5 and 1 Hz matters far more than between 300 and
+    // 400 Hz, and a linear control would spend most of its travel above the
+    // range anybody adjusts.
+    { "lfo1_shape", "LFO 1 Shape",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo1_rate", "LFO 1 Rate",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      0.01f, 400.0f, 1.0f,
+      0.13f, 0.0f,
+      true, true, true },
+
+    { "lfo1_phase", "LFO 1 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo1_retrigger", "LFO 1 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo1_fade", "LFO 1 Fade In",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "lfo1_smoothing", "LFO 1 Smoothing",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo1_polarity", "LFO 1 Polarity",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo1_steps", "LFO 1 Steps",
+      ParameterType::integer, ParameterUnit::none,
+      2.0f, 32.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo2_shape", "LFO 2 Shape",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo2_rate", "LFO 2 Rate",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      0.01f, 400.0f, 1.0f,
+      0.13f, 0.0f,
+      true, true, true },
+
+    { "lfo2_phase", "LFO 2 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo2_retrigger", "LFO 2 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo2_fade", "LFO 2 Fade In",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "lfo2_smoothing", "LFO 2 Smoothing",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo2_polarity", "LFO 2 Polarity",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo2_steps", "LFO 2 Steps",
+      ParameterType::integer, ParameterUnit::none,
+      2.0f, 32.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo3_shape", "LFO 3 Shape",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo3_rate", "LFO 3 Rate",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      0.01f, 400.0f, 1.0f,
+      0.13f, 0.0f,
+      true, true, true },
+
+    { "lfo3_phase", "LFO 3 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo3_retrigger", "LFO 3 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo3_fade", "LFO 3 Fade In",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "lfo3_smoothing", "LFO 3 Smoothing",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo3_polarity", "LFO 3 Polarity",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo3_steps", "LFO 3 Steps",
+      ParameterType::integer, ParameterUnit::none,
+      2.0f, 32.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo4_shape", "LFO 4 Shape",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo4_rate", "LFO 4 Rate",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      0.01f, 400.0f, 1.0f,
+      0.13f, 0.0f,
+      true, true, true },
+
+    { "lfo4_phase", "LFO 4 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo4_retrigger", "LFO 4 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo4_fade", "LFO 4 Fade In",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, true, false },
+
+    { "lfo4_smoothing", "LFO 4 Smoothing",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, false },
+
+    { "lfo4_polarity", "LFO 4 Polarity",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "lfo4_steps", "LFO 4 Steps",
+      ParameterType::integer, ParameterUnit::none,
+      2.0f, 32.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Modulation matrix ------------------------------------------------------
+    // Sixteen slots, each a source, a destination and a bipolar depth
+    // (CLAUDE.md §15). Source and destination are indices into dsp::ModSource and
+    // dsp::ModDestination, whose numeric order is part of the saved-state
+    // contract for exactly the same reason a parameter identifier is.
+    //
+    // Depth is marked not modulatable. CLAUDE.md §15 says modulating a depth is
+    // desirable where practical, and it is not implemented, so claiming it here
+    // would put a promise in the metadata that the engine does not keep.
+    { "mod01_source", "Mod 1 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod01_destination", "Mod 1 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod01_depth", "Mod 1 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod02_source", "Mod 2 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod02_destination", "Mod 2 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod02_depth", "Mod 2 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod03_source", "Mod 3 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod03_destination", "Mod 3 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod03_depth", "Mod 3 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod04_source", "Mod 4 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod04_destination", "Mod 4 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod04_depth", "Mod 4 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod05_source", "Mod 5 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod05_destination", "Mod 5 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod05_depth", "Mod 5 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod06_source", "Mod 6 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod06_destination", "Mod 6 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod06_depth", "Mod 6 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod07_source", "Mod 7 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod07_destination", "Mod 7 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod07_depth", "Mod 7 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod08_source", "Mod 8 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod08_destination", "Mod 8 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod08_depth", "Mod 8 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod09_source", "Mod 9 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod09_destination", "Mod 9 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod09_depth", "Mod 9 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod10_source", "Mod 10 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod10_destination", "Mod 10 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod10_depth", "Mod 10 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod11_source", "Mod 11 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod11_destination", "Mod 11 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod11_depth", "Mod 11 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod12_source", "Mod 12 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod12_destination", "Mod 12 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod12_depth", "Mod 12 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod13_source", "Mod 13 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod13_destination", "Mod 13 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod13_depth", "Mod 13 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod14_source", "Mod 14 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod14_destination", "Mod 14 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod14_depth", "Mod 14 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod15_source", "Mod 15 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod15_destination", "Mod 15 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod15_depth", "Mod 15 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "mod16_source", "Mod 16 Source",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 14.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod16_destination", "Mod 16 Destination",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "mod16_depth", "Mod 16 Depth",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
 
     // Effects ----------------------------------------------------------------
     { "fx_distortion_mix", "Distortion Mix",

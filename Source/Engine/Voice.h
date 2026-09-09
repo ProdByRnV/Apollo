@@ -44,9 +44,12 @@
 #include "DSP/Oscillators/WavetableOscillator.h"
 #include "DSP/Utilities/LinearSmoothedValue.h"
 #include "DSP/Filters/FilterDrive.h"
+#include "DSP/LFO/Lfo.h"
+#include "DSP/Modulation/ModulationTypes.h"
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
 
+#include <array>
 #include <cstdint>
 
 namespace apollo::engine
@@ -81,6 +84,23 @@ public:
         that empties too slowly to keep up (ADR-0019).
     */
     static constexpr double stealSeconds = 0.002;
+
+    /** How many samples pass between modulation updates.
+
+        Modulation is evaluated on a small block rather than per sample. Per
+        sample would mean a `tan` per voice per filter for every sample a cutoff
+        is modulated, and a `pow` for every sample a pitch is; the measurements
+        in PROJECT-STATE.md §5b say the voice engine is already the dominant
+        cost, and that would multiply the expensive part of it.
+
+        Sixteen samples is a 3 kHz modulation rate at 48 kHz. That is far above
+        the block rate a zipper artefact comes from — the Phase 5 exit criteria
+        forbid those — and comfortably above the fastest LFO, which tops out at
+        400 Hz and is therefore still sampled seven times a cycle. Destinations
+        that would step audibly, the levels and balances, are smoothed per sample
+        anyway, so they interpolate between updates rather than jumping.
+    */
+    static constexpr int modulationBlockSamples = 16;
 
     /** Ramp length for a source level or balance change, in seconds.
 
@@ -144,7 +164,57 @@ public:
 
     [[nodiscard]] const VoiceFilterSettings& getFilters() const noexcept { return filters; }
 
-    [[nodiscard]] const dsp::Envelope& getAmplitudeEnvelope() const noexcept { return amplitudeEnvelope; }
+    [[nodiscard]] const dsp::Envelope& getAmplitudeEnvelope() const noexcept { return envelopes[0]; }
+
+    /** Number of envelopes and LFOs a voice carries. */
+    static constexpr int numEnvelopes = 4;
+    static constexpr int numLfos = 4;
+
+    /** Replaces one envelope's shape. Envelope 0 is the amplitude envelope and
+        is also available to the matrix as a modulation source.
+    */
+    void setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSettings) noexcept;
+
+    /** Replaces one LFO's configuration. */
+    void setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept;
+
+    /** Replaces the modulation routing. Compared wholesale, like the sources. */
+    void setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept;
+
+    /** Channel-wide controller values, pushed by the engine.
+
+        Held per voice rather than read from the engine so a voice's modulation
+        is a function of its own state alone, which is what makes it testable
+        without an engine around it.
+    */
+    void setModWheel (float value) noexcept { modWheel = value; }
+    void setAftertouch (float value) noexcept { aftertouch = value; }
+
+    /** The phase a free-running LFO should adopt when this voice starts a note.
+
+        Owned by the engine, which advances one shared phase per LFO whether or
+        not anything is sounding. That is what "free-running" means: the motion
+        belongs to the instrument rather than to the note, so a chord played one
+        note at a time still moves as one.
+    */
+    void setFreeRunningLfoPhase (int index, double phase) noexcept
+    {
+        if (index >= 0 && index < numLfos)
+            freeRunningLfoPhase[static_cast<std::size_t> (index)] = phase;
+    }
+
+    /** Seeds this voice's per-note random source and its LFOs.
+
+        Distinct per voice, so simultaneous notes get independent random values
+        rather than one value applied N times — the same reasoning as the noise
+        generator's seed.
+    */
+    void setModulationSeed (std::uint32_t seed) noexcept;
+
+    /** The value a source is currently producing, for tests and for the
+        modulation visualisation the UI draws (CLAUDE.md §26.1).
+    */
+    [[nodiscard]] float getSourceValue (dsp::ModSource source) const noexcept;
 
     /** Starts a note.
 
@@ -193,7 +263,7 @@ public:
     [[nodiscard]] bool isActive() const noexcept { return stage != VoiceStage::idle; }
     [[nodiscard]] bool isReleasing() const noexcept
     {
-        return stage == VoiceStage::sounding && amplitudeEnvelope.isReleasing();
+        return stage == VoiceStage::sounding && envelopes[0].isReleasing();
     }
 
     /** True once note-off has arrived but the key is still held by sustain. */
@@ -209,7 +279,7 @@ public:
     */
     [[nodiscard]] float getEnvelopeLevel() const noexcept
     {
-        return amplitudeEnvelope.getCurrentValue() * stealGain;
+        return envelopes[0].getCurrentValue() * stealGain;
     }
 
 private:
@@ -218,6 +288,20 @@ private:
     void updateGainTargets() noexcept;
     void snapGainsToTargets() noexcept;
     [[nodiscard]] float nextAmplitude() noexcept;
+
+    /** Steps the generators any active slot reads, by one sample. */
+    void advanceModulationSources() noexcept;
+
+    /** Recomputes every source value and re-evaluates the routing. */
+    void updateModulation() noexcept;
+
+    /** Pushes the modulated values into the things that consume them. */
+    void applyModulation() noexcept;
+
+    [[nodiscard]] float destinationOffset (dsp::ModDestination destination) const noexcept
+    {
+        return destinationValues[static_cast<std::size_t> (destination)];
+    }
 
     /** Runs one stereo sample through the filter section, in place. */
     void applyFilters (float& left, float& right) noexcept;
@@ -276,7 +360,47 @@ private:
     SourceGain subGain;
     SourceGain noiseGain;
 
-    dsp::Envelope amplitudeEnvelope;
+    /** Envelope 0 is the amplitude envelope; all four are modulation sources. */
+    std::array<dsp::Envelope, static_cast<std::size_t> (numEnvelopes)> envelopes;
+
+    std::array<dsp::Lfo, static_cast<std::size_t> (numLfos)> lfos;
+
+    dsp::ModulationRouting routing;
+    dsp::ModSourceValues sourceValues {};
+    dsp::ModDestinationValues destinationValues {};
+
+    /** Counts down to the next modulation update. Zero forces one on the next
+        sample, which is what a note start wants.
+    */
+    int modulationCountdown = 0;
+
+    /** True when any slot is active, so an unmodulated patch skips the whole
+        evaluation rather than summing sixteen inactive slots.
+    */
+    bool hasActiveRouting = false;
+
+    /** Which sources any active slot actually reads.
+
+        Advancing a generator costs the same whether anything listens to it, so
+        an envelope or an LFO that nothing routes is not advanced at all. That is
+        what keeps a patch using one LFO from paying for four.
+    */
+    std::array<bool, static_cast<std::size_t> (dsp::ModSource::count)> sourceUsed {};
+
+    /** The engine's shared phase for each LFO, copied in when a note starts. */
+    std::array<double, static_cast<std::size_t> (numLfos)> freeRunningLfoPhase {};
+
+    /** Multiplies the amplitude envelope. One unless something routes to it,
+        and never above one — see the note in applyModulation.
+    */
+    float amplitudeScale = 1.0f;
+
+    float modWheel = 0.0f;
+    float aftertouch = 0.0f;
+
+    /** Chosen once per note, held for its lifetime. */
+    float perNoteRandom = 0.0f;
+    std::uint32_t randomState = 1u;
 
     VoiceFilterSettings filters;
 

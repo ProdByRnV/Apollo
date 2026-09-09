@@ -96,7 +96,11 @@ void Voice::prepare (double newSampleRate) noexcept
     subGain.reset (sampleRate);
     noiseGain.reset (sampleRate);
 
-    amplitudeEnvelope.prepare (sampleRate);
+    for (auto& envelope : envelopes)
+        envelope.prepare (sampleRate);
+
+    for (auto& lfo : lfos)
+        lfo.prepare (sampleRate);
 
     stealDecrement = static_cast<float> (rampIncrement (stealSeconds, sampleRate));
 
@@ -116,7 +120,7 @@ void Voice::setNoiseSeed (std::uint32_t seed) noexcept
 
 void Voice::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept
 {
-    amplitudeEnvelope.setSettings (newSettings);
+    envelopes[0].setSettings (newSettings);
 }
 
 void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
@@ -182,6 +186,210 @@ void Voice::applyFilters (float& left, float& right) noexcept
     // out by 6 dB the moment a user switched routing (ADR-0025).
     left = (leftA + leftB) * 0.5f;
     right = (rightA + rightB) * 0.5f;
+}
+
+void Voice::setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSettings) noexcept
+{
+    if (index < 0 || index >= numEnvelopes)
+        return;
+
+    envelopes[static_cast<std::size_t> (index)].setSettings (newSettings);
+}
+
+void Voice::setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept
+{
+    if (index < 0 || index >= numLfos)
+        return;
+
+    lfos[static_cast<std::size_t> (index)].setSettings (newSettings);
+}
+
+void Voice::setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept
+{
+    if (newRouting == routing)
+        return;
+
+    routing = newRouting;
+
+    hasActiveRouting = false;
+    sourceUsed.fill (false);
+
+    for (const auto& slot : routing.slots)
+    {
+        if (! slot.isActive())
+            continue;
+
+        hasActiveRouting = true;
+
+        const auto index = static_cast<std::size_t> (slot.source);
+
+        if (index < sourceUsed.size())
+            sourceUsed[index] = true;
+    }
+
+    // A routing that has just been switched off must not leave its last offsets
+    // applied for ever.
+    if (! hasActiveRouting)
+    {
+        destinationValues.fill (0.0f);
+        applyModulation();
+    }
+
+    modulationCountdown = 0;
+}
+
+float Voice::getSourceValue (dsp::ModSource source) const noexcept
+{
+    const auto index = static_cast<std::size_t> (source);
+
+    return index < sourceValues.size() ? sourceValues[index] : 0.0f;
+}
+
+void Voice::setModulationSeed (std::uint32_t seed) noexcept
+{
+    // Zero would lock a xorshift at zero for ever, so it is mapped away rather
+    // than trusted.
+    randomState = (seed * 2654435761u) | 1u;
+
+    for (std::size_t i = 0; i < lfos.size(); ++i)
+        lfos[i].setSeed (seed + static_cast<std::uint32_t> (i) * 7919u);
+}
+
+void Voice::advanceModulationSources() noexcept
+{
+    using Source = dsp::ModSource;
+
+    // Envelope 0 is advanced by the amplitude path, which runs whether or not
+    // anything routes it, so advancing it here as well would run it twice as
+    // fast. The other three advance only if a slot reads them.
+    for (int i = 1; i < numEnvelopes; ++i)
+    {
+        const auto source = static_cast<Source> (static_cast<int> (Source::envelope1) + i);
+
+        if (sourceUsed[static_cast<std::size_t> (source)])
+            static_cast<void> (envelopes[static_cast<std::size_t> (i)].getNextValue());
+    }
+
+    for (int i = 0; i < numLfos; ++i)
+    {
+        const auto source = static_cast<Source> (static_cast<int> (Source::lfo1) + i);
+
+        if (sourceUsed[static_cast<std::size_t> (source)])
+            static_cast<void> (lfos[static_cast<std::size_t> (i)].getNextValue());
+    }
+}
+
+void Voice::updateModulation() noexcept
+{
+    using Source = dsp::ModSource;
+
+    const auto store = [this] (Source source, float value)
+    {
+        sourceValues[static_cast<std::size_t> (source)] = value;
+    };
+
+    // Envelope 0 is advanced by the amplitude path, so it is read rather than
+    // stepped here; the others advance only if something routes them.
+    store (Source::envelope1, envelopes[0].getCurrentValue());
+    store (Source::envelope2, envelopes[1].getCurrentValue());
+    store (Source::envelope3, envelopes[2].getCurrentValue());
+    store (Source::envelope4, envelopes[3].getCurrentValue());
+
+    store (Source::lfo1, lfos[0].getCurrentValue());
+    store (Source::lfo2, lfos[1].getCurrentValue());
+    store (Source::lfo3, lfos[2].getCurrentValue());
+    store (Source::lfo4, lfos[3].getCurrentValue());
+
+    store (Source::velocity, noteVelocity);
+
+    // Key tracking, centred on middle C and scaled so the playable range is
+    // roughly -1 to +1. Bipolar, so tracking does the opposite thing below the
+    // centre from what it does above it.
+    store (Source::keyTrack, static_cast<float> (note - 60) / 48.0f);
+
+    store (Source::modWheel, modWheel);
+    store (Source::pitchBend, pitchBendSemitones / 2.0f);
+    store (Source::aftertouch, aftertouch);
+    store (Source::random, perNoteRandom);
+
+    dsp::evaluateModulation (routing, sourceValues, destinationValues);
+}
+
+void Voice::applyModulation() noexcept
+{
+    using Destination = dsp::ModDestination;
+
+    // Nothing here writes to `sources` or to `filters`. Those hold what the user
+    // set, and modulation is an offset applied on the way to the thing that
+    // consumes them — which is what makes the base values survive a modulated
+    // note and makes turning modulation off restore exactly what was there.
+
+    updatePhaseIncrement();
+
+    // Amplitude modulation attenuates and never boosts.
+    //
+    // Clamped to unity at the top rather than allowed to reach two: the engine's
+    // headroom is measured for a voice at full level (ADR-0025), and letting a
+    // routing multiply that would put every gain-staging measurement out by up
+    // to 6 dB the moment someone drew a tremolo. A patch that wants more level
+    // raises the level control and modulates downward from it, which is what a
+    // tremolo is anyway.
+    amplitudeScale = clampFinite (1.0f + destinationOffset (Destination::amplitude), 0.0f, 1.0f);
+
+    const auto position1 = clampFinite (sources.osc1.position + destinationOffset (Destination::osc1Position), 0.0f, 1.0f);
+    const auto position2 = clampFinite (sources.osc2.position + destinationOffset (Destination::osc2Position), 0.0f, 1.0f);
+
+    oscillator1.setPosition (position1);
+    oscillator2.setPosition (position2);
+
+    // Levels and balances go to the smoothers rather than straight to a gain, so
+    // a modulation arriving every sixteen samples still interpolates per sample.
+    gain1.setTargets (sources.osc1.level + destinationOffset (Destination::osc1Level),
+                      sources.osc1.pan + destinationOffset (Destination::osc1Pan));
+
+    gain2.setTargets (sources.osc2.level + destinationOffset (Destination::osc2Level),
+                      sources.osc2.pan + destinationOffset (Destination::osc2Pan));
+
+    subGain.setTargets (sources.subLevel + destinationOffset (Destination::subLevel), 0.0f);
+    noiseGain.setTargets (sources.noiseLevel + destinationOffset (Destination::noiseLevel), 0.0f);
+
+    // Filters re-resolve their own coefficients only when something actually
+    // reaches them. Otherwise the engine's shared set is used unchanged, and the
+    // unmodulated path never computes a tangent.
+    const auto resolveFilter = [this] (const FilterSlotSettings& slot,
+                                       Destination cutoffTarget,
+                                       Destination resonanceTarget,
+                                       dsp::StateVariableFilter& left,
+                                       dsp::StateVariableFilter& right)
+    {
+        const auto cutoffOffset = destinationOffset (cutoffTarget);
+        const auto resonanceOffset = destinationOffset (resonanceTarget);
+
+        if (cutoffOffset == 0.0f && resonanceOffset == 0.0f)
+        {
+            left.setCoefficients (slot.coefficients);
+            right.setCoefficients (slot.coefficients);
+            return;
+        }
+
+        // Cutoff moves in octaves. A fixed number of hertz would be a huge
+        // interval at the bottom of the range and inaudible at the top, so the
+        // same depth would mean something different at every cutoff setting.
+        const auto cutoff = slot.cutoffHz * std::exp2 (cutoffOffset);
+        const auto q = slot.q + resonanceOffset;
+
+        dsp::SvfCoefficients coefficients;
+        coefficients.set (cutoff, q, sampleRate);
+
+        left.setCoefficients (coefficients);
+        right.setCoefficients (coefficients);
+    };
+
+    resolveFilter (filters.filter1, Destination::filter1Cutoff, Destination::filter1Resonance,
+                   filter1Left, filter1Right);
+
+    resolveFilter (filters.filter2, Destination::filter2Cutoff, Destination::filter2Resonance,
+                   filter2Left, filter2Right);
 }
 
 void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
@@ -256,7 +464,20 @@ void Voice::reset() noexcept
     // level up from zero when it is next allocated.
     snapGainsToTargets();
 
-    amplitudeEnvelope.reset();
+    for (auto& envelope : envelopes)
+        envelope.reset();
+
+    for (auto& lfo : lfos)
+        lfo.reset();
+
+    // Offsets cleared with the voice. A reused voice must not begin with the
+    // previous note's modulation still applied to its pitch or its cutoff.
+    destinationValues.fill (0.0f);
+    sourceValues.fill (0.0f);
+    modulationCountdown = 0;
+    perNoteRandom = 0.0f;
+    amplitudeScale = 1.0f;
+
     stealGain = 1.0f;
 
     // Integrators cleared with the voice, so a reused voice cannot start with
@@ -302,11 +523,39 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // in rather than gliding up to it.
     snapGainsToTargets();
 
-    amplitudeEnvelope.noteOn();
+    for (auto& envelope : envelopes)
+        envelope.noteOn();
+
+    // Free-running LFOs adopt the engine's shared phase so that voices started
+    // at different times move together; retriggering ones ignore it and restart.
+    for (std::size_t i = 0; i < lfos.size(); ++i)
+        lfos[i].noteOn (freeRunningLfoPhase[i]);
+
+    // One random value, chosen now and held for the life of the note. This is
+    // the source that makes repeated notes differ from one another, which is a
+    // different job from the noise generator and from a sample-and-hold LFO.
+    randomState ^= randomState << 13;
+    randomState ^= randomState >> 17;
+    randomState ^= randomState << 5;
+    perNoteRandom = static_cast<float> (static_cast<std::int32_t> (randomState)) / 2147483648.0f;
+
     stealGain = 1.0f;
     stage = VoiceStage::sounding;
 
-    updatePhaseIncrement();
+    // Forces a modulation update on the first sample, so a note starts already
+    // modulated rather than spending up to a control block at its unmodulated
+    // value — which on a filter sweep is an audible blip at every note.
+    modulationCountdown = 0;
+
+    if (hasActiveRouting)
+    {
+        updateModulation();
+        applyModulation();
+    }
+    else
+    {
+        updatePhaseIncrement();
+    }
 }
 
 void Voice::startNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept
@@ -336,7 +585,8 @@ void Voice::steal (int midiNote, float velocity, std::uint64_t newStartOrder) no
 void Voice::releaseNote() noexcept
 {
     if (stage == VoiceStage::sounding)
-        amplitudeEnvelope.noteOff();
+        for (auto& envelope : envelopes)
+        envelope.noteOff();
 }
 
 void Voice::setPitchBendSemitones (float semitones) noexcept
@@ -349,10 +599,23 @@ void Voice::setPitchBendSemitones (float semitones) noexcept
 
 void Voice::updatePhaseIncrement() noexcept
 {
-    const double bentNote = static_cast<double> (note) + static_cast<double> (pitchBendSemitones);
+    using Destination = dsp::ModDestination;
 
-    oscillator1.setFrequency (midiNoteToFrequency (bentNote + static_cast<double> (sources.osc1.tuneSemitones)));
-    oscillator2.setFrequency (midiNoteToFrequency (bentNote + static_cast<double> (sources.osc2.tuneSemitones)));
+    // `allPitch` reaches every source, which is what a vibrato wants; the
+    // per-oscillator destinations then detune one against the other on top of it.
+    const auto commonPitch = static_cast<double> (destinationOffset (Destination::allPitch));
+
+    const double bentNote = static_cast<double> (note)
+                          + static_cast<double> (pitchBendSemitones)
+                          + commonPitch;
+
+    oscillator1.setFrequency (midiNoteToFrequency (
+        bentNote + static_cast<double> (sources.osc1.tuneSemitones)
+                 + static_cast<double> (destinationOffset (Destination::osc1Pitch))));
+
+    oscillator2.setFrequency (midiNoteToFrequency (
+        bentNote + static_cast<double> (sources.osc2.tuneSemitones)
+                 + static_cast<double> (destinationOffset (Destination::osc2Pitch))));
 
     // The sub tracks the played note transposed by whole octaves. Clamped
     // rather than trusted: the parameter offers -1 and -2, but a corrupt preset
@@ -396,13 +659,13 @@ float Voice::nextAmplitude() noexcept
         // Advancing it as well would let it reach idle part-way through the
         // fade and drop the level to zero in one sample — a click, from the
         // very mechanism that exists to prevent one.
-        return amplitudeEnvelope.getCurrentValue() * stealGain;
+        return envelopes[0].getCurrentValue() * stealGain;
     }
 
-    const auto value = amplitudeEnvelope.getNextValue();
+    const auto value = envelopes[0].getNextValue();
 
     // The release has run its course, so the voice is free.
-    if (! amplitudeEnvelope.isActive())
+    if (! envelopes[0].isActive())
     {
         reset();
         return 0.0f;
@@ -427,6 +690,23 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
 
     for (int i = 0; i < numSamples; ++i)
     {
+        if (hasActiveRouting)
+        {
+            // Sources advance every sample so their timing is exact — an
+            // envelope stepped once per control block would run sixteen times
+            // slow — but only the ones something actually routes. A patch using
+            // one LFO does not pay for four.
+            advanceModulationSources();
+
+            if (--modulationCountdown <= 0)
+            {
+                modulationCountdown = modulationBlockSamples;
+
+                updateModulation();
+                applyModulation();
+            }
+        }
+
         const auto envelope = nextAmplitude();
 
         // The envelope may have idled the voice part-way through the block; the
@@ -477,7 +757,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
         if (! filters.isBypassed())
             applyFilters (left, right);
 
-        const auto amplitude = envelope * noteVelocity;
+        const auto amplitude = envelope * noteVelocity * amplitudeScale;
 
         left *= amplitude;
         right *= amplitude;

@@ -40,8 +40,21 @@ struct FilterSlotSettings
 {
     dsp::StateVariableFilter::Mode mode = dsp::StateVariableFilter::Mode::off;
 
-    /** Already resolved from cutoff and resonance by the engine. */
+    /** Already resolved from cutoff and resonance by the engine, for the common
+        case where nothing modulates this filter.
+    */
     dsp::SvfCoefficients coefficients;
+
+    /** The values those coefficients came from.
+
+        Carried so that a voice whose cutoff or resonance is being modulated can
+        re-resolve its own coefficients from its own offset. A voice with no
+        modulation reaching this filter never looks at these and uses the shared
+        coefficients above, which is what keeps the unmodulated path exactly as
+        cheap as it was before the matrix existed.
+    */
+    float cutoffHz = 20000.0f;
+    float q = 0.707f;
 
     /** Saturation in front of the filter, 0 to 1. Exactly zero skips it. */
     float drive = 0.0f;

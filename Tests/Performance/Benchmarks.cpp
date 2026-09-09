@@ -174,6 +174,68 @@ void benchmarkPolyphony()
         printRow (std::to_string (voices) + " voices", measureEngine (heaviestPatch(), voices), voices);
 }
 
+/** A routing of the kind a real patch uses: a filter sweep, a vibrato, velocity
+    on level, and some stereo movement.
+*/
+[[nodiscard]] dsp::ModulationRouting representativeRouting()
+{
+    dsp::ModulationRouting routing;
+
+    routing.slots[0] = { dsp::ModSource::envelope2, dsp::ModDestination::filter1Cutoff, 0.7f };
+    routing.slots[1] = { dsp::ModSource::lfo1, dsp::ModDestination::allPitch, 0.02f };
+    routing.slots[2] = { dsp::ModSource::velocity, dsp::ModDestination::osc1Level, 0.3f };
+    routing.slots[3] = { dsp::ModSource::lfo2, dsp::ModDestination::osc1Pan, 0.5f };
+
+    return routing;
+}
+
+void benchmarkModulation()
+{
+    printHeading ("Voice engine, default patch with four modulation routings");
+
+    // The question this answers is what the matrix costs when it is used, since
+    // the unmodulated figures above already show it costs nothing when it is
+    // not: a voice with no active slot skips evaluation entirely.
+    for (const auto voices : { 1, 8, 32 })
+    {
+        static engine::VoiceEngine voiceEngine;
+
+        voiceEngine.reset();
+        voiceEngine.prepare (sampleRate);
+        voiceEngine.setPolyphony (engine::VoiceEngine::maxPolyphony);
+        voiceEngine.setSourceParameters (defaultPatch());
+
+        engine::FilterParameters filters;
+        filters.filter1.mode = dsp::StateVariableFilter::Mode::lowpass;
+        filters.filter1.cutoffHz = 1200.0f;
+        filters.filter1.q = 3.0f;
+        voiceEngine.setFilterParameters (filters);
+
+        dsp::LfoSettings lfo;
+        lfo.rateHz = 5.0f;
+        voiceEngine.setLfoSettings (0, lfo);
+        voiceEngine.setLfoSettings (1, lfo);
+
+        voiceEngine.setModulationRouting (representativeRouting());
+
+        for (int i = 0; i < voices; ++i)
+            voiceEngine.noteOn (48 + (i % 12) + 12 * (i / 12), 0.8f);
+
+        std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
+
+        float* channels[2] = { left.data(), right.data() };
+
+        for (int i = 0; i < 32; ++i)
+            voiceEngine.render (channels, 2, 0, blockSize);
+
+        printRow (std::to_string (voices) + " voices, modulated",
+                  measure (secondsPerMeasurement,
+                           [&] { voiceEngine.render (channels, 2, 0, blockSize); }),
+                  voices);
+    }
+}
+
 void benchmarkLfos()
 {
     printHeading ("LFO, one instance at audio rate (per sample)");
@@ -287,6 +349,7 @@ void run()
               << "==========================================================" << std::endl;
 
     benchmarkPolyphony();
+    benchmarkModulation();
     benchmarkLfos();
     benchmarkOversampling();
 

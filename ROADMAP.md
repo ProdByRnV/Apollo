@@ -323,11 +323,11 @@ Build the expressive sound-design architecture around the oscillator core.
 - [x] Implement resonance. — as Q, the unit the registry already used; peaks land on 20·log₁₀(Q) (5b)
 - [x] Implement filter drive where applicable. — deliberately gentle, because its aliasing was measured rather than assumed (ADR-0033) (5b)
 - [x] Validate stability across supported sample rates. — 44.1 to 192 kHz, and under a cutoff swept full-range at 100 Hz, which is the case the topology was chosen for (5b)
-- [ ] Smooth filter parameter changes. — coefficients are resolved per block, which is inaudible for a slow gesture but is not yet per-sample smoothing; deferred to 5d, where the modulation matrix makes per-voice, per-sample cutoff movement the normal case rather than the exception
+- [x] Smooth filter parameter changes. — resolved in 5d as promised. A modulated cutoff re-resolves every 16 samples, a 3 kHz rate, and the largest sample-to-sample step of a resonant LFO sweep measures 0.002167 against 0.001292 for the same patch unmodulated — 1.7x, not the orders of magnitude a staircase would give (ADR-0035)
 
 ### Envelopes
 
-- [ ] Implement four DAHDSR envelopes. — the generator is complete and one instance drives voice amplitude (5a); envelopes 2-4 arrive with the matrix that gives them destinations (5d)
+- [x] Implement four DAHDSR envelopes. — the generator landed in 5a driving voice amplitude; envelopes 2-4 became reachable in 5d, when the matrix gave them destinations (5a, 5d)
 - [x] Implement attack. (5a)
 - [x] Implement hold. (5a)
 - [x] Implement decay. (5a)
@@ -339,7 +339,7 @@ Build the expressive sound-design architecture around the oscillator core.
 
 ### LFOs
 
-- [ ] Implement four LFOs. — the generator is complete and tested (5c); the four instances are created and routed by the modulation matrix, which is what gives them destinations (5d)
+- [x] Implement four LFOs. — the generator landed in 5c; the four per-voice instances, their free-running shared phases and their routing arrived in 5d (5c, 5d)
 - [x] Implement selectable waveform shapes. — sine, triangle, saw, reverse saw, square, sample & hold and step, the set PRD §15.2 specifies. Custom drawable curves need the editor that draws them and the preset format that stores them, so they follow Phases 7 and 9 (5c)
 - [x] Implement rate. — 0.01 to 400 Hz, measured accurate to three decimal places and unchanged from 44.1 to 192 kHz; plus `tempoSyncedRateHz`, which converts a host tempo and a note division into hertz and falls back to 120 bpm when the host reports nothing usable (5c)
 - [x] Implement phase/reset behavior. — a phase offset that starts the shape where it says, and a reset that returns it to that offset (5c)
@@ -348,25 +348,37 @@ Build the expressive sound-design architecture around the oscillator core.
 
 ### Modulation matrix
 
-- [ ] Define modulation source registry.
-- [ ] Define destination registry.
-- [ ] Implement modulation amount.
-- [ ] Implement source-to-destination routing.
-- [ ] Implement modulation combination rules.
-- [ ] Implement clamping/scaling.
-- [ ] Implement velocity/key tracking.
-- [ ] Implement mod wheel/CC sources.
-- [ ] Implement aftertouch where supported.
-- [ ] Implement host automation as a compatible control source where appropriate.
-- [ ] Implement envelope-following/audio-responsive modulation.
+- [x] Define modulation source registry. — `dsp::ModSource`: four envelopes, four LFOs, velocity, key tracking, mod wheel, pitch bend, aftertouch and a per-note random. Its numeric order is part of the saved-state contract, like a parameter ID (5d)
+- [x] Define destination registry. — `dsp::ModDestination`: pitch (all, or per oscillator), wavetable position, level, pan, sub and noise level, both filters' cutoff and resonance, and amplitude. Engine concepts rather than parameter IDs, because the obvious target — oscillator 1's pitch — has no parameter behind it (5d)
+- [x] Implement modulation amount. — bipolar depth per slot, scaled by each destination's own range so a depth means the same thing on a cutoff as on a pan (5d)
+- [x] Implement source-to-destination routing. — sixteen slots, each a source, a destination and a depth (5d)
+- [x] Implement modulation combination rules. — contributions to one destination add; opposite depths cancel (5d)
+- [x] Implement clamping/scaling. — clamped by the consumer rather than centrally, because a level cannot go below zero, a pitch can go anywhere, and a cutoff is bounded in octaves and again in hertz. Amplitude attenuates and never boosts (ADR-0036) (5d)
+- [x] Implement velocity/key tracking. — both are sources; key tracking is bipolar around middle C so it does the opposite thing below the centre from above it (5d)
+- [x] Implement mod wheel/CC sources. — CC 1 is read as a first-class source rather than through MIDI Learn, because it is a modulation source rather than a mapping to a parameter (5d)
+- [x] Implement aftertouch where supported. — channel pressure. Polyphonic aftertouch is a per-note source and needs the per-note routing that arrives with MPE in Phase 6 (5d)
+- [ ] Implement host automation as a compatible control source where appropriate. — every routing control is itself an automatable parameter, so a host can already automate depth; automation *as a matrix source* needs the per-parameter modulation-of-modulation the matrix does not yet support
+- [ ] Implement envelope-following/audio-responsive modulation. — needs an envelope follower on the audio path, which belongs with the dynamics processors in Phase 8
 
 ## Exit Criteria
 
-- Envelopes respond predictably across polyphony.
-- LFOs remain stable and phase-correct.
-- Multiple modulation sources can safely target a parameter.
-- Modulation does not corrupt base parameter values.
-- Filter behavior is stable and free from zipper artifacts.
+- [x] Envelopes respond predictably across polyphony. — voice zero's envelope trajectory is **bit-identical** whether 1, 2, 8 or 16 voices are sounding
+- [x] LFOs remain stable and phase-correct. — rates measured exact to three decimals and unchanged from 44.1 to 192 kHz; two free-running LFOs handed the same phase stay bit-identical
+- [x] Multiple modulation sources can safely target a parameter. — contributions add, opposite depths cancel, and every destination driven at full depth from fast LFOs across 24 voices stays finite and peaks at 3.2
+- [x] Modulation does not corrupt base parameter values. — asserted directly: after a heavily modulated note, every base parameter reads back exactly as set, and removing the routing returns the engine to within 1e-6 of one that never had it
+- [x] Filter behavior is stable and free from zipper artifacts. — a resonant LFO sweep's largest sample step is 0.002167 against 0.001292 unmodulated (ADR-0035); the filter itself is stable under a full-range cutoff sweep at 100 Hz and from 44.1 to 192 kHz (5b)
+
+---
+
+> **Phase status:** complete for the four subsystems this phase is named for.
+> Envelopes (5a), filters (5b), LFOs (5c) and the modulation matrix (5d) are all
+> in and measured, and every exit criterion is met.
+>
+> Two tasks are deliberately carried forward rather than ticked, each to the
+> phase that owns the thing it needs: host automation *as a matrix source* wants
+> modulation of modulation depth, and envelope-following wants an envelope
+> follower on the audio path, which arrives with the dynamics processors in
+> Phase 8.
 
 ---
 
@@ -447,10 +459,12 @@ Build the complete interactive Apollo interface on top of the established bindin
 
 ### Visualization
 
-- [ ] Oscilloscope.
+- [ ] Oscilloscope for the final output.
+- [ ] **Per-source oscilloscopes** — oscillator 1, oscillator 2, sub, noise and the post-filter signal, each with its own scope so the user can see the wave each part is producing rather than only the sum (PRD §30.1, CLAUDE.md §26.1). Requires a lock-free capture buffer per source, tapped inside the voice and summed across voices.
 - [ ] Wavetable visualization.
-- [ ] Envelope visualization.
-- [ ] LFO visualization.
+- [ ] Envelope visualization — a live trace of the value being produced, not a static picture of the shape.
+- [ ] LFO visualization — likewise.
+- [ ] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale.
 - [ ] Optional spectrum visualization.
 - [ ] Voice/activity indicators.
 - [ ] Output metering.

@@ -34,10 +34,14 @@ using namespace apollo::params;
 // per filter plus the routing between them. That is a migrated rename rather
 // than an addition, and schema version 2 performs it (ADR-0032).
 //
+// Phase 5d added a hundred and one at once, which is what a modulation matrix
+// costs: envelopes 2-4, four LFOs, and sixteen routing slots of a source, a
+// destination and a depth. They are generated rather than typed (ADR-0035).
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 38, "the registry has thirty-eight parameters");
+static_assert (parameterCount() == 139, "the registry has a hundred and thirty-nine parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 
