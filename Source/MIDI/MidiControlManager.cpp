@@ -163,6 +163,18 @@ bool MidiControlManager::handleControllerMessage (int messageChannel, int contro
     return true;
 }
 
+void MidiControlManager::requestParameterChange (int parameterIndex, float normalised) noexcept
+{
+    // AUDIO THREAD.
+    const auto index = static_cast<std::size_t> (parameterIndex);
+
+    if (parameterIndex < 0 || index >= pendingValues.size())
+        return;
+
+    pendingValues[index].store (normalised, std::memory_order_relaxed);
+    pendingFlags[index].store (true, std::memory_order_release);
+}
+
 //==============================================================================
 // Message thread
 

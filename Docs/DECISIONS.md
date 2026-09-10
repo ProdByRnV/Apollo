@@ -1242,3 +1242,99 @@ and it needs file I/O, a user library path and a merge rule against project
 state — resource work that belongs with Phase 9. Per-project storage is the
 correct floor: it satisfies the requirement that mappings survive save and load,
 and a global default library layers on top of it without changing this format.
+
+---
+
+## ADR-0044 — Per-note expression is voice state, and one rule routes every channel message
+
+**Phase 6b (MIDI) · Accepted**
+
+A voice records the MIDI channel its note arrived on, and carries its own
+`pressure`, `timbre` and per-note bend. One rule then decides what a channel
+message reaches (`midi::MpeZone::appliesTo`):
+
+    no zone           every voice — exactly as plain MIDI has always behaved
+    manager channel   every voice in the zone
+    member channel    only the voices on that channel
+
+That is the whole of MPE. There is no MPE code path in the engine, no second
+voice allocator and no per-note controller registry, because MPE *is* ordinary
+MIDI with a channel convention, and the only thing Apollo was missing was
+somewhere to put the channel. A keyboard that sends everything on channel 1
+gets identical behaviour to before: every sounding voice is on channel 1, so
+every channel message reaches all of them.
+
+Polyphonic aftertouch needs none of that machinery — it names its own note — so
+it addresses voices directly and works with no zone at all. It predates MPE by
+thirty years and should not have to be configured like it.
+
+**Pressure is not inherited by a new note; bend and timbre are.** Pressure is a
+*force*: nobody is applying one at the instant a note begins, and a voice that
+started at the previous note's held pressure would be loudly wrong. Bend and
+timbre are *positions*, and every MPE controller places a note's pitch on its
+member channel before sending the note-on — so a new note adopts what is already
+in force, which is what makes an entry slide land in tune.
+
+**Two bend ranges, and they add.** A wheel on the manager channel bends the
+whole zone through the wheel's range while each note is also bent through the
+member range, which the specification defaults to ±48 semitones. The two are
+separate values on the voice and are summed, rather than one overwriting the
+other.
+
+**The pitch-bend modulation source is now the wheel position, not the semitone
+count divided by two.** The range became a control in this phase, and a source
+derived by dividing by it would silently change meaning the moment anyone
+widened the range.
+
+**`ModSource::timbre` was appended**, after `random`, because the numeric value
+of every entry above it is already inside saved routings. Appending is safe for
+saved *state* — APVTS stores denormalised values, so a stored `14` still means
+`random`. It is not entirely free for host *automation*: `modNN_source` had to
+grow from a maximum of 14 to 15, so an existing automation lane written at full
+scale now resolves to `timbre` rather than `random`. That is a real if minor
+break, taken deliberately while Apollo is pre-1.0 and for the same reason
+ADR-0032 took one: this is the only window in which it is cheap.
+
+**Given up:** per-note routing of *arbitrary* controllers. Only the three
+dimensions MPE defines — bend, pressure and CC 74 — are per-note. Any other CC
+on a member channel remains a channel-wide control and a MIDI Learn target,
+which is what a user who maps one expects.
+
+---
+
+## ADR-0045 — A controller's own configuration messages go through parameters
+
+**Phase 6b (MIDI) · Accepted**
+
+Apollo decodes two Registered Parameter Numbers: RPN 0, pitch-bend sensitivity,
+and RPN 6, the MPE Configuration Message. Both arrive on the audio thread, and
+neither is applied to the engine there. Each queues a change to the parameter
+that already owns the value — `midi_bend_range`, `mpe_zone`, `mpe_members` —
+through the same slot-and-flag path a mapped controller uses (ADR-0042). The
+engine then reads it back on the next block along with every other parameter.
+
+The alternative, setting the engine directly, would be shorter and wrong. The
+zone would then have two owners: a parameter the interface shows and the host
+saves, and a hidden engine field a controller had set. They would disagree the
+first time a project was reloaded, and the interface would be the one that was
+lying. Going through the parameter means an MPE controller plugging itself in is
+indistinguishable from the user setting the same control by hand — it is
+visible, saved, undoable, and reported to the frontend by the machinery that
+already exists.
+
+Supporting MCM at all is what makes MPE work without a manual step: the
+specification says a controller announces its own zone, and CLAUDE.md §16.3
+says a profile must never be *required*. A synthesiser that needs a switch
+flipped before an MPE keyboard does anything has met the letter of "supports
+MPE" and not the point of it.
+
+**CC 6, 38 and 98-101 became reserved controllers.** They carry RPN plumbing —
+the halves of a parameter number and a data entry — rather than a control value,
+and a MIDI Learn mapping on one of them would jerk a parameter every time a
+controller introduced itself. This extends ADR-0041's reserved set by exactly
+the criterion that set was defined by: Apollo now acts on them.
+
+**Given up:** NRPN, and the rest of the registered parameter numbers. They are
+parsed far enough to know they are *not* one of the two Apollo understands —
+which matters, because an NRPN selection has to cancel a pending RPN rather
+than let its data entry be applied to the wrong parameter — and then ignored.

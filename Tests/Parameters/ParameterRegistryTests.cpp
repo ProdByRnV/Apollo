@@ -38,10 +38,16 @@ using namespace apollo::params;
 // costs: envelopes 2-4, four LFOs, and sixteen routing slots of a source, a
 // destination and a depth. They are generated rather than typed (ADR-0035).
 //
+// Phase 6b added four: the pitch-bend range, which had been a hard-coded ±2
+// since Phase 3, and the three that describe an MPE zone. All four are setup
+// rather than sound — they describe the controller on the desk, not the patch —
+// and none is automatable, because a pitch-bend range moving on an automation
+// lane is a bug being recorded rather than a musical gesture.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 139, "the registry has a hundred and thirty-nine parameters");
+static_assert (parameterCount() == 143, "the registry has a hundred and forty-three parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

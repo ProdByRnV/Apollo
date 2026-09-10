@@ -74,6 +74,19 @@ public:
     */
     bool handleControllerMessage (int messageChannel, int controller, int value) noexcept;
 
+    /** Queues a parameter change from the audio thread.
+
+        The same slot-and-flag path a mapped controller uses, exposed because
+        MIDI Learn is not the only thing that has to move a parameter from a
+        MIDI message: an MPE Configuration Message and an RPN pitch-bend
+        sensitivity both arrive on the audio thread and both name a setting the
+        host and the interface must see (ADR-0042, ADR-0045).
+
+        AUDIO THREAD. @p normalised is clamped to [0, 1] by the caller's
+        parameter, not here.
+    */
+    void requestParameterChange (int parameterIndex, float normalised) noexcept;
+
     //==========================================================================
     // Message thread
 

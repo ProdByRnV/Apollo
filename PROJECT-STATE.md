@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 6 — MIDI, Control & Interaction |
-| **Status** | **6a complete** (MIDI Learn). 6b (per-note expression) and 6c (controller profiles) remain |
+| **Status** | **6a and 6b complete** (MIDI Learn; per-note expression and MPE). 6c (controller profiles) remains |
 | **Milestone** | M6 — Control |
-| **Next step** | Phase 6b — polyphonic aftertouch and MPE |
+| **Next step** | Phase 6c — controller profiles |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -145,7 +145,8 @@ Everything below was configured, built and executed on this machine.
 - Stealing fades the old note over 2 ms and starts the new one only at silence,
   so the transition contains no step (ADR-0019).
 - Note-on/off with velocity, velocity-zero treated as note-off, sustain pedal,
-  pitch bend (±2 semitones), all-notes-off and all-sound-off.
+  pitch bend (±2 semitones by default, a control since Phase 6b), all-notes-off
+  and all-sound-off.
 - MIDI is applied **sample-accurately**: the processor renders the block in
   segments between events rather than quantising them to block boundaries.
 - Gain staging measured rather than assumed, including per-voice start phases to
@@ -370,28 +371,68 @@ Everything below was configured, built and executed on this machine.
   controls carry a monospace `CC 74` badge and a tooltip naming the channel;
   Delete releases one, Escape cancels, and the state is legible in greyscale
   (CLAUDE.md §39).
-- **Not yet present:** polyphonic aftertouch and MPE (6b), controller profiles
-  (6c), 14-bit high-resolution CC, relative/endless encoders, and pickup
-  ("takeover") mode. None is required for a generic controller to work.
+- **Not yet present:** controller profiles (6c), 14-bit high-resolution CC,
+  relative/endless encoders, and pickup ("takeover") mode. None is required for
+  a generic controller to work.
+
+### Per-note expression and MPE (Phase 6b)
+
+- **All three kinds of aftertouch.** Channel pressure, polyphonic key pressure
+  and MPE member-channel pressure all reach the same per-voice `aftertouch`
+  modulation source. A plain keyboard is unchanged: with no zone active a
+  channel message addresses every voice, which is what it always meant.
+- **A voice records the channel its note arrived on**, and one rule decides what
+  a channel message reaches — every voice with no zone, every voice in the zone
+  from the manager channel, one channel's voices from a member channel. That is
+  the whole of MPE: there is no second code path, no second voice allocator and
+  no per-note controller registry (ADR-0044).
+- **Per-note pitch bend and the wheel add rather than replace.** Two ranges,
+  because MPE uses two: the wheel's (`midi_bend_range`, default ±2) and the
+  member channels' (`mpe_bend_range`, default ±48, which is the specification's).
+- **`ModSource::timbre`** — MPE's CC 74 axis — is a new modulation source,
+  bipolar around the controller's rest position so an untouched one reads zero.
+  CC 74 is the timbre axis only on a member channel of an active zone;
+  everywhere else it stays an ordinary control change and an ordinary MIDI Learn
+  target.
+- **A new note starts unpressed but adopts the bend and timbre already in
+  force**, because pressure is a force and the other two are positions — and
+  every MPE controller places a note's pitch before sending the note-on.
+- **The pitch-bend range stopped being a constant.** It had been a hard-coded
+  ±2 since Phase 3, with a comment saying it would become a parameter; it now is
+  one, and the `pitchBend` modulation source reads the wheel *position* so it
+  cannot change meaning when the range does.
+- **An MPE controller configures Apollo itself.** RPN 6 (the MPE Configuration
+  Message) and RPN 0 (pitch-bend sensitivity) are decoded from their control-
+  change sequences and queue changes to the parameters that own those values, so
+  a controller announcing itself is indistinguishable from the user setting the
+  same controls by hand — visible, saved and undoable (ADR-0045). CC 6, 38 and
+  98-101 became reserved controllers as a result.
+- **Not yet present:** per-note routing of arbitrary controllers (only the three
+  dimensions MPE defines are per-note), and MPE note-channel rotation policies
+  beyond what the zone itself implies.
 
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 6 | Controller profiles (6c), polyphonic aftertouch and MPE (6b). Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources; **MIDI Learn in 6a** |
+| 6 | Controller profiles (6c). Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources; **MIDI Learn in 6a**; **polyphonic aftertouch, MPE and the RPNs that configure them in 6b** |
 | 7 | The React migration and **every visualizer** — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry. The interface itself landed early (§2, Frontend): it is a framework-free page, and nothing in it draws a waveform yet |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**137 of the 139 registered parameters now affect audio** — the whole source
-section, four envelopes, four LFOs, both filters, sixteen modulation slots and
-`master_gain`. Only two remain inert (`fx_distortion_mix` and `fx_delay_time`),
-and they wait on the effects rack in Phase 8.
+**141 of the 143 registered parameters now affect audio** — the whole source
+section, four envelopes, four LFOs, both filters, sixteen modulation slots, the
+MIDI expression settings and `master_gain`. Only two remain inert
+(`fx_distortion_mix` and `fx_delay_time`), and they wait on the effects rack in
+Phase 8.
 
 The registry grew from 38 to 139 in Phase 5d, which is what a modulation matrix
 costs: 21 for envelopes 2-4, 32 for the four LFOs, and 48 for sixteen routing
-slots. They were generated rather than typed (ADR-0037).
+slots. They were generated rather than typed (ADR-0037). Phase 6b added four
+more — the pitch-bend range and the three that describe an MPE zone — and they
+are the first parameters marked **not automatable**, because they describe the
+controller on the desk rather than the patch.
 
 ---
 
@@ -437,7 +478,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,711,449 assertions, 0 failures**, across 20 test classes. The table below
+**1,711,923 assertions, 0 failures**, across 21 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -455,6 +496,7 @@ subsystems they test.
 | Engine | Voice engine | Pitch accuracy against four reference notes, velocity scaling, release to silence, polyphony, allocation order, deterministic stealing, click-free steal, sustain, pitch bend, voice reuse, extreme input, gain staging across five voicings |
 | Audio | MIDI rendering | Sample-accurate event placement, **identical output across nine block sizes**, sustain via CC 64, pitch wheel, all-notes-off, master gain scaling |
 | MIDI | MIDI mapping model | Address and range validation, reserved controllers, value scaling including inversion and clamping, the bijection and every replacement case, channel-specific beating omni in both learning orders, removal, capacity, and the publication ring — including a producer that outruns it |
+| MIDI | MPE and per-note expression | Zone channel classification at both ends of both zones; manager-versus-member routing; RPN decoding, per-channel independence, the null selection and NRPN cancellation; polyphonic aftertouch pressing one note and not another; channel pressure still pressing everything; per-note bend independent per channel and adding to the wheel; note-off matching its channel; CC 74 as timbre inside a zone and as a MIDI Learn target outside one; the bend range as a control, applied to a held wheel; an MPE Configuration Message reaching the zone through the parameter; and pressure not being inherited by a new note while the bend is |
 | MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
@@ -507,6 +549,35 @@ Re-run against the rebuilt frontend, on the same machine and runtime.
 Two defects were found by looking rather than by testing, and both are fixed:
 the hidden-page bug above, and "20.00 kHz" wrapping inside a 66 px knob, which
 pushed its own label down and broke the alignment of every knob beside it.
+
+### MIDI Learn and MPE, 2026-09-10
+
+The class of evidence the suite structurally cannot produce: the suite builds
+headless, opens no browser and has no MIDI device. Every row below was driven by
+hand against the running standalone, with real MIDI messages sent to a virtual
+port Apollo was listening on.
+
+| Checked | Result |
+|---|---|
+| All parameters reach the page | Footer reads **143 parameters bound · protocol v1**, and the "Unassigned" module does not appear — the four new expression parameters have a home |
+| The MIDI module renders | Bend Range +2 st, MPE Zone OFF/LOWER/UPPER, Members 15, Note Bend +48 st, and the module renders dimmed while the zone is off |
+| Assignment is a visible mode | The MIDI LEARN button turns green, every assignable control gains a dashed outline, and the footer hint changes to "Click a control to assign it · Delete to release · Escape to cancel" |
+| Arming a control | Clicking Osc 1 Position gave it an amber **LEARN** badge, a green outline, the status line "Move a MIDI control to assign it to Osc 1 Position — Escape to cancel" and a matching tooltip |
+| A real controller completes the learn | A **CC 74** message from the virtual port assigned it: green **CC 74** badge, masthead **MIDI 1** with its lamp lit, a **CLEAR ALL** button appearing, and the tooltip reading "MIDI CC 74 (any channel)" — the omni default |
+| The learning message does not move the parameter | Position still read **0 %** immediately after the assignment |
+| The mapping drives the parameter | CC 74 at 127 moved Position to **100 %**, arc and number together |
+| Escape leaves the mode | Confirmed; the footer hint returns to "Drag a knob …" |
+| Mappings survive a restart | Learned **CC 21 → Osc 1 Position**, closed the window normally, relaunched: **MIDI 1** and the CC 21 badge came back before the page asked for anything, and CC 21 at 127 drove Position to **100 %**. The mapping is restored *and* live |
+| An MPE controller configures Apollo | An **MPE Configuration Message** (RPN 6, seven members) sent from the virtual port switched MPE Zone **OFF → LOWER**, Members **15 → 7**, and un-dimmed the module — the whole chain, from the audio thread through the parameter queue to the interface |
+| A note sounds on a member channel | Note 60 on channel 2 under the lower zone: audio-session peak **0.0203** against 0.0000 silent |
+| Per-note bend is per note | With filter 1 at 126 Hz, the same note bent fully up on **its own** channel read **0.0142** — the pitch moved out through the lowpass — while a full bend on **channel 3**, which owned no note, left it at **0.0203**, unchanged |
+
+One defect was found by looking rather than by testing, and is fixed: appending
+`timbre` to the modulation sources left the frontend's label list one longer
+than the `modNN_source` parameter's range, so the guard that only trusts a label
+table when it matches the engine's own range correctly refused it — and every
+matrix source read "0" instead of "—". The parameter range was widened to match
+the enum (ADR-0044).
 
 ---
 
@@ -643,37 +714,43 @@ rather than a luxury.
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 | 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
-| 14 | The MIDI Learn interface has not been driven by hand | Medium | The engine half is verified end to end automatically — a real control-change message renders through `processBlock`, a mapping is learned, applied, saved, reloaded and shown to still drive its parameter. What is unverified is the *page*: the masthead toggle, the badges, the Escape and Delete keys, and a genuine learn completed by moving a physical control. The workstation was locked when 6a landed and neither input injection nor a screenshot is possible in that state, so this was left open rather than claimed. |
+| 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 
 ---
 ## 7. Blockers
 
-**None for development.** One verification is outstanding rather than blocked:
-the MIDI Learn interface has not yet been driven by hand, because the
-development workstation was locked when 6a landed (§6, issue 14). The engine
-half is verified automatically end to end; what is unverified is the *page*.
+**None.** Phase 6c can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Continue **Phase 6**. Two of its tasks remain, each with its own sub-phase:
+Finish **Phase 6** with **6c — controller profiles**, its one remaining task.
 
-1. **6b — per-note expression.** Polyphonic aftertouch and MPE. Channel pressure
-   is already a modulation source (5d), but a per-note source needs per-note
-   controller routing that does not exist: today a controller value is held by
-   the engine and pushed to every voice. MPE additionally needs per-note pitch
-   bend and a channel-allocation model, which is why the two belong together
-   rather than in the phase that merely reads the messages.
-2. **6c — controller profiles.** An optional, never-required way to fill the
-   mapping table quickly, kept strictly separate from the parameter registry
-   (CLAUDE.md §16.3). The mechanism it needs already exists: `assign()` takes a
-   complete mapping, including a channel, which is exactly what a profile
-   supplies.
+A profile is an optional, never-required way to fill the mapping table quickly
+for a controller someone already owns (CLAUDE.md §16.3). Most of what it needs
+exists: `midi::MidiControlManager::assign()` already takes a complete mapping —
+controller, channel and scaling range — validated through the same conflict
+policy a learned one goes through, which is exactly the shape a profile entry
+has. What 6c has to decide is where profiles come from and how they are
+described:
 
-Then drive the MIDI Learn interface by hand and record it in §5a — the class of
-evidence the suite structurally cannot produce, since it builds headless and
-never opens a browser.
+1. **The format and where it lives.** A profile names parameter IDs, so it is
+   the one MIDI artefact that has to be kept strictly separate from the
+   parameter registry — the registry must never gain a "which knob on which
+   controller" field. Built-in profiles can be embedded the way the frontend is;
+   user profiles are files, which makes this the first thing in Apollo to read
+   one, and Phase 9 owns resource loading and its failure paths.
+2. **What applying one means.** Whether it replaces the table or merges into it,
+   and what happens to a mapping the user learned by hand that a profile would
+   overwrite. The bijection already reports every replacement (ADR-0041), so the
+   answer is a policy decision rather than new machinery.
+3. **Refusing gracefully.** A profile naming a parameter this build does not
+   have must drop that entry and apply the rest, exactly as a restored mapping
+   does (CLAUDE.md §33).
+
+Phase 6's exit criteria are all met already, so 6c completes the phase rather
+than unblocking it.
 
 ---
 

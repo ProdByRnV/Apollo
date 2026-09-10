@@ -60,8 +60,23 @@ enum class ModSource
     keyTrack,
 
     modWheel,     ///< CC 1, 0 to 1.
-    pitchBend,    ///< -1 to +1, centred at rest.
-    aftertouch,   ///< Channel pressure, 0 to 1.
+
+    /** The pitch wheel's own position, -1 to +1, centred at rest.
+
+        The wheel, not the semitones it produced: the bend range is a control,
+        and a source that divided semitones by it would change meaning whenever
+        the range was widened.
+    */
+    pitchBend,
+
+    /** Aftertouch, 0 to 1, and **per note**.
+
+        Channel pressure hands the same value to every voice the message
+        reaches, which for a plain keyboard is all of them — so this behaves
+        exactly as it always has. Polyphonic aftertouch and MPE address one
+        voice each, and the source then differs from note to note (Phase 6b).
+    */
+    aftertouch,
 
     /** A value chosen once per note and held for its lifetime. Bipolar.
 
@@ -70,6 +85,15 @@ enum class ModSource
         generator and from a sample-and-hold LFO.
     */
     random,
+
+    /** MPE's third expression dimension — CC 74, the "timbre" or "slide" axis —
+        as a bipolar value centred on the controller's rest position.
+
+        Appended rather than placed beside aftertouch, because the numeric value
+        of every entry above is already in saved routings (see the note at the
+        top of this file). Per note, like aftertouch.
+    */
+    timbre,
 
     count
 };

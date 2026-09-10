@@ -59,6 +59,18 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
+
+    bendRangeParameter = apvts.getRawParameterValue ("midi_bend_range");
+    mpeZoneParameter = apvts.getRawParameterValue ("mpe_zone");
+    mpeMembersParameter = apvts.getRawParameterValue ("mpe_members");
+    mpeBendRangeParameter = apvts.getRawParameterValue ("mpe_bend_range");
+
+    // Resolved once, for the same reason the pointers above are: an RPN arrives
+    // on the audio thread, and looking its parameter up by string there would be
+    // an unbounded search in the callback.
+    bendRangeParameterIndex = params::indexOfParameter ("midi_bend_range");
+    mpeZoneParameterIndex = params::indexOfParameter ("mpe_zone");
+    mpeMembersParameterIndex = params::indexOfParameter ("mpe_members");
 }
 
 void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
@@ -246,6 +258,32 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
     voiceEngine.setSourceParameters (parameters);
 
+    // MIDI expression setup. Read every block like everything else, so a change
+    // from the interface, from a restored project or from a controller's own
+    // MPE Configuration Message all arrive by the same route and none of them
+    // needs a notification path of its own.
+    {
+        midi::MpeZone zone;
+
+        const auto zoneIndex = static_cast<int> (readParameter (mpeZoneParameter, 0.0f));
+
+        // Clamped rather than cast blindly: a corrupt document must not be able
+        // to select a zone that does not exist.
+        zone.type = zoneIndex == 1   ? midi::MpeZoneType::lower
+                    : zoneIndex == 2 ? midi::MpeZoneType::upper
+                                     : midi::MpeZoneType::off;
+
+        zone.memberCount = juce::jlimit (
+            1, 15, static_cast<int> (readParameter (mpeMembersParameter, 15.0f)));
+
+        voiceEngine.setMpeZone (zone);
+
+        voiceEngine.setPitchBendRange (
+            readParameter (bendRangeParameter, pitchBendRangeSemitones),
+            readParameter (mpeBendRangeParameter,
+                           static_cast<float> (midi::defaultMemberPitchBendRange)));
+    }
+
     // Envelope times reach the engine in seconds. Milliseconds are what a user
     // reads on a control; seconds are what a sample count is derived from, and
     // converting once here keeps the division out of the DSP.
@@ -360,27 +398,44 @@ void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) 
     //
     // The mapping layer refuses the controllers whose fixed meaning Apollo acts
     // on below, so a sustain pedal can never be taken over by a mapping.
+    const auto channel = message.getChannel();
+
     if (message.isController())
     {
-        midiControl.handleControllerMessage (message.getChannel(),
-                                             message.getControllerNumber(),
-                                             message.getControllerValue());
+        const auto controller = message.getControllerNumber();
+        const auto value = message.getControllerValue();
+
+        // RPN plumbing first, and it is *not* offered to MIDI Learn: CC 6, 38
+        // and 98-101 carry no control value of their own, they carry the halves
+        // of a parameter number and a data entry. A mapping on one of them
+        // would jerk a parameter every time a controller announced itself.
+        if (midi::RpnParser::isRpnController (controller))
+        {
+            handleRpn (rpnParser.process (channel, controller, value));
+        }
+        else
+        {
+            midiControl.handleControllerMessage (channel, controller, value);
+        }
     }
 
     if (message.isNoteOn())
     {
-        voiceEngine.noteOn (message.getNoteNumber(), message.getFloatVelocity());
+        voiceEngine.noteOn (message.getNoteNumber(), message.getFloatVelocity(), channel);
     }
     else if (message.isNoteOff())
     {
-        voiceEngine.noteOff (message.getNoteNumber());
+        voiceEngine.noteOff (message.getNoteNumber(), channel);
     }
     else if (message.isPitchWheel())
     {
-        // JUCE reports 0-16383 with 8192 at centre.
+        // JUCE reports 0-16383 with 8192 at centre. The engine is handed the
+        // wheel *position* rather than a semitone count, because which range
+        // applies depends on whether this channel is a member of an MPE zone —
+        // a decision the engine already has to make and the processor does not.
         constexpr float centre = 8192.0f;
         const auto normalised = (static_cast<float> (message.getPitchWheelValue()) - centre) / centre;
-        voiceEngine.setPitchBendSemitones (normalised * pitchBendRangeSemitones);
+        voiceEngine.setPitchBend (channel, normalised);
     }
     else if (message.isControllerOfType (1))
     {
@@ -389,12 +444,31 @@ void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) 
         // source in its own right (CLAUDE.md §15), not a mapping to a parameter.
         voiceEngine.setModWheel (static_cast<float> (message.getControllerValue()) / 127.0f);
     }
+    else if (message.isControllerOfType (midi::timbreController)
+             && voiceEngine.getMpeZone().isMemberChannel (channel))
+    {
+        // CC 74 is MPE's third expression dimension, but only on a member
+        // channel of an active zone. Everywhere else it stays an ordinary
+        // control change, and therefore an ordinary MIDI Learn target — which is
+        // why this branch tests the zone rather than the controller number alone.
+        voiceEngine.setTimbre (channel,
+                               static_cast<float> (message.getControllerValue()) / 127.0f);
+    }
     else if (message.isChannelPressure())
     {
-        // Channel aftertouch. Polyphonic aftertouch is a per-note source and
-        // needs the per-note controller routing that arrives with MPE in
-        // Phase 6, so it is deliberately not folded into this one.
-        voiceEngine.setAftertouch (static_cast<float> (message.getChannelPressureValue()) / 127.0f);
+        // Channel aftertouch. Under MPE this addresses the one note on its
+        // member channel; everywhere else it reaches every sounding voice, which
+        // is what it has always meant.
+        voiceEngine.setChannelPressure (
+            channel, static_cast<float> (message.getChannelPressureValue()) / 127.0f);
+    }
+    else if (message.isAftertouch())
+    {
+        // Polyphonic key pressure names its own note, so it needs no channel
+        // convention to be per-note — which is why it predates MPE by decades.
+        voiceEngine.setPolyPressure (channel,
+                                     message.getNoteNumber(),
+                                     static_cast<float> (message.getAfterTouchValue()) / 127.0f);
     }
     else if (message.isSustainPedalOn())
     {
@@ -412,6 +486,90 @@ void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) 
     {
         // All-sound-off means silence now, not "release and let it ring".
         voiceEngine.reset();
+    }
+}
+
+void ApolloAudioProcessor::handleRpn (const midi::RpnMessage& message) noexcept
+{
+    // AUDIO THREAD.
+    if (! message.isValid())
+        return;
+
+    // Nothing here writes the engine. Both RPNs name a *setting* that a
+    // parameter already owns, and two owners for one value is how a control
+    // ends up disagreeing with the interface showing it (ADR-0045). The queued
+    // change reaches APVTS on the message thread and comes back down with every
+    // other parameter on the next block.
+    const auto queue = [this] (int parameterIndex, float plain)
+    {
+        const auto index = static_cast<std::size_t> (parameterIndex);
+
+        if (parameterIndex < 0 || index >= params::parameterCount())
+            return;
+
+        const auto& definition = params::parameterDefinitions[index];
+        const auto span = definition.maximum - definition.minimum;
+
+        if (span <= 0.0f)
+            return;
+
+        const auto clamped = juce::jlimit (definition.minimum, definition.maximum, plain);
+
+        midiControl.requestParameterChange (parameterIndex,
+                                            (clamped - definition.minimum) / span);
+    };
+
+    switch (message.type)
+    {
+        case midi::RpnType::pitchBendSensitivity:
+        {
+            // Semitones in the coarse half, cents in the fine one. Apollo's
+            // range control is whole semitones, so the cents are read and
+            // rounded rather than dropped: a controller that asks for 2
+            // semitones and 50 cents is asking for more than two, not for two.
+            const auto semitones = static_cast<float> (message.valueMsb)
+                                 + static_cast<float> (message.valueLsb) / 100.0f;
+
+            // A member channel is describing the per-note range, and the
+            // manager channel — or any channel with no zone — the wheel's.
+            queue (voiceEngine.getMpeZone().isMemberChannel (message.channel)
+                       ? params::indexOfParameter ("mpe_bend_range")
+                       : bendRangeParameterIndex,
+                   std::round (semitones));
+            break;
+        }
+
+        case midi::RpnType::mpeConfiguration:
+        {
+            // The MPE Configuration Message: the standard way a controller
+            // announces its zone, so plugging one in configures Apollo instead
+            // of leaving the player to find a switch (CLAUDE.md §16.3).
+            //
+            // The channel it arrives on says which zone: 1 is the lower zone,
+            // 16 the upper. A member count of zero disables it.
+            const auto members = message.valueMsb;
+
+            if (message.channel != midi::firstMidiChannel
+                && message.channel != midi::lastMidiChannel)
+                break;
+
+            const auto zone = members <= 0
+                                ? midi::MpeZoneType::off
+                                : (message.channel == midi::firstMidiChannel
+                                       ? midi::MpeZoneType::lower
+                                       : midi::MpeZoneType::upper);
+
+            queue (mpeZoneParameterIndex, static_cast<float> (static_cast<int> (zone)));
+
+            if (members > 0)
+                queue (mpeMembersParameterIndex, static_cast<float> (members));
+
+            break;
+        }
+
+        case midi::RpnType::none:
+        default:
+            break;
     }
 }
 

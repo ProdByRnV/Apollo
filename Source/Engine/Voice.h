@@ -181,14 +181,40 @@ public:
     /** Replaces the modulation routing. Compared wholesale, like the sources. */
     void setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept;
 
-    /** Channel-wide controller values, pushed by the engine.
+    /** Controller values, pushed by the engine.
 
         Held per voice rather than read from the engine so a voice's modulation
         is a function of its own state alone, which is what makes it testable
-        without an engine around it.
+        without an engine around it. Which voices a given message reaches is the
+        engine's decision, not this one's (midi::MpeZone).
     */
     void setModWheel (float value) noexcept { modWheel = value; }
-    void setAftertouch (float value) noexcept { aftertouch = value; }
+
+    /** Aftertouch, 0-1. Per note: with a plain controller every sounding voice
+        is handed the same channel-pressure value and nothing changes, and with
+        polyphonic aftertouch or MPE each voice gets its own.
+    */
+    void setPressure (float value) noexcept { pressure = value; }
+
+    /** The third expression dimension, 0-1 with 0.5 at rest.
+
+        MPE's CC 74 — "timbre", "slide" or the Y axis depending on the
+        controller. Centred at rest rather than zeroed, because it is a position
+        a finger moves either way from, which is why the modulation source
+        derived from it is bipolar.
+    */
+    void setTimbre (float value) noexcept { timbre = value; }
+
+    [[nodiscard]] float getPressure() const noexcept { return pressure; }
+    [[nodiscard]] float getTimbre() const noexcept { return timbre; }
+
+    /** The MIDI channel this voice's note arrived on, or 0 if it never did.
+
+        Recorded so that MPE needs no separate code path in the engine: a member
+        channel's messages are simply the ones addressed to the voice that
+        matches (midi::MpeZone::appliesTo).
+    */
+    [[nodiscard]] int getChannel() const noexcept { return channel; }
 
     /** The phase a free-running LFO should adopt when this voice starts a note.
 
@@ -222,8 +248,12 @@ public:
         @param velocity     0-1.
         @param newStartOrder  monotonically increasing allocation counter, used
                               to resolve voice age deterministically.
+        @param midiChannel  1-16, or 0 when the caller does not track channels.
+                            Recorded so per-note expression can be addressed to
+                            this voice alone.
     */
-    void startNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept;
+    void startNote (int midiNote, float velocity, std::uint64_t newStartOrder,
+                    int midiChannel = 0) noexcept;
 
     /** Begins the release stage. Ignored if the voice is not sounding. */
     void releaseNote() noexcept;
@@ -235,10 +265,28 @@ public:
         why a stolen note begins a couple of milliseconds late rather than
         instantly: an audible click is the worse trade.
     */
-    void steal (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept;
+    void steal (int midiNote, float velocity, std::uint64_t newStartOrder,
+                int midiChannel = 0) noexcept;
 
-    /** Sets pitch bend, in semitones, applied on the next sample. */
+    /** Sets the channel-wide pitch bend, in semitones, applied on the next
+        sample.
+
+        Kept separate from the per-note bend below because MPE has both at once:
+        a wheel on the manager channel bends the whole zone through its own
+        range while each note is also bent through a much larger one.
+    */
     void setPitchBendSemitones (float semitones) noexcept;
+
+    /** The normalised wheel position, -1 to +1, for the modulation source.
+
+        Carried alongside the semitone value rather than derived from it,
+        because the bend range is now a control: dividing semitones by a range
+        that had changed since would make the source disagree with the wheel.
+    */
+    void setPitchBendNormalised (float normalised) noexcept { pitchBendNormalised = normalised; }
+
+    /** Sets this note's own pitch bend, in semitones. MPE's per-note bend. */
+    void setNoteBendSemitones (float semitones) noexcept;
 
     /** Adds this voice output into @p output.
 
@@ -271,6 +319,18 @@ public:
     void setSustainHeld (bool shouldHold) noexcept { sustainHeld = shouldHold; }
 
     [[nodiscard]] int getMidiNote() const noexcept { return note; }
+
+    /** The played note plus every bend applied to it, as a fractional MIDI note
+        number.
+
+        Modulation is deliberately not included: this is what MIDI asked for,
+        which is the quantity a per-note bend has to be checked against, and
+        adding an LFO's vibrato to it would only make that check noisy.
+    */
+    [[nodiscard]] float getBentNote() const noexcept
+    {
+        return static_cast<float> (note) + pitchBendSemitones + noteBendSemitones;
+    }
     [[nodiscard]] VoiceStage getStage() const noexcept { return stage; }
     [[nodiscard]] std::uint64_t getStartOrder() const noexcept { return startOrder; }
 
@@ -283,7 +343,8 @@ public:
     }
 
 private:
-    void beginNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept;
+    void beginNote (int midiNote, float velocity, std::uint64_t newStartOrder,
+                    int midiChannel) noexcept;
     void updatePhaseIncrement() noexcept;
     void updateGainTargets() noexcept;
     void snapGainsToTargets() noexcept;
@@ -396,7 +457,15 @@ private:
     float amplitudeScale = 1.0f;
 
     float modWheel = 0.0f;
-    float aftertouch = 0.0f;
+
+    /** Per-note expression. `pressure` is aftertouch, from whichever of the
+        three sources delivered it; `timbre` is MPE's CC 74, centred at rest.
+    */
+    float pressure = 0.0f;
+    float timbre = 0.5f;
+
+    /** The channel the note arrived on, or 0. */
+    int channel = 0;
 
     /** Chosen once per note, held for its lifetime. */
     float perNoteRandom = 0.0f;
@@ -423,7 +492,16 @@ private:
 
     int note = -1;
     float noteVelocity = 0.0f;
+
+    /** The channel-wide bend, and the wheel position that produced it. */
     float pitchBendSemitones = 0.0f;
+    float pitchBendNormalised = 0.0f;
+
+    /** This note's own bend, from its member channel under MPE. Added to the
+        channel-wide bend rather than replacing it.
+    */
+    float noteBendSemitones = 0.0f;
+
     bool sustainHeld = false;
 
     std::uint64_t startOrder = 0;
@@ -431,6 +509,7 @@ private:
     // Set while stealing, consumed when the fade reaches silence.
     int pendingNote = -1;
     float pendingVelocity = 0.0f;
+    int pendingChannel = 0;
     std::uint64_t pendingStartOrder = 0;
 };
 

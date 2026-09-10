@@ -27,6 +27,7 @@ target_sources(ApolloTests PRIVATE
     DSP/NoiseTests.cpp
     Audio/MidiRenderingTests.cpp
     MIDI/MidiMappingTests.cpp
+    MIDI/MpeTests.cpp
     MIDI/MidiLearnTests.cpp
     Parameters/ParameterRegistryTests.cpp
     State/StateSerializationTests.cpp

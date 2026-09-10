@@ -493,6 +493,30 @@ sends anything.
 Mappings are carried inside the same state document as the parameters
 (ADR-0043), so a project load replaces them and the UI must resynchronise both.
 
+### 10.2 Per-note expression (Phase 6b)
+
+Polyphonic aftertouch and MPE need **no bridge protocol of their own**. They are
+per-note quantities inside the engine, and everything the frontend can see or
+change about them is already an ordinary parameter:
+
+| Parameter | Meaning |
+|---|---|
+| `midi_bend_range` | Pitch-wheel range in semitones. Default 2. |
+| `mpe_zone` | 0 off, 1 lower, 2 upper. Default off. |
+| `mpe_members` | Member channels in the zone, 1-15. |
+| `mpe_bend_range` | Per-note bend range in semitones. Default 48. |
+
+All four are **not automatable**: they describe the controller on the desk
+rather than the patch, and a pitch-bend range moving on an automation lane is a
+bug being recorded. They are still registered parameters, so they are saved with
+the project and reach the page through the normal metadata and snapshot path.
+
+A controller may set the last three itself, over RPN — the MPE Configuration
+Message and pitch-bend sensitivity. Those changes are applied *to the
+parameters* rather than to the engine directly (ADR-0045), so the frontend sees
+them arrive as ordinary `parameterChanged` messages and needs to do nothing
+special. That is the whole reason for routing them that way.
+
 ---
 
 ## 11. Modulation Visualization

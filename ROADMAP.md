@@ -395,7 +395,7 @@ Provide standards-based external control without coupling Apollo to a specific c
 - [x] Implement pitch bend. — ±2 semitones, the near-universal default (Phase 3)
 - [x] Implement sustain. — CC 64, and it is one of the two controller groups a mapping may never take over (Phase 3, 6a)
 - [x] Implement modulation wheel. — CC 1, read as a first-class modulation source rather than through MIDI Learn, and mappable as well (Phase 5d, 6a)
-- [ ] Implement aftertouch where available. — channel pressure is a modulation source (5d). Polyphonic aftertouch is per-note and needs the per-note routing that arrives with MPE (6b)
+- [x] Implement aftertouch where available. — all three kinds. Channel pressure (5d), **polyphonic key pressure**, and **MPE** channel pressure, all reaching the same per-voice `aftertouch` source; a plain keyboard's channel pressure still reaches every voice, because with no zone active it addresses all of them (ADR-0044) (6b)
 - [x] Implement MIDI Learn. — a mode in the interface rather than a hidden right-click, so it is keyboard-reachable and visible to someone who has not been told it exists (6a)
 - [x] Implement mapping persistence. — a `<MIDIMAP>` child of the APVTS state root, written after every edit rather than at save time, so a host that asks for state without warning gets the current mappings (ADR-0043) (6a)
 - [x] Implement mapping removal/clearing. — per parameter and wholesale, from the interface and from the bridge (6a)
@@ -414,8 +414,9 @@ Provide standards-based external control without coupling Apollo to a specific c
 
 ---
 
-> **Phase status:** 6a (MIDI Learn) is in. Two tasks remain: per-note expression
-> — polyphonic aftertouch and MPE — in 6b, and controller profiles in 6c.
+> **Phase status:** 6a (MIDI Learn) and 6b (per-note expression: polyphonic
+> aftertouch, MPE, and the RPNs that configure them) are in. Controller profiles
+> remain, in 6c.
 
 ---
 

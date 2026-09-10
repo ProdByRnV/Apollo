@@ -42,7 +42,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                     static_cast<int> (definition.minimum),
                     static_cast<int> (definition.maximum),
                     static_cast<int> (definition.defaultValue),
-                    juce::AudioParameterIntAttributes().withLabel (label)));
+                    juce::AudioParameterIntAttributes()
+                        .withLabel (label)
+                        .withAutomatable (definition.automatable)));
                 break;
 
             case ParameterType::choice:

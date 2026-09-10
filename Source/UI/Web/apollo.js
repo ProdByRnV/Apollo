@@ -183,7 +183,11 @@ const LABELS = {
     // Matches dsp::ModSource.
     modSource: ['—', 'ENV 1', 'ENV 2', 'ENV 3', 'ENV 4',
                 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4',
-                'Velocity', 'Key Track', 'Mod Wheel', 'Pitch Bend', 'Aftertouch', 'Random'],
+                'Velocity', 'Key Track', 'Mod Wheel', 'Pitch Bend', 'Aftertouch', 'Random',
+                'Timbre'],
+
+    // Matches midi::MpeZoneType.
+    mpe_zone: ['OFF', 'LOWER', 'UPPER'],
 
     // Matches dsp::ModDestination.
     modDestination: ['—', 'All Pitch', 'Osc 1 Pitch', 'Osc 2 Pitch',
@@ -1036,6 +1040,30 @@ function buildOutput (rank) {
     knob(module.body, 'master_gain', 'Master');
 }
 
+/** MIDI expression: how the controller on the desk is read.
+
+    Deliberately its own module and deliberately last. These describe hardware
+    rather than sound, and a bend range sitting among the oscillators would read
+    as part of the patch.
+*/
+function buildExpression (rank) {
+    const module = createModule('MIDI', null);
+    rank.append(module.root);
+
+    knob(module.body, 'midi_bend_range', 'Bend Range');
+
+    const zone = make('div', 'cluster cluster--banner', module.body);
+    segmented(zone, 'mpe_zone', 'MPE Zone', LABELS.mpe_zone);
+
+    knob(module.body, 'mpe_members', 'Members');
+    knob(module.body, 'mpe_bend_range', 'Note Bend');
+
+    // Everything but the bend range is inert until a zone is chosen, and saying
+    // so with the same recede treatment the silent sources use is cheaper than
+    // explaining it (ADR-0039).
+    dimWhen(module, 'mpe_zone', (value) => value < 0.5);
+}
+
 /** Anything the layout above did not place.
 
     A safety net rather than a section: if a parameter is added to the registry
@@ -1085,7 +1113,10 @@ function build () {
     buildEnvelopes(rankIn(workspace, 'rank--wide'));
     buildLfos(rankIn(workspace, 'rank--wide'));
     refreshMatrix = buildMatrix(rankIn(workspace, 'rank--wide'));
-    buildOutput(rankIn(workspace, 'rank--compact'));
+
+    const tail = rankIn(workspace, 'rank--compact');
+    buildOutput(tail);
+    buildExpression(tail);
 
     buildUnplaced(workspace);
 

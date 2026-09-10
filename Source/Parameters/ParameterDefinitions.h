@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 143> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -733,7 +733,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
     // would put a promise in the metadata that the engine does not keep.
     { "mod01_source", "Mod 1 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -751,7 +751,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod02_source", "Mod 2 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -769,7 +769,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod03_source", "Mod 3 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -787,7 +787,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod04_source", "Mod 4 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -805,7 +805,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod05_source", "Mod 5 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -823,7 +823,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod06_source", "Mod 6 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -841,7 +841,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod07_source", "Mod 7 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -859,7 +859,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod08_source", "Mod 8 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -877,7 +877,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod09_source", "Mod 9 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -895,7 +895,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod10_source", "Mod 10 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -913,7 +913,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod11_source", "Mod 11 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -931,7 +931,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod12_source", "Mod 12 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -949,7 +949,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod13_source", "Mod 13 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -967,7 +967,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod14_source", "Mod 14 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -985,7 +985,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod15_source", "Mod 15 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1003,7 +1003,7 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
 
     { "mod16_source", "Mod 16 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 14.0f, 0.0f,
+      0.0f, 15.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1032,6 +1032,37 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
       // Places 250 ms near the centre of the control's travel.
       0.3327f, 0.0f,
       true, true, true },
+
+    // MIDI expression --------------------------------------------------------
+    //
+    // Setup rather than sound: these describe the controller on the desk, not
+    // the patch. They are still registered parameters because they must be
+    // saved with the project and shown in the interface, but none is
+    // automatable — a pitch-bend range moving on an automation lane is a bug
+    // being recorded, not a musical gesture.
+    { "midi_bend_range", "Pitch Bend Range",
+      ParameterType::integer, ParameterUnit::semitones,
+      1.0f, 48.0f, 2.0f,
+      1.0f, 1.0f,
+      false, false, false },
+
+    { "mpe_zone", "MPE Zone",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      false, false, false },
+
+    { "mpe_members", "MPE Member Channels",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 15.0f, 15.0f,
+      1.0f, 1.0f,
+      false, false, false },
+
+    { "mpe_bend_range", "MPE Note Bend Range",
+      ParameterType::integer, ParameterUnit::semitones,
+      1.0f, 96.0f, 48.0f,
+      1.0f, 1.0f,
+      false, false, false },
 
     // Master -----------------------------------------------------------------
     { "master_gain", "Master Gain",

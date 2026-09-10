@@ -32,6 +32,7 @@
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
 #include "Engine/Voice.h"
+#include "MIDI/MpeZone.h"
 
 #include <array>
 #include <cstdint>
@@ -222,14 +223,56 @@ public:
     //==============================================================================
     // Control input. The processor calls these at MIDI event boundaries.
 
-    void noteOn (int midiNote, float velocity) noexcept;
-    void noteOff (int midiNote) noexcept;
+    /** @param midiChannel  1-16, or 0 when the caller does not track channels.
+                            Recorded on the voice so per-note expression can be
+                            addressed to it (midi::MpeZone).
+    */
+    void noteOn (int midiNote, float velocity, int midiChannel = 0) noexcept;
+
+    /** Releases the note on this channel, or on every channel when
+        @p midiChannel is 0.
+    */
+    void noteOff (int midiNote, int midiChannel = 0) noexcept;
 
     /** Sustain pedal. Releasing the pedal releases every note held by it. */
     void setSustainPedal (bool isDown) noexcept;
 
     /** Pitch bend for every sounding and future voice, in semitones. */
     void setPitchBendSemitones (float semitones) noexcept;
+
+    //==============================================================================
+    // Per-note expression (Phase 6b).
+    //
+    // Every one of these takes the channel the message arrived on, and the zone
+    // decides which voices it reaches. With no zone active that is all of them,
+    // which is exactly how a plain keyboard has always behaved.
+
+    /** The MPE zone, which is what turns per-channel messages into per-note
+        ones. Changing it releases nothing: the notes already sounding keep the
+        channel they were started on.
+    */
+    void setMpeZone (const midi::MpeZone& newZone) noexcept;
+
+    [[nodiscard]] const midi::MpeZone& getMpeZone() const noexcept { return mpeZone; }
+
+    /** Pitch-bend range for the wheel, and for a zone's member channels.
+
+        Two ranges because MPE uses two: a manager wheel is a wheel, and a
+        member channel's bend is a finger sliding across a note.
+    */
+    void setPitchBendRange (float wheelSemitones, float memberSemitones) noexcept;
+
+    /** Pitch bend as a normalised wheel position, -1 to +1. */
+    void setPitchBend (int midiChannel, float normalised) noexcept;
+
+    /** Channel pressure, 0-1. Reaches every voice the zone says it addresses. */
+    void setChannelPressure (int midiChannel, float value) noexcept;
+
+    /** Polyphonic key pressure, 0-1: one note, named explicitly. */
+    void setPolyPressure (int midiChannel, int midiNote, float value) noexcept;
+
+    /** The timbre axis, 0-1 with 0.5 at rest. */
+    void setTimbre (int midiChannel, float value) noexcept;
 
     //==============================================================================
     // Source configuration.
@@ -282,6 +325,12 @@ public:
         stays a self-contained thing that can be tested without an engine.
     */
     void setModWheel (float value) noexcept;
+
+    /** Channel aftertouch on every channel at once.
+
+        Kept for callers that do not track channels, and for the tests that
+        predate them. Equivalent to setChannelPressure with no zone active.
+    */
     void setAftertouch (float value) noexcept;
 
     /** Replaces the filter section on every voice.
@@ -396,6 +445,27 @@ private:
 
     float modWheel = 0.0f;
     float aftertouch = 0.0f;
+
+    midi::MpeZone mpeZone;
+
+    /** The wheel position that produced `pitchBendSemitones`.
+
+        Kept rather than derived, because the range is a control: recovering the
+        position by dividing by a range that has since changed would move the
+        pitch to somewhere the wheel is not.
+    */
+    float wheelNormalised = 0.0f;
+
+    float wheelBendRange = static_cast<float> (midi::defaultPitchBendRange);
+    float memberBendRange = static_cast<float> (midi::defaultMemberPitchBendRange);
+
+    /** The newest value seen on each channel, so a note started after the
+        controller moved adopts what is already in force rather than starting
+        from a default the player can see is wrong. Pitch bend and timbre are
+        positions and are inherited; pressure is a force and is not (ADR-0044).
+    */
+    std::array<float, static_cast<std::size_t> (midi::midiChannelCount)> channelBend {};
+    std::array<float, static_cast<std::size_t> (midi::midiChannelCount)> channelTimbre {};
 
     FilterParameters filterParameters;
 

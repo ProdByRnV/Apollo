@@ -141,6 +141,17 @@ private:
             expect (midi::isReservedController (controller),
                     "the channel-mode messages are commands, not controls");
 
+        // RPN plumbing: parameter-number halves and data entries, which Apollo
+        // acts on (ADR-0045) and which carry no control value of their own.
+        for (const int controller : { 6, 38, 98, 99, 100, 101 })
+        {
+            expect (midi::isReservedController (controller),
+                    "CC " + juce::String (controller) + " carries RPN plumbing");
+
+            expectEquals (static_cast<int> (table.assign (makeMapping (controller, aParameter))),
+                          static_cast<int> (midi::AssignResult::rejectedReservedController));
+        }
+
         // CC 1 is deliberately mappable: the mod wheel is a modulation source in
         // the matrix, and mapping it as well is a legitimate request.
         expect (! midi::isReservedController (1));
@@ -327,13 +338,13 @@ private:
         expectEquals (table.size(), midi::maxMappings);
         expect (table.isFull());
 
-        expectEquals (static_cast<int> (table.assign (makeMapping (100, midi::maxMappings))),
+        expectEquals (static_cast<int> (table.assign (makeMapping (assignableController (midi::maxMappings),midi::maxMappings))),
                       static_cast<int> (midi::AssignResult::rejectedTableFull),
                       "a full table must refuse rather than overwrite something");
         expectEquals (table.size(), midi::maxMappings);
 
         // A replacement still works when full, because it removes before it adds.
-        expect (succeeded (table.assign (makeMapping (100, 0))),
+        expect (succeeded (table.assign (makeMapping (assignableController (midi::maxMappings),0))),
                 "reassigning an existing parameter must work even at capacity");
         expectEquals (table.size(), midi::maxMappings);
 

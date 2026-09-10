@@ -87,10 +87,18 @@ void VoiceEngine::reset() noexcept
 
     sustainPedalDown = false;
     pitchBendSemitones = 0.0f;
+    wheelNormalised = 0.0f;
+    aftertouch = 0.0f;
     nextStartOrder = 1;
 
+    channelBend.fill (0.0f);
+    channelTimbre.fill (0.5f);
+
     for (auto& voice : voices)
+    {
         voice.setPitchBendSemitones (0.0f);
+        voice.setPitchBendNormalised (0.0f);
+    }
 }
 
 void VoiceEngine::setPolyphony (int numVoices) noexcept
@@ -142,7 +150,7 @@ Voice* VoiceEngine::findVoiceForNewNote() noexcept
     return oldestReleasing != nullptr ? oldestReleasing : oldest;
 }
 
-void VoiceEngine::noteOn (int midiNote, float velocity) noexcept
+void VoiceEngine::noteOn (int midiNote, float velocity, int midiChannel) noexcept
 {
     if (midiNote < 0 || midiNote > 127)
         return;
@@ -151,7 +159,7 @@ void VoiceEngine::noteOn (int midiNote, float velocity) noexcept
     // and sequencers still send it that way.
     if (velocity <= 0.0f)
     {
-        noteOff (midiNote);
+        noteOff (midiNote, midiChannel);
         return;
     }
 
@@ -163,6 +171,25 @@ void VoiceEngine::noteOn (int midiNote, float velocity) noexcept
     const auto order = nextStartOrder++;
 
     voice->setPitchBendSemitones (pitchBendSemitones);
+    voice->setPitchBendNormalised (wheelNormalised);
+
+    // Pitch bend and timbre are *positions*, so a note started while a finger is
+    // already displaced adopts what is in force rather than snapping to centre
+    // and gliding — which on an MPE controller is every note, since the
+    // controller sends the note's initial bend before the note-on. Pressure is
+    // deliberately not inherited (ADR-0044); the voice zeroes it itself.
+    if (mpeZone.isMemberChannel (midiChannel))
+    {
+        const auto index = static_cast<std::size_t> (midiChannel - midi::firstMidiChannel);
+
+        voice->setNoteBendSemitones (channelBend[index] * memberBendRange);
+        voice->setTimbre (channelTimbre[index]);
+    }
+    else
+    {
+        voice->setNoteBendSemitones (0.0f);
+        voice->setTimbre (0.5f);
+    }
 
     // Handed over before the note starts, so a free-running LFO adopts the
     // instrument's current phase rather than one block's worth behind it.
@@ -170,18 +197,26 @@ void VoiceEngine::noteOn (int midiNote, float velocity) noexcept
         voice->setFreeRunningLfoPhase (i, freeRunningLfoPhase[static_cast<std::size_t> (i)]);
 
     if (voice->isActive())
-        voice->steal (midiNote, velocity, order);
+        voice->steal (midiNote, velocity, order, midiChannel);
     else
-        voice->startNote (midiNote, velocity, order);
+        voice->startNote (midiNote, velocity, order, midiChannel);
 }
 
-void VoiceEngine::noteOff (int midiNote) noexcept
+void VoiceEngine::noteOff (int midiNote, int midiChannel) noexcept
 {
     for (int i = 0; i < maxPolyphony; ++i)
     {
         auto& voice = voices[static_cast<std::size_t> (i)];
 
         if (! voice.isActive() || voice.getMidiNote() != midiNote)
+            continue;
+
+        // Under MPE the same note number can sound on several channels at once,
+        // so a note-off that ignored the channel would end somebody else's
+        // finger. A caller that does not track channels passes 0 and gets the
+        // old behaviour, which is every voice playing that note.
+        if (midiChannel != 0 && voice.getChannel() != 0
+            && voice.getChannel() != midiChannel)
             continue;
 
         // Already fading, or already let go: nothing further to do.
@@ -219,9 +254,120 @@ void VoiceEngine::setSustainPedal (bool isDown) noexcept
 void VoiceEngine::setPitchBendSemitones (float semitones) noexcept
 {
     pitchBendSemitones = semitones;
+    wheelNormalised = wheelBendRange > 0.0f ? semitones / wheelBendRange : 0.0f;
 
     for (auto& voice : voices)
+    {
         voice.setPitchBendSemitones (semitones);
+        voice.setPitchBendNormalised (wheelNormalised);
+    }
+}
+
+//==============================================================================
+// Per-note expression
+
+void VoiceEngine::setMpeZone (const midi::MpeZone& newZone) noexcept
+{
+    if (newZone == mpeZone)
+        return;
+
+    mpeZone = newZone;
+
+    // Notes already sounding keep the channel they were started on, so nothing
+    // is released or retuned here. Switching a zone mid-performance is a setup
+    // change; cutting the sound to acknowledge it would be worse than letting
+    // the notes in flight finish under the rule they began under.
+}
+
+void VoiceEngine::setPitchBendRange (float wheelSemitones, float memberSemitones) noexcept
+{
+    if (wheelSemitones == wheelBendRange && memberSemitones == memberBendRange)
+        return;
+
+    const auto heldWheel = wheelNormalised;
+
+    wheelBendRange = wheelSemitones;
+    memberBendRange = memberSemitones;
+
+    // Re-applied from the wheel *position*, so widening the range while the
+    // wheel is pushed moves the pitch immediately rather than at the next wheel
+    // message — and moves it to where the wheel actually is.
+    setPitchBendSemitones (heldWheel * wheelBendRange);
+
+    for (auto& voice : voices)
+    {
+        const auto channel = voice.getChannel();
+
+        if (mpeZone.isMemberChannel (channel))
+        {
+            const auto index = static_cast<std::size_t> (channel - midi::firstMidiChannel);
+            voice.setNoteBendSemitones (channelBend[index] * memberBendRange);
+        }
+    }
+}
+
+void VoiceEngine::setPitchBend (int midiChannel, float normalised) noexcept
+{
+    if (mpeZone.isMemberChannel (midiChannel))
+    {
+        // A member channel's bend belongs to the one note on it, and is measured
+        // in the member range — which is enormous by design, because it is a
+        // finger sliding across a keybed rather than a wheel.
+        channelBend[static_cast<std::size_t> (midiChannel - midi::firstMidiChannel)] = normalised;
+
+        const auto semitones = normalised * memberBendRange;
+
+        for (auto& voice : voices)
+            if (voice.getChannel() == midiChannel)
+                voice.setNoteBendSemitones (semitones);
+
+        return;
+    }
+
+    if (! mpeZone.appliesTo (midiChannel, 0))
+        return;
+
+    // The wheel: the manager channel under MPE, and every channel without it.
+    setPitchBendSemitones (normalised * wheelBendRange);
+}
+
+void VoiceEngine::setChannelPressure (int midiChannel, float value) noexcept
+{
+    for (auto& voice : voices)
+        if (mpeZone.appliesTo (midiChannel, voice.getChannel()))
+            voice.setPressure (value);
+
+    // Kept so getAftertouch still reports something meaningful for a plain
+    // controller, where "the channel pressure" is a single well-defined value.
+    if (! mpeZone.isActive())
+        aftertouch = value;
+}
+
+void VoiceEngine::setPolyPressure (int midiChannel, int midiNote, float value) noexcept
+{
+    // Polyphonic key pressure names its note, so it needs no channel convention
+    // to be per-note — which is precisely why it predates MPE by thirty years.
+    for (auto& voice : voices)
+    {
+        if (! voice.isActive() || voice.getMidiNote() != midiNote)
+            continue;
+
+        if (midiChannel != 0 && voice.getChannel() != 0
+            && voice.getChannel() != midiChannel)
+            continue;
+
+        voice.setPressure (value);
+    }
+}
+
+void VoiceEngine::setTimbre (int midiChannel, float value) noexcept
+{
+    if (mpeZone.isMemberChannel (midiChannel))
+        channelTimbre[static_cast<std::size_t> (midiChannel - midi::firstMidiChannel)] = value;
+
+    for (auto& voice : voices)
+        if (mpeZone.appliesTo (midiChannel, voice.getChannel()))
+            voice.setTimbre (value);
 }
 
 //==============================================================================
@@ -343,7 +489,7 @@ void VoiceEngine::setAftertouch (float value) noexcept
     aftertouch = value;
 
     for (auto& voice : voices)
-        voice.setAftertouch (aftertouch);
+        voice.setPressure (aftertouch);
 }
 
 void VoiceEngine::applyFilterParameters() noexcept

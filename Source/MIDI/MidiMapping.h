@@ -83,14 +83,27 @@ inline constexpr int lastChannel = 16;
       - **CC 120-127, the channel-mode messages** — all-sound-off, reset-all-
         controllers, all-notes-off, omni and mono/poly mode. These are commands
         rather than controls; they carry no continuous value to scale.
+      - **CC 6, 38 and 98-101, the RPN and NRPN plumbing.** These carry the
+        halves of a parameter number and a data entry rather than a control
+        value of their own, and Apollo acts on two of the parameters they
+        select — pitch-bend sensitivity and the MPE Configuration Message
+        (ADR-0045). A mapping on one of them would jerk a parameter every time a
+        controller introduced itself.
 
     CC 1 is deliberately *not* reserved. The mod wheel is a modulation source in
     the matrix rather than a mapping (CLAUDE.md §15), and a user who explicitly
     learns it to a parameter gets both behaviours, which is what they asked for.
+
+    Nor is CC 74. It is MPE's timbre axis, but only on a member channel of an
+    active zone; everywhere else it is an ordinary control and an ordinary
+    mapping target.
 */
 [[nodiscard]] constexpr bool isReservedController (int controller) noexcept
 {
-    return controller == 64 || (controller >= 120 && controller <= 127);
+    return controller == 64
+           || (controller >= 120 && controller <= 127)
+           || controller == 6 || controller == 38
+           || (controller >= 98 && controller <= 101);
 }
 
 //==============================================================================

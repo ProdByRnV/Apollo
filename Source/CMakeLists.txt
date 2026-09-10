@@ -60,6 +60,9 @@ add_library(apollo_core STATIC
     Engine/VoiceEngine.h
     MIDI/MidiMapping.cpp
     MIDI/MidiMapping.h
+    MIDI/MpeZone.h
+    MIDI/RpnParser.cpp
+    MIDI/RpnParser.h
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
     Parameters/ParameterDefinitions.h

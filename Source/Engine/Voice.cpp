@@ -308,8 +308,20 @@ void Voice::updateModulation() noexcept
     store (Source::keyTrack, static_cast<float> (note - 60) / 48.0f);
 
     store (Source::modWheel, modWheel);
-    store (Source::pitchBend, pitchBendSemitones / 2.0f);
-    store (Source::aftertouch, aftertouch);
+
+    // The wheel position itself, not the semitones it produced. The bend range
+    // is a control now, and a source derived by dividing by it would change
+    // meaning the moment someone widened the range.
+    store (Source::pitchBend, pitchBendNormalised);
+
+    // Per-note pressure, which for a plain controller is just the channel
+    // pressure every sounding voice was handed.
+    store (Source::aftertouch, pressure);
+
+    // Timbre is a position with a centre, so the source is bipolar around it: an
+    // untouched controller reads zero rather than -1.
+    store (Source::timbre, timbre * 2.0f - 1.0f);
+
     store (Source::random, perNoteRandom);
 
     dsp::evaluateModulation (routing, sourceValues, destinationValues);
@@ -489,22 +501,44 @@ void Voice::reset() noexcept
 
     note = -1;
     noteVelocity = 0.0f;
+    channel = 0;
     sustainHeld = false;
     pendingNote = -1;
     pendingVelocity = 0.0f;
+    pendingChannel = 0;
     pendingStartOrder = 0;
+
+    // Per-note expression belongs to the note, so it goes with it. Timbre
+    // returns to its centre rather than to zero: it is a position, and zero is
+    // one end of its travel rather than its rest.
+    pressure = 0.0f;
+    timbre = 0.5f;
+    noteBendSemitones = 0.0f;
 
     // Pitch bend is a channel-wide value, not a per-note one, so it is
     // deliberately NOT cleared here: a voice reused while the wheel is held
     // must adopt the current bend, not snap back to centre.
 }
 
-void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept
+void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder,
+                       int midiChannel) noexcept
 {
     note = midiNote;
     noteVelocity = velocity;
     startOrder = newStartOrder;
+    channel = midiChannel;
     sustainHeld = false;
+
+    // Pressure starts at zero whatever the previous note on this voice left
+    // behind: it is a *force*, nobody is applying one at the instant a note
+    // begins, and inheriting a held pressure from a note that has already ended
+    // would be loudly wrong in a way nothing else here is (ADR-0044).
+    //
+    // Timbre and the per-note bend are deliberately not touched. They are
+    // positions rather than forces, and the caller sets them for this note —
+    // which is what lets an MPE controller place a note's pitch before sending
+    // the note-on, as every one of them does.
+    pressure = 0.0f;
 
     // Every note restarts from this voice own fixed offset. Reproducible,
     // because the offset is fixed per voice rather than random, but decorrelated
@@ -558,23 +592,26 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     }
 }
 
-void Voice::startNote (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept
+void Voice::startNote (int midiNote, float velocity, std::uint64_t newStartOrder,
+                       int midiChannel) noexcept
 {
     pendingNote = -1;
-    beginNote (midiNote, velocity, newStartOrder);
+    beginNote (midiNote, velocity, newStartOrder, midiChannel);
 }
 
-void Voice::steal (int midiNote, float velocity, std::uint64_t newStartOrder) noexcept
+void Voice::steal (int midiNote, float velocity, std::uint64_t newStartOrder,
+                   int midiChannel) noexcept
 {
     if (stage == VoiceStage::idle)
     {
-        startNote (midiNote, velocity, newStartOrder);
+        startNote (midiNote, velocity, newStartOrder, midiChannel);
         return;
     }
 
     // Hold the new note until the fade-out completes.
     pendingNote = midiNote;
     pendingVelocity = velocity;
+    pendingChannel = midiChannel;
     pendingStartOrder = newStartOrder;
     stage = VoiceStage::stealing;
 
@@ -597,6 +634,14 @@ void Voice::setPitchBendSemitones (float semitones) noexcept
         updatePhaseIncrement();
 }
 
+void Voice::setNoteBendSemitones (float semitones) noexcept
+{
+    noteBendSemitones = semitones;
+
+    if (stage != VoiceStage::idle)
+        updatePhaseIncrement();
+}
+
 void Voice::updatePhaseIncrement() noexcept
 {
     using Destination = dsp::ModDestination;
@@ -605,8 +650,13 @@ void Voice::updatePhaseIncrement() noexcept
     // per-oscillator destinations then detune one against the other on top of it.
     const auto commonPitch = static_cast<double> (destinationOffset (Destination::allPitch));
 
+    // The channel-wide bend and this note's own bend add. Under MPE both are in
+    // play at once — a wheel on the manager channel moves the whole zone through
+    // its own range while a finger slides one note through a much wider one — and
+    // outside MPE the per-note term is simply zero.
     const double bentNote = static_cast<double> (note)
                           + static_cast<double> (pitchBendSemitones)
+                          + static_cast<double> (noteBendSemitones)
                           + commonPitch;
 
     oscillator1.setFrequency (midiNoteToFrequency (
@@ -642,10 +692,11 @@ float Voice::nextAmplitude() noexcept
             {
                 const int nextNote = pendingNote;
                 const float nextVelocity = pendingVelocity;
+                const int nextChannel = pendingChannel;
                 const std::uint64_t nextOrder = pendingStartOrder;
 
                 pendingNote = -1;
-                beginNote (nextNote, nextVelocity, nextOrder);
+                beginNote (nextNote, nextVelocity, nextOrder, nextChannel);
             }
             else
             {
@@ -781,8 +832,11 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
         {
             const auto mono = (left + right) * 0.5f;
 
-            for (int channel = 2; channel < numChannels; ++channel)
-                output[channel][index] += mono;
+            // Named for what it is rather than "channel": a Voice now also has
+            // a MIDI channel, and two different things called the same thing a
+            // few lines apart is how a bug gets written.
+            for (int outputChannel = 2; outputChannel < numChannels; ++outputChannel)
+                output[outputChannel][index] += mono;
         }
     }
 }

@@ -17,6 +17,8 @@
 
 #include "Engine/VoiceEngine.h"
 #include "MIDI/MidiControlManager.h"
+#include "MIDI/MpeZone.h"
+#include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
 #include "State/StateSerialization.h"
 
@@ -148,19 +150,31 @@ public:
     [[nodiscard]] engine::VoiceEngine& getVoiceEngine() noexcept { return voiceEngine; }
     [[nodiscard]] const engine::VoiceEngine& getVoiceEngine() const noexcept { return voiceEngine; }
 
-    /** Pitch-bend range in semitones either side of centre.
+    /** Default pitch-bend range in semitones either side of centre.
 
-        ±2 is the near-universal default. It becomes a parameter when the
-        modulation system lands in Phase 5; hard-coding a different value would
-        make Apollo disagree with every other instrument on the same MIDI input.
+        ±2 is the near-universal default, and an instrument that disagrees with
+        every other instrument on the same MIDI input is simply wrong. It is now
+        the *default* of the `midi_bend_range` parameter rather than a fixed
+        value, and a controller can also set it over RPN 0 (Phase 6b).
     */
-    static constexpr float pitchBendRangeSemitones = 2.0f;
+    static constexpr float pitchBendRangeSemitones =
+        static_cast<float> (midi::defaultPitchBendRange);
 
 private:
     /** Applies one MIDI message to the engine. Audio thread; must stay
         allocation-free and bounded.
     */
     void handleMidiMessage (const juce::MidiMessage& message) noexcept;
+
+    /** Acts on a decoded RPN. Audio thread.
+
+        Both of the two Apollo understands name a *setting* rather than a note,
+        so neither is applied to the engine directly: each queues the parameter
+        change that owns it, and the engine picks it up on the next block along
+        with everything else the user might have changed. One owner per value
+        (ADR-0045).
+    */
+    void handleRpn (const midi::RpnMessage& message) noexcept;
 
     /** Pushes the source-section parameters into the engine. Audio thread. */
     void applySourceParameters() noexcept;
@@ -307,6 +321,23 @@ private:
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;
+
+    /** MIDI expression setup: bend ranges and the MPE zone. */
+    std::atomic<float>* bendRangeParameter = nullptr;
+    std::atomic<float>* mpeZoneParameter = nullptr;
+    std::atomic<float>* mpeMembersParameter = nullptr;
+    std::atomic<float>* mpeBendRangeParameter = nullptr;
+
+    /** Registry indices of the two settings a controller may configure over
+        RPN, resolved once so the audio thread never looks a parameter up by
+        string.
+    */
+    int bendRangeParameterIndex = -1;
+    int mpeZoneParameterIndex = -1;
+    int mpeMembersParameterIndex = -1;
+
+    /** Decodes the RPN sequences arriving in the MIDI stream. Audio thread. */
+    midi::RpnParser rpnParser;
 
     /** Master gain is declared `smoothed` in the registry, and a jump in gain is
         a click. Multiplicative smoothing ramps evenly in dB, which is how gain
