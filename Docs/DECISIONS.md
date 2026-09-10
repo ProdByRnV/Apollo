@@ -1338,3 +1338,54 @@ the criterion that set was defined by: Apollo now acts on them.
 parsed far enough to know they are *not* one of the two Apollo understands —
 which matters, because an NRPN selection has to cancel a pending RPN rather
 than let its data entry be applied to the wrong parameter — and then ignored.
+
+---
+
+## ADR-0046 — Controller profiles are standards-based, built in, and never required
+
+**Phase 6c (MIDI) · Accepted**
+
+A controller profile is a named list of "this controller number drives that
+parameter" entries. Applying one runs every entry through the same
+`MidiControlManager::assign` a learned mapping goes through, so a profile is a
+*shortcut* and never a mode: nothing behaves differently afterwards, the
+bijection still holds, replacements are still reported, and every resulting
+mapping can be relearned, released or cleared like any other.
+
+**The built-in profiles name no manufacturer and no product.** Apollo must not
+hard-code a specific controller (CLAUDE.md §46), and it does not have to,
+because the MIDI specification has already done the work twice over:
+
+- **Sound Controllers, CC 70-79.** Eight of the ten have agreed meanings, and
+  they map onto a subtractive synthesiser almost exactly — brightness, harmonic
+  intensity, attack, decay, release, vibrato rate. A controller with a knob
+  labelled "Brightness" is sending CC 74, whoever made it.
+- **General Purpose Controllers, CC 16-19 and 80-83.** Eight numbers the
+  specification deliberately leaves undefined, which is exactly what makes them
+  the right home for a generic bank of knobs: a controller sending them asserts
+  nothing about what they mean.
+
+A list of device names would have been more immediately impressive and worse:
+it would be incomplete on the day it shipped, out of date within a year, and it
+would tie Apollo's behaviour to somebody else's product decisions.
+
+**Profiles are kept strictly separate from the parameter registry**, which is
+the roadmap's own requirement and the right one. The registry describes what
+Apollo has and is permanent; a profile describes what somebody's hardware sends
+and is disposable. A profile refers to parameters by ID and resolves them when
+it is applied, so an entry naming a parameter this build does not have costs one
+dropped entry rather than a refusal — and the result says how many were dropped,
+because "eight of eight" and "five of eight" are different outcomes the user is
+entitled to tell apart.
+
+**Two application modes, both named explicitly in the interface.** Replace
+releases everything first, which is what "set my controller up" means when it is
+said about a controller that was set up for something else; merge adds to what
+is there. Neither is a hidden default the user has to discover.
+
+**Given up:** user-supplied profile files. They are files, and file loading, a
+user library path, and the failure modes of both — missing, corrupt, moved —
+belong with the resource work in Phase 9 (CLAUDE.md §30). The seam is already
+in place: `ControllerProfile` is plain data and `applyProfile` takes one by
+reference, so a profile read from disk enters by exactly the same door a
+built-in one does.

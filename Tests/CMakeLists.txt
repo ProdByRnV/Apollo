@@ -27,6 +27,7 @@ target_sources(ApolloTests PRIVATE
     DSP/NoiseTests.cpp
     Audio/MidiRenderingTests.cpp
     MIDI/MidiMappingTests.cpp
+    MIDI/ControllerProfileTests.cpp
     MIDI/MpeTests.cpp
     MIDI/MidiLearnTests.cpp
     Parameters/ParameterRegistryTests.cpp
@@ -54,7 +55,7 @@ target_compile_definitions(ApolloTests PRIVATE
 # actually builds it, from the same sources.
 # juce_dsp is linked for its FFT, which the spectral tests use to measure
 # aliasing. It is a JUCE module with no external dependency, and the DSP engine
-# itself does not use it — the analysis lives only in the tests.
+# itself does not use it â€” the analysis lives only in the tests.
 target_link_libraries(ApolloTests PRIVATE
     apollo::engine
     juce::juce_dsp
@@ -75,7 +76,7 @@ add_test(NAME apollo.unit COMMAND ApolloTests)
 # 300 seconds was ample when the suite was small and every job ran it
 # optimised. It stopped being ample in Phase 4b: the sanitizer job builds Debug
 # with ASan and UBSan under Clang, and the source-section tests render a great
-# deal of audio — 32 voices with 16-voice unison on both oscillators, spectral
+# deal of audio â€” 32 voices with 16-voice unison on both oscillators, spectral
 # sweeps, and per-sample gain ramps. That job reached 92% of the suite and was
 # killed at exactly 300.02 s, which reported as a failure while nothing had
 # actually gone wrong.

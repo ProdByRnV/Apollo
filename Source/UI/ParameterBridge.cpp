@@ -87,11 +87,18 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::requestMetadata:
             return createParameterMetadata();
 
+        case BridgeCommandType::requestControllerProfiles:
+            // Answered without needing the MIDI subsystem: the profile list is
+            // fixed at build time and describes what Apollo *could* be set to,
+            // which is meaningful even where nothing can apply it.
+            return makeControllerProfilesMessage();
+
         case BridgeCommandType::requestMidiMappings:
         case BridgeCommandType::midiLearnBegin:
         case BridgeCommandType::midiLearnCancel:
         case BridgeCommandType::midiMappingRemove:
         case BridgeCommandType::midiMappingClearAll:
+        case BridgeCommandType::applyControllerProfile:
             return applyMidiCommand (command);
 
         case BridgeCommandType::setParameter:
@@ -176,6 +183,20 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
             midiControl->clearAllMappings();
             break;
 
+        case BridgeCommandType::applyControllerProfile:
+        {
+            // parseMessage has already established that the profile exists.
+            const auto result = midiControl->applyProfile (
+                command.profileId,
+                command.replaceExisting ? midi::ProfileMode::replace
+                                        : midi::ProfileMode::merge);
+
+            return createMidiMappings (
+                "PROFILE_APPLIED",
+                describeProfileResult (command.profileId, result));
+        }
+
+        case BridgeCommandType::requestControllerProfiles:
         case BridgeCommandType::requestState:
         case BridgeCommandType::requestMetadata:
         case BridgeCommandType::setParameter:
@@ -194,10 +215,45 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
     return createMidiMappings();
 }
 
+juce::String ParameterBridge::describeProfileResult (const juce::String& profileId,
+                                                     const midi::ProfileApplyResult& result)
+{
+    const auto* profile = midi::findControllerProfile (profileId.toStdString());
+    const auto name = profile != nullptr ? params::toJuceString (profile->name) : profileId;
+
+    // Counted rather than merely "done": "eight of eight" and "five of eight,
+    // three taken from something else" are very different outcomes, and the
+    // user is entitled to know which one they got.
+    juce::String text = "Applied " + juce::String (result.applied) + " of "
+                      + juce::String (result.total()) + " assignments from " + name + ".";
+
+    if (result.replaced > 0)
+        text += " " + juce::String (result.replaced) + " replaced an existing control.";
+
+    if (result.unknownParameter > 0)
+        text += " " + juce::String (result.unknownParameter)
+              + " named a parameter this version does not have.";
+
+    if (result.rejected > 0)
+        text += " " + juce::String (result.rejected) + " could not be assigned.";
+
+    return text;
+}
+
 juce::String ParameterBridge::createMidiMappings() const
 {
     if (midiControl == nullptr)
-        return makeMidiMappingsMessage ({}, {}, midi::AssignResult::added);
+        return createMidiMappings ({}, {});
+
+    return createMidiMappings (midi::toToken (midiControl->getLastAssignResult()),
+                               midi::describe (midiControl->getLastAssignResult()));
+}
+
+juce::String ParameterBridge::createMidiMappings (const juce::String& statusToken,
+                                                  const juce::String& statusMessage) const
+{
+    if (midiControl == nullptr)
+        return makeMidiMappingsMessage ({}, {}, statusToken, statusMessage);
 
     const auto learningIndex = midiControl->getLearnParameterIndex();
 
@@ -210,7 +266,8 @@ juce::String ParameterBridge::createMidiMappings() const
 
     return makeMidiMappingsMessage (midiControl->getMappings(),
                                     learningId,
-                                    midiControl->getLastAssignResult());
+                                    statusToken,
+                                    statusMessage);
 }
 
 juce::String ParameterBridge::createStateSnapshot() const

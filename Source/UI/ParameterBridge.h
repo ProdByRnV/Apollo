@@ -76,8 +76,16 @@ public:
     */
     void setMidiControl (midi::MidiControlManager* controlToUse);
 
-    /** @returns the whole MIDI Learn state described for the frontend. */
+    /** @returns the whole MIDI Learn state described for the frontend, with the
+        status of the most recent assignment.
+    */
     [[nodiscard]] juce::String createMidiMappings() const;
+
+    /** As above, but with an explicit status — used when what just happened was
+        not a single assignment, such as a controller profile being applied.
+    */
+    [[nodiscard]] juce::String createMidiMappings (const juce::String& statusToken,
+                                                   const juce::String& statusMessage) const;
 
     /** Emits a parameterChanged message for every parameter marked dirty since
         the last flush.
@@ -110,6 +118,10 @@ private:
 
     /** Applies a validated MIDI Learn command. @returns the reply. */
     [[nodiscard]] juce::String applyMidiCommand (const BridgeCommand& command);
+
+    /** @returns a displayable summary of an applied controller profile. */
+    [[nodiscard]] static juce::String describeProfileResult (
+        const juce::String& profileId, const midi::ProfileApplyResult& result);
 
     [[nodiscard]] static int indexOfParameter (const juce::String& parameterID);
 

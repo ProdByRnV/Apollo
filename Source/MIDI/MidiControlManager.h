@@ -33,6 +33,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
 #include "Parameters/ParameterDefinitions.h"
 
@@ -126,6 +127,31 @@ public:
 
     /** Removes every mapping. */
     void clearAllMappings();
+
+    /** Applies a controller profile.
+
+        Every entry goes through the same `assign` a learned mapping does, so a
+        profile is a shortcut rather than a mode: nothing behaves differently
+        afterwards, and an entry naming a parameter this build does not have is
+        dropped rather than refusing the whole profile (CLAUDE.md §33).
+    */
+    ProfileApplyResult applyProfile (const ControllerProfile& profile, ProfileMode mode);
+
+    /** Applies the built-in profile with this ID.
+
+        @returns a result whose `total()` is zero if there is no such profile,
+                 which is distinguishable from a profile that applied nothing.
+    */
+    ProfileApplyResult applyProfile (const juce::String& profileId, ProfileMode mode);
+
+    /** The profile most recently applied, or an empty string. */
+    [[nodiscard]] juce::String getLastAppliedProfile() const { return lastAppliedProfile; }
+
+    /** Outcome of the most recent profile application. */
+    [[nodiscard]] ProfileApplyResult getLastProfileResult() const noexcept
+    {
+        return lastProfileResult;
+    }
 
     /** @returns a copy of the current table. Message thread. */
     [[nodiscard]] MappingTable getMappings() const { return table; }
@@ -237,6 +263,9 @@ private:
     bool republishNeeded = false;
 
     AssignResult lastAssignResult = AssignResult::added;
+
+    juce::String lastAppliedProfile;
+    ProfileApplyResult lastProfileResult {};
 
     /** Parameter index learn is armed for, or -1. Message thread writes, audio
         thread reads.

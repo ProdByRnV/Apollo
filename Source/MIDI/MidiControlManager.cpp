@@ -241,6 +241,63 @@ void MidiControlManager::clearAllMappings()
     commitEdit();
 }
 
+ProfileApplyResult MidiControlManager::applyProfile (const ControllerProfile& profile,
+                                                    ProfileMode mode)
+{
+    ProfileApplyResult result;
+
+    if (mode == ProfileMode::replace)
+        table.clear();
+
+    for (const auto& entry : profile.entries)
+    {
+        const auto parameterIndex = params::indexOfParameter (entry.parameterId);
+
+        if (parameterIndex < 0)
+        {
+            // A parameter this build does not have. Dropped, counted, and the
+            // rest of the profile still applied.
+            ++result.unknownParameter;
+            continue;
+        }
+
+        Mapping mapping;
+        mapping.address.controller = entry.controller;
+        mapping.address.channel = entry.channel;
+        mapping.parameterIndex = parameterIndex;
+        mapping.minimum = entry.minimum;
+        mapping.maximum = entry.maximum;
+
+        const auto outcome = table.assign (mapping);
+
+        if (! succeeded (outcome))
+        {
+            ++result.rejected;
+            continue;
+        }
+
+        ++result.applied;
+
+        if (outcome != AssignResult::added && outcome != AssignResult::unchanged)
+            ++result.replaced;
+    }
+
+    lastAppliedProfile = params::toJuceString (profile.id);
+    lastProfileResult = result;
+
+    commitEdit();
+    return result;
+}
+
+ProfileApplyResult MidiControlManager::applyProfile (const juce::String& profileId,
+                                                     ProfileMode mode)
+{
+    if (const auto* profile = findControllerProfile (profileId.toStdString()))
+        return applyProfile (*profile, mode);
+
+    return {};
+}
+
 void MidiControlManager::commitEdit()
 {
     writeToState();

@@ -167,6 +167,62 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "requestControllerProfiles")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestControllerProfiles;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "applyControllerProfile")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::applyControllerProfile;
+
+        if (! object->hasProperty ("profile"))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto profileValue = object->getProperty ("profile");
+
+        if (! profileValue.isString())
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto profileId = profileValue.toString();
+
+        // Bounded before it is used as a lookup key, and resolved against the
+        // built-in registry here rather than downstream — so nothing past this
+        // point ever holds a profile identifier that does not exist
+        // (UI_BINDINGS.md §14).
+        if (profileId.getNumBytesAsUTF8() > params::maxParameterIdLength)
+            return BridgeParseResult::failure (BridgeErrorCode::unknownParameter);
+
+        if (midi::findControllerProfile (profileId.toStdString()) == nullptr)
+            return BridgeParseResult::failure (BridgeErrorCode::unknownParameter);
+
+        command.profileId = profileId;
+
+        // Absent means replace, which is what "set my controller up" means when
+        // it is said about a controller that was set up for something else.
+        if (object->hasProperty ("mode"))
+        {
+            const auto modeValue = object->getProperty ("mode");
+
+            if (! modeValue.isString())
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+            const auto mode = modeValue.toString();
+
+            if (mode == "replace")
+                command.replaceExisting = true;
+            else if (mode == "merge")
+                command.replaceExisting = false;
+            else
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+        }
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
     //--------------------------------------------------------------------------
     // Every remaining message type identifies a parameter, so the ID is
     // validated once, here, before any branch uses it.
@@ -347,7 +403,8 @@ juce::String makeParameterMetadataMessage()
 
 juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
                                       const juce::String& learningId,
-                                      midi::AssignResult lastResult)
+                                      const juce::String& statusToken,
+                                      const juce::String& statusMessage)
 {
     juce::Array<juce::var> entries;
 
@@ -382,9 +439,33 @@ juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
     // is a state the UI must render, and a missing key is easier to mishandle
     // than a present one.
     object->setProperty ("learning", learningId);
-    object->setProperty ("status", juce::String (midi::toToken (lastResult)));
-    object->setProperty ("statusMessage", juce::String (midi::describe (lastResult)));
+    object->setProperty ("status", statusToken);
+    object->setProperty ("statusMessage", statusMessage);
     object->setProperty ("capacity", midi::maxMappings);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makeControllerProfilesMessage()
+{
+    juce::Array<juce::var> entries;
+
+    for (const auto& profile : midi::controllerProfiles)
+    {
+        auto* entry = new juce::DynamicObject();
+
+        entry->setProperty (idProperty, toJuceString (profile.id));
+        entry->setProperty ("name", toJuceString (profile.name));
+        entry->setProperty ("description", toJuceString (profile.description));
+        entry->setProperty ("assignments", static_cast<int> (profile.entries.size()));
+
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "controllerProfiles");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("profiles", entries);
 
     return juce::JSON::toString (juce::var (object));
 }

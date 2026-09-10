@@ -17,9 +17,9 @@
 | | |
 |---|---|
 | **Phase** | Phase 6 — MIDI, Control & Interaction |
-| **Status** | **6a and 6b complete** (MIDI Learn; per-note expression and MPE). 6c (controller profiles) remains |
+| **Status** | **Complete (6a, 6b, 6c)** — MIDI Learn, per-note expression and MPE, controller profiles |
 | **Milestone** | M6 — Control |
-| **Next step** | Phase 6c — controller profiles |
+| **Next step** | Phase 7 — Web UI / UX System (the React migration and every visualizer) |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -411,11 +411,35 @@ Everything below was configured, built and executed on this machine.
   dimensions MPE defines are per-note), and MPE note-channel rotation policies
   beyond what the zone itself implies.
 
+### Controller profiles (Phase 6c)
+
+- **Two built-in profiles, neither of which names a manufacturer or a product.**
+  The MIDI specification's **Sound Controllers** (CC 70-79, whose meanings it
+  already fixes — brightness, harmonic intensity, attack, decay, release,
+  vibrato rate) and its **General Purpose Controllers** (CC 16-19 and 80-83,
+  which it deliberately leaves undefined, and which are therefore the right home
+  for a generic bank of knobs). A list of device names would have been more
+  immediately impressive and out of date within a year (ADR-0046).
+- **A profile is a shortcut, never a mode.** Every entry goes through the same
+  `assign` a learned mapping does, so the bijection still holds, replacements
+  are still reported, and the resulting mappings can be relearned, released or
+  cleared like any others. Nothing behaves differently because one was applied.
+- **Replace or merge**, both named explicitly on their own button rather than
+  hidden behind a default.
+- **Kept strictly separate from the parameter registry**, which is the roadmap's
+  own requirement: a profile refers to parameters by ID and resolves them when
+  applied. An entry naming a parameter this build does not have is dropped, and
+  the result says how many were — "eight of eight" and "five of eight" are
+  different outcomes.
+- **Not yet present:** user-supplied profile files. The seam is in place —
+  `ControllerProfile` is plain data and `applyProfile` takes one by reference —
+  but file loading, a user library path and the failure modes of both belong
+  with the resource work in Phase 9.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 6 | Controller profiles (6c). Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources; **MIDI Learn in 6a**; **polyphonic aftertouch, MPE and the RPNs that configure them in 6b** |
 | 7 | The React migration and **every visualizer** — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry. The interface itself landed early (§2, Frontend): it is a framework-free page, and nothing in it draws a waveform yet |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
@@ -478,7 +502,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,711,923 assertions, 0 failures**, across 21 test classes. The table below
+**1,712,188 assertions, 0 failures**, across 22 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -496,6 +520,7 @@ subsystems they test.
 | Engine | Voice engine | Pitch accuracy against four reference notes, velocity scaling, release to silence, polyphony, allocation order, deterministic stealing, click-free steal, sustain, pitch bend, voice reuse, extreme input, gain staging across five voicings |
 | Audio | MIDI rendering | Sample-accurate event placement, **identical output across nine block sizes**, sustain via CC 64, pitch wheel, all-notes-off, master gain scaling |
 | MIDI | MIDI mapping model | Address and range validation, reserved controllers, value scaling including inversion and clamping, the bijection and every replacement case, channel-specific beating omni in both learning orders, removal, capacity, and the publication ring — including a producer that outruns it |
+| MIDI | Controller profiles | Every built-in profile checked against the registry — real parameters, assignable controllers, no duplicate controller or parameter inside one profile, unique identifiers; applying fills the table exactly; replace clears and merge keeps; an entry naming an unknown parameter is dropped while a reserved controller is refused, each counted separately; a profile's mappings are ordinary mappings that can be learned over, released and cleared; and every bridge command, including an unknown profile and an unknown mode |
 | MIDI | MPE and per-note expression | Zone channel classification at both ends of both zones; manager-versus-member routing; RPN decoding, per-channel independence, the null selection and NRPN cancellation; polyphonic aftertouch pressing one note and not another; channel pressure still pressing everything; per-note bend independent per channel and adding to the wheel; note-off matching its channel; CC 74 as timbre inside a zone and as a MIDI Learn target outside one; the bend range as a control, applied to a held wheel; an MPE Configuration Message reaching the zone through the parameter; and pressure not being inherited by a new note while the bend is |
 | MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
 
@@ -550,7 +575,7 @@ Two defects were found by looking rather than by testing, and both are fixed:
 the hidden-page bug above, and "20.00 kHz" wrapping inside a 66 px knob, which
 pushed its own label down and broke the alignment of every knob beside it.
 
-### MIDI Learn and MPE, 2026-09-10
+### MIDI Learn, MPE and controller profiles, 2026-09-10
 
 The class of evidence the suite structurally cannot produce: the suite builds
 headless, opens no browser and has no MIDI device. Every row below was driven by
@@ -571,6 +596,10 @@ port Apollo was listening on.
 | An MPE controller configures Apollo | An **MPE Configuration Message** (RPN 6, seven members) sent from the virtual port switched MPE Zone **OFF → LOWER**, Members **15 → 7**, and un-dimmed the module — the whole chain, from the audio thread through the parameter queue to the interface |
 | A note sounds on a member channel | Note 60 on channel 2 under the lower zone: audio-session peak **0.0203** against 0.0000 silent |
 | Per-note bend is per note | With filter 1 at 126 Hz, the same note bent fully up on **its own** channel read **0.0142** — the pitch moved out through the lowpass — while a full bend on **channel 3**, which owned no note, left it at **0.0203**, unchanged |
+| The profile picker renders | The MIDI module shows a profile select, REPLACE and MERGE buttons with explanatory tooltips, and the line "MIDI CC 70-79, whose meanings the specification already fixes. · 8 assignments" |
+| A profile applies | REPLACE with Sound Controllers took the masthead from **MIDI 1** to **MIDI 8**, released the CC 21 mapping that was there, and reported "**Applied 8 of 8 assignments from Sound Controllers.**" |
+| The profile's assignments are visible | Green **CC 78 / CC 73 / CC 75 / CC 72** badges appeared on envelope 1's delay, attack, decay and release, and **CC 76** on LFO 1's rate — exactly the controllers the profile names |
+| The profile's assignments are live | CC 74 at 127 moved filter 1's cutoff from **126 Hz to 20.00 kHz**, and CC 71 at 100 moved its resonance to **4.43** |
 
 One defect was found by looking rather than by testing, and is fixed: appending
 `timbre` to the modulation sources left the frontend's label list one longer
@@ -719,38 +748,39 @@ rather than a luxury.
 ---
 ## 7. Blockers
 
-**None.** Phase 6c can begin.
+**None.** Phase 7 can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Finish **Phase 6** with **6c — controller profiles**, its one remaining task.
+Begin **Phase 7 — Web UI / UX System**, the only phase whose foundations are
+already partly laid: the interface itself was brought forward during Phase 5 and
+has since grown MIDI Learn, the MPE controls and the profile picker. What Phase 7
+still owns is everything that is not a control:
 
-A profile is an optional, never-required way to fill the mapping table quickly
-for a controller someone already owns (CLAUDE.md §16.3). Most of what it needs
-exists: `midi::MidiControlManager::assign()` already takes a complete mapping —
-controller, channel and scaling range — validated through the same conflict
-policy a learned one goes through, which is exactly the shape a profile entry
-has. What 6c has to decide is where profiles come from and how they are
-described:
+1. **Per-source oscilloscopes**, which are the phase's largest single piece and
+   the one with a real architectural cost. PRD §30.1 asks for a scope on
+   oscillator 1, oscillator 2, the sub, the noise generator, the post-filter
+   signal and the output — six capture points, each needing a lock-free
+   visualisation buffer written from the audio thread, none of which exists. The
+   PRD also requires the cost to be *measured* rather than assumed: scopes for
+   every source must not materially reduce polyphony.
+2. **Envelope and LFO traces**, which are the same problem at a much lower rate:
+   a live reading of the value each generator is producing, not a static picture
+   of its shape. The values are already available — `Voice::getSourceValue`
+   returns them — so this is a transport and rate-limiting question rather than
+   a DSP one.
+3. **The React migration.** The page is deliberately framework-free today, and
+   is roughly two thousand lines of hand-written DOM code. That is sustainable
+   for controls and will stop being sustainable once six animating canvases are
+   added to it, which is the honest argument for doing the migration before the
+   visualizers rather than after.
 
-1. **The format and where it lives.** A profile names parameter IDs, so it is
-   the one MIDI artefact that has to be kept strictly separate from the
-   parameter registry — the registry must never gain a "which knob on which
-   controller" field. Built-in profiles can be embedded the way the frontend is;
-   user profiles are files, which makes this the first thing in Apollo to read
-   one, and Phase 9 owns resource loading and its failure paths.
-2. **What applying one means.** Whether it replaces the table or merges into it,
-   and what happens to a mapping the user learned by hand that a profile would
-   overwrite. The bijection already reports every replacement (ADR-0041), so the
-   answer is a policy decision rather than new machinery.
-3. **Refusing gracefully.** A profile naming a parameter this build does not
-   have must drop that entry and apply the rest, exactly as a restored mapping
-   does (CLAUDE.md §33).
-
-Phase 6's exit criteria are all met already, so 6c completes the phase rather
-than unblocking it.
+Two carried items are also worth clearing when their owners come up: the
+allocation/lock detector on the audio thread (§6, issue 6, Phase 10), and the
+company/product codes in §6, issue 11, which are permanent once released and
+still unconfirmed.
 
 ---
 

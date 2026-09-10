@@ -1050,6 +1050,8 @@ function buildExpression (rank) {
     const module = createModule('MIDI', null);
     rank.append(module.root);
 
+    buildProfilePicker(module.body);
+
     knob(module.body, 'midi_bend_range', 'Bend Range');
 
     const zone = make('div', 'cluster cluster--banner', module.body);
@@ -1143,7 +1145,8 @@ const midi = {
     mode: false,
     learning: '',
     capacity: 0,
-    mappings: new Map()   // id -> { controller, channel, min, max }
+    mappings: new Map(),  // id -> { controller, channel, min, max }
+    profiles: []          // [{ id, name, description, assignments }]
 };
 
 function midiCommand (type, id) {
@@ -1248,6 +1251,69 @@ function midiAssignFrom (target) {
 
     if (midi.learning === id) midiCommand('midiLearnCancel');
     else midiCommand('midiLearnBegin', id);
+}
+
+/** The controller-profile picker, inside the MIDI module.
+
+    Not built from parameter metadata, because a profile is not a parameter: it
+    is a one-shot action with two outcomes the user has to choose between. Two
+    buttons rather than a mode switch and one button, so what each does is
+    readable without having to look anywhere else first.
+*/
+let refreshProfiles = () => {};
+
+function buildProfilePicker (body) {
+    const row = make('div', 'cluster cluster--banner profiles', body);
+
+    const label = make('div', 'segmented__label', row);
+    label.textContent = 'Controller Profile';
+
+    const select = make('select', 'select', row);
+    select.setAttribute('aria-label', 'Controller profile');
+
+    const buttons = make('div', 'profiles__actions', row);
+
+    const apply = (mode) => {
+        if (!select.value) return;
+
+        bridge.send({
+            type: 'applyControllerProfile',
+            version: PROTOCOL_VERSION,
+            profile: select.value,
+            mode
+        });
+    };
+
+    for (const [mode, text, title] of [
+        ['replace', 'REPLACE', 'Release every existing assignment, then apply this profile'],
+        ['merge', 'MERGE', 'Add this profile to the assignments already made']
+    ]) {
+        const button = make('button', 'masthead__button', buttons);
+        button.type = 'button';
+        button.textContent = text;
+        button.title = title;
+        button.addEventListener('click', () => apply(mode));
+    }
+
+    const note = make('div', 'profiles__note', row);
+
+    refreshProfiles = () => {
+        select.textContent = '';
+
+        for (const profile of midi.profiles) {
+            const option = make('option', null, select);
+            option.value = profile.id;
+            option.textContent = profile.name;
+        }
+
+        const chosen = midi.profiles.find((p) => p.id === select.value) || midi.profiles[0];
+        note.textContent = chosen
+            ? chosen.description + ' · ' + chosen.assignments + ' assignments'
+            : 'No profiles available.';
+    };
+
+    select.addEventListener('change', refreshProfiles);
+    refreshProfiles();
 }
 
 function installMidiMode () {
@@ -1360,6 +1426,12 @@ function handle (message) {
             // And for the mappings, which are stored per project and so may
             // already exist before this page has ever been opened.
             midiCommand('requestMidiMappings');
+            midiCommand('requestControllerProfiles');
+            break;
+
+        case 'controllerProfiles':
+            midi.profiles = message.profiles;
+            refreshProfiles();
             break;
 
         case 'stateSnapshot':
@@ -1395,9 +1467,9 @@ function handle (message) {
             // A replacement is reported rather than left to be discovered:
             // assigning a control that was already in use silently takes it
             // away from whatever had it (CLAUDE.md §33).
-            if (message.status && message.status.indexOf('REPLACED') === 0)
-                setStatus(message.statusMessage);
-            else if (message.status && message.status.indexOf('REJECTED') === 0)
+            if (message.status === 'PROFILE_APPLIED'
+                || (message.status || '').indexOf('REPLACED') === 0
+                || (message.status || '').indexOf('REJECTED') === 0)
                 setStatus(message.statusMessage);
 
             refreshMidiIndicators();

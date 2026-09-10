@@ -517,6 +517,40 @@ parameters* rather than to the engine directly (ADR-0045), so the frontend sees
 them arrive as ordinary `parameterChanged` messages and needs to do nothing
 special. That is the whole reason for routing them that way.
 
+### 10.3 Controller profiles (Phase 6c)
+
+Two more intents, on the same principle: the frontend asks for a *named* profile
+to be applied and cannot describe one.
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `requestControllerProfiles` | — | Send the built-in profiles. |
+| `applyControllerProfile` | `profile`, optional `mode` | Fill the mapping table from one. `mode` is `"replace"` (the default) or `"merge"`; anything else is rejected. |
+
+The profile identifier is resolved against the built-in registry **during
+parsing**, so nothing past the protocol layer ever holds one that does not exist
+(§14). Applying replies with the ordinary `midiMappings` message, whose `status`
+reads `PROFILE_APPLIED` and whose `statusMessage` says how much of the profile
+was applied and what it displaced — one code path for "the mapping state is now
+this", as in §10.1.
+
+```json
+{
+  "type": "controllerProfiles",
+  "version": 1,
+  "profiles": [
+    {
+      "id": "sound_controllers",
+      "name": "Sound Controllers",
+      "description": "MIDI CC 70-79, whose meanings the specification already fixes.",
+      "assignments": 8
+    }
+  ]
+}
+```
+
+The list is fixed at build time and never pushed unprompted.
+
 ---
 
 ## 11. Modulation Visualization

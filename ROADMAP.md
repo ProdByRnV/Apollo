@@ -400,8 +400,8 @@ Provide standards-based external control without coupling Apollo to a specific c
 - [x] Implement mapping persistence. — a `<MIDIMAP>` child of the APVTS state root, written after every edit rather than at save time, so a host that asks for state without warning gets the current mappings (ADR-0043) (6a)
 - [x] Implement mapping removal/clearing. — per parameter and wholesale, from the interface and from the bridge (6a)
 - [x] Implement conflict handling. — a bijection: one control drives one parameter, one parameter has one control, and every replacement is reported rather than performed silently (ADR-0041) (6a)
-- [ ] Implement optional controller profiles. — 6c
-- [ ] Keep controller profiles separate from core parameter definitions. — 6c
+- [x] Implement optional controller profiles. — two built-in profiles, both **standards-based rather than device-specific**: the MIDI specification's Sound Controllers (CC 70-79, whose meanings it already fixes) and its General Purpose Controllers (CC 16-19 and 80-83, which it deliberately leaves undefined). Applied by replacing or merging, from the interface, and every entry goes through the same validation a learned mapping does (ADR-0046) (6c)
+- [x] Keep controller profiles separate from core parameter definitions. — a profile lives in its own file, refers to parameters by ID, and resolves them when applied. The registry gained nothing: it describes what Apollo has and is permanent, where a profile describes somebody's hardware and is disposable (6c)
 - [x] Ensure MIDI event ordering is correct. — messages are applied in the order the host presents them, and the block is rendered in segments between them (Phase 3)
 - [x] Preserve sample-accurate event positions where provided by the host. — asserted directly: the same sequence produces **identical** output across nine block sizes (Phase 3)
 
@@ -414,9 +414,11 @@ Provide standards-based external control without coupling Apollo to a specific c
 
 ---
 
-> **Phase status:** 6a (MIDI Learn) and 6b (per-note expression: polyphonic
-> aftertouch, MPE, and the RPNs that configure them) are in. Controller profiles
-> remain, in 6c.
+> **Phase status:** complete. 6a brought MIDI Learn, 6b per-note expression —
+> polyphonic aftertouch, MPE, and the RPNs that configure them — and 6c
+> controller profiles. Every task and every exit criterion is met, and the
+> interface half of all three was driven by hand against the running standalone
+> with real MIDI messages (`PROJECT-STATE.md` §5a).
 
 ---
 

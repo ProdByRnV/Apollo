@@ -14,7 +14,7 @@
 # juce_audio_processors would compile the JUCE module sources into itself, and
 # the plugin target would compile them a second time, producing duplicate
 # symbols at link. An INTERFACE library propagates Apollo's own sources to each
-# final target instead — the same mechanism JUCE uses for its own modules — so
+# final target instead â€” the same mechanism JUCE uses for its own modules â€” so
 # the plugin and the test runner each get one clean copy.
 
 # ---------------------------------------------------------------------------
@@ -58,6 +58,7 @@ add_library(apollo_core STATIC
     Engine/Voice.h
     Engine/VoiceEngine.cpp
     Engine/VoiceEngine.h
+    MIDI/ControllerProfile.h
     MIDI/MidiMapping.cpp
     MIDI/MidiMapping.h
     MIDI/MpeZone.h
@@ -117,7 +118,7 @@ target_sources(apollo_engine INTERFACE
 # The WebView editor is a separate INTERFACE library rather than part of
 # apollo_engine, for two reasons:
 #
-#   - Layering. The engine must not depend on the UI (ARCHITECTURE.md §5.2);
+#   - Layering. The engine must not depend on the UI (ARCHITECTURE.md Â§5.2);
 #     making that a build-level fact rather than a convention means a stray
 #     include from DSP code fails to link.
 #   - The test runner is headless. It exercises the bridge through its protocol
@@ -141,12 +142,12 @@ if(APOLLO_ENABLE_WEBVIEW)
     # gets no syntax highlighting, no diff that reads sensibly, and no way to
     # open it in a browser. Embedding rather than shipping loose files keeps the
     # plugin a single relocatable binary with no install-time asset path to get
-    # wrong (CLAUDE.md §31.2), and means the WebView is never pointed at the
-    # filesystem (UI_BINDINGS.md §14).
+    # wrong (CLAUDE.md Â§31.2), and means the WebView is never pointed at the
+    # filesystem (UI_BINDINGS.md Â§14).
     #
     # Listing the files here is what makes them build inputs: touch the CSS and
     # the plugin relinks, which is the whole point of putting web assets through
-    # CMake rather than beside it (CLAUDE.md §31).
+    # CMake rather than beside it (CLAUDE.md Â§31).
     juce_add_binary_data(apollo_web_assets
         NAMESPACE ApolloWebAssets
         HEADER_NAME ApolloWebAssets.h
@@ -186,7 +187,7 @@ if(APOLLO_ENABLE_WEBVIEW)
 else()
     # Without the WebView, the processor falls back to a generic parameter
     # editor rather than to no editor at all, so the plugin stays usable on a
-    # configuration where the platform backend is unavailable (CLAUDE.md §33).
+    # configuration where the platform backend is unavailable (CLAUDE.md Â§33).
     target_link_libraries(apollo_editor INTERFACE apollo::engine)
     target_compile_definitions(apollo_editor INTERFACE
         APOLLO_WITH_WEBVIEW=0

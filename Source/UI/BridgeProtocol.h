@@ -20,6 +20,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
 
 #include <utility>
@@ -92,7 +93,11 @@ enum class BridgeCommandType
     midiLearnBegin,      ///< Arm learn for one parameter.
     midiLearnCancel,     ///< Disarm learn without assigning anything.
     midiMappingRemove,   ///< Release the control driving one parameter.
-    midiMappingClearAll  ///< Release every control.
+    midiMappingClearAll, ///< Release every control.
+
+    // Controller profiles (Phase 6c).
+    requestControllerProfiles, ///< Send the list of built-in profiles.
+    applyControllerProfile     ///< Fill the mapping table from one.
 };
 
 /** A validated command.
@@ -106,6 +111,17 @@ struct BridgeCommand
     BridgeCommandType type = BridgeCommandType::none;
     juce::String parameterId;
     float normalisedValue = 0.0f;
+
+    /** Controller profile identifier, for applyControllerProfile. Validated
+        against the built-in registry before the command is accepted, so it is
+        never an arbitrary string by the time anything acts on it.
+    */
+    juce::String profileId;
+
+    /** True when an applied profile should replace the existing mappings
+        rather than merge into them.
+    */
+    bool replaceExisting = true;
 };
 
 /** The outcome of parsing one inbound message. */
@@ -162,13 +178,24 @@ struct BridgeParseResult
     UI that received them separately could render a mapping list that disagreed
     with its own learn indicator.
 
-    @param mappings      the current table.
-    @param learningId    the parameter learn is armed for, or an empty string.
-    @param lastResult    outcome of the most recent assignment, so a replacement
-                         can be reported rather than discovered later.
+    @param mappings       the current table.
+    @param learningId     the parameter learn is armed for, or an empty string.
+    @param statusToken    stable token for the most recent change, which the
+                          frontend may branch on.
+    @param statusMessage  its displayable form. A replacement is reported here
+                          rather than left to be discovered later.
 */
 [[nodiscard]] juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
                                                     const juce::String& learningId,
-                                                    midi::AssignResult lastResult);
+                                                    const juce::String& statusToken,
+                                                    const juce::String& statusMessage);
+
+/** `{"type":"controllerProfiles", ...}`
+
+    The built-in profiles, described for the frontend. Sent on request and never
+    unprompted: the list is fixed at build time and cannot change while Apollo
+    is running.
+*/
+[[nodiscard]] juce::String makeControllerProfilesMessage();
 
 } // namespace apollo::ui
