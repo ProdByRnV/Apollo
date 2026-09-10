@@ -1108,3 +1108,137 @@ shows honest numbers instead of confidently wrong words.
 **Given up:** a UI that needs no edit when a parameter is added. A new parameter
 now needs one line in the layout to sit in the right module, and the Unassigned
 module is what makes forgetting that survivable rather than silent.
+
+---
+
+## ADR-0041 — One control drives one parameter, and one parameter has one control
+
+**Phase 6 (MIDI) · Accepted**
+
+`midi::MappingTable` enforces a bijection. Learning a control that a parameter
+already has replaces it; learning a control that another parameter already uses
+takes it away from that parameter. Both are reported through `AssignResult`, so
+the interface can say a mapping was released rather than letting the user find
+out later (CLAUDE.md §33).
+
+The obvious alternative is to let one controller drive several parameters. It
+was rejected because Apollo already has a better answer to that need, and a
+worse duplicate of it would be actively harmful. A control that should move many
+things at once is a macro; a macro is a modulation source with sixteen routing
+slots, bipolar depths and per-destination scaling behind it (CLAUDE.md §15). A
+second, weaker many-to-one mechanism in the MIDI layer would mean two places to
+look when a parameter moves unexpectedly, and the MIDI one would have no depth,
+no polarity and no visualisation.
+
+The bijection also makes the *inverse* question answerable, which is what the
+interface actually needs: "what drives this knob" has exactly one answer, so a
+badge on a control is well defined.
+
+A learned mapping is always omni-channel. The channel a controller happens to be
+transmitting on is not something most players know, and a mapping that stopped
+working after they changed it — or after the same controller came back on a
+different port — would be a defect from where they are standing.
+Channel-specific mappings still exist and win over an omni mapping on the same
+controller number; they are reachable through `assign()`, which is the path a
+controller profile will use. Pointing at a knob is simply not how you ask for
+one.
+
+Two controller groups are refused outright. **CC 64** is the sustain pedal,
+which Apollo acts on directly; a pedal that stopped sustaining because it was
+once waved at a learn button is a bewildering failure. **CC 120-127** are the
+channel-mode messages — all-sound-off, reset-all-controllers, mono/poly — which
+are commands and carry no continuous value to scale. **CC 1 is deliberately not
+refused**: the mod wheel is a modulation source in the matrix rather than a
+mapping, and a user who explicitly learns it to a parameter gets both
+behaviours, which is what they asked for.
+
+**Given up:** one physical knob controlling several parameters directly. The
+matrix and, later, macros are where that belongs.
+
+---
+
+## ADR-0042 — MIDI-controlled parameters are applied on the message thread
+
+**Phase 6 (MIDI) · Accepted**
+
+A control-change message arrives on the audio thread. The mapping lookup happens
+there — it is a bounded scan of a preallocated table with no allocation and no
+lock — but the *parameter write* does not. The audio thread stores the resulting
+normalised value in a per-parameter atomic slot and sets a flag; a 60 Hz
+message-thread timer applies those to APVTS.
+
+APVTS cannot be written from the audio thread. `setValueNotifyingHost` notifies
+listeners, reaches the host's automation system and, through Apollo's own
+parameter bridge, ends at a WebView call — every one of which is forbidden there
+(CLAUDE.md §7.1). This is the same shape as ADR-0013, for the same reason and in
+the opposite direction.
+
+**One slot per parameter rather than a queue of events.** A controller sweep
+sends about a hundred messages a second and only the newest matters, so the slot
+coalesces for free. A queue would have to be drained in order, replaying values
+no one can hear, and could overflow during a heavy sweep.
+
+**The cost is one tick of latency, under 17 milliseconds.** That was measured
+against what it buys rather than assumed to be free: MIDI-mapped parameters are
+control gestures, not notes, and 17 ms on a knob is below what a hand resolves.
+Note timing is unaffected — notes are still applied sample-accurately inside the
+block (Phase 3), and the mod wheel and aftertouch still reach the modulation
+matrix on the audio thread, because those are modulation sources rather than
+parameter writes. 60 Hz is deliberately twice the UI's 30 Hz refresh, so a
+mapped move reaches the parameter before the interface would have drawn it.
+
+**Gestures are bracketed.** The first change opens `beginChangeGesture` and the
+parameter closes it after three quiet ticks, so a controller sweep records in a
+host as one automation edit and one undo step rather than several hundred.
+
+The table travels the other way — message thread to audio thread — through
+`midi::MappingChannel`, a single-producer, single-consumer ring of whole tables.
+Whole tables because one is about 1.3 KB and edits happen at human speed, so the
+copy is free at the rate it actually occurs and there is no window in which the
+audio thread can observe a half-applied change. A ring rather than a double
+buffer with a flag because a ring has no case in which the producer overwrites
+what the consumer is reading: it refuses to publish when full, and the caller
+republishes on its next tick.
+
+**Given up:** sample-accurate MIDI control of parameters. A design that wanted it
+would have to move parameter ownership out of APVTS, which would cost host
+automation, preset recall and undo — a far worse trade than 17 ms on a knob.
+
+---
+
+## ADR-0043 — MIDI mappings live in the state tree, and needed no schema bump
+
+**Phase 6 (MIDI) · Accepted**
+
+Mappings are stored as a `<MIDIMAP>` child of the APVTS state root, written
+after every edit rather than at save time. `AudioProcessorValueTreeState::
+copyState` therefore carries them along with the parameters, and Apollo's state
+serialization needs to know nothing about MIDI at all.
+
+Writing on every edit rather than on save is deliberate: a host may ask for state
+at any moment, without warning, and a mapping that existed only in memory until
+someone pressed Ctrl+S would be lost by every host that does not.
+
+**No schema version bump.** `StateSerialization.h` states the rule this follows:
+adding an optional field with a safe default is not a change an older reader
+misinterprets. A version 2 document written before this phase simply has no
+`<MIDIMAP>` child, and the loader produces an empty table — which is exactly
+right, because a project saved before MIDI Learn existed had no mappings. An
+older Apollo reading a newer document ignores a child it does not recognise.
+Bumping the version would have refused those documents outright for no gain.
+
+Mappings are stored by **parameter ID, not registry index**: indices move
+whenever the registry grows, and a mapping that silently pointed at a different
+parameter after an update would be worse than one that was dropped. Every entry
+is re-validated through the same `assign()` the learn path uses, so a
+hand-edited document cannot put the table into a state the interface could not.
+An entry naming a parameter this build does not have is dropped and the rest of
+the document still loads (CLAUDE.md §33).
+
+**Given up:** mappings that follow the controller rather than the project. Many
+instruments keep a global MIDI map in a user config file, because the controller
+on the desk does not change when the project does. That is the better default
+and it needs file I/O, a user library path and a merge rule against project
+state — resource work that belongs with Phase 9. Per-project storage is the
+correct floor: it satisfies the requirement that mappings survive save and load,
+and a global default library layers on top of it without changing this format.

@@ -22,6 +22,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "MIDI/MidiControlManager.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "UI/BridgeProtocol.h"
 
@@ -63,6 +64,21 @@ public:
     /** @returns the parameter registry described for the frontend. */
     [[nodiscard]] juce::String createParameterMetadata() const;
 
+    /** Attaches the MIDI Learn subsystem. Pass nullptr to detach.
+
+        Optional, and nullable, because the bridge is also constructed in
+        contexts where there is no MIDI at all — the protocol tests, and any
+        future headless use. Without it the MIDI commands are answered with a
+        structured error rather than crashing or silently doing nothing.
+
+        The bridge does not own the manager: the processor does, because a
+        mapping has to keep working with the editor closed.
+    */
+    void setMidiControl (midi::MidiControlManager* controlToUse);
+
+    /** @returns the whole MIDI Learn state described for the frontend. */
+    [[nodiscard]] juce::String createMidiMappings() const;
+
     /** Emits a parameterChanged message for every parameter marked dirty since
         the last flush.
 
@@ -92,9 +108,15 @@ private:
     /** Applies a validated command. @returns the reply, or an empty string. */
     [[nodiscard]] juce::String applyCommand (const BridgeCommand& command);
 
+    /** Applies a validated MIDI Learn command. @returns the reply. */
+    [[nodiscard]] juce::String applyMidiCommand (const BridgeCommand& command);
+
     [[nodiscard]] static int indexOfParameter (const juce::String& parameterID);
 
     juce::AudioProcessorValueTreeState& apvts;
+
+    /** Borrowed, not owned, and null when there is no MIDI subsystem. */
+    midi::MidiControlManager* midiControl = nullptr;
 
     OutboundHandler outboundHandler;
 

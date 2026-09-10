@@ -266,6 +266,10 @@ function commit (id, normalized) {
 function bind (id, control) {
     if (!controls.has(id)) controls.set(id, []);
     controls.get(id).push(control);
+
+    // Marked here rather than in each control constructor, so a control type
+    // added later is assignable without anyone having to remember this.
+    if (control.element) control.element.dataset.midiId = id;
 }
 
 /* ==========================================================================
@@ -1084,14 +1088,228 @@ function build () {
     buildOutput(rankIn(workspace, 'rank--compact'));
 
     buildUnplaced(workspace);
+
+    // The controls are new objects; anything already known about their MIDI
+    // assignments has to be drawn onto them again.
+    refreshMidiIndicators();
+}
+
+/* ==========================================================================
+   MIDI LEARN
+
+   The native side owns the mappings, exactly as it owns parameter values: this
+   page never invents one, and never assumes a request succeeded. Every command
+   is answered with the whole mapping state, and that answer is what the page
+   draws (UI_BINDINGS.md §1, §6).
+
+   Assignment is a *mode*. In it, clicking a control arms learn on it rather
+   than moving it, which is why the pointer, click and key handlers below run in
+   the capture phase — they have to reach the event before the control's own
+   handlers do, and cancel it there.
+   ========================================================================== */
+
+const midi = {
+    mode: false,
+    learning: '',
+    capacity: 0,
+    mappings: new Map()   // id -> { controller, channel, min, max }
+};
+
+function midiCommand (type, id) {
+    const message = { type, version: PROTOCOL_VERSION };
+    if (id) message.id = id;
+    bridge.send(message);
+}
+
+/** The badge element for a control, created on demand.
+
+    Returns null for a <select>, which cannot contain one. Those still show
+    their assignment through the outline and the tooltip; a matrix source is an
+    unusual thing to put on a hardware knob anyway.
+*/
+function midiBadgeFor (element) {
+    if (element.tagName === 'SELECT') return null;
+
+    let badge = element.querySelector(':scope > .midi-badge');
+
+    if (!badge) {
+        badge = make('span', 'midi-badge', element);
+        badge.setAttribute('aria-hidden', 'true');
+    }
+
+    return badge;
+}
+
+/** Redraws every control's assignment state from `midi`. */
+function refreshMidiIndicators () {
+    for (const [id, bound] of controls) {
+        const mapping = midi.mappings.get(id);
+        const learning = midi.learning === id;
+
+        const state = learning ? 'learning' : (mapping ? 'mapped' : '');
+        const text = learning
+            ? 'LEARN'
+            : (mapping ? 'CC ' + mapping.controller : '');
+
+        // The tooltip carries what the badge cannot: which channel, and what to
+        // do about it (CLAUDE.md §39).
+        const title = learning
+            ? 'Waiting for a MIDI control — move one, or press Escape'
+            : (mapping
+                ? 'MIDI CC ' + mapping.controller
+                    + (mapping.channel > 0 ? ' on channel ' + mapping.channel : ' (any channel)')
+                    + ' — press Delete in MIDI Learn mode to release it'
+                : '');
+
+        for (const control of bound) {
+            const element = control.element;
+            if (!element) continue;
+
+            if (state) element.dataset.midi = state;
+            else delete element.dataset.midi;
+
+            const definition = definitions.get(id);
+            const name = definition ? definition.name : id;
+            element.title = title ? name + ' · ' + title : name;
+
+            const badge = midiBadgeFor(element);
+            if (!badge) continue;
+
+            badge.textContent = text;
+            badge.hidden = !state;
+
+            if (state) badge.dataset.state = state;
+            else delete badge.dataset.state;
+        }
+    }
+
+    const count = midi.mappings.size;
+    document.getElementById('midi-count').textContent = String(count);
+    document.getElementById('midi-lamp').dataset.on = count > 0 ? 'true' : 'false';
+    document.getElementById('midi-clear').hidden = !(midi.mode && count > 0);
+
+    renderStatus();
+}
+
+function setMidiMode (on) {
+    midi.mode = on;
+
+    document.body.dataset.midiMode = on ? 'true' : 'false';
+
+    const toggle = document.getElementById('midi-toggle');
+    toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+    // Leaving the mode with learn still armed would leave the engine waiting
+    // for a control the user can no longer see they are choosing.
+    if (!on && midi.learning) midiCommand('midiLearnCancel');
+
+    document.getElementById('hint').textContent = on
+        ? 'Click a control to assign it · Delete to release · Escape to cancel'
+        : 'Drag a knob · Shift for fine · Double-click or Delete to reset';
+
+    refreshMidiIndicators();
+}
+
+/** Arms, or disarms, learn for the control under an assignment-mode event. */
+function midiAssignFrom (target) {
+    const id = target.dataset.midiId;
+    if (!id) return;
+
+    if (midi.learning === id) midiCommand('midiLearnCancel');
+    else midiCommand('midiLearnBegin', id);
+}
+
+function installMidiMode () {
+    const workspace = document.getElementById('workspace');
+
+    const assignable = (event) => {
+        if (!midi.mode) return null;
+
+        const target = event.target.closest ? event.target.closest('[data-midi-id]') : null;
+        return target;
+    };
+
+    // Capture phase, and the event is stopped: in assignment mode a knob must
+    // not also start a drag, and a segmented option must not also change value.
+    workspace.addEventListener('pointerdown', (event) => {
+        const target = assignable(event);
+        if (!target) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        midiAssignFrom(target);
+    }, true);
+
+    for (const type of ['click', 'dblclick', 'change', 'pointerup']) {
+        workspace.addEventListener(type, (event) => {
+            if (assignable(event)) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }, true);
+    }
+
+    workspace.addEventListener('keydown', (event) => {
+        const target = assignable(event);
+        if (!target) return;
+
+        const id = target.dataset.midiId;
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            midiAssignFrom(target);
+        } else if (event.key === 'Delete' || event.key === 'Backspace') {
+            // In assignment mode Delete releases the control rather than
+            // resetting the parameter, which is the only thing it could
+            // sensibly mean here.
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (midi.mappings.has(id)) midiCommand('midiMappingRemove', id);
+        }
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+
+        if (midi.learning) midiCommand('midiLearnCancel');
+        else if (midi.mode) setMidiMode(false);
+    });
+
+    document.getElementById('midi-toggle')
+        .addEventListener('click', () => setMidiMode(!midi.mode));
+
+    document.getElementById('midi-clear')
+        .addEventListener('click', () => midiCommand('midiMappingClearAll'));
 }
 
 /* ==========================================================================
    MESSAGES
    ========================================================================== */
 
+/** The last thing the engine said, kept so a transient MIDI prompt can be
+    shown over it and then cleared without losing it.
+*/
+let baseStatus = 'Connecting to engine…';
+
+function renderStatus () {
+    const element = document.getElementById('status');
+
+    if (midi.learning) {
+        const definition = definitions.get(midi.learning);
+        element.textContent = 'Move a MIDI control to assign it to '
+            + (definition ? definition.name : midi.learning)
+            + ' — Escape to cancel';
+        return;
+    }
+
+    element.textContent = baseStatus;
+}
+
 function setStatus (text) {
-    document.getElementById('status').textContent = text;
+    baseStatus = text;
+    renderStatus();
 }
 
 function handle (message) {
@@ -1107,6 +1325,10 @@ function handle (message) {
             // Everything is built from metadata but nothing yet holds a value,
             // so ask for the state that fills it in.
             bridge.send({ type: 'requestState', version: PROTOCOL_VERSION });
+
+            // And for the mappings, which are stored per project and so may
+            // already exist before this page has ever been opened.
+            midiCommand('requestMidiMappings');
             break;
 
         case 'stateSnapshot':
@@ -1125,6 +1347,31 @@ function handle (message) {
                 apply(message.id, message.normalizedValue);
             break;
 
+        case 'midiMappings':
+            midi.mappings.clear();
+
+            for (const entry of message.mappings)
+                midi.mappings.set(entry.id, {
+                    controller: entry.controller,
+                    channel: entry.channel,
+                    min: entry.min,
+                    max: entry.max
+                });
+
+            midi.learning = message.learning || '';
+            midi.capacity = message.capacity;
+
+            // A replacement is reported rather than left to be discovered:
+            // assigning a control that was already in use silently takes it
+            // away from whatever had it (CLAUDE.md §33).
+            if (message.status && message.status.indexOf('REPLACED') === 0)
+                setStatus(message.statusMessage);
+            else if (message.status && message.status.indexOf('REJECTED') === 0)
+                setStatus(message.statusMessage);
+
+            refreshMidiIndicators();
+            break;
+
         case 'error':
             setStatus('Engine reported: ' + message.message);
             break;
@@ -1139,6 +1386,8 @@ function handle (message) {
    ========================================================================== */
 
 bridge.listen(handle);
+installMidiMode();
+setMidiMode(false);
 
 if (bridge.available) {
     bridge.send({ type: 'requestMetadata', version: PROTOCOL_VERSION });

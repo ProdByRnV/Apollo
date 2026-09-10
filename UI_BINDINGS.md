@@ -443,6 +443,56 @@ Optional controller profiles may be provided, but Apollo must remain fully usabl
 
 No physical controller layout is required by the bridge protocol.
 
+### 10.1 Implemented protocol (Phase 6)
+
+The bridge exposes MIDI Learn as **intents**, never as edits to the mapping
+table. The frontend can ask for a control to be learned, cancelled or released;
+it cannot construct a mapping, name a controller number, or set a scaling range.
+That keeps the untrusted boundary exactly where §14 puts it: everything the page
+can express is a parameter ID it already knows.
+
+**Web → C++**
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `requestMidiMappings` | — | Send the current mapping state. |
+| `midiLearnBegin` | `id` | Arm learn; the next assignable control moved is assigned to this parameter. |
+| `midiLearnCancel` | — | Disarm without assigning. |
+| `midiMappingRemove` | `id` | Release whatever drives this parameter. |
+| `midiMappingClearAll` | — | Release every mapping. |
+
+**C++ → Web** — every one of the five is answered with the same message, so the
+frontend has one code path for "the mapping state is now this" and cannot render
+a list its own request invalidated. It is also *pushed* unprompted, because a
+learn completes when the user moves a physical control rather than when the page
+sends anything.
+
+```json
+{
+  "type": "midiMappings",
+  "version": 1,
+  "mappings": [
+    { "id": "filter1_cutoff", "controller": 74, "channel": 0, "min": 0.0, "max": 1.0 }
+  ],
+  "learning": "",
+  "status": "ADDED",
+  "statusMessage": "Control assigned.",
+  "capacity": 64
+}
+```
+
+- `channel` is `0` for a mapping that answers on any channel, or 1-16.
+- `learning` is the parameter learn is armed for, or an **empty string** — a
+  state the UI must render, and an absent key is easier to mishandle than a
+  present one.
+- `status` is a stable token (`ADDED`, `REPLACED_CONTROLLER_MAPPING`,
+  `REJECTED_RESERVED_CONTROLLER`, …) that the frontend may branch on;
+  `statusMessage` is the displayable form. Both describe the most recent
+  assignment, so a replacement is reported rather than discovered later.
+
+Mappings are carried inside the same state document as the parameters
+(ADR-0043), so a project load replaces them and the UI must resynchronise both.
+
 ---
 
 ## 11. Modulation Visualization

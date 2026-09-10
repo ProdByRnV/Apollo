@@ -16,6 +16,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Engine/VoiceEngine.h"
+#include "MIDI/MidiControlManager.h"
 #include "Parameters/ParameterLayout.h"
 #include "State/StateSerialization.h"
 
@@ -129,6 +130,15 @@ public:
     {
         return stateReloadCounter.load (std::memory_order_relaxed);
     }
+
+    /** MIDI Learn: controller-to-parameter mappings and the learn state machine.
+
+        Owned by the processor rather than by the editor, because a mapping must
+        keep working with the interface closed, and must be present when the host
+        asks for state whether an editor was ever opened or not.
+    */
+    [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
+    [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
 
     /** The synthesis engine.
 
@@ -309,6 +319,11 @@ private:
         that observes it: APVTS must outlive every listener attached to it.
     */
     juce::AudioProcessorValueTreeState apvts;
+
+    /** Declared after APVTS, and therefore destroyed before it: the manager
+        holds parameter pointers into it and writes into its state tree.
+    */
+    midi::MidiControlManager midiControl;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ApolloAudioProcessor)
 };

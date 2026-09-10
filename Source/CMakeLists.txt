@@ -58,6 +58,8 @@ add_library(apollo_core STATIC
     Engine/Voice.h
     Engine/VoiceEngine.cpp
     Engine/VoiceEngine.h
+    MIDI/MidiMapping.cpp
+    MIDI/MidiMapping.h
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
     Parameters/ParameterDefinitions.h
@@ -94,6 +96,8 @@ add_library(apollo::engine ALIAS apollo_engine)
 target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MIDI/MidiControlManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MIDI/MidiControlManager.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/StateSerialization.cpp"

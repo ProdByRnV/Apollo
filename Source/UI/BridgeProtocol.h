@@ -20,6 +20,8 @@
 
 #include <juce_core/juce_core.h>
 
+#include "MIDI/MidiMapping.h"
+
 #include <utility>
 #include <vector>
 
@@ -81,7 +83,16 @@ enum class BridgeCommandType
     requestMetadata,///< Send the parameter registry description.
     setParameter,   ///< Set one parameter from a normalised value.
     gestureBegin,   ///< Start of a user gesture, for host automation and undo.
-    gestureEnd      ///< End of a user gesture.
+    gestureEnd,     ///< End of a user gesture.
+
+    // MIDI Learn (Phase 6). Each one names an intent, not an operation on the
+    // mapping table: the frontend cannot construct a mapping, only ask for one
+    // to be learned from whatever the user physically moves, or removed.
+    requestMidiMappings, ///< Send the current mappings and learn state.
+    midiLearnBegin,      ///< Arm learn for one parameter.
+    midiLearnCancel,     ///< Disarm learn without assigning anything.
+    midiMappingRemove,   ///< Release the control driving one parameter.
+    midiMappingClearAll  ///< Release every control.
 };
 
 /** A validated command.
@@ -142,5 +153,22 @@ struct BridgeParseResult
     than hard-coding ranges (UI_BINDINGS.md §16).
 */
 [[nodiscard]] juce::String makeParameterMetadataMessage();
+
+/** `{"type":"midiMappings", ...}`
+
+    The whole MIDI Learn state in one message: every mapping, whether learn is
+    armed and for what, and how the last assignment turned out. One message
+    rather than several because the three are always displayed together, and a
+    UI that received them separately could render a mapping list that disagreed
+    with its own learn indicator.
+
+    @param mappings      the current table.
+    @param learningId    the parameter learn is armed for, or an empty string.
+    @param lastResult    outcome of the most recent assignment, so a replacement
+                         can be reported rather than discovered later.
+*/
+[[nodiscard]] juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
+                                                    const juce::String& learningId,
+                                                    midi::AssignResult lastResult);
 
 } // namespace apollo::ui

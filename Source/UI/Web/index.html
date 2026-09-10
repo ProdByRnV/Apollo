@@ -33,6 +33,23 @@
 
     <div class="masthead__spacer"></div>
 
+    <!--
+        MIDI Learn is a mode rather than a hidden right-click, so that it is
+        reachable from the keyboard and visible to anyone who has never been
+        told it exists (CLAUDE.md §39). While it is on, clicking a control
+        assigns it instead of moving it, and the whole workspace says so.
+    -->
+    <button class="masthead__button" id="midi-toggle" type="button" aria-pressed="false">
+      MIDI Learn
+    </button>
+    <button class="masthead__button masthead__button--quiet" id="midi-clear" type="button" hidden>
+      Clear all
+    </button>
+
+    <div class="readout">
+      <span class="lamp" id="midi-lamp" data-on="false" aria-hidden="true"></span>
+      <span>MIDI <strong id="midi-count">0</strong></span>
+    </div>
     <div class="readout">
       <span class="lamp" id="mod-lamp" data-on="false" aria-hidden="true"></span>
       <span>MOD <strong id="mod-count">0</strong>/16</span>

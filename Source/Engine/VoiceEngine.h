@@ -347,6 +347,8 @@ public:
 
     [[nodiscard]] int getActiveVoiceCount() const noexcept;
     [[nodiscard]] bool isSustainPedalDown() const noexcept { return sustainPedalDown; }
+    [[nodiscard]] float getModWheel() const noexcept { return modWheel; }
+    [[nodiscard]] float getAftertouch() const noexcept { return aftertouch; }
     [[nodiscard]] const Voice& getVoice (int index) const noexcept { return voices[static_cast<std::size_t> (index)]; }
 
 private:

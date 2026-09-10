@@ -32,7 +32,8 @@ juce::AudioProcessor::BusesProperties ApolloAudioProcessor::makeBusesProperties(
 
 ApolloAudioProcessor::ApolloAudioProcessor()
     : juce::AudioProcessor (makeBusesProperties()),
-      apvts (*this, nullptr, params::stateTreeType, params::createParameterLayout())
+      apvts (*this, nullptr, params::stateTreeType, params::createParameterLayout()),
+      midiControl (apvts)
 {
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
@@ -350,6 +351,22 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
 {
+    // Every control-change message is offered to the MIDI Learn layer first,
+    // and then handled here as well. The two are not alternatives: CC 1 is the
+    // mod wheel — a modulation source in its own right — *and* a controller a
+    // user is entitled to map to a parameter, and a message that did one job
+    // instead of the other depending on hidden state would be worse than a
+    // message that does both (CLAUDE.md §16.2).
+    //
+    // The mapping layer refuses the controllers whose fixed meaning Apollo acts
+    // on below, so a sustain pedal can never be taken over by a mapping.
+    if (message.isController())
+    {
+        midiControl.handleControllerMessage (message.getChannel(),
+                                             message.getControllerNumber(),
+                                             message.getControllerValue());
+    }
+
     if (message.isNoteOn())
     {
         voiceEngine.noteOn (message.getNoteNumber(), message.getFloatVelocity());
@@ -458,6 +475,12 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // balance — are smoothed per sample inside the voice, so nothing here has to
     // be read in the render loop.
     applySourceParameters();
+
+    // Picked up once per block, before any message is handled, so every MIDI
+    // event in this buffer is matched against the same mapping table. A table
+    // that changed halfway through a block would be a difference no one could
+    // observe and everyone would have to reason about.
+    midiControl.refreshMappings();
 
     int position = 0;
 
@@ -610,6 +633,11 @@ void ApolloAudioProcessor::setStateInformation (const void* data, int sizeInByte
 
     if (result == state::StateLoadResult::ok)
     {
+        // The document replaced the whole state tree, MIDI mappings included, so
+        // the live table is rebuilt from what actually arrived rather than left
+        // pointing at the previous project's controller assignments.
+        midiControl.restoreFromState();
+
         // Every parameter may have moved at once. Bumping the counter lets an
         // attached editor resynchronise wholesale instead of inferring a preset
         // load from a burst of individual changes.

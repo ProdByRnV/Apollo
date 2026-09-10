@@ -18,6 +18,11 @@ ParameterBridge::~ParameterBridge()
 {
     stopTimer();
 
+    // Same reasoning as the listener below: the MIDI control manager outlives
+    // the bridge, and a change handler that survives its object would be called
+    // on a destroyed one.
+    setMidiControl (nullptr);
+
     // Removed explicitly rather than left to teardown order: APVTS outlives the
     // bridge, and a listener that survives its object is a use-after-free that
     // the audio thread would be the one to trigger.
@@ -30,15 +35,34 @@ void ParameterBridge::setOutboundHandler (OutboundHandler handler)
     outboundHandler = std::move (handler);
 }
 
+void ParameterBridge::setMidiControl (midi::MidiControlManager* controlToUse)
+{
+    // The previous manager's handler is released first: the bridge may be
+    // attached to a different manager, or to none, and a callback left pointing
+    // at a destroyed bridge is exactly the use-after-free this class already
+    // takes care to avoid with its APVTS listener.
+    if (midiControl != nullptr)
+        midiControl->setChangeHandler ({});
+
+    midiControl = controlToUse;
+
+    if (midiControl != nullptr)
+    {
+        // A mapping can change without the frontend having asked for anything —
+        // MIDI Learn completes when the user moves a control, not when the UI
+        // sends a message — so the UI is pushed the new state rather than left
+        // to poll for it.
+        midiControl->setChangeHandler ([this]
+        {
+            if (outboundHandler)
+                outboundHandler (createMidiMappings());
+        });
+    }
+}
+
 int ParameterBridge::indexOfParameter (const juce::String& parameterID)
 {
-    const auto id = parameterID.toStdString();
-
-    for (std::size_t i = 0; i < params::parameterDefinitions.size(); ++i)
-        if (params::parameterDefinitions[i].id == id)
-            return static_cast<int> (i);
-
-    return -1;
+    return params::indexOfParameter (parameterID.toStdString());
 }
 
 //==============================================================================
@@ -62,6 +86,13 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
         case BridgeCommandType::requestMetadata:
             return createParameterMetadata();
+
+        case BridgeCommandType::requestMidiMappings:
+        case BridgeCommandType::midiLearnBegin:
+        case BridgeCommandType::midiLearnCancel:
+        case BridgeCommandType::midiMappingRemove:
+        case BridgeCommandType::midiMappingClearAll:
+            return applyMidiCommand (command);
 
         case BridgeCommandType::setParameter:
         case BridgeCommandType::gestureBegin:
@@ -112,6 +143,74 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
     }
 
     return {};
+}
+
+juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
+{
+    // Answered rather than ignored: a frontend that asks for MIDI Learn in a
+    // build that has none must be told so, not left with a button that appears
+    // to work (UI_BINDINGS.md §13).
+    if (midiControl == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    switch (command.type)
+    {
+        case BridgeCommandType::requestMidiMappings:
+            break;
+
+        case BridgeCommandType::midiLearnBegin:
+            // parseMessage has already established that the parameter exists.
+            (void) midiControl->beginLearn (command.parameterId);
+            break;
+
+        case BridgeCommandType::midiLearnCancel:
+            midiControl->cancelLearn();
+            break;
+
+        case BridgeCommandType::midiMappingRemove:
+            (void) midiControl->removeParameterMapping (
+                params::indexOfParameter (command.parameterId.toStdString()));
+            break;
+
+        case BridgeCommandType::midiMappingClearAll:
+            midiControl->clearAllMappings();
+            break;
+
+        case BridgeCommandType::requestState:
+        case BridgeCommandType::requestMetadata:
+        case BridgeCommandType::setParameter:
+        case BridgeCommandType::gestureBegin:
+        case BridgeCommandType::gestureEnd:
+        case BridgeCommandType::none:
+        default:
+            jassertfalse;
+            return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+    }
+
+    // Every one of these replies with the whole state, including the ones that
+    // changed nothing. The frontend then has one code path for "the mapping
+    // state is now this", rather than one per command, and cannot end up
+    // rendering a mapping list its own request invalidated.
+    return createMidiMappings();
+}
+
+juce::String ParameterBridge::createMidiMappings() const
+{
+    if (midiControl == nullptr)
+        return makeMidiMappingsMessage ({}, {}, midi::AssignResult::added);
+
+    const auto learningIndex = midiControl->getLearnParameterIndex();
+
+    const auto learningId = learningIndex >= 0
+                                && learningIndex < static_cast<int> (params::parameterCount())
+                              ? params::toJuceString (
+                                    params::parameterDefinitions[static_cast<std::size_t> (
+                                        learningIndex)].id)
+                              : juce::String();
+
+    return makeMidiMappingsMessage (midiControl->getMappings(),
+                                    learningId,
+                                    midiControl->getLastAssignResult());
 }
 
 juce::String ParameterBridge::createStateSnapshot() const

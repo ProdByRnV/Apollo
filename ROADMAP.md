@@ -390,27 +390,32 @@ Provide standards-based external control without coupling Apollo to a specific c
 
 ## Tasks
 
-- [ ] Implement MIDI note processing.
-- [ ] Implement MIDI CC processing.
-- [ ] Implement pitch bend.
-- [ ] Implement sustain.
-- [ ] Implement modulation wheel.
-- [ ] Implement aftertouch where available.
-- [ ] Implement MIDI Learn.
-- [ ] Implement mapping persistence.
-- [ ] Implement mapping removal/clearing.
-- [ ] Implement conflict handling.
-- [ ] Implement optional controller profiles.
-- [ ] Keep controller profiles separate from core parameter definitions.
-- [ ] Ensure MIDI event ordering is correct.
-- [ ] Preserve sample-accurate event positions where provided by the host.
+- [x] Implement MIDI note processing. — note on/off with velocity, velocity-zero treated as note-off, all-notes-off and all-sound-off (Phase 3)
+- [x] Implement MIDI CC processing. — every control-change message is offered to the mapping layer and then to Apollo's own fixed functions, because CC 1 is legitimately both (6a)
+- [x] Implement pitch bend. — ±2 semitones, the near-universal default (Phase 3)
+- [x] Implement sustain. — CC 64, and it is one of the two controller groups a mapping may never take over (Phase 3, 6a)
+- [x] Implement modulation wheel. — CC 1, read as a first-class modulation source rather than through MIDI Learn, and mappable as well (Phase 5d, 6a)
+- [ ] Implement aftertouch where available. — channel pressure is a modulation source (5d). Polyphonic aftertouch is per-note and needs the per-note routing that arrives with MPE (6b)
+- [x] Implement MIDI Learn. — a mode in the interface rather than a hidden right-click, so it is keyboard-reachable and visible to someone who has not been told it exists (6a)
+- [x] Implement mapping persistence. — a `<MIDIMAP>` child of the APVTS state root, written after every edit rather than at save time, so a host that asks for state without warning gets the current mappings (ADR-0043) (6a)
+- [x] Implement mapping removal/clearing. — per parameter and wholesale, from the interface and from the bridge (6a)
+- [x] Implement conflict handling. — a bijection: one control drives one parameter, one parameter has one control, and every replacement is reported rather than performed silently (ADR-0041) (6a)
+- [ ] Implement optional controller profiles. — 6c
+- [ ] Keep controller profiles separate from core parameter definitions. — 6c
+- [x] Ensure MIDI event ordering is correct. — messages are applied in the order the host presents them, and the block is rendered in segments between them (Phase 3)
+- [x] Preserve sample-accurate event positions where provided by the host. — asserted directly: the same sequence produces **identical** output across nine block sizes (Phase 3)
 
 ## Exit Criteria
 
-- Apollo works correctly with generic MIDI input.
-- MIDI mappings survive state save/load where intended.
-- No specific controller is required for normal operation.
-- MIDI processing remains real-time safe.
+- [x] Apollo works correctly with generic MIDI input. — nothing in the mapping layer names a controller, a manufacturer or a layout; a mapping is whatever number the user's device sent
+- [x] MIDI mappings survive state save/load where intended. — asserted through the processor's own `getStateInformation`/`setStateInformation`, including the channel and the scaling range, and the restored mapping is shown to still drive its parameter rather than merely to exist
+- [x] No specific controller is required for normal operation. — every mapping is learned, none is required, and the whole instrument remains playable with mouse and keyboard alone
+- [x] MIDI processing remains real-time safe. — the audio thread does a bounded scan of a preallocated table and writes one atomic slot; the test that proves it renders a whole 128-step sweep and asserts the parameter has **not** moved until the message thread flushes (ADR-0042)
+
+---
+
+> **Phase status:** 6a (MIDI Learn) is in. Two tasks remain: per-note expression
+> — polyphonic aftertouch and MPE — in 6b, and controller profiles in 6c.
 
 ---
 

@@ -1055,6 +1055,22 @@ inline constexpr std::array<ParameterDefinition, 139> parameterDefinitions { {
     return nullptr;
 }
 
+/** @returns the registry index of the parameter with this ID, or -1.
+
+    An index rather than a pointer, because that is the form the subsystems
+    which key arrays by parameter need: the UI bridge's dirty flags, and the MIDI
+    mapping table, which is read on the audio thread and cannot afford a string
+    comparison there.
+*/
+[[nodiscard]] constexpr int indexOfParameter (std::string_view id) noexcept
+{
+    for (std::size_t i = 0; i < parameterDefinitions.size(); ++i)
+        if (parameterDefinitions[i].id == id)
+            return static_cast<int> (i);
+
+    return -1;
+}
+
 /** @returns the number of registered parameters. */
 [[nodiscard]] constexpr std::size_t parameterCount() noexcept
 {

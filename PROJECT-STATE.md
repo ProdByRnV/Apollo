@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-07
+**Last verified:** 2026-09-10
 **Apollo version:** 0.1.0
 
 ---
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 5 — Filters, Envelopes & Modulation |
-| **Status** | **Complete (5a, 5b, 5c, 5d)**, plus the Phase 7 interface brought forward |
-| **Milestone** | M5 — Sound Design |
-| **Next step** | Phase 6 — MIDI, Control & Interaction |
+| **Phase** | Phase 6 — MIDI, Control & Interaction |
+| **Status** | **6a complete** (MIDI Learn). 6b (per-note expression) and 6c (controller profiles) remain |
+| **Milestone** | M6 — Control |
+| **Next step** | Phase 6b — polyphonic aftertouch and MPE |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -331,11 +331,54 @@ Everything below was configured, built and executed on this machine.
 - Envelopes 2-4 and the four LFOs became reachable here; mod wheel (CC 1) and
   channel aftertouch are now read from MIDI as first-class sources.
 
+### MIDI Learn (Phase 6a)
+
+- **Any registered parameter can be driven by any MIDI control-change number**,
+  learned from whatever the user physically moves. Nothing anywhere names a
+  controller, a manufacturer or a layout (CLAUDE.md §46).
+- The model — the table, the conflict policy, the value scaling — is **JUCE-free**
+  and lives in `apollo_core`, so what happens when a control is learned twice,
+  when the table fills, or when a scaling end arrives as infinity is all testable
+  with no host, no device and no message loop.
+- **The conflict policy is a bijection**: one control drives one parameter, one
+  parameter has one control, and every replacement is *reported* rather than
+  performed silently. A control that should move many things at once is a macro,
+  and Apollo already has sixteen routing slots with bipolar depths for that
+  (ADR-0041).
+- **Learned mappings are omni-channel.** A channel-specific mapping still exists
+  and beats an omni one on the same controller number, but it is reached through
+  the explicit assign path, not by pointing at a knob.
+- **Two controller groups are refused**: CC 64, because Apollo acts on the
+  sustain pedal directly, and CC 120-127, which are commands rather than
+  controls. CC 1 is deliberately *not* refused — the mod wheel is a modulation
+  source and a legitimate mapping target, and a user who asks for both gets both.
+- **The audio thread never writes a parameter.** It scans a preallocated table
+  and stores one atomic value plus a flag; a 60 Hz message-thread timer applies
+  those to APVTS with automation gestures bracketed around each move (ADR-0042).
+  The test that proves it renders a whole 128-step sweep and asserts the
+  parameter has not moved, then flushes once and finds it at the newest value.
+- The table reaches the audio thread through a single-producer ring of **whole
+  tables**, so there is no window in which a half-applied change can be observed,
+  and a producer that outruns the ring is refused rather than raced.
+- **Mappings are stored in the state tree** as a `<MIDIMAP>` child, written after
+  every edit rather than at save time, and needed **no schema bump** — a document
+  written before this phase simply has no such child (ADR-0043). Entries are
+  stored by parameter ID, and one naming a parameter this build does not have is
+  dropped rather than failing the load.
+- The interface exposes it as a **mode**, not a hidden right-click: a MIDI Learn
+  button in the masthead, after which clicking any control assigns it. Assigned
+  controls carry a monospace `CC 74` badge and a tooltip naming the channel;
+  Delete releases one, Escape cancels, and the state is legible in greyscale
+  (CLAUDE.md §39).
+- **Not yet present:** polyphonic aftertouch and MPE (6b), controller profiles
+  (6c), 14-bit high-resolution CC, relative/endless encoders, and pickup
+  ("takeover") mode. None is required for a generic controller to work.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 6 | MIDI Learn, controller profiles, polyphonic aftertouch, MPE. Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources |
+| 6 | Controller profiles (6c), polyphonic aftertouch and MPE (6b). Note, velocity, pitch bend and sustain landed in Phase 3; mod wheel and channel aftertouch in Phase 5d, as modulation sources; **MIDI Learn in 6a** |
 | 7 | The React migration and **every visualizer** — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry. The interface itself landed early (§2, Frontend): it is a framework-free page, and nothing in it draws a waveform yet |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
@@ -394,7 +437,11 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**206,757 assertions, 0 failures**, across 12 test classes:
+**1,711,449 assertions, 0 failures**, across 20 test classes. The table below
+lists the ones whose coverage is not obvious from their name; the DSP classes —
+Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
+matrix, Oversampling, Noise generator — are described in §2 alongside the
+subsystems they test.
 
 | Category | Class | Covers |
 |---|---|---|
@@ -407,6 +454,8 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 | UI | Parameter bridge | Snapshot matches APVTS, commands reach APVTS, invalid commands change nothing, external changes propagate, coalescing, detach safety, metadata completeness |
 | Engine | Voice engine | Pitch accuracy against four reference notes, velocity scaling, release to silence, polyphony, allocation order, deterministic stealing, click-free steal, sustain, pitch bend, voice reuse, extreme input, gain staging across five voicings |
 | Audio | MIDI rendering | Sample-accurate event placement, **identical output across nine block sizes**, sustain via CC 64, pitch wheel, all-notes-off, master gain scaling |
+| MIDI | MIDI mapping model | Address and range validation, reserved controllers, value scaling including inversion and clamping, the bijection and every replacement case, channel-specific beating omni in both learning orders, removal, capacity, and the publication ring — including a producer that outruns it |
+| MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
@@ -594,37 +643,37 @@ rather than a luxury.
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 | 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
+| 14 | The MIDI Learn interface has not been driven by hand | Medium | The engine half is verified end to end automatically — a real control-change message renders through `processBlock`, a mapping is learned, applied, saved, reloaded and shown to still drive its parameter. What is unverified is the *page*: the masthead toggle, the badges, the Escape and Delete keys, and a genuine learn completed by moving a physical control. The workstation was locked when 6a landed and neither input injection nor a screenshot is possible in that state, so this was left open rather than claimed. |
 
 ---
-
 ## 7. Blockers
 
-**None.** Phase 4c can begin.
+**None for development.** One verification is outstanding rather than blocked:
+the MIDI Learn interface has not yet been driven by hand, because the
+development workstation was locked when 6a landed (§6, issue 14). The engine
+half is verified automatically end to end; what is unverified is the *page*.
 
 ---
 
 ## 8. Recommended next action
 
-Begin **Phase 4c — nonlinear preparation**, the last of Phase 4. Its scope is
-the three unticked `ROADMAP.md` tasks plus the one open exit criterion:
+Continue **Phase 6**. Two of its tasks remain, each with its own sub-phase:
 
-1. Decide where oversampling is required, and record why. Everything Apollo has
-   built so far is linear, and a linear stage cannot fold, so this is a decision
-   about the distortion, waveshaping and aggressive warp stages still to come
-   rather than about anything currently in the signal path.
-2. State explicitly which stages are *not* oversampled, so the absence is a
-   recorded decision rather than an oversight (CLAUDE.md §23).
-3. Build the reusable oversampling infrastructure those stages will use, with
-   its own tests, ahead of the first stage that needs it.
-4. Measure CPU cost across representative polyphony levels — the one Phase 4
-   exit criterion still open. It needs a real measurement on real hardware
-   rather than an estimate, and it is the number that will say whether 32 voices
-   with 16-voice unison on both oscillators is a configuration Apollo can
-   honestly offer.
+1. **6b — per-note expression.** Polyphonic aftertouch and MPE. Channel pressure
+   is already a modulation source (5d), but a per-note source needs per-note
+   controller routing that does not exist: today a controller value is held by
+   the engine and pushed to every voice. MPE additionally needs per-note pitch
+   bend and a channel-allocation model, which is why the two belong together
+   rather than in the phase that merely reads the messages.
+2. **6c — controller profiles.** An optional, never-required way to fill the
+   mapping table quickly, kept strictly separate from the parameter registry
+   (CLAUDE.md §16.3). The mechanism it needs already exists: `assign()` takes a
+   complete mapping, including a channel, which is exactly what a profile
+   supplies.
 
-Still worth doing, both cheap and both carried since Phase 3: close ADR-0009
-(symbol visibility) now that plugin targets exist, and open the plugin once to
-confirm the editor renders (§6, issues 1-3).
+Then drive the MIDI Learn interface by hand and record it in §5a — the class of
+evidence the suite structurally cannot produce, since it builds headless and
+never opens a browser.
 
 ---
 

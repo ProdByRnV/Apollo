@@ -145,6 +145,11 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // coalescing timer, never by the audio thread.
     bridge.setOutboundHandler ([this] (const juce::String& message) { sendToWebView (message); });
 
+    // MIDI Learn completes when the user moves a physical control, with nothing
+    // sent from the page at all, so the bridge needs a route to push the new
+    // mapping state rather than waiting to be asked.
+    bridge.setMidiControl (&processor.getMidiControl());
+
     lastSeenStateReload = processor.getStateReloadCounter();
 
     setResizable (true, true);
@@ -165,6 +170,11 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     // and an outbound handler capturing a dead `this` would be a use-after-free
     // on the next coalesced flush.
     bridge.setOutboundHandler ({});
+
+    // The manager outlives the editor, so its change handler is released too.
+    // The bridge's own destructor would do this; doing it here keeps the two
+    // detachments together, where the order between them is visible.
+    bridge.setMidiControl (nullptr);
 }
 
 void ApolloWebViewEditor::paint (juce::Graphics& g)
@@ -194,6 +204,10 @@ void ApolloWebViewEditor::timerCallback()
     // UI from authoritative native state rather than trusting what it currently
     // shows (UI_BINDINGS.md §18).
     sendToWebView (bridge.createStateSnapshot());
+
+    // MIDI mappings travel inside the same document as the parameters, so a
+    // project load replaces them too and the page's copy is just as stale.
+    sendToWebView (bridge.createMidiMappings());
 }
 
 std::optional<juce::WebBrowserComponent::Resource>

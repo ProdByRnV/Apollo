@@ -146,9 +146,30 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "requestMidiMappings")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestMidiMappings;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "midiLearnCancel")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::midiLearnCancel;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "midiMappingClearAll")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::midiMappingClearAll;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     //--------------------------------------------------------------------------
-    // Both remaining message types identify a parameter, so the ID is validated
-    // once, here, before either branch uses it.
+    // Every remaining message type identifies a parameter, so the ID is
+    // validated once, here, before any branch uses it.
     const auto readParameterId = [&object] (juce::String& outId) -> BridgeErrorCode
     {
         if (! object->hasProperty (idProperty))
@@ -237,6 +258,19 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    //--------------------------------------------------------------------------
+    if (messageType == "midiLearnBegin" || messageType == "midiMappingRemove")
+    {
+        BridgeCommand command;
+        command.type = messageType == "midiLearnBegin" ? BridgeCommandType::midiLearnBegin
+                                                       : BridgeCommandType::midiMappingRemove;
+
+        if (const auto error = readParameterId (command.parameterId); error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
     return BridgeParseResult::failure (BridgeErrorCode::unknownMessageType);
 }
 
@@ -307,6 +341,50 @@ juce::String makeParameterMetadataMessage()
     object->setProperty (typeProperty, "parameterMetadata");
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("parameters", entries);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
+                                      const juce::String& learningId,
+                                      midi::AssignResult lastResult)
+{
+    juce::Array<juce::var> entries;
+
+    for (int i = 0; i < mappings.size(); ++i)
+    {
+        const auto& mapping = mappings.at (i);
+        const auto index = static_cast<std::size_t> (mapping.parameterIndex);
+
+        if (index >= params::parameterCount())
+            continue;
+
+        auto* entry = new juce::DynamicObject();
+
+        // The parameter ID, not its registry index: the frontend keys its
+        // controls by ID, and an index is an internal detail that would become
+        // wrong the moment the registry grows.
+        entry->setProperty (idProperty, toJuceString (params::parameterDefinitions[index].id));
+        entry->setProperty ("controller", mapping.address.controller);
+        entry->setProperty ("channel", mapping.address.channel);
+        entry->setProperty ("min", static_cast<double> (mapping.minimum));
+        entry->setProperty ("max", static_cast<double> (mapping.maximum));
+
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "midiMappings");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("mappings", entries);
+
+    // An explicit empty string rather than an absent property: "not learning"
+    // is a state the UI must render, and a missing key is easier to mishandle
+    // than a present one.
+    object->setProperty ("learning", learningId);
+    object->setProperty ("status", juce::String (midi::toToken (lastResult)));
+    object->setProperty ("statusMessage", juce::String (midi::describe (lastResult)));
+    object->setProperty ("capacity", midi::maxMappings);
 
     return juce::JSON::toString (juce::var (object));
 }

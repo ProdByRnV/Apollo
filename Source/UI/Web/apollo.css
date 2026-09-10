@@ -794,6 +794,113 @@ body::before {
 }
 
 /* ==========================================================================
+   MIDI LEARN
+
+   An assignment is a fact about a control, so it is drawn on the control: a
+   small monospace badge carrying the controller number. The badge is the whole
+   signal — the colour beside it is decoration, and the interface reads
+   correctly in greyscale (CLAUDE.md §24.2, §39).
+   ========================================================================== */
+
+.masthead__button {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+}
+
+.masthead__button:hover {
+    background: var(--surface-hover);
+    color: var(--text-bright);
+}
+
+.masthead__button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.masthead__button[aria-pressed="true"] {
+    color: var(--surface-void);
+    background: var(--active);
+    border-color: var(--active);
+}
+
+.masthead__button--quiet {
+    color: var(--text-dim);
+}
+
+/* The badge. Positioned rather than in flow, so turning MIDI Learn on does not
+   reflow the whole workspace and move every control out from under the cursor.
+   Each control root is made a positioning context for it. */
+.knob,
+.segmented,
+.bipolar {
+    position: relative;
+}
+
+.midi-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    padding: 2px 4px;
+    border-radius: var(--r-xs);
+    color: var(--surface-void);
+    background: var(--active);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.midi-badge[hidden] {
+    display: none !important;
+}
+
+/* Armed: the badge reads LEARN and pulses, so "waiting for you to move
+   something" is distinguishable from "assigned" without reading the colour. */
+.midi-badge[data-state="learning"] {
+    background: var(--caution);
+    animation: midi-pulse 1s var(--ease) infinite;
+}
+
+@keyframes midi-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
+}
+
+/* Assignment mode. The workspace dims slightly and every assignable control is
+   outlined, because in this mode a click does something quite different from
+   what it does the rest of the time and that must not be a surprise. */
+body[data-midi-mode="true"] .workspace {
+    cursor: crosshair;
+}
+
+body[data-midi-mode="true"] [data-midi-id] {
+    outline: 1px dashed var(--line-strong);
+    outline-offset: 1px;
+}
+
+body[data-midi-mode="true"] [data-midi-id]:hover {
+    outline-color: var(--active);
+}
+
+body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
+    outline-style: solid;
+    outline-color: var(--active);
+}
+
+/* ==========================================================================
    ACCESSIBILITY
    ========================================================================== */
 
