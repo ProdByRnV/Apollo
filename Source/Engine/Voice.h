@@ -319,10 +319,15 @@ public:
                      and are added into rather than overwritten.
 
         The cost of an untapped render is one predicted branch per source per
-        sample and nothing else, which is why there is one function here rather
-        than two: a second copy of this loop would be two places for a change to
-        the signal path to have to land, and only one of them would be the one
-        anybody listens to.
+        sample, and that is deliberately all it is: there is one function here
+        rather than two, and one code path inside it rather than one per source
+        for each answer. A second copy of this loop would be two places for a
+        change to the signal path to have to land, only one of which anybody
+        listens to — and, less obviously, two paths that need not round
+        identically on a target whose compiler contracts a multiply and an add
+        into one instruction. Watching a source must not change it, and that is
+        an equality rather than an approximation only while there is a single
+        path to be equal to.
     */
     void renderAdding (float* const* output, int numChannels, int startSample, int numSamples,
                        const VoiceTaps& taps) noexcept;

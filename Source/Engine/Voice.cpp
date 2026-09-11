@@ -821,31 +821,31 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
 
         if (renderNoise)
         {
-            // Read unconditionally, and exactly once per sample: a smoothed
-            // value that is stepped on some samples and not others would ramp
-            // at a rate that depended on whether anyone was watching.
+            // The generator adds into its destination, so the obvious thing is
+            // to have it add straight into the mix when nothing is watching and
+            // through a local when something is. That is two code paths, and on
+            // a target whose compiler contracts a multiply and an add into a
+            // single FMA they do not round the same way: adding into the mix
+            // rounds once, going through a local rounds twice. The difference is
+            // about 1e-8 — far below anything audible, and *exactly* the wrong
+            // thing to accept, because "watching a source does not change it" is
+            // worth having as an equality rather than an approximation. It is
+            // checked as one (Tests/Telemetry/ScopeTests.cpp), and the check is
+            // only meaningful if there is one path to check.
+            //
+            // So the local is unconditional and the branch buys only the store.
             const auto noiseLeftGain = noiseGain.left.getNextValue();
             const auto noiseRightGain = noiseGain.right.getNextValue();
 
+            float noiseLeft = 0.0f;
+            float noiseRight = 0.0f;
+            noise.addNextStereoSample (noiseLeft, noiseRight, noiseLeftGain, noiseRightGain);
+
+            left += noiseLeft;
+            right += noiseRight;
+
             if (taps.noise != nullptr)
-            {
-                // The generator adds into its destination, so an untapped voice
-                // has it add straight into the mix. Watching costs the pair of
-                // adds that routing it through a local requires, and nothing
-                // else — the multiplies are the same ones either way.
-                float noiseLeft = 0.0f;
-                float noiseRight = 0.0f;
-                noise.addNextStereoSample (noiseLeft, noiseRight, noiseLeftGain, noiseRightGain);
-
-                left += noiseLeft;
-                right += noiseRight;
-
                 taps.noise[i] += (noiseLeft + noiseRight) * 0.5f;
-            }
-            else
-            {
-                noise.addNextStereoSample (left, right, noiseLeftGain, noiseRightGain);
-            }
         }
 
         // Filter before the amplifier, which is the classic subtractive order and

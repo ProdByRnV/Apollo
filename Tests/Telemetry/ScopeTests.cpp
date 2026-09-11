@@ -604,6 +604,15 @@ private:
         expect (rendered[0].getMagnitude (0, oddBlockSize) > 0.01f,
                 "the comparison is worthless if neither pass made a sound");
 
+        // Exactly zero, not "within a tolerance". A tolerance here would be a
+        // tolerance for the signal path quietly forking, and this assertion has
+        // already earned its strictness once: the first version of the noise tap
+        // used one code path when watched and another when not, which is
+        // identical arithmetic everywhere the multiply and the add stay separate
+        // instructions and one rounding apart on a target that contracts them
+        // into an FMA. It passed on MSVC and GCC and failed on Apple Clang, by
+        // 4.5e-8 across 509 samples — inaudible, and exactly the kind of thing
+        // that should be fixed rather than tolerated.
         expectEquals (differing, 0,
                       "visualisation altered the audio, worst by "
                           + juce::String (worst, 9));

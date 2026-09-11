@@ -1516,6 +1516,17 @@ frame is audio from a previous session is precisely the stale trace §26.1 forbi
 Clearing is safe there *because* capture is off: with the flag clear no audio
 thread is writing to those rings, so there is no writer to race with.
 
+**One code path, not two.** The noise generator adds into whatever it is given, so
+the obvious implementation lets it add straight into the mix when nothing is
+watching and through a local when something is. That is identical arithmetic
+wherever the multiply and the add stay separate instructions, and one rounding
+apart wherever the compiler contracts them into an FMA: adding into the mix
+rounds once, going through a local rounds twice. It passed on MSVC and GCC and
+failed on Apple Clang by 4.5e-8 across 509 samples. Inaudible — and fixed rather
+than tolerated, because "watching a source does not change it" is worth having as
+an equality, and an equality is only checkable while there is one path to check.
+The local is therefore unconditional and the branch buys only the store.
+
 **Given up:** a scope that keeps working when nobody has asked for one, and the
 option of reading a source's trace back from a headless instance without arming it
 first. Both are recoverable by setting the flag; neither is worth a permanent tax
