@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-10
+**Last verified:** 2026-09-11
 **Apollo version:** 0.1.0
 
 ---
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 6 — MIDI, Control & Interaction |
-| **Status** | **Complete (6a, 6b, 6c)** — MIDI Learn, per-note expression and MPE, controller profiles |
-| **Milestone** | M6 — Control |
-| **Next step** | Phase 7 — Web UI / UX System (the React migration and every visualizer) |
+| **Phase** | Phase 7 — Web UI / UX System |
+| **Status** | **7a complete** (visualisation transport and the output oscilloscope). 7b, 7c and 7d remain |
+| **Milestone** | M7 — Interface |
+| **Next step** | Phase 7b — the five per-source oscilloscopes |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -38,9 +38,11 @@ because the instrument had become unusable to audition by hand; it does not
 close Phase 7, which still owns the React migration and every visualizer.
 
 Still placeholders: the four built-in wavetables are mathematically defined
-morphs rather than designed factory content (Phase 9). There are no
-oscilloscopes yet — per-source scopes are a Phase 7 requirement (PRD §30.1) and
-need a lock-free capture buffer per source, which does not exist.
+morphs rather than designed factory content (Phase 9).
+
+The instrument can now be *seen* as well as heard. Phase 7a built the lock-free
+capture transport PRD §30.1 requires and put the first scope on the output; the
+five per-source taps exist as a contract and are filled in by 7b.
 
 ---
 
@@ -129,7 +131,9 @@ Everything below was configured, built and executed on this machine.
   colour alone (ADR-0039, CLAUDE.md §39).
 - No framework and no network: the page has no dependencies and loads nothing
   over the wire (CLAUDE.md §40). The React migration remains Phase 7's.
-- **Not yet present:** oscilloscopes and any other visualizer.
+- **Now also present:** the output oscilloscope, drawn on a canvas from frames
+  the engine broadcasts at 30 Hz (Phase 7a). The five per-source scopes and
+  every other visualizer remain.
 
 ### Synthesis engine (Phase 3)
 
@@ -436,11 +440,50 @@ Everything below was configured, built and executed on this machine.
   but file loading, a user library path and the failure modes of both belong
   with the resource work in Phase 9.
 
+### Visualisation transport and the output scope (Phase 7a)
+
+- **A lock-free capture ring per source**, in `Source/Telemetry/`. The audio
+  thread writes and moves an index; the message thread reads a window ending a
+  margin *behind* that index and tells the writer nothing. One-way, allocation-
+  free, and JUCE-free, so the whole transport is testable with no host, no
+  device and no browser (ADR-0047).
+- The samples are `std::atomic<float>`, which costs nothing at run time on the
+  targets Apollo supports and is the difference between a stale sample and a
+  data race.
+- **Triggering, decimation and silence happen on the message thread.** A frame
+  is aligned to the most recent rising zero crossing so a steady note stands
+  still, and *says* when it could not find one rather than inventing stability.
+  Each drawn point is the sample at that position, never an average: averaging
+  would smooth an aliased or clipped waveform into a clean one, which is the
+  opposite of what a scope is for.
+- **The frame bridge is separate from the parameter bridge.** One is a
+  conversation and the other a broadcast; sharing a class would mean sharing a
+  rate. The frame timer follows the outbound handler, so a plugin with its
+  editor closed builds and serializes nothing.
+- **All six taps exist; only the output is written.** A source nothing captures
+  reports *inactive* and is omitted from the message entirely, so the interface
+  can tell "this build does not capture that" from "that part is quiet". 7b
+  fills in the other five by calling capture from the voice.
+- **Measured, not assumed** (PRD §30.1): output capture adds 0.012 % of real
+  time at one voice and 0.28 % at thirty-two — 3 to 7 % of the render it follows
+  and flat in voice count, because it is one pass over the finished buffer.
+  Building all six frames costs 0.06 % of real time at 30 Hz on the message
+  thread. Scopes do not cost polyphony.
+- **The trace is drawn 1:1 and never auto-scaled.** A scope that stretched its
+  input to fill the canvas would make every signal look equally loud and would
+  hide the one thing a scope is best at showing. Apollo's gain staging is
+  deliberately conservative, so an ordinary note draws a small trace; the caption
+  carries the peak in decibels, and a display-scale control belongs with the
+  metering work in 7c.
+- **Not yet present:** the five per-source scopes (7b), envelope and LFO traces,
+  wavetable display, output metering and spectrum (7c), and the React migration
+  (7d).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 7 | The React migration and **every visualizer** — including the **per-source oscilloscopes** added to PRD §30.1 in Phase 5d, which need a lock-free capture buffer per source; telemetry. The interface itself landed early (§2, Frontend): it is a framework-free page, and nothing in it draws a waveform yet |
+| 7 | The five **per-source oscilloscopes** (7b); envelope and LFO traces, output metering, wavetable display and spectrum (7c); the React migration (7d). The transport all of those need, and the output scope that proves it works, landed in **7a** |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
@@ -502,7 +545,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,712,188 assertions, 0 failures**, across 22 test classes. The table below
+**1,717,154 assertions, 0 failures**, across 23 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -523,6 +566,7 @@ subsystems they test.
 | MIDI | Controller profiles | Every built-in profile checked against the registry — real parameters, assignable controllers, no duplicate controller or parameter inside one profile, unique identifiers; applying fills the table exactly; replace clears and merge keeps; an entry naming an unknown parameter is dropped while a reserved controller is refused, each counted separately; a profile's mappings are ordinary mappings that can be learned over, released and cleared; and every bridge command, including an unknown profile and an unknown mode |
 | MIDI | MPE and per-note expression | Zone channel classification at both ends of both zones; manager-versus-member routing; RPN decoding, per-channel independence, the null selection and NRPN cancellation; polyphonic aftertouch pressing one note and not another; channel pressure still pressing everything; per-note bend independent per channel and adding to the wheel; note-off matching its channel; CC 74 as timbre inside a zone and as a MIDI Learn target outside one; the bend range as a control, applied to a held wheel; an MPE Configuration Message reaching the zone through the parameter; and pressure not being inherited by a new note while the bend is |
 | MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
+| Telemetry | Visualisation transport | An untouched source distinguishable from a silent one; the window read back in order, including across the ring's wrap; a stopped source seen to stop rather than holding its last picture; reset; the silence threshold; triggering, including that a flat line reports itself free-running; decimation that shows alternating samples rather than averaging them to nothing; per-source isolation and unique wire tokens; the processor capturing its own output through `processBlock`; and the bridge sending a frame whose points are finite, inside full scale, and actually a waveform |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
@@ -607,6 +651,19 @@ than the `modNN_source` parameter's range, so the guard that only trusts a label
 table when it matches the engine's own range correctly refused it — and every
 matrix source read "0" instead of "—". The parameter range was widened to match
 the enum (ADR-0044).
+
+### The output oscilloscope, 2026-09-11
+
+The scope is the one part of Phase 7a the suite cannot judge: it can assert that
+the right numbers reach the page, and not that the page draws them.
+
+| Checked | Result |
+|---|---|
+| The scope sits beside its controls | In the Output module, 200 px wide, with the three knobs still in the module beside it. The first version took its width from the container, grew to 370 px tall and pushed the knobs out — fixed, and the reason is in the stylesheet |
+| An idle synthesiser reads as idle | A flat zero line, the canvas dimmed, and the caption reading **silent** — not an empty panel, which is what a scope that had failed would look like |
+| A held note draws its waveform | A violet trace of about two cycles across the sweep, with the caption reading **−34.1 dB** |
+| The reading is the real level | Opening filter 1 from 126 Hz to 20 kHz took the same note from −34.1 dB to **−26.0 dB**, and the trace grew with it. Nothing is auto-scaled: the trace is small because Apollo's output genuinely is (ADR-0017) |
+| A released note leaves no stale trace | Two seconds after the note-off the scope was back to a flat line and **silent** (PRD §30.1, CLAUDE.md §26.1) |
 
 ---
 
@@ -724,6 +781,37 @@ Cheap next to the voice engine: a stereo 4x-oversampled distortion costs about
 1.6 % of one core, which is why 4x is a reasonable default for a distortion stage
 rather than a luxury.
 
+### Visualisation capture
+
+PRD §30.1's own requirement: scopes for every source must not materially reduce
+polyphony, and that has to be measured rather than argued. Measured in Phase 7a,
+with only the output tapped.
+
+| Voices | Render alone | Render + output capture | Capture adds |
+|---:|---:|---:|---:|
+| 1 | 0.270 % | 0.282 % | 0.012 % |
+| 8 | 2.175 % | 2.324 % | 0.149 % |
+| 32 | 9.662 % | 9.943 % | 0.281 % |
+
+**Capture is flat in voice count**, which is the whole point: it is one linear
+pass over the finished output buffer, so it costs the same whether one voice
+made that buffer or thirty-two. As a fraction of the render it follows it is
+3-7 %, and it *falls* as polyphony rises because the render grows and the pass
+does not.
+
+Building frames is the message thread's work, not the audio thread's:
+
+| Work | Cost |
+|---|---:|
+| All six frames, per block | 0.186 % |
+| The same at 30 frames a second | **0.059 %** |
+
+So the answer to PRD §30.1 is that six scopes cost well under one per cent of a
+core between them. Five of the six taps are not written yet (7b); each adds one
+pass over a shorter buffer, so the figure to expect is the per-voice-level one
+above scaled by how much of the signal each tap sees, and it will be re-measured
+rather than extrapolated when they land.
+
 ---
 
 ## 6. Known issues
@@ -746,41 +834,44 @@ rather than a luxury.
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 
 ---
+
 ## 7. Blockers
 
-**None.** Phase 7 can begin.
+**None.** Phase 7b can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Begin **Phase 7 — Web UI / UX System**, the only phase whose foundations are
-already partly laid: the interface itself was brought forward during Phase 5 and
-has since grown MIDI Learn, the MPE controls and the profile picker. What Phase 7
-still owns is everything that is not a control:
+Continue **Phase 7** with **7b — the five per-source oscilloscopes**. Almost
+everything it needs now exists: the ring, the frame builder, the bridge, the
+message shape and the canvas are all in and proven by the output scope, and
+`ScopeSource` already enumerates all six taps. What 7b has to do is write the
+five that are still silent, and answer the one question the output tap did not
+raise:
 
-1. **Per-source oscilloscopes**, which are the phase's largest single piece and
-   the one with a real architectural cost. PRD §30.1 asks for a scope on
-   oscillator 1, oscillator 2, the sub, the noise generator, the post-filter
-   signal and the output — six capture points, each needing a lock-free
-   visualisation buffer written from the audio thread, none of which exists. The
-   PRD also requires the cost to be *measured* rather than assumed: scopes for
-   every source must not materially reduce polyphony.
-2. **Envelope and LFO traces**, which are the same problem at a much lower rate:
-   a live reading of the value each generator is producing, not a static picture
-   of its shape. The values are already available — `Voice::getSourceValue`
-   returns them — so this is a transport and rate-limiting question rather than
-   a DSP one.
-3. **The React migration.** The page is deliberately framework-free today, and
-   is roughly two thousand lines of hand-written DOM code. That is sustainable
-   for controls and will stop being sustainable once six animating canvases are
-   added to it, which is the honest argument for doing the migration before the
-   visualizers rather than after.
+1. **Where each tap goes.** The output was easy — one buffer, after master gain,
+   in the processor. The other five are *inside the voice*, and there are up to
+   thirty-two voices. A scope on "oscillator 1" means the sum of oscillator 1
+   across every sounding voice, so each voice has to add into a shared capture
+   rather than overwrite it, and something has to zero that capture once per
+   block before the voices run.
+2. **What a source with no voices shows.** A tap that no voice wrote this block
+   must record silence rather than keep its last picture — the same rule the
+   output already follows, but the output is written unconditionally and these
+   are not.
+3. **Re-measuring.** §5b has the output figure and the cost is flat in voice
+   count *for the output*, which will not be true of a per-voice tap: that one
+   is a pass per voice. PRD §30.1 asks whether scopes cost polyphony, and with
+   five per-voice taps that becomes a real question rather than a formality.
+4. **Where they appear.** Each scope belongs next to the thing it shows —
+   oscillator 1's in the Oscillator 1 module, and so on — which is why the scope
+   is already a control-sized element rather than a panel.
 
-Two carried items are also worth clearing when their owners come up: the
-allocation/lock detector on the audio thread (§6, issue 6, Phase 10), and the
-company/product codes in §6, issue 11, which are permanent once released and
-still unconfirmed.
+Then **7c** (envelope and LFO traces, output metering, wavetable display) and
+**7d** (the React migration), in that order: 7c is more of the same transport,
+and 7d is the one that should happen before the page acquires many more
+animating canvases.
 
 ---
 

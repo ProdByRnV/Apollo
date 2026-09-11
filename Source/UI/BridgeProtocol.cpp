@@ -446,6 +446,51 @@ juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
     return juce::JSON::toString (juce::var (object));
 }
 
+juce::String makeScopeFramesMessage (
+    const std::array<telemetry::ScopeFrame, telemetry::scopeSourceCount>& frames)
+{
+    juce::Array<juce::var> entries;
+
+    for (std::size_t i = 0; i < frames.size(); ++i)
+    {
+        const auto& frame = frames[i];
+
+        // A source nothing captures is left out rather than sent as an empty
+        // trace: the frontend draws only what it is told about, so "not
+        // captured" and "captured and silent" cannot be confused.
+        if (! frame.valid)
+            continue;
+
+        juce::Array<juce::var> points;
+        points.ensureStorageAllocated (telemetry::scopeFramePoints);
+
+        for (const auto value : frame.points)
+        {
+            // Three decimals is a thousandth of full scale, which is below a
+            // pixel on any scope anyone will draw, and it roughly halves the
+            // message next to a full double (UI_BINDINGS.md §12).
+            points.add (juce::var (std::round (static_cast<double> (value) * 1000.0) / 1000.0));
+        }
+
+        auto* entry = new juce::DynamicObject();
+        entry->setProperty (
+            "source", toJuceString (telemetry::toToken (static_cast<telemetry::ScopeSource> (i))));
+        entry->setProperty ("points", points);
+        entry->setProperty ("peak", static_cast<double> (frame.peak));
+        entry->setProperty ("silent", frame.silent);
+        entry->setProperty ("triggered", frame.triggered);
+
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "scopeFrames");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("scopes", entries);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
 juce::String makeControllerProfilesMessage()
 {
     juce::Array<juce::var> entries;

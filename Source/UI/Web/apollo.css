@@ -900,6 +900,63 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     outline-color: var(--active);
 }
 
+/* ==========================================================================
+   OSCILLOSCOPE
+
+   The trace uses the accent violet rather than the green: green means active
+   modulation in Apollo (§24.2), and a scope showing the output is not a
+   modulation indicator — it is simply what is there, all the time.
+   ========================================================================== */
+
+/* A control-sized element, not a panel. A scope inside a module has to sit
+   beside knobs rather than push them out of the module, and a width taken from
+   the container would do exactly that — which is what the first version did. */
+.scope {
+    --scope-trace: var(--accent-bright);
+    --scope-grid: var(--line);
+
+    flex: 0 0 auto;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.scope__canvas {
+    display: block;
+    width: 100%;
+    background: var(--surface-void);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+}
+
+.scope__caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.scope__flag {
+    color: var(--caution);
+}
+
+/* A silent source recedes rather than disappearing: the zero line stays drawn,
+   so a stopped scope reads as a scope showing silence rather than as a panel
+   that failed (§26.1). */
+.scope[data-silent="true"] {
+    --scope-trace: var(--line-strong);
+}
+
+.scope[data-silent="true"] .scope__canvas {
+    opacity: 0.7;
+}
+
 /* The controller-profile picker. Its own row rather than a control well,
    because it is an action rather than a value. */
 .profiles {

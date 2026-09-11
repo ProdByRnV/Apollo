@@ -22,7 +22,10 @@
 
 #include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
+#include "Telemetry/ScopeFrame.h"
+#include "Telemetry/TelemetryHub.h"
 
+#include <array>
 #include <utility>
 #include <vector>
 
@@ -197,5 +200,22 @@ struct BridgeParseResult
     is running.
 */
 [[nodiscard]] juce::String makeControllerProfilesMessage();
+
+/** `{"type":"scopeFrames", ...}`
+
+    One message carrying every active scope, rather than one message per source.
+    They are drawn in the same repaint, and a frontend that received them
+    separately could render a frame from one source beside a staler frame from
+    another — which on six traces of the same note would look like a bug in the
+    synthesiser rather than in the transport.
+
+    Inactive sources are omitted entirely. A source this build does not capture
+    is not the same as one that is quiet, and the interface must not draw them
+    alike (PRD §30.1).
+
+    @param frames  one entry per source, indexed by telemetry::ScopeSource.
+*/
+[[nodiscard]] juce::String makeScopeFramesMessage (
+    const std::array<telemetry::ScopeFrame, telemetry::scopeSourceCount>& frames);
 
 } // namespace apollo::ui

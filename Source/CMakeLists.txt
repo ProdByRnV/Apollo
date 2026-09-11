@@ -67,6 +67,11 @@ add_library(apollo_core STATIC
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
     Parameters/ParameterDefinitions.h
+    Telemetry/ScopeBuffer.cpp
+    Telemetry/ScopeBuffer.h
+    Telemetry/ScopeFrame.cpp
+    Telemetry/ScopeFrame.h
+    Telemetry/TelemetryHub.h
     "${CMAKE_CURRENT_BINARY_DIR}/generated/ApolloVersion.h")
 
 add_library(apollo::core ALIAS apollo_core)
@@ -109,7 +114,9 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.h")
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/TelemetryBridge.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/TelemetryBridge.h")
 
 # ---------------------------------------------------------------------------
 # apollo_editor

@@ -485,30 +485,37 @@ migration, the browsers the engine cannot yet feed, and every visualizer.
 
 ### Visualization
 
-- [ ] Oscilloscope for the final output.
+- [x] Oscilloscope for the final output. — a lock-free capture ring per source, triggered and decimated on the message thread, drawn on a canvas at 30 Hz. Silent, sounding and released all verified on screen (ADR-0047) (7a)
 - [ ] **Per-source oscilloscopes** — oscillator 1, oscillator 2, sub, noise and the post-filter signal, each with its own scope so the user can see the wave each part is producing rather than only the sum (PRD §30.1, CLAUDE.md §26.1). Requires a lock-free capture buffer per source, tapped inside the voice and summed across voices.
 - [ ] Wavetable visualization.
 - [ ] Envelope visualization — a live trace of the value being produced, not a static picture of the shape.
 - [ ] LFO visualization — likewise.
-- [ ] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale.
+- [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — output capture adds 0.012 % of real time at one voice and 0.28 % at thirty-two, flat in voice count because it is one pass over the finished buffer; six frames cost 0.06 % at 30 Hz on the message thread. A stopped source reads as silent because the capture keeps running and records the silence (7a)
 - [ ] Optional spectrum visualization.
 - [ ] Voice/activity indicators.
 - [ ] Output metering.
 
 ### Telemetry
 
-- [ ] Implement lock-free/atomic telemetry snapshots.
-- [ ] Rate-limit UI updates.
-- [ ] Ensure visualizers never access mutable DSP state directly.
+- [x] Implement lock-free/atomic telemetry snapshots. — `Telemetry/ScopeBuffer.h`: one-way, allocation-free, and read behind the writer so the reader and writer are a ring apart (7a)
+- [x] Rate-limit UI updates. — frames at 30 Hz, decimated to 192 points and rounded to three decimals before they leave the native side; the timer follows the outbound handler, so a closed editor serializes nothing (7a)
+- [x] Ensure visualizers never access mutable DSP state directly. — the interface never sees a voice, a buffer or an engine; it sees a frame of floats that was copied out of a ring (7a)
 - [ ] Verify UI CPU usage independently of DSP CPU usage.
 
 ## Exit Criteria
 
-- UI controls accurately represent native state.
-- UI interactions produce correct parameter changes.
-- UI reload restores state correctly.
-- Visualizers remain responsive without affecting audio processing.
-- UI remains usable across supported display configurations.
+- [x] UI controls accurately represent native state. — every control is built from parameter metadata and echoes the engine's own value back (Phase 5, brought forward)
+- [x] UI interactions produce correct parameter changes. — verified by hand and by the parameter-bridge tests
+- [x] UI reload restores state correctly. — a project load bumps the reload counter and resynchronises parameters, MIDI mappings and the learn state wholesale
+- [ ] Visualizers remain responsive without affecting audio processing. — met for the output scope and measured (7a); re-measure when the five per-source taps land in 7b
+- [x] UI remains usable across supported display configurations. — verified at 1920x1080 with 150 % scaling
+
+---
+
+> **Phase status:** 7a is in — the visualisation transport and the output
+> oscilloscope, with the capture cost measured rather than assumed. Three
+> sub-phases remain: **7b** the five per-source scopes, **7c** envelope and LFO
+> traces, metering and wavetable display, and **7d** the React migration.
 
 ---
 

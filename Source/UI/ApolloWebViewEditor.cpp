@@ -123,6 +123,7 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     : juce::AudioProcessorEditor (processorToUse),
       processor (processorToUse),
       bridge (processorToUse.getValueTreeState()),
+      telemetry (processorToUse.getTelemetry()),
       webView (withPlatformBackend (juce::WebBrowserComponent::Options {}
                    .withNativeIntegrationEnabled()
                    .withResourceProvider ([this] (const auto& path) { return provideResource (path); })
@@ -159,6 +160,10 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     webView.goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
     pageReady = true;
 
+    // Attaching the handler is what starts the frame timer, so capture is only
+    // turned into JSON while there is an editor to draw it.
+    telemetry.setOutboundHandler ([this] (const juce::String& message) { sendToWebView (message); });
+
     startTimerHz (stateReloadPollHz);
 }
 
@@ -170,6 +175,10 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     // and an outbound handler capturing a dead `this` would be a use-after-free
     // on the next coalesced flush.
     bridge.setOutboundHandler ({});
+
+    // Stops the frame timer as well as the sending, so a closed editor costs
+    // nothing beyond the capture the audio thread was doing anyway.
+    telemetry.setOutboundHandler ({});
 
     // The manager outlives the editor, so its change handler is released too.
     // The bridge's own destructor would do this; doing it here keeps the two

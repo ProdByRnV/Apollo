@@ -1389,3 +1389,68 @@ belong with the resource work in Phase 9 (CLAUDE.md §30). The seam is already
 in place: `ControllerProfile` is plain data and `applyProfile` takes one by
 reference, so a profile read from disk enters by exactly the same door a
 built-in one does.
+
+---
+
+## ADR-0047 — Visualisation is a one-way broadcast, and the scope never flatters the signal
+
+**Phase 7a (UI) · Accepted**
+
+PRD §30.1 asks for a scope on the output and one on every source. Three decisions
+shape how that is built, and all three are about keeping the audio thread and the
+picture honestly separated.
+
+**The transport is a lock-free ring per source, and the samples are
+`std::atomic<float>`.** The audio thread writes and moves an index; the message
+thread reads a window ending a margin *behind* that index and tells the writer
+nothing. The atomics look heavy-handed and are not: on every architecture Apollo
+targets, a relaxed load or store of a four-byte atomic is the instruction a plain
+one would have been, so they cost nothing at run time and buy the difference
+between "a reader may see a stale sample" and "this is a data race". A scope can
+survive a stale sample; it cannot survive undefined behaviour. Reading behind the
+writer is what makes even the stale sample rare: the ring holds 170 ms at 48 kHz
+and the interface reads every 33 ms.
+
+**Triggering, decimation and silence all happen on the message thread.** A frame
+is aligned to the most recent rising zero crossing so a steady note stands still,
+and says so when it could not find one rather than inventing stability. Each
+drawn point is *the sample at that position*, not an average of the span:
+averaging would turn an aliased or clipped waveform into a smooth one, and a
+scope whose job is to reveal exactly those things must not flatter what it draws.
+The window's peak is measured so a stopped source reads as stopped instead of
+holding its last picture (CLAUDE.md §26.1).
+
+**The frame bridge is separate from the parameter bridge**, because the two are
+different kinds of thing. ParameterBridge is a conversation — the page asks and
+is answered, and every message is the authoritative echo of a value the page also
+holds. This is a broadcast: nothing is requested, nothing is acknowledged, and a
+dropped frame costs one repaint. Sharing a class would mean sharing a rate, and
+30 Hz of scope traffic has nothing to do with how often a knob's value should be
+echoed. The frame timer follows the outbound handler, so a plugin with its editor
+closed serializes nothing.
+
+**Measured, as PRD §30.1 requires rather than assumed.** Output capture adds
+0.012 % of real time at one voice and 0.28 % at thirty-two — 3 to 7 % of the
+render it follows, and flat in voice count because it is one pass over the
+finished buffer. Building all six frames costs 0.06 % of real time at 30 Hz, on
+the message thread. Scopes do not cost polyphony.
+
+**The trace is drawn 1:1 and is never auto-scaled.** A scope that stretched its
+input to fill the canvas would make every signal look the same loudness, and
+would hide the one thing a scope is best at showing: that something is too loud.
+The consequence is visible and deliberate — Apollo's gain staging is conservative
+(ADR-0017: one note peaks near -22 dBFS), so an ordinary note draws a small
+trace. The caption carries the peak in decibels so the level is readable as a
+number, and a display-scale control belongs with the metering work in 7c rather
+than as an invented default here.
+
+**Given up:** a scope that looks impressive on a quiet patch. That is the same
+trade ADR-0021 and ADR-0033 made — the measurement is worth more than the
+flattering picture.
+
+**A note on where the rings live.** Six of them are about 190 KB, which is more
+than a thread's stack is worth, so the hub is held by pointer rather than by
+value. The first version made it a by-value member of the processor and overflowed
+the stack in a test that had been passing for months — a failure that looked
+nothing like its cause. The allocation happens once, at construction, which is
+exactly where allocation is permitted (CLAUDE.md §9.2).

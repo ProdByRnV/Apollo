@@ -553,6 +553,53 @@ The list is fixed at build time and never pushed unprompted.
 
 ---
 
+### 10.4 Visualisation frames (Phase 7a)
+
+Scope frames are a **broadcast**, not a conversation: the frontend asks for
+nothing and acknowledges nothing, and a dropped frame costs one repaint. They
+travel on their own timer at 30 Hz, separate from the parameter bridge's 30 Hz
+*display* rate, because the two rates answer different questions and would
+otherwise be coupled by accident.
+
+```json
+{
+  "type": "scopeFrames",
+  "version": 1,
+  "scopes": [
+    {
+      "source": "output",
+      "points": [0.0, 0.031, 0.062],
+      "peak": 0.0812,
+      "silent": false,
+      "triggered": true
+    }
+  ]
+}
+```
+
+- `source` is a stable token — `output`, `osc1`, `osc2`, `sub`, `noise`,
+  `filter` — that the frontend keys its scopes on.
+- `points` is the trace, oldest first, 192 values in -1 to +1, rounded to three
+  decimals. Three decimals is below a pixel on any scope anyone will draw and
+  roughly halves the message (§12).
+- `peak` is the largest absolute sample in the *window the frame came from*, not
+  in the decimated points, so it is the real level rather than what survived
+  decimation.
+- `silent` is true when that peak is below the threshold. A stopped source must
+  read as stopped rather than holding its last picture (CLAUDE.md §26.1).
+- `triggered` is false when no zero crossing was found and the scope is
+  free-running — worth knowing when a trace will not stand still.
+
+**A source that is not captured is omitted from the array entirely.** "This build
+does not capture that" is not "that part is quiet", and the frontend must not
+draw them alike. Only `output` is sent today; the other five arrive in 7b.
+
+The frame timer follows the outbound handler, so a plugin whose editor is closed
+builds and serializes nothing — the capture itself keeps running, because it
+costs a linear pass the audio thread was making anyway.
+
+---
+
 ## 11. Modulation Visualization
 
 Base parameter values and modulation should remain conceptually separate:

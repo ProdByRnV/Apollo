@@ -695,6 +695,138 @@ function createBipolar (id) {
 }
 
 /* ==========================================================================
+   OSCILLOSCOPE
+
+   A canvas rather than an SVG path: this redraws thirty times a second, and
+   rebuilding a path's `d` attribute at that rate would hand the browser a new
+   string to parse on every frame for a picture it throws away immediately.
+
+   Everything drawn here comes from the frame the engine sent. The page does no
+   triggering, no smoothing and no scaling of its own — a scope that prettied up
+   its input would be showing its own arithmetic rather than the audio, and the
+   whole reason for having one is to see what is actually there.
+   ========================================================================== */
+
+const scopes = new Map();   // source token -> { update(frame) }
+
+const SCOPE_ASPECT = 0.42;
+
+function createScope (source) {
+    const root = make('div', 'scope');
+    root.dataset.scopeSource = source;
+
+    const canvas = make('canvas', 'scope__canvas', root);
+    const caption = make('div', 'scope__caption', root);
+    const reading = make('span', 'scope__reading', caption);
+    const flag = make('span', 'scope__flag', caption);
+
+    const context = canvas.getContext('2d');
+
+    let points = null;
+    let silent = true;
+
+    // Backing-store size follows the element's box and the display's pixel
+    // ratio, so the trace is one physical pixel wide rather than a blurred two
+    // on a scaled display.
+    function resize () {
+        const ratio = window.devicePixelRatio || 1;
+        const width = Math.max(1, Math.round(root.clientWidth));
+        const height = Math.max(1, Math.round(width * SCOPE_ASPECT));
+
+        canvas.style.height = height + 'px';
+
+        const backingWidth = Math.round(width * ratio);
+        const backingHeight = Math.round(height * ratio);
+
+        if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+            canvas.width = backingWidth;
+            canvas.height = backingHeight;
+        }
+
+        return { width: backingWidth, height: backingHeight, ratio };
+    }
+
+    function draw () {
+        const size = resize();
+        const { width, height } = size;
+        const middle = height / 2;
+
+        const style = getComputedStyle(root);
+        const traceColour = style.getPropertyValue('--scope-trace').trim() || '#7b5cff';
+        const gridColour = style.getPropertyValue('--scope-grid').trim() || '#292935';
+
+        context.clearRect(0, 0, width, height);
+
+        // The zero line, which is what makes a silent scope read as a scope
+        // showing silence rather than as a panel that failed to draw.
+        context.strokeStyle = gridColour;
+        context.lineWidth = Math.max(1, size.ratio);
+        context.beginPath();
+        context.moveTo(0, middle);
+        context.lineTo(width, middle);
+        context.stroke();
+
+        if (!points || points.length === 0) return;
+
+        context.strokeStyle = traceColour;
+        context.lineWidth = Math.max(1, 1.4 * size.ratio);
+        context.lineJoin = 'round';
+        context.beginPath();
+
+        for (let i = 0; i < points.length; ++i) {
+            const x = points.length > 1 ? (i / (points.length - 1)) * width : 0;
+
+            // Clamped rather than scaled to fit: a trace drawn at whatever
+            // height it happens to need would make everything look the same
+            // loudness, and a signal past full scale must be visibly past it.
+            const clamped = Math.max(-1, Math.min(1, points[i]));
+            const y = middle - clamped * middle * 0.94;
+
+            if (i === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+        }
+
+        context.stroke();
+    }
+
+    const control = {
+        element: root,
+
+        update (frame) {
+            points = frame.points;
+            silent = frame.silent;
+
+            root.dataset.silent = silent ? 'true' : 'false';
+
+            // A number as well as a picture, because a trace alone cannot tell
+            // you whether a quiet signal is quiet or absent (CLAUDE.md §39).
+            reading.textContent = silent
+                ? 'silent'
+                : (frame.peak >= 1 ? '0.0 dB'
+                                   : (20 * Math.log10(Math.max(frame.peak, 1e-6))).toFixed(1) + ' dB');
+
+            // Said in words rather than by a colour: a free-running trace is one
+            // that will not stand still, and knowing why is the difference
+            // between a puzzle and a fact.
+            flag.textContent = (!silent && !frame.triggered) ? 'FREE' : '';
+
+            draw();
+        },
+
+        redraw: draw
+    };
+
+    scopes.set(source, control);
+    draw();
+
+    return root;
+}
+
+function scope (body, source) {
+    body.append(createScope(source));
+}
+
+/* ==========================================================================
    MODULE FRAME
    ========================================================================== */
 
@@ -1034,6 +1166,8 @@ function buildMatrix (rank) {
 function buildOutput (rank) {
     const module = createModule('Output', null);
     rank.append(module.root);
+
+    scope(module.body, 'output');
 
     knob(module.body, 'fx_distortion_mix', 'Dist Mix');
     knob(module.body, 'fx_delay_time', 'Delay Time');
@@ -1434,6 +1568,16 @@ function handle (message) {
             refreshProfiles();
             break;
 
+        case 'scopeFrames':
+            // Only the sources the engine reports are drawn. A scope the page
+            // has built but the engine says nothing about is left as it was
+            // rather than blanked, because "not captured" is not "silent".
+            for (const frame of message.scopes) {
+                const target = scopes.get(frame.source);
+                if (target) target.update(frame);
+            }
+            break;
+
         case 'stateSnapshot':
             for (const id of Object.keys(message.parameters))
                 apply(id, message.parameters[id]);
@@ -1491,6 +1635,13 @@ function handle (message) {
 bridge.listen(handle);
 installMidiMode();
 setMidiMode(false);
+
+// A canvas sized from its own box has to be told when that box changes. Frames
+// arrive thirty times a second and redraw anyway, so this only matters for a
+// scope that is silent and therefore still.
+window.addEventListener('resize', () => {
+    for (const target of scopes.values()) target.redraw();
+});
 
 if (bridge.available) {
     bridge.send({ type: 'requestMetadata', version: PROTOCOL_VERSION });

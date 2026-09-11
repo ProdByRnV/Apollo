@@ -30,6 +30,7 @@
 
 #include "Audio/ApolloAudioProcessor.h"
 #include "UI/ParameterBridge.h"
+#include "UI/TelemetryBridge.h"
 
 namespace apollo::ui
 {
@@ -73,6 +74,11 @@ private:
 
     ApolloAudioProcessor& processor;
     ParameterBridge bridge;
+
+    /** The visualisation broadcast. Separate from the parameter bridge because
+        it is a broadcast rather than a conversation, and runs at its own rate.
+    */
+    TelemetryBridge telemetry;
 
     juce::WebBrowserComponent webView;
 

@@ -3,6 +3,7 @@
 #include <juce_core/juce_core.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
@@ -14,6 +15,9 @@
 #include "DSP/LFO/Lfo.h"
 #include "DSP/Oversampling/Oversampler.h"
 #include "Engine/VoiceEngine.h"
+#include "Telemetry/ScopeFrame.h"
+#include "Telemetry/TelemetryHub.h"
+#include "UI/TelemetryBridge.h"
 
 namespace apollo::benchmarks
 {
@@ -340,6 +344,113 @@ void benchmarkOversampling()
 
 } // namespace
 
+/** What a visualisation tap costs.
+
+    PRD §30.1 requires this to be measured rather than assumed, because the
+    scopes are only affordable if they do not cost polyphony. The question the
+    measurement has to answer is not "is capture fast" — one linear pass over a
+    buffer obviously is — but "is it fast *next to the render it follows*", which
+    is a ratio, and a ratio needs both halves measured the same way.
+*/
+void benchmarkTelemetry()
+{
+    printHeading ("Visualisation capture, per block, against the render it follows");
+
+    const int voiceCounts[] = { 1, 8, 32 };
+
+    for (const auto voices : voiceCounts)
+    {
+        static engine::VoiceEngine voiceEngine;
+        voiceEngine.prepare (sampleRate);
+        voiceEngine.setPolyphony (voices);
+
+        for (int i = 0; i < voices; ++i)
+            voiceEngine.noteOn (36 + i * 2, 0.9f);
+
+        std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
+        float* channels[] = { left.data(), right.data() };
+
+        const auto renderOnly = measure (secondsPerMeasurement, [&]
+        {
+            voiceEngine.render (channels, 2, 0, blockSize);
+        });
+
+        static telemetry::TelemetryHub hub;
+        hub.reset();
+
+        const auto withCapture = measure (secondsPerMeasurement, [&]
+        {
+            voiceEngine.render (channels, 2, 0, blockSize);
+            hub.scope (telemetry::ScopeSource::output)
+                .writeMixedToMono (channels, 2, 0, blockSize);
+        });
+
+        printRow (std::to_string (voices) + " voices, render only", renderOnly, voices);
+        printRow (std::to_string (voices) + " voices, render + output capture", withCapture,
+                  voices);
+
+        const auto overhead = withCapture.realtimeFraction - renderOnly.realtimeFraction;
+
+        std::cout << "      capture adds " << std::fixed << std::setprecision (4)
+                  << (overhead * 100.0) << " % of real time";
+
+        if (renderOnly.realtimeFraction > 0.0)
+            std::cout << " (" << std::setprecision (1)
+                      << (overhead / renderOnly.realtimeFraction * 100.0) << " % of the render)";
+
+        std::cout << std::endl;
+
+        voiceEngine.reset();
+    }
+
+    // The six taps PRD §30.1 asks for are the same pass six times over shorter
+    // buffers, so this is the figure to multiply rather than a new measurement
+    // to make when the per-source scopes land.
+    printHeading ("Building one frame for every source (message thread, 30 Hz)");
+
+    {
+        static telemetry::TelemetryHub hub;
+        hub.reset();
+
+        std::vector<float> noise (static_cast<std::size_t> (blockSize), 0.0f);
+
+        for (int i = 0; i < blockSize; ++i)
+            noise[static_cast<std::size_t> (i)] =
+                static_cast<float> (std::sin (0.017 * static_cast<double> (i)));
+
+        for (std::size_t source = 0; source < telemetry::scopeSourceCount; ++source)
+            for (int i = 0; i < telemetry::scopeBufferSize / blockSize + 1; ++i)
+                hub.scope (static_cast<telemetry::ScopeSource> (source))
+                    .write (noise.data(), blockSize);
+
+        std::array<telemetry::ScopeFrame, telemetry::scopeSourceCount> frames;
+
+        // Measured against the block rate rather than the frame rate, so the
+        // number is comparable with everything else in this report; the note
+        // below converts it to what it actually costs.
+        const auto measurement = measure (secondsPerMeasurement, [&]
+        {
+            for (std::size_t source = 0; source < telemetry::scopeSourceCount; ++source)
+                (void) telemetry::buildScopeFrame (
+                    hub.scope (static_cast<telemetry::ScopeSource> (source)), frames[source]);
+        });
+
+        printRow ("six frames, per block", measurement, 0);
+
+        // A frame is built thirty times a second, not once per block, so the
+        // real cost is this figure scaled by the ratio of the two rates.
+        const auto blocksPerSecond = sampleRate / static_cast<double> (blockSize);
+        const auto actual = measurement.realtimeFraction
+                          * (static_cast<double> (ui::TelemetryBridge::frameRateHz)
+                             / blocksPerSecond);
+
+        std::cout << "      at " << ui::TelemetryBridge::frameRateHz << " frames a second that is "
+                  << std::fixed << std::setprecision (4) << (actual * 100.0)
+                  << " % of real time, on the message thread" << std::endl;
+    }
+}
+
 void run()
 {
     std::cout << "\n==========================================================\n"
@@ -352,6 +463,7 @@ void run()
     benchmarkModulation();
     benchmarkLfos();
     benchmarkOversampling();
+    benchmarkTelemetry();
 
     std::cout << "\nMeasured on this machine, in this configuration. These numbers are\n"
                  "not portable and are not asserted on: see Tests/Performance/Benchmarks.h.\n"

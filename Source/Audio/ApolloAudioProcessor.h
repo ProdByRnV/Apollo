@@ -21,8 +21,10 @@
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
 #include "State/StateSerialization.h"
+#include "Telemetry/TelemetryHub.h"
 
 #include <atomic>
+#include <memory>
 
 namespace apollo
 {
@@ -142,6 +144,16 @@ public:
     [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
     [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
 
+    /** The visualisation taps.
+
+        Owned by the processor rather than by the editor, because the audio
+        thread writes to them and the audio thread runs whether or not anyone is
+        watching. An editor that opens finds capture already in progress instead
+        of having to start it (PRD §30.1).
+    */
+    [[nodiscard]] telemetry::TelemetryHub& getTelemetry() noexcept { return *telemetry; }
+    [[nodiscard]] const telemetry::TelemetryHub& getTelemetry() const noexcept { return *telemetry; }
+
     /** The synthesis engine.
 
         Exposed so tests can inspect voice allocation directly rather than
@@ -204,6 +216,19 @@ private:
     std::atomic<int> stateReloadCounter { 0 };
 
     engine::VoiceEngine voiceEngine;
+
+    /** Written by the audio thread, read by whatever is drawing.
+
+        Held indirectly, and deliberately: six capture rings of eight thousand
+        samples are about 190 KB, which is more than a thread's whole stack is
+        worth and far more than any owner should be forced to find room for by
+        value. A host allocates its processor on the heap, but a test does not,
+        and the first version of this member overflowed the stack in a test that
+        had been passing for months — a failure that looked nothing like its
+        cause. The allocation happens once, at construction, which is exactly
+        where allocation is permitted (CLAUDE.md §9.2).
+    */
+    std::unique_ptr<telemetry::TelemetryHub> telemetry;
 
     /** Cached pointer to the master gain's plain (dB) value.
 

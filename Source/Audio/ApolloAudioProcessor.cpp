@@ -35,6 +35,8 @@ ApolloAudioProcessor::ApolloAudioProcessor()
       apvts (*this, nullptr, params::stateTreeType, params::createParameterLayout()),
       midiControl (apvts)
 {
+    telemetry = std::make_unique<telemetry::TelemetryHub>();
+
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
@@ -196,6 +198,11 @@ void ApolloAudioProcessor::reset()
     // safe to call at any time, including before prepareToPlay.
     voiceEngine.reset();
     masterGain.setCurrentAndTargetValue (readMasterGainLinear());
+
+    // Captures go with the audio they were taken from. A transport jump or a
+    // device change must not leave a scope showing a picture of sound that is no
+    // longer being produced.
+    telemetry->reset();
 }
 
 float ApolloAudioProcessor::readMasterGainLinear() const noexcept
@@ -679,6 +686,17 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         for (int channel = 0; channel < numOutputChannels; ++channel)
             juce::FloatVectorOperations::multiply (outputs[channel], gain, numSamples);
     }
+
+    // The visualisation tap, last, so the output scope shows what actually
+    // leaves the plugin rather than the mix before the gain stage. One linear
+    // pass over a buffer that was just written, which is why it costs what it
+    // does — see PROJECT-STATE.md §5b (ADR-0047).
+    //
+    // Written unconditionally, including when the engine produced silence: a
+    // source that has stopped must be seen to stop rather than holding its last
+    // picture (CLAUDE.md §26.1).
+    telemetry->scope (telemetry::ScopeSource::output)
+        .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
 }
 
 //==============================================================================
