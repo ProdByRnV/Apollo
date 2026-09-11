@@ -19,6 +19,7 @@
 #include "Telemetry/ScopeBuffer.h"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <string_view>
 
@@ -117,6 +118,46 @@ public:
             buffer.reset();
     }
 
+    /** AUDIO THREAD. True while anything is watching.
+
+        Capture is not free, and the two taps cost differently. The output tap is
+        one linear pass over a buffer that already exists, so it is flat in voice
+        count. The per-source taps live inside the voice loop, so their cost
+        scales with polyphony — which is exactly the cost PRD §30.1 forbids
+        growing without measuring. A plugin whose editor is closed has nobody
+        watching, so it captures nothing and costs what it did before scopes
+        existed. In a session holding twenty instances that is nineteen of them.
+
+        Relaxed, because the audio thread reads it once per block only to decide
+        whether to do optional work. Acting on a value one block out of date
+        costs a single frame at the moment an editor opens, so there is nothing
+        here worth ordering against.
+    */
+    [[nodiscard]] bool isCapturing() const noexcept
+    {
+        return capturing.load (std::memory_order_relaxed);
+    }
+
+    /** MESSAGE THREAD. Starts or stops capture.
+
+        Starting clears every ring first. Between one viewer closing and the next
+        opening, the rings still hold whatever was sounding when the first one
+        closed, and a scope whose opening frame is audio from a previous session
+        is precisely the stale trace CLAUDE.md §26.1 forbids. Clearing is safe
+        here *because* capture is off: with the flag false no audio thread is
+        writing to these rings, so there is no writer to race with.
+    */
+    void setCapturing (bool shouldCapture) noexcept
+    {
+        if (shouldCapture == capturing.load (std::memory_order_relaxed))
+            return;
+
+        if (shouldCapture)
+            reset();
+
+        capturing.store (shouldCapture, std::memory_order_relaxed);
+    }
+
 private:
     /** Clamped rather than asserted: an out-of-range source is a caller bug, and
         returning a reference to arbitrary memory would turn it into undefined
@@ -129,6 +170,8 @@ private:
     }
 
     std::array<ScopeBuffer, scopeSourceCount> buffers;
+
+    std::atomic<bool> capturing { false };
 };
 
 } // namespace apollo::telemetry

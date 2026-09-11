@@ -553,7 +553,7 @@ The list is fixed at build time and never pushed unprompted.
 
 ---
 
-### 10.4 Visualisation frames (Phase 7a)
+### 10.4 Visualisation frames (Phase 7a, 7b)
 
 Scope frames are a **broadcast**, not a conversation: the frontend asks for
 nothing and acknowledges nothing, and a dropped frame costs one repaint. They
@@ -592,11 +592,34 @@ otherwise be coupled by accident.
 
 **A source that is not captured is omitted from the array entirely.** "This build
 does not capture that" is not "that part is quiet", and the frontend must not
-draw them alike. Only `output` is sent today; the other five arrive in 7b.
+draw them alike. All six are sent once capture has been running long enough to
+fill a window; in the first frames after an editor opens, some or all may be
+missing, and the page draws nothing for them rather than drawing a partial one.
 
-The frame timer follows the outbound handler, so a plugin whose editor is closed
-builds and serializes nothing — the capture itself keeps running, because it
-costs a linear pass the audio thread was making anyway.
+**Where each source is tapped** matters when reading the numbers, because the six
+are not all taken from the same place:
+
+| Token | Taken |
+|---|---|
+| `osc1`, `osc2`, `sub`, `noise` | at the source, after its own level and balance, before the filter and the amplifier |
+| `filter` | after the filter section, the envelope, velocity and any steal fade — the voice's finished contribution, before master gain |
+| `output` | after master gain: what leaves the plugin |
+
+So a source reads at a level the envelope has not touched, and closing the filter
+takes `filter` and `output` down while leaving the four sources where they were.
+That disagreement is the point: it is the difference between watching a source and
+watching the mix.
+
+Every source except `output` is the sum across the **whole voice pool**. What
+oscillator 1 is producing is what every voice producing it is producing together,
+which is the only reading that stays true when more than one note is held.
+
+**The frame timer and the capture both follow the outbound handler.** A plugin
+whose editor is closed builds nothing, serializes nothing and captures nothing:
+the five source taps live inside the voice loop, so their cost rises with
+polyphony, and an instance nobody is watching has no reason to pay it. Attaching
+a handler also clears every ring, so the first frames a viewer sees can never be
+audio left behind by the last one.
 
 ---
 

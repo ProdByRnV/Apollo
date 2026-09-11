@@ -32,7 +32,9 @@
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
 #include "Engine/Voice.h"
+#include "Engine/VoiceTaps.h"
 #include "MIDI/MpeZone.h"
+#include "Telemetry/TelemetryHub.h"
 
 #include <array>
 #include <cstdint>
@@ -392,6 +394,33 @@ public:
     void render (float* const* output, int numChannels, int startSample, int numSamples) noexcept;
 
     //==============================================================================
+
+    /** Gives the engine somewhere to publish per-source visualisation, or
+        nothing.
+
+        Non-owning and nullable: the hub belongs to the processor, and an engine
+        driven by a test or a benchmark has no hub at all. When the hub reports
+        that nobody is watching, the voices are rendered exactly as they were
+        before any of this existed — the decision is taken once per call, not per
+        voice and not per sample.
+
+        Call while audio is stopped. The pointer is read on the audio thread.
+    */
+    void setTelemetry (telemetry::TelemetryHub* hub) noexcept { telemetryHub = hub; }
+
+    /** How many samples the per-source taps are accumulated in at a time.
+
+        The scratch has to be a fixed size, because `prepare` is told a sample
+        rate and not a block length and a host may hand over a longer block than
+        it promised in any case. Rendering the voice pool in chunks of this size
+        while capturing removes the question entirely: any block length works,
+        and a voice rendered as two consecutive calls produces exactly what it
+        produces as one — the per-sample state that drives it lives in the voice
+        and carries across the boundary.
+    */
+    static constexpr int captureChunkSamples = 512;
+
+    //==============================================================================
     // Introspection, for tests and metering.
 
     [[nodiscard]] int getActiveVoiceCount() const noexcept;
@@ -485,6 +514,40 @@ private:
         identity so "oldest" is exact rather than approximate.
     */
     std::uint64_t nextStartOrder = 1;
+
+    //==============================================================================
+    // Visualisation.
+
+    /** Renders the voice pool into @p output, and into the scratch. */
+    void renderVoicesCapturing (float* const* output, int numChannels, int startSample,
+                                int numSamples) noexcept;
+
+    telemetry::TelemetryHub* telemetryHub = nullptr;
+
+    /** The taps in the order the scratch holds them. Mapped to ScopeSource on
+        the way out; kept separate from that enum because the engine captures
+        the five signals that pass through it and not the finished output, which
+        belongs to the processor.
+    */
+    enum class Tap
+    {
+        oscillator1 = 0,
+        oscillator2,
+        sub,
+        noise,
+        postFilter,
+        count
+    };
+
+    static constexpr std::size_t numTaps = static_cast<std::size_t> (Tap::count);
+
+    /** One mono accumulator per tap.
+
+        Ten kilobytes, held by value like everything else in the audio path, and
+        never touched at all unless something is watching.
+    */
+    std::array<std::array<float, static_cast<std::size_t> (captureChunkSamples)>, numTaps>
+        tapScratch {};
 };
 
 } // namespace apollo::engine

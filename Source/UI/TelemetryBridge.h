@@ -12,14 +12,17 @@
     has nothing to do with the rate at which a knob's value should be echoed.
 
     THREADING. Everything here is message thread. The audio thread's entire
-    involvement in visualisation is writing samples into a preallocated ring
-    (Telemetry/ScopeBuffer.h); it is never asked for a frame, never waits, and
-    does not know whether anything is watching (CLAUDE.md §7.1, §26.3).
+    involvement in visualisation is reading one relaxed flag and, if it is set,
+    writing samples into a preallocated ring (Telemetry/ScopeBuffer.h). It is
+    never asked for a frame and never waits for one (CLAUDE.md §7.1, §26.3).
 
-    The timer runs only while a handler is attached, so a plugin with its editor
-    closed builds no frames and serializes no JSON — the capture keeps running,
-    because it costs a linear pass the audio thread was going to make anyway, but
-    nothing downstream of it does.
+    The timer runs only while a handler is attached, and so does the capture
+    behind it: attaching a handler arms every ring, and detaching one disarms
+    them. A plugin with its editor closed therefore builds no frames, serializes
+    no JSON, and — the part that matters on the audio thread — takes no taps at
+    all. That gate exists because the per-source taps are inside the voice loop,
+    so their cost rises with polyphony (PRD §30.1); the alternative is every
+    instance in a session paying for pictures only one of them can show.
 */
 
 #include <juce_core/juce_core.h>

@@ -37,6 +37,11 @@ ApolloAudioProcessor::ApolloAudioProcessor()
 {
     telemetry = std::make_unique<telemetry::TelemetryHub>();
 
+    // The per-source taps live inside the voice loop, so the engine is the only
+    // thing that can take them. It holds the hub without owning it, and reads
+    // once per block whether anything is watching.
+    voiceEngine.setTelemetry (telemetry.get());
+
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
@@ -692,11 +697,14 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // pass over a buffer that was just written, which is why it costs what it
     // does — see PROJECT-STATE.md §5b (ADR-0047).
     //
-    // Written unconditionally, including when the engine produced silence: a
-    // source that has stopped must be seen to stop rather than holding its last
-    // picture (CLAUDE.md §26.1).
-    telemetry->scope (telemetry::ScopeSource::output)
-        .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
+    // Written whenever anything is watching, including when the engine produced
+    // silence: a source that has stopped must be seen to stop rather than
+    // holding its last picture (CLAUDE.md §26.1). Skipped entirely when nothing
+    // is — an instance with no editor open should cost what it did before scopes
+    // existed, and in a session holding twenty of them that is nineteen.
+    if (telemetry->isCapturing())
+        telemetry->scope (telemetry::ScopeSource::output)
+            .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
 }
 
 //==============================================================================

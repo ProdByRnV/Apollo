@@ -1454,3 +1454,69 @@ value. The first version made it a by-value member of the processor and overflow
 the stack in a test that had been passing for months — a failure that looked
 nothing like its cause. The allocation happens once, at construction, which is
 exactly where allocation is permitted (CLAUDE.md §9.2).
+
+---
+
+## ADR-0048 — A source's scope shows the whole pool, before the filter, and only while somebody is watching
+
+**Phase 7b (UI) · Accepted**
+
+The output scope of ADR-0047 was one pass over a buffer that already existed. The
+five per-source scopes are not: the signals they show exist only inside the voice
+loop, which runs up to thirty-two times a block. Three questions follow, and the
+answers are what make the difference between a useful instrument and a slower one.
+
+**Capture is taken once for the whole voice pool, not per voice.** What
+"oscillator 1" is producing is what every voice producing it is producing
+together — any other reading stops being true the moment a second note is held.
+So the engine owns one mono accumulator per tap, each voice adds its own
+contribution into it, and the sum is published once. The accumulators are cleared
+before each pass, which is what makes a source that stops *seen* to stop: the
+zeroes are captured rather than inferred from the absence of a write (CLAUDE.md
+§26.1). The alternative — showing whichever voice was asked — would draw a
+readable single waveform during a chord and would be a picture of something that
+is not happening.
+
+The accumulators are a fixed 512 samples and the voice pool is rendered in chunks
+of that length while capturing, because `prepare` is told a sample rate and not a
+block length, and a host may hand over a longer block than it promised in any
+case. A voice rendered as two consecutive calls produces exactly what it produces
+as one: the per-sample state that drives it lives in the voice and carries across
+the boundary. A test renders the same note both ways and compares the output
+sample for sample.
+
+**The four source taps sit before the filter and the amplifier; the fifth sits
+after both.** A source scope is what you watch while choosing a wavetable
+position, and an envelope's shape drawn over the waveform would obscure the only
+thing being looked at — so the sources are taken at the source, after their own
+level and balance and nothing else. `postFilter` is the opposite: the voice's
+finished contribution, everything it does to the signal, immediately before it is
+added to the mix. Today that makes it the output scope without the master gain,
+which is nearly redundant; once the effects rack exists it becomes the dry
+instrument against the processed one, which is the comparison it is really for.
+
+The pair is more informative than either alone. Closing the filter takes the
+sound away without taking the oscillator away, and the two scopes then disagree —
+which is the difference between watching a source and watching the mix, and is
+asserted as such in the tests.
+
+**Capture runs only while something is watching, and arming it clears the rings.**
+Measured on this machine, the six taps together add 0.05 % of real time at one
+voice and 0.76 % at thirty-two. In absolute terms that is small — scopes still do
+not cost polyphony, which is what PRD §30.1 asks — but as a fraction of the render
+it is 8 to 18 %, and an instance whose editor is closed has no reason to pay any
+of it. A session holding twenty instances shows one. So the hub carries a flag
+the audio thread reads once per block, the editor sets it when it attaches its
+outbound handler and clears it when it detaches, and with it clear the engine
+renders exactly the code it ran before any of this existed.
+
+Arming clears every ring first. Between one viewer closing and the next opening,
+the rings still hold whatever was sounding at the time, and a scope whose opening
+frame is audio from a previous session is precisely the stale trace §26.1 forbids.
+Clearing is safe there *because* capture is off: with the flag clear no audio
+thread is writing to those rings, so there is no writer to race with.
+
+**Given up:** a scope that keeps working when nobody has asked for one, and the
+option of reading a source's trace back from a headless instance without arming it
+first. Both are recoverable by setting the flag; neither is worth a permanent tax
+on every instance in a project.

@@ -48,6 +48,7 @@
 #include "DSP/Modulation/ModulationTypes.h"
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
+#include "Engine/VoiceTaps.h"
 
 #include <array>
 #include <cstdint>
@@ -306,7 +307,25 @@ public:
         @param startSample  first sample to write.
         @param numSamples   samples to write.
     */
-    void renderAdding (float* const* output, int numChannels, int startSample, int numSamples) noexcept;
+    void renderAdding (float* const* output, int numChannels, int startSample, int numSamples) noexcept
+    {
+        renderAdding (output, numChannels, startSample, numSamples, VoiceTaps {});
+    }
+
+    /** As above, and additionally deposits each part of the voice separately.
+
+        @param taps  mono destinations, any or all of them null. See VoiceTaps:
+                     they are indexed from zero rather than from @p startSample,
+                     and are added into rather than overwritten.
+
+        The cost of an untapped render is one predicted branch per source per
+        sample and nothing else, which is why there is one function here rather
+        than two: a second copy of this loop would be two places for a change to
+        the signal path to have to land, and only one of them would be the one
+        anybody listens to.
+    */
+    void renderAdding (float* const* output, int numChannels, int startSample, int numSamples,
+                       const VoiceTaps& taps) noexcept;
 
     [[nodiscard]] bool isActive() const noexcept { return stage != VoiceStage::idle; }
     [[nodiscard]] bool isReleasing() const noexcept

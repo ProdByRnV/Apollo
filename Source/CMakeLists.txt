@@ -58,6 +58,7 @@ add_library(apollo_core STATIC
     Engine/Voice.h
     Engine/VoiceEngine.cpp
     Engine/VoiceEngine.h
+    Engine/VoiceTaps.h
     MIDI/ControllerProfile.h
     MIDI/MidiMapping.cpp
     MIDI/MidiMapping.h

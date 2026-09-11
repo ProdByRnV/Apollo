@@ -725,7 +725,8 @@ float Voice::nextAmplitude() noexcept
     return value;
 }
 
-void Voice::renderAdding (float* const* output, int numChannels, int startSample, int numSamples) noexcept
+void Voice::renderAdding (float* const* output, int numChannels, int startSample, int numSamples,
+                          const VoiceTaps& taps) noexcept
 {
     if (stage == VoiceStage::idle || output == nullptr || numChannels <= 0)
         return;
@@ -774,8 +775,18 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             float stackRight = 0.0f;
             oscillator1.addNextStereoSample (stackLeft, stackRight);
 
-            left += stackLeft * gain1.left.getNextValue();
-            right += stackRight * gain1.right.getNextValue();
+            // Scaled in place rather than on the way into the mix, so the same
+            // two multiplies produce both the contribution and the tap. The
+            // arithmetic is identical to what this line did before taps
+            // existed; only the order of the statements has moved.
+            stackLeft *= gain1.left.getNextValue();
+            stackRight *= gain1.right.getNextValue();
+
+            left += stackLeft;
+            right += stackRight;
+
+            if (taps.oscillator1 != nullptr)
+                taps.oscillator1[i] += (stackLeft + stackRight) * 0.5f;
         }
 
         if (renderOsc2)
@@ -784,22 +795,58 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             float stackRight = 0.0f;
             oscillator2.addNextStereoSample (stackLeft, stackRight);
 
-            left += stackLeft * gain2.left.getNextValue();
-            right += stackRight * gain2.right.getNextValue();
+            stackLeft *= gain2.left.getNextValue();
+            stackRight *= gain2.right.getNextValue();
+
+            left += stackLeft;
+            right += stackRight;
+
+            if (taps.oscillator2 != nullptr)
+                taps.oscillator2[i] += (stackLeft + stackRight) * 0.5f;
         }
 
         if (renderSub)
         {
             const auto value = subOscillator.getNextSample();
 
-            left += value * subGain.left.getNextValue();
-            right += value * subGain.right.getNextValue();
+            const auto subLeft = value * subGain.left.getNextValue();
+            const auto subRight = value * subGain.right.getNextValue();
+
+            left += subLeft;
+            right += subRight;
+
+            if (taps.sub != nullptr)
+                taps.sub[i] += (subLeft + subRight) * 0.5f;
         }
 
         if (renderNoise)
-            noise.addNextStereoSample (left, right,
-                                       noiseGain.left.getNextValue(),
-                                       noiseGain.right.getNextValue());
+        {
+            // Read unconditionally, and exactly once per sample: a smoothed
+            // value that is stepped on some samples and not others would ramp
+            // at a rate that depended on whether anyone was watching.
+            const auto noiseLeftGain = noiseGain.left.getNextValue();
+            const auto noiseRightGain = noiseGain.right.getNextValue();
+
+            if (taps.noise != nullptr)
+            {
+                // The generator adds into its destination, so an untapped voice
+                // has it add straight into the mix. Watching costs the pair of
+                // adds that routing it through a local requires, and nothing
+                // else — the multiplies are the same ones either way.
+                float noiseLeft = 0.0f;
+                float noiseRight = 0.0f;
+                noise.addNextStereoSample (noiseLeft, noiseRight, noiseLeftGain, noiseRightGain);
+
+                left += noiseLeft;
+                right += noiseRight;
+
+                taps.noise[i] += (noiseLeft + noiseRight) * 0.5f;
+            }
+            else
+            {
+                noise.addNextStereoSample (left, right, noiseLeftGain, noiseRightGain);
+            }
+        }
 
         // Filter before the amplifier, which is the classic subtractive order and
         // not an arbitrary one: filtering after the envelope would make a
@@ -812,6 +859,15 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
 
         left *= amplitude;
         right *= amplitude;
+
+        // Taken here rather than immediately after the filter, because this is
+        // the point at which the voice is finished: everything it does to the
+        // signal has been done, and the only thing left is addition. Today that
+        // makes this scope the output scope without the master gain; once the
+        // effects rack exists it becomes the dry instrument against the
+        // processed one, which is the comparison it is really for.
+        if (taps.postFilter != nullptr)
+            taps.postFilter[i] += (left + right) * 0.5f;
 
         const auto index = startSample + i;
 

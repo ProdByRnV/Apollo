@@ -11,8 +11,21 @@
     average that would flatter it.
 
     All of it is JUCE-free apart from the assertions, because the transport is.
-    The processor-level test at the end is the one that needs a processor: it
-    proves that what the audio thread actually writes is what a scope reads back.
+    The processor-level tests at the end are the ones that need a processor: they
+    prove that what the audio thread actually writes is what a scope reads back.
+
+    The per-source taps add three claims that are worth more than any of the
+    above, because each of them is a way this feature could quietly ruin the
+    instrument rather than merely draw a bad picture:
+
+      - watching a source does not change it. The same note rendered with and
+        without capture must come back sample for sample identical, including
+        when the block is long enough that the capture path cuts it in half;
+      - a source that is switched off is *captured as silence* rather than left
+        uncaptured, which is the difference between a scope showing nothing and
+        a scope that has stopped working;
+      - a source's trace is what the whole voice pool is producing, not what one
+        voice chosen from it happens to be doing.
 */
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -21,6 +34,7 @@
 #include <vector>
 
 #include "Audio/ApolloAudioProcessor.h"
+#include "Engine/VoiceEngine.h"
 #include "Telemetry/ScopeBuffer.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
@@ -62,6 +76,54 @@ void writeSine (telemetry::ScopeBuffer& buffer, int count, double cyclesOverCoun
     buffer.write (values.data(), count);
 }
 
+/** Runs @p count blocks of silence-in through the processor. */
+void runBlocks (ApolloAudioProcessor& processor, int count, int blockSize = testBlockSize)
+{
+    juce::AudioBuffer<float> buffer (2, blockSize);
+
+    for (int i = 0; i < count; ++i)
+    {
+        juce::MidiBuffer empty;
+        buffer.clear();
+        processor.processBlock (buffer, empty);
+    }
+}
+
+/** Blocks needed to refill a capture ring completely. */
+[[nodiscard]] constexpr int blocksToFillTheRing (int blockSize = testBlockSize)
+{
+    return telemetry::scopeBufferSize / blockSize + 2;
+}
+
+/** Sets a parameter by its real-world value. */
+void setParameter (ApolloAudioProcessor& processor, const juce::String& id, float value)
+{
+    if (auto* parameter = processor.getValueTreeState().getParameter (id))
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+}
+
+/** The root-mean-square of a source's whole capture window.
+
+    Used instead of the peak wherever the claim is about how much signal is
+    present rather than how loud its loudest moment was: a sum of several notes
+    can peak anywhere depending on where their phases happen to land, but its
+    energy is not a matter of luck.
+*/
+[[nodiscard]] double windowRms (const telemetry::ScopeBuffer& buffer)
+{
+    std::vector<float> window (static_cast<std::size_t> (telemetry::scopeWindowSamples));
+
+    if (! buffer.readWindow (window.data(), telemetry::scopeWindowSamples))
+        return 0.0;
+
+    double sum = 0.0;
+
+    for (const auto value : window)
+        sum += static_cast<double> (value) * static_cast<double> (value);
+
+    return std::sqrt (sum / static_cast<double> (window.size()));
+}
+
 class ScopeTests final : public juce::UnitTest
 {
 public:
@@ -81,7 +143,11 @@ public:
         testFrameTriggering();
         testFrameShowsTheSignal();
         testHubSourcesAreIndependent();
+        testCaptureFollowsTheViewer();
         testProcessorCapturesItsOutput();
+        testTapsDoNotChangeTheAudio();
+        testEachSourceShowsOnlyItself();
+        testSourceTapSumsTheVoicePool();
         testBridgeSendsWhatWasCaptured();
     }
 
@@ -361,6 +427,10 @@ private:
         processor.setRateAndBufferSizeDetails (testSampleRate, testBlockSize);
         processor.prepareToPlay (testSampleRate, testBlockSize);
 
+        // Nothing captures until something is watching, which in the running
+        // plugin is the editor attaching its handler.
+        processor.getTelemetry().setCapturing (true);
+
         auto& scope = processor.getTelemetry().scope (telemetry::ScopeSource::output);
 
         expect (! scope.isActive(), "nothing is captured before the first block");
@@ -368,9 +438,9 @@ private:
         juce::AudioBuffer<float> buffer (2, testBlockSize);
         juce::MidiBuffer midi;
 
-        // Silence first. The capture runs regardless, so the source becomes
-        // active and reads as silent — which is what lets an idle synthesiser
-        // draw a flat line rather than nothing at all.
+        // Silence first. The capture runs whether or not the engine produced
+        // anything, so the source becomes active and reads as silent — which is
+        // what lets an idle synthesiser draw a flat line rather than nothing.
         buffer.clear();
         processor.processBlock (buffer, midi);
 
@@ -411,6 +481,251 @@ private:
         // note that is no longer sounding.
         processor.reset();
         expect (! scope.isActive());
+    }
+
+    void testCaptureFollowsTheViewer()
+    {
+        beginTest ("Nothing is captured while nothing is watching");
+
+        ApolloAudioProcessor processor;
+        processor.setRateAndBufferSizeDetails (testSampleRate, testBlockSize);
+        processor.prepareToPlay (testSampleRate, testBlockSize);
+
+        auto& hub = processor.getTelemetry();
+
+        expect (! hub.isCapturing(), "a processor with no editor must capture nothing");
+
+        juce::AudioBuffer<float> buffer (2, testBlockSize);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.9f), 0);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+
+        expect (buffer.getMagnitude (0, testBlockSize) > 0.0f,
+                "the note must still sound when nobody is watching it");
+
+        for (std::size_t i = 0; i < telemetry::scopeSourceCount; ++i)
+            expect (! hub.scope (static_cast<telemetry::ScopeSource> (i)).isActive(),
+                    "an unwatched instance must not pay for a picture nobody sees");
+
+        // A viewer arriving arms every ring. This is what the editor does when
+        // it attaches its outbound handler.
+        ui::TelemetryBridge bridge (hub);
+        bridge.setOutboundHandler ([] (const juce::String&) {});
+
+        expect (hub.isCapturing());
+
+        runBlocks (processor, blocksToFillTheRing());
+
+        telemetry::ScopeFrame frame;
+        expect (telemetry::buildScopeFrame (hub.scope (telemetry::ScopeSource::output), frame));
+        expect (! frame.silent, "a held note must reach the scope once it is watched");
+
+        // A viewer leaving disarms them, and the rings are left holding a
+        // picture of a note that was sounding at the time. The next viewer must
+        // not be shown it: that is exactly the stale trace §26.1 forbids.
+        bridge.setOutboundHandler ({});
+        expect (! hub.isCapturing());
+
+        bridge.setOutboundHandler ([] (const juce::String&) {});
+
+        expect (! hub.scope (telemetry::ScopeSource::output).isActive(),
+                "re-arming must discard the picture the last viewer left behind");
+    }
+
+    void testTapsDoNotChangeTheAudio()
+    {
+        beginTest ("Watching a source does not change what it sounds like");
+
+        // Deliberately not a multiple of the capture chunk, so the block is
+        // split unevenly and a voice is rendered as two consecutive calls.
+        // Whether the audio survives being cut in half is the whole question.
+        constexpr int oddBlockSize = 1000;
+
+        static_assert (oddBlockSize > engine::VoiceEngine::captureChunkSamples,
+                       "the block must be long enough to force the chunked path to split it");
+
+        juce::AudioBuffer<float> rendered[2] {
+            juce::AudioBuffer<float> (2, oddBlockSize),
+            juce::AudioBuffer<float> (2, oddBlockSize),
+        };
+
+        for (int pass = 0; pass < 2; ++pass)
+        {
+            ApolloAudioProcessor processor;
+            processor.setRateAndBufferSizeDetails (testSampleRate, oddBlockSize);
+            processor.prepareToPlay (testSampleRate, oddBlockSize);
+
+            // Every source audible, so every tap is exercised rather than four
+            // of the five being skipped by a level of zero.
+            setParameter (processor, "osc2_level", 0.7f);
+            setParameter (processor, "sub_level", 0.5f);
+            setParameter (processor, "noise_level", 0.3f);
+
+            if (pass == 1)
+                processor.getTelemetry().setCapturing (true);
+
+            juce::AudioBuffer<float> warm (2, oddBlockSize);
+            juce::MidiBuffer midi;
+            midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.9f), 0);
+            midi.addEvent (juce::MidiMessage::noteOn (1, 64, 0.8f), 37);
+
+            warm.clear();
+            processor.processBlock (warm, midi);
+
+            // A few blocks before the one that is compared, so the comparison
+            // covers voices in flight rather than only their first samples.
+            runBlocks (processor, 3, oddBlockSize);
+
+            juce::MidiBuffer none;
+            rendered[pass].clear();
+            processor.processBlock (rendered[pass], none);
+        }
+
+        int differing = 0;
+        float worst = 0.0f;
+
+        for (int channel = 0; channel < 2; ++channel)
+        {
+            const auto* plain = rendered[0].getReadPointer (channel);
+            const auto* watched = rendered[1].getReadPointer (channel);
+
+            for (int i = 0; i < oddBlockSize; ++i)
+            {
+                if (plain[i] != watched[i])
+                {
+                    ++differing;
+                    worst = juce::jmax (worst, std::abs (plain[i] - watched[i]));
+                }
+            }
+        }
+
+        expect (rendered[0].getMagnitude (0, oddBlockSize) > 0.01f,
+                "the comparison is worthless if neither pass made a sound");
+
+        expectEquals (differing, 0,
+                      "visualisation altered the audio, worst by "
+                          + juce::String (worst, 9));
+    }
+
+    void testEachSourceShowsOnlyItself()
+    {
+        beginTest ("A source that is switched off is captured as silence, not left blank");
+
+        ApolloAudioProcessor processor;
+        processor.setRateAndBufferSizeDetails (testSampleRate, testBlockSize);
+        processor.prepareToPlay (testSampleRate, testBlockSize);
+        processor.getTelemetry().setCapturing (true);
+
+        auto& hub = processor.getTelemetry();
+
+        // The default patch is oscillator 1 alone: the other three sources sit
+        // at a level of zero and are skipped by the voice entirely.
+        juce::AudioBuffer<float> buffer (2, testBlockSize);
+        juce::MidiBuffer midi;
+        midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.9f), 0);
+
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+
+        runBlocks (processor, blocksToFillTheRing());
+
+        const auto frameFor = [&hub] (telemetry::ScopeSource source)
+        {
+            telemetry::ScopeFrame frame;
+            (void) telemetry::buildScopeFrame (hub.scope (source), frame);
+            return frame;
+        };
+
+        const auto osc1 = frameFor (telemetry::ScopeSource::oscillator1);
+        const auto osc2 = frameFor (telemetry::ScopeSource::oscillator2);
+        const auto sub = frameFor (telemetry::ScopeSource::sub);
+        const auto noise = frameFor (telemetry::ScopeSource::noise);
+        const auto postFilter = frameFor (telemetry::ScopeSource::postFilter);
+
+        expect (osc1.valid && ! osc1.silent, "oscillator 1 is the one making the sound");
+        expect (postFilter.valid && ! postFilter.silent, "the voice reached the mix");
+
+        // The distinction that matters: these are captured, and what was
+        // captured was silence. A source skipped by the voice must not read as
+        // a source this build does not capture.
+        for (const auto* quiet : { &osc2, &sub, &noise })
+        {
+            expect (quiet->valid, "a silent source must still be captured");
+            expect (quiet->silent, "a source at level zero must read as silent");
+        }
+
+        // Turning one on puts it in its own scope and leaves the others alone.
+        setParameter (processor, "noise_level", 0.6f);
+        runBlocks (processor, blocksToFillTheRing());
+
+        expect (! frameFor (telemetry::ScopeSource::noise).silent,
+                "raising the noise level must show up in the noise scope");
+        expect (frameFor (telemetry::ScopeSource::sub).silent,
+                "and nowhere else");
+
+        beginTest ("A source is captured before the filter that shapes it");
+
+        // Closing the filter takes the sound away without taking the
+        // oscillator away, and the two scopes must disagree accordingly: this
+        // is the difference between watching a source and watching the mix.
+        setParameter (processor, "noise_level", 0.0f);
+        setParameter (processor, "filter1_cutoff", 20.0f);
+        setParameter (processor, "filter1_resonance", 0.0f);
+
+        runBlocks (processor, blocksToFillTheRing());
+
+        const auto closed = frameFor (telemetry::ScopeSource::postFilter);
+        const auto stillThere = frameFor (telemetry::ScopeSource::oscillator1);
+
+        expect (! stillThere.silent, "the oscillator is still running behind a closed filter");
+        expect (stillThere.peak > closed.peak * 4.0f,
+                "the source tap must sit before the filter, but oscillator 1 read "
+                    + juce::String (stillThere.peak, 6) + " against a post-filter "
+                    + juce::String (closed.peak, 6));
+    }
+
+    void testSourceTapSumsTheVoicePool()
+    {
+        beginTest ("A source's trace is every voice producing it, not one of them");
+
+        const auto energyFor = [this] (int numNotes)
+        {
+            ApolloAudioProcessor processor;
+            processor.setRateAndBufferSizeDetails (testSampleRate, testBlockSize);
+            processor.prepareToPlay (testSampleRate, testBlockSize);
+            processor.getTelemetry().setCapturing (true);
+
+            juce::AudioBuffer<float> buffer (2, testBlockSize);
+            juce::MidiBuffer midi;
+
+            // Spread across the keyboard so the notes are mutually
+            // incommensurate and cannot conspire to cancel over a whole window.
+            for (int i = 0; i < numNotes; ++i)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 45 + 7 * i, 0.9f), 0);
+
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+
+            runBlocks (processor, blocksToFillTheRing());
+
+            return windowRms (processor.getTelemetry().scope (telemetry::ScopeSource::oscillator1));
+        };
+
+        const auto one = energyFor (1);
+        const auto four = energyFor (4);
+
+        expect (one > 0.0, "a single note produced no energy at all");
+
+        // Four decorrelated notes carry about twice the energy of one. The
+        // bound is deliberately far below that: the claim being tested is that
+        // the trace grows with the pool rather than showing whichever voice
+        // happened to be asked, and measuring the exact factor would only be
+        // measuring the gain staging.
+        expect (four > one * 1.5,
+                "four notes read at " + juce::String (four, 6) + " against one note's "
+                    + juce::String (one, 6) + ", so the tap is not summing the pool");
     }
 
     void testBridgeSendsWhatWasCaptured()
@@ -480,11 +795,38 @@ private:
 
         const auto* scopeList = object->getProperty ("scopes").getArray();
         expect (scopeList != nullptr);
-        expectEquals (scopeList != nullptr ? scopeList->size() : -1, 1,
-                      "only the output is captured in this build");
+        expectEquals (scopeList != nullptr ? scopeList->size() : -1,
+                      static_cast<int> (telemetry::scopeSourceCount),
+                      "every source Apollo captures must reach the interface");
 
         if (scopeList == nullptr || scopeList->isEmpty())
             return;
+
+        // Every source is named by its own token, and no token appears twice:
+        // the page keys its scopes on these, so a collision would send two
+        // sources to the same canvas and leave another one blank.
+        juce::StringArray tokens;
+
+        for (const auto& item : *scopeList)
+            if (auto* named = item.getDynamicObject())
+                tokens.add (named->getProperty ("source").toString());
+
+        for (std::size_t i = 0; i < telemetry::scopeSourceCount; ++i)
+        {
+            const auto token = telemetry::toToken (static_cast<telemetry::ScopeSource> (i));
+            const juce::String expected (token.data(), token.size());
+
+            int seen = 0;
+
+            // Not `name`: juce::UnitTest has a member of that name, and Apollo
+            // builds with -Wshadow.
+            for (const auto& reported : tokens)
+                if (reported == expected)
+                    ++seen;
+
+            expectEquals (seen, 1,
+                          "the frame names " + expected + " other than exactly once");
+        }
 
         auto* entry = scopeList->getFirst().getDynamicObject();
         expect (entry != nullptr);
@@ -492,7 +834,8 @@ private:
         if (entry == nullptr)
             return;
 
-        expectEquals (entry->getProperty ("source").toString(), juce::String ("output"));
+        expectEquals (entry->getProperty ("source").toString(), juce::String ("output"),
+                      "the output is the first source and the order is part of the contract");
         expect (! static_cast<bool> (entry->getProperty ("silent")),
                 "a sounding note must not be reported as silence");
 

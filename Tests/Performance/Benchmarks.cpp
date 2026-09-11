@@ -371,14 +371,25 @@ void benchmarkTelemetry()
         std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
         float* channels[] = { left.data(), right.data() };
 
+        static telemetry::TelemetryHub hub;
+        hub.reset();
+        hub.setCapturing (false);
+        voiceEngine.setTelemetry (&hub);
+
+        // With nobody watching this must be the render the engine has always
+        // done: the whole point of the gate is that an instance with its editor
+        // closed pays nothing, so the first row is also a check that the gate
+        // works.
         const auto renderOnly = measure (secondsPerMeasurement, [&]
         {
             voiceEngine.render (channels, 2, 0, blockSize);
         });
 
-        static telemetry::TelemetryHub hub;
-        hub.reset();
+        hub.setCapturing (true);
 
+        // Everything a watched instance pays: the five taps inside the voice
+        // loop, which scale with polyphony, and the output tap after it, which
+        // does not.
         const auto withCapture = measure (secondsPerMeasurement, [&]
         {
             voiceEngine.render (channels, 2, 0, blockSize);
@@ -386,8 +397,11 @@ void benchmarkTelemetry()
                 .writeMixedToMono (channels, 2, 0, blockSize);
         });
 
-        printRow (std::to_string (voices) + " voices, render only", renderOnly, voices);
-        printRow (std::to_string (voices) + " voices, render + output capture", withCapture,
+        hub.setCapturing (false);
+
+        printRow (std::to_string (voices) + " voices, render only (nothing watching)", renderOnly,
+                  voices);
+        printRow (std::to_string (voices) + " voices, render + six-source capture", withCapture,
                   voices);
 
         const auto overhead = withCapture.realtimeFraction - renderOnly.realtimeFraction;
@@ -401,12 +415,10 @@ void benchmarkTelemetry()
 
         std::cout << std::endl;
 
+        voiceEngine.setTelemetry (nullptr);
         voiceEngine.reset();
     }
 
-    // The six taps PRD §30.1 asks for are the same pass six times over shorter
-    // buffers, so this is the figure to multiply rather than a new measurement
-    // to make when the per-source scopes land.
     printHeading ("Building one frame for every source (message thread, 30 Hz)");
 
     {

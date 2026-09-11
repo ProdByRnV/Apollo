@@ -486,11 +486,11 @@ migration, the browsers the engine cannot yet feed, and every visualizer.
 ### Visualization
 
 - [x] Oscilloscope for the final output. — a lock-free capture ring per source, triggered and decimated on the message thread, drawn on a canvas at 30 Hz. Silent, sounding and released all verified on screen (ADR-0047) (7a)
-- [ ] **Per-source oscilloscopes** — oscillator 1, oscillator 2, sub, noise and the post-filter signal, each with its own scope so the user can see the wave each part is producing rather than only the sum (PRD §30.1, CLAUDE.md §26.1). Requires a lock-free capture buffer per source, tapped inside the voice and summed across voices.
+- [x] Per-source oscilloscopes — oscillator 1, oscillator 2, sub, noise and the post-filter signal, each with its own scope. Tapped inside the voice loop and summed across the whole pool, so a source shows what every voice producing it is producing together; the four source taps sit before the filter and the amplifier, the post-filter tap after both (ADR-0048) (7b)
 - [ ] Wavetable visualization.
 - [ ] Envelope visualization — a live trace of the value being produced, not a static picture of the shape.
 - [ ] LFO visualization — likewise.
-- [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — output capture adds 0.012 % of real time at one voice and 0.28 % at thirty-two, flat in voice count because it is one pass over the finished buffer; six frames cost 0.06 % at 30 Hz on the message thread. A stopped source reads as silent because the capture keeps running and records the silence (7a)
+- [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — all six taps together add 0.05 % of real time at one voice and 0.76 % at thirty-two; six frames cost 0.05 % at 30 Hz on the message thread. Because that is 8-18 % of the render it follows, capture runs only while an editor is watching, and an unwatched instance costs what it did before scopes existed. A stopped source reads as silent because the capture records the silence rather than inferring it from the absence of a write (7a, 7b)
 - [ ] Optional spectrum visualization.
 - [ ] Voice/activity indicators.
 - [ ] Output metering.
@@ -507,15 +507,16 @@ migration, the browsers the engine cannot yet feed, and every visualizer.
 - [x] UI controls accurately represent native state. — every control is built from parameter metadata and echoes the engine's own value back (Phase 5, brought forward)
 - [x] UI interactions produce correct parameter changes. — verified by hand and by the parameter-bridge tests
 - [x] UI reload restores state correctly. — a project load bumps the reload counter and resynchronises parameters, MIDI mappings and the learn state wholesale
-- [ ] Visualizers remain responsive without affecting audio processing. — met for the output scope and measured (7a); re-measure when the five per-source taps land in 7b
+- [x] Visualizers remain responsive without affecting audio processing. — measured across all six taps: 0.05 % of real time at one voice, 0.76 % at thirty-two, and nothing at all in an instance nobody is watching. A test renders the same note with and without capture and compares the audio sample for sample (7a, 7b); re-measure when the envelope and LFO traces land in 7c
 - [x] UI remains usable across supported display configurations. — verified at 1920x1080 with 150 % scaling
 
 ---
 
-> **Phase status:** 7a is in — the visualisation transport and the output
-> oscilloscope, with the capture cost measured rather than assumed. Three
-> sub-phases remain: **7b** the five per-source scopes, **7c** envelope and LFO
-> traces, metering and wavetable display, and **7d** the React migration.
+> **Phase status:** 7a and 7b are in — the visualisation transport, the output
+> oscilloscope, and a scope on every one of the five sources, with the capture
+> cost measured rather than assumed and gated on whether anything is watching.
+> Two sub-phases remain: **7c** envelope and LFO traces, metering and wavetable
+> display, and **7d** the React migration.
 
 ---
 

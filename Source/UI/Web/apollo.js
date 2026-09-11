@@ -711,12 +711,22 @@ const scopes = new Map();   // source token -> { update(frame) }
 
 const SCOPE_ASPECT = 0.42;
 
-function createScope (source) {
+function createScope (source, labelText) {
     const root = make('div', 'scope');
     root.dataset.scopeSource = source;
 
     const canvas = make('canvas', 'scope__canvas', root);
     const caption = make('div', 'scope__caption', root);
+
+    // Only where the module heading does not already say it. A scope inside the
+    // Oscillator 1 module needs no caption explaining that it shows oscillator
+    // 1; the one in the filter module does, because it shows the section's
+    // output rather than the filter it happens to sit next to.
+    if (labelText) {
+        const name = make('span', 'scope__name', caption);
+        name.textContent = labelText;
+    }
+
     const reading = make('span', 'scope__reading', caption);
     const flag = make('span', 'scope__flag', caption);
 
@@ -822,8 +832,8 @@ function createScope (source) {
     return root;
 }
 
-function scope (body, source) {
-    body.append(createScope(source));
+function scope (body, source, labelText) {
+    body.append(createScope(source, labelText));
 }
 
 /* ==========================================================================
@@ -938,6 +948,11 @@ function buildOscillator (rank, index) {
     const banner = make('div', 'cluster cluster--banner', module.body);
     segmented(banner, p + 'wavetable', 'Wavetable', LABELS[p + 'wavetable']);
 
+    // First among the controls rather than last, because this is the one you
+    // watch while you move Position: the wave being crafted, beside the control
+    // that crafts it (CLAUDE.md §26.1).
+    scope(module.body, 'osc' + index);
+
     knob(module.body, p + 'position', 'Position');
     knob(module.body, p + 'level', 'Level');
     knob(module.body, p + 'pan', 'Pan');
@@ -956,12 +971,14 @@ function buildOscillator (rank, index) {
 function buildSubAndNoise (rank) {
     const sub = createModule('Sub Oscillator', null);
     rank.append(sub.root);
+    scope(sub.body, 'sub');
     knob(sub.body, 'sub_level', 'Level');
     segmented(sub.body, 'sub_octave', 'Octave', LABELS.sub_octave);
     dimWhen(sub, 'sub_level', (level) => level <= 0.0001);
 
     const noise = createModule('Noise', null);
     rank.append(noise.root);
+    scope(noise.body, 'noise');
     knob(noise.body, 'noise_level', 'Level');
     dimWhen(noise, 'noise_level', (level) => level <= 0.0001);
 }
@@ -977,9 +994,13 @@ function buildFilter (rank, index) {
     segmented(modes, p + 'type', 'Type', LABELS[p + 'type']);
 
     // Routing lives on filter 2 because it describes how the pair is
-    // connected, and filter 2 is where the pair becomes visible.
-    if (index === 2)
+    // connected, and filter 2 is where the pair becomes visible. The scope
+    // belongs to the pair for the same reason, and says so: it is the signal
+    // leaving the whole section, not the signal leaving filter 2.
+    if (index === 2) {
         segmented(modes, 'filter_routing', 'Routing', LABELS.filter_routing);
+        scope(module.body, 'filter', 'post-filter');
+    }
 
     knob(module.body, p + 'cutoff', 'Cutoff');
     knob(module.body, p + 'resonance', 'Resonance');

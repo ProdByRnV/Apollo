@@ -607,8 +607,19 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
 
     // Voices beyond the polyphony limit may still be releasing after a
     // polyphony change, so every voice is rendered, not just the first N.
-    for (auto& voice : voices)
-        voice.renderAdding (output, numChannels, startSample, numSamples);
+    //
+    // The decision to capture is taken once here rather than inside the voice
+    // loop, and when nobody is watching the call below is the one this engine
+    // has always made.
+    if (telemetryHub != nullptr && telemetryHub->isCapturing())
+    {
+        renderVoicesCapturing (output, numChannels, startSample, numSamples);
+    }
+    else
+    {
+        for (auto& voice : voices)
+            voice.renderAdding (output, numChannels, startSample, numSamples);
+    }
 
     for (int channel = 0; channel < numChannels; ++channel)
     {
@@ -619,6 +630,53 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
 
         for (int i = 0; i < numSamples; ++i)
             destination[startSample + i] *= outputGain;
+    }
+}
+
+void VoiceEngine::renderVoicesCapturing (float* const* output, int numChannels, int startSample,
+                                         int numSamples) noexcept
+{
+    // AUDIO THREAD. Reached only while something is watching.
+    //
+    // Each source's trace is the sum of every voice producing it, which is the
+    // only reading of "what oscillator 1 is producing" that stays true when more
+    // than one note is held. So the voices are summed into scratch first and the
+    // scratch is published once, rather than each voice publishing its own
+    // fragment of a signal it only partly owns.
+
+    static constexpr std::array<telemetry::ScopeSource, numTaps> destinations {
+        telemetry::ScopeSource::oscillator1,
+        telemetry::ScopeSource::oscillator2,
+        telemetry::ScopeSource::sub,
+        telemetry::ScopeSource::noise,
+        telemetry::ScopeSource::postFilter,
+    };
+
+    for (int offset = 0; offset < numSamples; offset += captureChunkSamples)
+    {
+        const auto chunk = numSamples - offset < captureChunkSamples ? numSamples - offset
+                                                                     : captureChunkSamples;
+
+        // Cleared rather than accumulated across chunks, so a chunk in which
+        // nothing sounds publishes silence. That is what makes a source which
+        // stops *seen* to stop instead of holding its last picture: the zeroes
+        // are captured, not inferred from the absence of a write.
+        for (auto& scratch : tapScratch)
+            for (int i = 0; i < chunk; ++i)
+                scratch[static_cast<std::size_t> (i)] = 0.0f;
+
+        VoiceTaps taps;
+        taps.oscillator1 = tapScratch[static_cast<std::size_t> (Tap::oscillator1)].data();
+        taps.oscillator2 = tapScratch[static_cast<std::size_t> (Tap::oscillator2)].data();
+        taps.sub = tapScratch[static_cast<std::size_t> (Tap::sub)].data();
+        taps.noise = tapScratch[static_cast<std::size_t> (Tap::noise)].data();
+        taps.postFilter = tapScratch[static_cast<std::size_t> (Tap::postFilter)].data();
+
+        for (auto& voice : voices)
+            voice.renderAdding (output, numChannels, startSample + offset, chunk, taps);
+
+        for (std::size_t tap = 0; tap < numTaps; ++tap)
+            telemetryHub->scope (destinations[tap]).write (tapScratch[tap].data(), chunk);
     }
 }
 

@@ -942,6 +942,14 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     font-variant-numeric: tabular-nums;
 }
 
+/* Only drawn where the module heading does not already name the source — see
+   createScope. Quieter than the reading beside it, because it is a fixed label
+   and the reading is the part that changes. */
+.scope__name {
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
 .scope__flag {
     color: var(--caution);
 }
