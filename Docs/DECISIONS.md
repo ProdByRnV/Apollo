@@ -1531,3 +1531,98 @@ The local is therefore unconditional and the branch buys only the store.
 option of reading a source's trace back from a headless instance without arming it
 first. Both are recoverable by setting the flag; neither is worth a permanent tax
 on every instance in a project.
+
+---
+
+## ADR-0049 — A modulator is sampled, not captured; and the points travel as integers
+
+**Phase 7c (UI) · Accepted**
+
+Everything Apollo draws so far has been a window of audio read out of a ring.
+The four things 7c adds — envelope traces, LFO traces, an output meter and the
+wavetable displays — are none of them audio, and treating them as if they were
+would have been the easy mistake and the expensive one.
+
+**A modulator is sampled at the rate it is drawn, not at the rate it is
+produced.** CLAUDE.md §26.1 asks for "a live trace of the value each is currently
+producing, not a static picture of its shape", and that distinction is the whole
+feature: an editable DAHDSR outline with a playhead — which is what every
+synthesiser draws, because it is easier — shows what the envelope was
+*configured* to do, and the two part company the moment anything is modulated,
+retriggered or clamped. It is the outline that is wrong when they disagree.
+
+But a modulator moves at a few hertz. Capturing one at 48 kHz into an 8192-entry
+ring and decimating it to 128 points would be a ring three hundred times larger
+than the picture taken from it, and would need a decimation rule with all the
+attendant arguments about what may be thrown away. So the ring *is* the picture:
+128 entries, one every 7.8 ms, holding exactly the second the interface draws.
+There is nothing to decimate and therefore nothing to defend. The resolution is
+stated rather than hidden — anything faster than 7.8 ms shows as a step, which is
+a fact about the picture and not a defect in it.
+
+The entry is taken between capture chunks, which at first looks like a reason to
+shorten the chunks until they divide the trace interval. Measurably it is not: at
+128 samples the per-chunk overhead cost 1.85 % of real time at thirty-two voices
+against 0.76 % at 512. A chunk is instead *shortened*, on the one in three that
+needs it, to land exactly on the next trace boundary. The trace keeps an exact
+rate and the capture keeps its long chunks.
+
+**Which voice a trace follows has to be chosen, and the choice is the newest
+note.** Envelopes and LFOs are per voice. Summing them would be meaningless —
+four envelopes added together describe nothing — and averaging would flatten
+exactly what is being watched. The most recently started sounding voice is the
+one whose envelope you are listening to while you adjust it, which is the only
+rule that matches what the person looking at the screen is doing.
+
+**An unrouted modulator is reported, not hidden.** The engine does not advance an
+LFO nothing reads, so its trace is honestly a flat line — and a flat line with no
+explanation looks like a fault. The frame therefore carries a `routed` flag, the
+trace is omitted for a modulator that is not running, and the interface draws the
+zero line and the word "unrouted". On the default patch, which routes nothing,
+that is seven eighths of the message as well.
+
+**A meter is not a scope's peak.** The scope reports the largest sample in one
+43 ms window with no ballistics at all: it flickers, and a transient landing
+between two frames is never shown. The meter rises instantly, falls at 20 dB per
+second, reports RMS over 300 ms beside the peak because neither alone is enough —
+peak cannot tell a quiet signal with one spike from a loud one, and RMS cannot
+tell you that you are about to clip — and holds a clip for a second and a half so
+that it is seen by someone who was not watching at the time. Clipping is detected
+at full scale rather than below it: Apollo's output is float and a sample above
+1.0 survives here, but it will not survive whatever converts to integer
+downstream, and a meter that stayed quiet about that would be reporting on its
+own numeric range rather than on the signal's fate. This is also the first real
+use of the red token CLAUDE.md §24.2 reserves, and it is a word as well as a
+colour (§39).
+
+**The wavetable display is not telemetry at all.** A wavetable is a resource,
+built once and immutable for the life of the instrument — which is precisely why
+the voices already share it without synchronisation. So the audio thread
+publishes two numbers, the table index and the *effective* position, and the
+message thread reads the table directly and renders 128 points from it. Drawing
+them costs less than sending them would. The position is the effective one — the
+parameter plus whatever the matrix is adding — because a display that sat still
+while a modulated oscillator swept would be failing at the one case it exists
+for. Mip level 0 always: a picture has no pitch, and showing a band-limited copy
+would draw a rounder wave than the user chose at the moment they are choosing it.
+
+**The points travel as integers, and this fixed a defect rather than adding an
+optimisation.** ADR-0047 rounded each point to three decimals on the reasoning
+that a thousandth of full scale is below a pixel and that rounding would roughly
+halve the message. The first half is true. The second was never measured, and is
+backwards: `juce::JSON` serialises a double between 0.1 and 1 to sixteen decimal
+places, and rounding to three decimals produces a double whose sixteen-place
+expansion is 0.1229999999999999 rather than anything short. Worse, JUCE
+pretty-prints by default, putting every array element on its own indented line.
+One scope frame measured **18,395 bytes**, thirty times a second.
+
+Sending thousandths as integers and asking for one line brings the same frame to
+**5,199 bytes** and the instrument frame to **2,765**. Both are asserted as
+budgets in the tests and logged, so a change that quietly multiplies them is
+noticed here rather than in a profiler.
+
+**Given up:** a modulator trace fast enough to resolve a 5 ms attack, and a
+resettable clip indicator. The first would need a ring three hundred times the
+size of the picture for a detail below the refresh rate of the screen; the second
+would need an inbound command on the parameter bridge, which is a conversation
+about parameters and has no business carrying one about a meter.

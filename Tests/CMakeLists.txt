@@ -30,6 +30,7 @@ target_sources(ApolloTests PRIVATE
     MIDI/ControllerProfileTests.cpp
     MIDI/MpeTests.cpp
     MIDI/MidiLearnTests.cpp
+    Telemetry/InstrumentTelemetryTests.cpp
     Telemetry/ScopeTests.cpp
     Parameters/ParameterRegistryTests.cpp
     State/StateSerializationTests.cpp

@@ -245,6 +245,18 @@ float Voice::getSourceValue (dsp::ModSource source) const noexcept
     return index < sourceValues.size() ? sourceValues[index] : 0.0f;
 }
 
+float Voice::getOscillatorPosition (int index) const noexcept
+{
+    using Destination = dsp::ModDestination;
+
+    if (index == 2)
+        return clampFinite (sources.osc2.position + destinationOffset (Destination::osc2Position),
+                            0.0f, 1.0f);
+
+    return clampFinite (sources.osc1.position + destinationOffset (Destination::osc1Position),
+                        0.0f, 1.0f);
+}
+
 void Voice::setModulationSeed (std::uint32_t seed) noexcept
 {
     // Zero would lock a xorshift at zero for ever, so it is mapped away rather

@@ -22,6 +22,7 @@
 
 #include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
+#include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
 
@@ -217,5 +218,19 @@ struct BridgeParseResult
 */
 [[nodiscard]] juce::String makeScopeFramesMessage (
     const std::array<telemetry::ScopeFrame, telemetry::scopeSourceCount>& frames);
+
+/** Serializes one instrument frame: modulator traces, meter, voices, wavetables.
+
+    A second broadcast beside the scopes rather than more of the first, because
+    the two want different rates. A scope is a moving picture and reads as a
+    slideshow below about twenty-five frames a second; a meter needle and an
+    envelope trace are perfectly legible at half that, and halving the larger of
+    the two messages is worth more than the tidiness of having one
+    (UI_BINDINGS.md §10.5).
+
+    A modulator nothing has traced is omitted, exactly as an uncaptured scope
+    source is, and for the same reason.
+*/
+[[nodiscard]] juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame);
 
 } // namespace apollo::ui

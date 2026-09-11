@@ -243,6 +243,47 @@ public:
     */
     [[nodiscard]] float getSourceValue (dsp::ModSource source) const noexcept;
 
+    /** One generator's current output, read straight from the generator.
+
+        Deliberately *not* `getSourceValue`, which reads the table the matrix
+        fills in and is therefore only as fresh as the last routing evaluation —
+        and is never filled in at all on a patch with no routing, where envelope
+        1 is nonetheless running the whole time. A trace has to show what the
+        generator is doing, not what the matrix last noticed it doing.
+
+        An out-of-range index reads zero rather than asserting: this is drawn
+        thirty times a second and a picture is not worth a crash.
+    */
+    [[nodiscard]] float getEnvelopeValue (int index) const noexcept
+    {
+        return index >= 0 && index < numEnvelopes
+                 ? envelopes[static_cast<std::size_t> (index)].getCurrentValue()
+                 : 0.0f;
+    }
+
+    [[nodiscard]] float getLfoValue (int index) const noexcept
+    {
+        return index >= 0 && index < numLfos
+                 ? lfos[static_cast<std::size_t> (index)].getCurrentValue()
+                 : 0.0f;
+    }
+
+    [[nodiscard]] dsp::EnvelopeStage getEnvelopeStage (int index) const noexcept
+    {
+        return index >= 0 && index < numEnvelopes
+                 ? envelopes[static_cast<std::size_t> (index)].getStage()
+                 : dsp::EnvelopeStage::idle;
+    }
+
+    /** Where a primary oscillator is actually reading its table, 0 to 1.
+
+        The parameter plus whatever the matrix is adding to it, clamped exactly
+        as the oscillator's own setter clamps it — computed here rather than
+        stored, so it is correct whether or not a routing evaluation has run.
+        @param index  1 or 2.
+    */
+    [[nodiscard]] float getOscillatorPosition (int index) const noexcept;
+
     /** Starts a note.
 
         @param midiNote     0-127.

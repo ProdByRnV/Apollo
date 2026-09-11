@@ -446,6 +446,41 @@ juce::String makeMidiMappingsMessage (const midi::MappingTable& mappings,
     return juce::JSON::toString (juce::var (object));
 }
 
+namespace
+{
+/** Encodes one trace or waveform point as thousandths of full scale.
+
+    AN INTEGER, WHICH IS THE POINT. The first version of this rounded the value
+    to three decimals and sent it as a number, on the reasoning that a thousandth
+    of full scale is below a pixel on anything these are drawn at and that
+    rounding would roughly halve the message. The first half is true; the second
+    was measured and is false, and in fact backwards. `juce::JSON` serialises a
+    double between 0.1 and 1 to sixteen decimal places, and rounding to three
+    decimals produces a double whose sixteen-place expansion is
+    0.1229999999999999 rather than anything short — so the rounding made the
+    message *longer*. One scope frame came to 18 KB, thirty times a second.
+
+    A thousandth of full scale is exactly what an integer count of thousandths
+    expresses, and it serialises in at most five characters. The frontend divides
+    by 1000 on the way in (UI_BINDINGS.md §12).
+*/
+[[nodiscard]] juce::var scaledPoint (float value)
+{
+    return juce::var (static_cast<int> (std::lround (static_cast<double> (value) * 1000.0)));
+}
+
+/** Passed to juce::JSON::toString by the two broadcasts, and by nothing else.
+
+    JUCE pretty-prints by default: every array element on its own line, indented.
+    For a message a person reads that is worth having and costs nothing. For a
+    frame of 1152 numbers it is three times the payload — the newline and the
+    indent together outweigh the number — and it goes out thirty times a second.
+    The other messages stay readable, because nothing about them is sent at a
+    rate where it matters.
+*/
+constexpr bool oneLine = true;
+} // namespace
+
 juce::String makeScopeFramesMessage (
     const std::array<telemetry::ScopeFrame, telemetry::scopeSourceCount>& frames)
 {
@@ -464,13 +499,9 @@ juce::String makeScopeFramesMessage (
         juce::Array<juce::var> points;
         points.ensureStorageAllocated (telemetry::scopeFramePoints);
 
+        // Thousandths of full scale, as integers - see scaledPoint.
         for (const auto value : frame.points)
-        {
-            // Three decimals is a thousandth of full scale, which is below a
-            // pixel on any scope anyone will draw, and it roughly halves the
-            // message next to a full double (UI_BINDINGS.md §12).
-            points.add (juce::var (std::round (static_cast<double> (value) * 1000.0) / 1000.0));
-        }
+            points.add (scaledPoint (value));
 
         auto* entry = new juce::DynamicObject();
         entry->setProperty (
@@ -488,7 +519,120 @@ juce::String makeScopeFramesMessage (
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("scopes", entries);
 
-    return juce::JSON::toString (juce::var (object));
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame)
+{
+    juce::Array<juce::var> modulators;
+
+    for (std::size_t i = 0; i < telemetry::modulatorSourceCount; ++i)
+    {
+        const auto& modulator = frame.modulators[i];
+
+        // A modulator nothing has traced is left out rather than sent flat: the
+        // frontend draws only what it is told about, so "not traced" and "traced
+        // and sitting still" cannot be confused.
+        if (! modulator.valid)
+            continue;
+
+        auto* entry = new juce::DynamicObject();
+        entry->setProperty (
+            "source",
+            toJuceString (telemetry::toToken (static_cast<telemetry::ModulatorSource> (i))));
+
+        // An unrouted modulator is not advanced by the engine, so its trace is a
+        // flat line by construction and 128 points saying so is 128 points of
+        // nothing. The entry is still sent — the interface has to be told that
+        // this modulator exists and is idle — but without the trace, and the
+        // page draws the zero line and the word rather than a straight trace.
+        // On the default patch, which routes nothing, that is seven eighths of
+        // the message.
+        if (modulator.routed)
+        {
+            juce::Array<juce::var> points;
+            points.ensureStorageAllocated (telemetry::modulationTracePoints);
+
+            for (const auto value : modulator.points)
+                points.add (scaledPoint (value));
+
+            entry->setProperty ("points", points);
+        }
+
+        entry->setProperty ("current", static_cast<double> (modulator.current));
+        entry->setProperty ("routed", modulator.routed);
+        entry->setProperty ("stage", modulator.envelopeStage);
+
+        modulators.add (juce::var (entry));
+    }
+
+    juce::Array<juce::var> wavetables;
+
+    for (std::size_t i = 0; i < telemetry::wavetableDisplayCount; ++i)
+    {
+        const auto& wavetable = frame.wavetables[i];
+
+        if (! wavetable.valid)
+            continue;
+
+        juce::Array<juce::var> points;
+        points.ensureStorageAllocated (telemetry::wavetableFramePoints);
+
+        for (const auto value : wavetable.points)
+            points.add (scaledPoint (value));
+
+        auto* entry = new juce::DynamicObject();
+
+        // Named rather than positional, like the scope sources: entries are
+        // omitted when they are not valid, so an array position would silently
+        // become a different oscillator the moment one of them dropped out.
+        entry->setProperty ("osc", static_cast<int> (i) + 1);
+        entry->setProperty ("points", points);
+        entry->setProperty ("position", static_cast<double> (wavetable.position));
+        entry->setProperty ("table", wavetable.tableIndex);
+
+        wavetables.add (juce::var (entry));
+    }
+
+    auto* meter = new juce::DynamicObject();
+
+    if (frame.meter.active)
+    {
+        juce::Array<juce::var> peak;
+        juce::Array<juce::var> rms;
+
+        for (int channel = 0; channel < telemetry::meterChannels; ++channel)
+        {
+            const auto index = static_cast<std::size_t> (channel);
+
+            // Four decimals rather than three: a meter is read as a number as
+            // well as a bar, and at -60 dB three decimals would quantise the
+            // reading into visible steps.
+            peak.add (juce::var (std::round (static_cast<double> (frame.meter.peak[index])
+                                             * 10000.0)
+                                 / 10000.0));
+            rms.add (juce::var (std::round (static_cast<double> (frame.meter.rms[index])
+                                            * 10000.0)
+                                / 10000.0));
+        }
+
+        meter->setProperty ("peak", peak);
+        meter->setProperty ("rms", rms);
+        meter->setProperty ("clipped", frame.meter.clipped);
+    }
+
+    meter->setProperty ("active", frame.meter.active);
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "instrumentFrame");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("modulators", modulators);
+    object->setProperty ("wavetables", wavetables);
+    object->setProperty ("meter", juce::var (meter));
+    object->setProperty ("voices", frame.activeVoices);
+    object->setProperty ("polyphony", frame.polyphony);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
 }
 
 juce::String makeControllerProfilesMessage()

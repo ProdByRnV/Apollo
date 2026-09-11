@@ -711,6 +711,82 @@ const scopes = new Map();   // source token -> { update(frame) }
 
 const SCOPE_ASPECT = 0.42;
 
+/* Sizes a canvas's backing store to its element's box and the display's pixel
+   ratio, so a line is one physical pixel wide rather than a blurred two on a
+   scaled display. Shared by every picture on the page, because getting this
+   wrong is invisible until someone opens Apollo on a different monitor. */
+function fitCanvas (root, canvas, aspect) {
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(root.clientWidth));
+    const height = Math.max(1, Math.round(width * aspect));
+
+    canvas.style.height = height + 'px';
+
+    const backingWidth = Math.round(width * ratio);
+    const backingHeight = Math.round(height * ratio);
+
+    if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+        canvas.width = backingWidth;
+        canvas.height = backingHeight;
+    }
+
+    return { width: backingWidth, height: backingHeight, ratio };
+}
+
+/* Points arrive as integer thousandths of full scale.
+
+   Not as an optimisation after the fact: a JSON number is a double, and JUCE
+   serialises a double between 0.1 and 1 to sixteen decimal places, so sending
+   0.123 costs eighteen characters while sending 123 costs three. At six scope
+   traces thirty times a second that was the difference between 550 KB and
+   180 KB a second (UI_BINDINGS.md §12). */
+function decodePoints (raw) {
+    if (!raw || raw.length === 0) return null;
+
+    const out = new Array(raw.length);
+
+    for (let i = 0; i < raw.length; ++i) out[i] = raw[i] / 1000;
+
+    return out;
+}
+
+/* Draws a polyline across the full width of a canvas from an array of values.
+
+   `zero` is where the value 0 sits vertically, 0 being the top and 1 the bottom:
+   a bipolar signal is drawn about the middle and a unipolar one off the floor,
+   because an envelope drawn centred would throw away half the canvas and imply
+   it could go negative. */
+function strokeSeries (context, points, size, options) {
+    if (!points || points.length === 0) return;
+
+    const zero = options.zero === undefined ? 0.5 : options.zero;
+    const scale = options.scale === undefined ? 1 : options.scale;
+    const span = options.span === undefined ? 0.94 : options.span;
+
+    const baseline = size.height * zero;
+    const reach = (zero >= 0.5 ? size.height * zero : size.height * (1 - zero)) * span;
+
+    context.strokeStyle = options.colour;
+    context.lineWidth = Math.max(1, (options.weight || 1.4) * size.ratio);
+    context.lineJoin = 'round';
+    context.beginPath();
+
+    for (let i = 0; i < points.length; ++i) {
+        const x = points.length > 1 ? (i / (points.length - 1)) * size.width : 0;
+
+        // Clamped rather than fitted: a trace stretched to whatever height it
+        // happened to need would make everything look the same size, and a
+        // signal past full scale must be visibly past it.
+        const value = Math.max(-1, Math.min(1, points[i] * scale));
+        const y = baseline - value * reach;
+
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+    }
+
+    context.stroke();
+}
+
 function createScope (source, labelText) {
     const root = make('div', 'scope');
     root.dataset.scopeSource = source;
@@ -730,34 +806,26 @@ function createScope (source, labelText) {
     const reading = make('span', 'scope__reading', caption);
     const flag = make('span', 'scope__flag', caption);
 
+    // Zoom, not auto-gain. Apollo's gain staging is conservative, so an ordinary
+    // signal draws a small trace (ADR-0047) — which is honest, and after six of
+    // them appeared on one page it became a standing annoyance as well. The
+    // answer is a control the user turns, not a scale the page chooses: the
+    // factor is stated on the button, so a magnified trace is never mistaken for
+    // a loud one, and the decibel reading beside it never changes.
+    const zoomFactors = [1, 2, 4, 8];
+    let zoomIndex = 0;
+
+    const zoom = make('button', 'scope__zoom', caption);
+    zoom.type = 'button';
+    zoom.title = 'Display zoom — magnifies the trace only, not the reading';
+
     const context = canvas.getContext('2d');
 
     let points = null;
     let silent = true;
 
-    // Backing-store size follows the element's box and the display's pixel
-    // ratio, so the trace is one physical pixel wide rather than a blurred two
-    // on a scaled display.
-    function resize () {
-        const ratio = window.devicePixelRatio || 1;
-        const width = Math.max(1, Math.round(root.clientWidth));
-        const height = Math.max(1, Math.round(width * SCOPE_ASPECT));
-
-        canvas.style.height = height + 'px';
-
-        const backingWidth = Math.round(width * ratio);
-        const backingHeight = Math.round(height * ratio);
-
-        if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
-            canvas.width = backingWidth;
-            canvas.height = backingHeight;
-        }
-
-        return { width: backingWidth, height: backingHeight, ratio };
-    }
-
     function draw () {
-        const size = resize();
+        const size = fitCanvas(root, canvas, SCOPE_ASPECT);
         const { width, height } = size;
         const middle = height / 2;
 
@@ -776,34 +844,29 @@ function createScope (source, labelText) {
         context.lineTo(width, middle);
         context.stroke();
 
-        if (!points || points.length === 0) return;
-
-        context.strokeStyle = traceColour;
-        context.lineWidth = Math.max(1, 1.4 * size.ratio);
-        context.lineJoin = 'round';
-        context.beginPath();
-
-        for (let i = 0; i < points.length; ++i) {
-            const x = points.length > 1 ? (i / (points.length - 1)) * width : 0;
-
-            // Clamped rather than scaled to fit: a trace drawn at whatever
-            // height it happens to need would make everything look the same
-            // loudness, and a signal past full scale must be visibly past it.
-            const clamped = Math.max(-1, Math.min(1, points[i]));
-            const y = middle - clamped * middle * 0.94;
-
-            if (i === 0) context.moveTo(x, y);
-            else context.lineTo(x, y);
-        }
-
-        context.stroke();
+        strokeSeries(context, points, size, {
+            colour: traceColour,
+            zero: 0.5,
+            scale: zoomFactors[zoomIndex]
+        });
     }
+
+    function applyZoom () {
+        zoom.textContent = '×' + zoomFactors[zoomIndex];
+        zoom.dataset.active = zoomIndex > 0 ? 'true' : 'false';
+        draw();
+    }
+
+    zoom.addEventListener('click', () => {
+        zoomIndex = (zoomIndex + 1) % zoomFactors.length;
+        applyZoom();
+    });
 
     const control = {
         element: root,
 
         update (frame) {
-            points = frame.points;
+            points = decodePoints(frame.points);
             silent = frame.silent;
 
             root.dataset.silent = silent ? 'true' : 'false';
@@ -827,13 +890,270 @@ function createScope (source, labelText) {
     };
 
     scopes.set(source, control);
-    draw();
+    applyZoom();
 
     return root;
 }
 
 function scope (body, source, labelText) {
     body.append(createScope(source, labelText));
+}
+
+/* ==========================================================================
+   MODULATOR TRACES
+
+   An envelope or an LFO drawn as what it is doing rather than as the shape it
+   was configured with (CLAUDE.md §26.1). The distinction is the whole point: an
+   outline with a playhead shows the settings, and settings and behaviour part
+   company the moment anything is modulated, retriggered or clamped — and it is
+   the outline that is wrong when they do.
+
+   The native side sends a second of history at 128 Hz and the page draws it
+   whole, so a dropped frame costs one repaint rather than a gap in the history
+   (UI_BINDINGS.md §10.5).
+   ========================================================================== */
+
+const traces = new Map();   // modulator token -> { update(frame) }
+
+const TRACE_ASPECT = 0.34;
+
+/* dsp::EnvelopeStage, in its own numeric order. Shown as a word because a
+   colour cannot say "decay" (CLAUDE.md §39). */
+const ENVELOPE_STAGES = ['idle', 'delay', 'attack', 'hold', 'decay', 'sustain', 'release'];
+
+function createTrace (source, labelText) {
+    const bipolar = source.lastIndexOf('lfo', 0) === 0;
+
+    const root = make('div', 'trace');
+    root.dataset.traceSource = source;
+
+    const canvas = make('canvas', 'trace__canvas', root);
+    const caption = make('div', 'trace__caption', root);
+
+    const name = make('span', 'trace__name', caption);
+    name.textContent = labelText;
+
+    const reading = make('span', 'trace__reading', caption);
+
+    const context = canvas.getContext('2d');
+
+    let points = null;
+    let routed = false;
+
+    function draw () {
+        const size = fitCanvas(root, canvas, TRACE_ASPECT);
+        const { width, height } = size;
+
+        // An envelope never goes below zero, so its floor is the bottom of the
+        // canvas; an LFO swings both ways about the middle.
+        const zero = bipolar ? 0.5 : 0.97;
+
+        const style = getComputedStyle(root);
+        const traceColour = style.getPropertyValue('--trace-line').trim() || '#4ade80';
+        const gridColour = style.getPropertyValue('--scope-grid').trim() || '#292935';
+
+        context.clearRect(0, 0, width, height);
+
+        context.strokeStyle = gridColour;
+        context.lineWidth = Math.max(1, size.ratio);
+        context.beginPath();
+        context.moveTo(0, height * zero);
+        context.lineTo(width, height * zero);
+        context.stroke();
+
+        strokeSeries(context, points, size, { colour: traceColour, zero: zero });
+    }
+
+    const control = {
+        element: root,
+
+        update (frame) {
+            // Absent for an unrouted modulator, and that is not an omission:
+            // the engine does not advance one, so there is no trace to send and
+            // the page draws the zero line and says why.
+            points = decodePoints(frame.points);
+            routed = frame.routed;
+
+            root.dataset.routed = routed ? 'true' : 'false';
+
+            // An unrouted modulator is not advanced by the engine at all, so its
+            // flat line is literally true — and saying why is the difference
+            // between a fact and a fault (CLAUDE.md §39).
+            if (!routed) {
+                reading.textContent = 'unrouted';
+            } else if (bipolar) {
+                reading.textContent = frame.current.toFixed(2);
+            } else {
+                const stage = ENVELOPE_STAGES[frame.stage] || 'idle';
+                reading.textContent = stage + ' · ' + frame.current.toFixed(2);
+            }
+
+            draw();
+        },
+
+        redraw: draw
+    };
+
+    traces.set(source, control);
+    draw();
+
+    return root;
+}
+
+function trace (body, source, labelText) {
+    body.append(createTrace(source, labelText));
+}
+
+/* ==========================================================================
+   WAVETABLE DISPLAY
+
+   One cycle of the wave the oscillator is actually reading, at the position it
+   is actually reading it (PRD §30.2). Not the table's first frame, and not the
+   parameter's value: a modulated position sweeps, and this is the one picture
+   whose job is to show that sweep happening.
+   ========================================================================== */
+
+const wavetableDisplays = new Map();   // oscillator number -> { update(frame) }
+
+const WAVETABLE_ASPECT = 0.55;
+
+function createWavetableDisplay (oscillator) {
+    const root = make('div', 'wavetable');
+    root.dataset.oscillator = String(oscillator);
+
+    const canvas = make('canvas', 'wavetable__canvas', root);
+    const caption = make('div', 'wavetable__caption', root);
+
+    const name = make('span', 'wavetable__name', caption);
+    name.textContent = 'wave';
+
+    const reading = make('span', 'wavetable__reading', caption);
+
+    const context = canvas.getContext('2d');
+
+    let points = null;
+
+    function draw () {
+        const size = fitCanvas(root, canvas, WAVETABLE_ASPECT);
+        const { width, height } = size;
+
+        const style = getComputedStyle(root);
+        const lineColour = style.getPropertyValue('--wave-line').trim() || '#7b5cff';
+        const gridColour = style.getPropertyValue('--scope-grid').trim() || '#292935';
+
+        context.clearRect(0, 0, width, height);
+
+        context.strokeStyle = gridColour;
+        context.lineWidth = Math.max(1, size.ratio);
+        context.beginPath();
+        context.moveTo(0, height / 2);
+        context.lineTo(width, height / 2);
+        context.stroke();
+
+        strokeSeries(context, points, size, { colour: lineColour, zero: 0.5, weight: 1.6 });
+    }
+
+    const control = {
+        element: root,
+
+        update (frame) {
+            points = decodePoints(frame.points);
+
+            // The effective position, which is the parameter plus whatever the
+            // matrix is adding. Shown as a number so a sweep can be read exactly
+            // and not only watched.
+            reading.textContent = Math.round(frame.position * 100) + ' %';
+
+            draw();
+        },
+
+        redraw: draw
+    };
+
+    wavetableDisplays.set(oscillator, control);
+    draw();
+
+    return root;
+}
+
+/* ==========================================================================
+   OUTPUT METER
+
+   Peak and RMS together, because either alone misleads: peak cannot tell a quiet
+   signal with one spike from a loud one, and RMS cannot tell you that you are
+   about to clip. The clip indicator is the first real use of the red token
+   (CLAUDE.md §24.2), and it is a word as well as a colour (§39).
+   ========================================================================== */
+
+let meterControl = null;
+
+/* Where the bottom of the meter sits. -60 dB is quiet enough to be silence for
+   a synthesiser's output and close enough that the useful range is not squeezed
+   into the top tenth of the bar. */
+const METER_FLOOR_DB = -60;
+
+function meterFraction (amplitude) {
+    if (!(amplitude > 0)) return 0;
+
+    const db = 20 * Math.log10(amplitude);
+    if (db <= METER_FLOOR_DB) return 0;
+    if (db >= 0) return 1;
+
+    return 1 - db / METER_FLOOR_DB;
+}
+
+function createMeter () {
+    const root = make('div', 'meter');
+
+    const bars = make('div', 'meter__bars', root);
+    const channels = [];
+
+    for (let i = 0; i < 2; ++i) {
+        const channel = make('div', 'meter__channel', bars);
+        const rms = make('div', 'meter__rms', channel);
+        const peak = make('div', 'meter__peak', channel);
+        channels.push({ rms: rms, peak: peak });
+    }
+
+    const caption = make('div', 'meter__caption', root);
+    const reading = make('span', 'meter__reading', caption);
+    const clip = make('span', 'meter__clip', caption);
+
+    reading.textContent = 'no signal';
+
+    meterControl = {
+        element: root,
+
+        update (frame, voices, polyphony) {
+            if (!frame || !frame.active) {
+                root.dataset.active = 'false';
+                reading.textContent = 'no signal';
+                clip.textContent = '';
+                return;
+            }
+
+            root.dataset.active = 'true';
+
+            for (let i = 0; i < channels.length; ++i) {
+                const peak = frame.peak[i] || 0;
+                const rms = frame.rms[i] || 0;
+
+                channels[i].peak.style.height = (meterFraction(peak) * 100) + '%';
+                channels[i].rms.style.height = (meterFraction(rms) * 100) + '%';
+            }
+
+            const loudest = Math.max(frame.peak[0] || 0, frame.peak[1] || 0);
+
+            reading.textContent = loudest > 0
+                ? (20 * Math.log10(loudest)).toFixed(1) + ' dB · ' + voices + '/' + polyphony
+                : 'silent · ' + voices + '/' + polyphony;
+
+            root.dataset.clipped = frame.clipped ? 'true' : 'false';
+            clip.textContent = frame.clipped ? 'CLIP' : '';
+        }
+    };
+
+    return root;
 }
 
 /* ==========================================================================
@@ -948,9 +1268,16 @@ function buildOscillator (rank, index) {
     const banner = make('div', 'cluster cluster--banner', module.body);
     segmented(banner, p + 'wavetable', 'Wavetable', LABELS[p + 'wavetable']);
 
-    // First among the controls rather than last, because this is the one you
+    // First among the controls rather than last, because these are the two you
     // watch while you move Position: the wave being crafted, beside the control
     // that crafts it (CLAUDE.md §26.1).
+    //
+    // The pair is deliberate. The wavetable display is the *shape* at the
+    // current position — one cycle, unshaded by anything — and the scope is what
+    // that shape is producing once unison, detune and level have had their say.
+    // Sweeping Position moves both, and the difference between them is precisely
+    // what unison is doing.
+    module.body.append(createWavetableDisplay(index));
     scope(module.body, 'osc' + index);
 
     knob(module.body, p + 'position', 'Position');
@@ -1021,6 +1348,8 @@ function buildEnvelopes (rank) {
         const page = make('div', 'cluster', module.body);
         const p = 'env' + index + '_';
 
+        trace(page, 'env' + index, 'env ' + index);
+
         knob(page, p + 'delay', 'Delay');
         knob(page, p + 'attack', 'Attack');
         knob(page, p + 'hold', 'Hold');
@@ -1057,6 +1386,8 @@ function buildLfos (rank) {
         segmented(switches, p + 'shape', 'Shape', LABELS.lfoShape);
         segmented(switches, p + 'retrigger', 'Trigger', LABELS.lfoRetrigger);
         segmented(switches, p + 'polarity', 'Polarity', LABELS.lfoPolarity);
+
+        trace(page, 'lfo' + index, 'lfo ' + index);
 
         knob(page, p + 'rate', 'Rate');
         knob(page, p + 'phase', 'Phase');
@@ -1189,6 +1520,12 @@ function buildOutput (rank) {
     rank.append(module.root);
 
     scope(module.body, 'output');
+
+    // Beside the scope rather than instead of it: the scope says what the wave
+    // looks like and the meter says how loud it is, and neither answers the
+    // other's question. The voice count lives in the meter's caption because it
+    // is the other thing you check when the output is not what you expected.
+    module.body.append(createMeter());
 
     knob(module.body, 'fx_distortion_mix', 'Dist Mix');
     knob(module.body, 'fx_delay_time', 'Delay Time');
@@ -1599,6 +1936,25 @@ function handle (message) {
             }
             break;
 
+        case 'instrumentFrame':
+            // Everything that moves at human speed rather than at the sample
+            // rate, at half the scope rate. Each list is keyed rather than
+            // positional, because entries drop out when there is nothing to
+            // report and a position would then mean something else.
+            for (const entry of message.modulators) {
+                const target = traces.get(entry.source);
+                if (target) target.update(entry);
+            }
+
+            for (const entry of message.wavetables) {
+                const target = wavetableDisplays.get(entry.osc);
+                if (target) target.update(entry);
+            }
+
+            if (meterControl)
+                meterControl.update(message.meter, message.voices, message.polyphony);
+            break;
+
         case 'stateSnapshot':
             for (const id of Object.keys(message.parameters))
                 apply(id, message.parameters[id]);
@@ -1662,6 +2018,8 @@ setMidiMode(false);
 // scope that is silent and therefore still.
 window.addEventListener('resize', () => {
     for (const target of scopes.values()) target.redraw();
+    for (const target of traces.values()) target.redraw();
+    for (const target of wavetableDisplays.values()) target.redraw();
 });
 
 if (bridge.available) {

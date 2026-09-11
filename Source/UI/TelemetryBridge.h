@@ -28,6 +28,8 @@
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 
+#include "DSP/Oscillators/WavetableLibrary.h"
+#include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
 #include "UI/BridgeProtocol.h"
@@ -44,7 +46,8 @@ public:
     /** Sends one message to the frontend. Always invoked on the message thread. */
     using OutboundHandler = std::function<void (const juce::String&)>;
 
-    explicit TelemetryBridge (telemetry::TelemetryHub& hubToUse);
+    TelemetryBridge (telemetry::TelemetryHub& hubToUse,
+                     const dsp::WavetableLibrary& libraryToUse);
     ~TelemetryBridge() override;
 
     /** Sets the sink for outbound frames, and starts or stops the timer with it.
@@ -64,6 +67,16 @@ public:
     /** @returns the current frames, whether or not a handler is attached. */
     [[nodiscard]] juce::String createScopeFrames();
 
+    /** Builds and sends one instrument frame: the modulator traces, the output
+        meter, the voice count and each oscillator's current waveform.
+
+        Driven by the same timer at half the rate. Exposed for the same reason
+        `sendFrames` is — so tests can drive it without a message loop.
+    */
+    void sendInstrumentFrame();
+
+    [[nodiscard]] juce::String createInstrumentFrame();
+
     /** Frames per second sent to the interface.
 
         A scope is a moving picture, so this is a *frame rate* rather than the
@@ -74,10 +87,32 @@ public:
     */
     static constexpr int frameRateHz = 30;
 
+    /** How many scope frames pass between instrument frames.
+
+        The traces, the meter and the wavetable displays all move at human speed
+        rather than at the sample rate, and fifteen frames a second is well above
+        what any of them needs to read smoothly. Halving the rate of the second
+        message rather than the first is the right way round: a scope below
+        twenty-five frames a second reads as a slideshow, and a meter at fifteen
+        does not.
+    */
+    static constexpr int instrumentFrameDivider = 2;
+
 private:
     void timerCallback() override;
 
     telemetry::TelemetryHub& hub;
+
+    /** The wavetables, read straight rather than captured: they are built once
+        and immutable for the life of the instrument, so the message thread may
+        read them while the audio thread does (ARCHITECTURE.md §3.1).
+    */
+    const dsp::WavetableLibrary& library;
+
+    /** Counts scope frames towards the next instrument frame. */
+    int framesUntilInstrument = 0;
+
+    telemetry::InstrumentFrame instrumentFrame;
 
     /** Built in place every tick rather than allocated, because this runs thirty
         times a second for the life of the editor.

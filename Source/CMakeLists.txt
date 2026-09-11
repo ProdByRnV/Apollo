@@ -59,6 +59,8 @@ add_library(apollo_core STATIC
     Engine/VoiceEngine.cpp
     Engine/VoiceEngine.h
     Engine/VoiceTaps.h
+    Engine/WavetableFrame.cpp
+    Engine/WavetableFrame.h
     MIDI/ControllerProfile.h
     MIDI/MidiMapping.cpp
     MIDI/MidiMapping.h
@@ -68,6 +70,12 @@ add_library(apollo_core STATIC
     Parameters/ParameterId.cpp
     Parameters/ParameterId.h
     Parameters/ParameterDefinitions.h
+    Telemetry/InstrumentFrame.cpp
+    Telemetry/InstrumentFrame.h
+    Telemetry/LevelMeter.cpp
+    Telemetry/LevelMeter.h
+    Telemetry/ModulationTrace.cpp
+    Telemetry/ModulationTrace.h
     Telemetry/ScopeBuffer.cpp
     Telemetry/ScopeBuffer.h
     Telemetry/ScopeFrame.cpp

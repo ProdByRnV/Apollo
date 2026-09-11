@@ -60,6 +60,15 @@ void VoiceEngine::prepare (double sampleRate) noexcept
         voices[i].setModulationSeed (static_cast<std::uint32_t> (i) * 2654435761u + 17u);
     }
 
+    // The trace runs at a fixed rate in seconds, so its interval in samples is
+    // derived from the device's. Floored at one, because a capture chunk is
+    // shortened to meet it and a chunk of zero samples would not advance.
+    {
+        const auto samples = static_cast<int> (preparedSampleRate / telemetry::modulationTraceHz);
+        traceInterval = samples > 1 ? samples : 1;
+        traceCountdown = traceInterval;
+    }
+
     // Free-running phases restart with the sample rate, and their increments are
     // re-derived from it.
     for (std::size_t i = 0; i < freeRunningLfoPhase.size(); ++i)
@@ -633,6 +642,102 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
     }
 }
 
+const Voice* VoiceEngine::findVoiceToTrace() const noexcept
+{
+    const Voice* newest = nullptr;
+
+    for (const auto& voice : voices)
+    {
+        if (! voice.isActive())
+            continue;
+
+        if (newest == nullptr || voice.getStartOrder() > newest->getStartOrder())
+            newest = &voice;
+    }
+
+    return newest;
+}
+
+void VoiceEngine::publishModulation() noexcept
+{
+    // AUDIO THREAD. Reached only while something is watching.
+    using Modulator = telemetry::ModulatorSource;
+
+    const auto* voice = findVoiceToTrace();
+
+    // Recomputed every time rather than tracked, because it is eight bools
+    // derived from sixteen slots and tracking it would be a cache to invalidate.
+    std::array<bool, telemetry::modulatorSourceCount> isRouted {};
+
+    for (const auto& slot : routing.slots)
+    {
+        if (! slot.isActive())
+            continue;
+
+        const auto source = static_cast<int> (slot.source);
+        const auto firstEnvelope = static_cast<int> (dsp::ModSource::envelope1);
+        const auto lastLfo = static_cast<int> (dsp::ModSource::lfo4);
+
+        if (source >= firstEnvelope && source <= lastLfo)
+            isRouted[static_cast<std::size_t> (source - firstEnvelope)] = true;
+    }
+
+    // Envelope 1 shapes the voice whether or not the matrix reads it, so it is
+    // always doing something and is always drawn as such.
+    isRouted[static_cast<std::size_t> (Modulator::envelope1)] = true;
+
+    auto& instrument = telemetryHub->snapshot();
+
+    for (std::size_t i = 0; i < telemetry::modulatorSourceCount; ++i)
+    {
+        const auto source = static_cast<Modulator> (i);
+        const auto isEnvelope = i < static_cast<std::size_t> (Voice::numEnvelopes);
+        const auto generator = static_cast<int> (
+            isEnvelope ? i : i - static_cast<std::size_t> (Voice::numEnvelopes));
+
+        // The generator's own output, even when nothing routes it. An LFO the
+        // matrix ignores is not advanced at all, so it genuinely holds one value
+        // and the flat line is literally true — which is why the routed flag is
+        // published beside it rather than the trace being suppressed.
+        const auto value = voice == nullptr
+                             ? 0.0f
+                             : (isEnvelope ? voice->getEnvelopeValue (generator)
+                                           : voice->getLfoValue (generator));
+
+        telemetryHub->trace (source).write (value);
+
+        instrument.routed[i].store (isRouted[i], std::memory_order_relaxed);
+
+        instrument.envelopeStage[i].store (
+            isEnvelope && voice != nullptr
+                ? static_cast<int> (voice->getEnvelopeStage (generator))
+                : static_cast<int> (dsp::EnvelopeStage::idle),
+            std::memory_order_relaxed);
+    }
+
+    instrument.activeVoices.store (getActiveVoiceCount(), std::memory_order_relaxed);
+    instrument.polyphony.store (polyphony, std::memory_order_relaxed);
+
+    for (std::size_t i = 0; i < telemetry::wavetableDisplayCount; ++i)
+    {
+        const auto oscillator = static_cast<int> (i) + 1;
+
+        instrument.wavetableIndex[i].store (
+            oscillator == 2 ? parameters.osc2.wavetableIndex : parameters.osc1.wavetableIndex,
+            std::memory_order_relaxed);
+
+        // The oscillator's effective position, from the voice the traces follow.
+        // With nothing sounding there is no modulation to add, so the parameter
+        // is the answer — and the display then sits where the control says,
+        // which is what someone moving that control expects to see.
+        instrument.wavetablePosition[i].store (
+            voice != nullptr ? voice->getOscillatorPosition (oscillator)
+                             : (oscillator == 2 ? parameters.osc2.position
+                                                : parameters.osc1.position),
+            std::memory_order_relaxed);
+    }
+}
+
 void VoiceEngine::renderVoicesCapturing (float* const* output, int numChannels, int startSample,
                                          int numSamples) noexcept
 {
@@ -652,10 +757,22 @@ void VoiceEngine::renderVoicesCapturing (float* const* output, int numChannels, 
         telemetry::ScopeSource::postFilter,
     };
 
-    for (int offset = 0; offset < numSamples; offset += captureChunkSamples)
+    // Advanced by the chunk actually rendered, not by the maximum: a chunk that
+    // was shortened to land on a trace boundary would otherwise leave the
+    // samples between the two unrendered.
+    for (int offset = 0; offset < numSamples;)
     {
-        const auto chunk = numSamples - offset < captureChunkSamples ? numSamples - offset
-                                                                     : captureChunkSamples;
+        auto chunk = numSamples - offset;
+
+        if (chunk > captureChunkSamples)
+            chunk = captureChunkSamples;
+
+        // Shortened to land exactly on the next trace boundary, so the trace
+        // keeps a fixed rate without the capture having to run in chunks small
+        // enough to divide it — which measured more than twice as expensive at
+        // thirty-two voices. Only about one chunk in three is shortened at all.
+        if (chunk > traceCountdown)
+            chunk = traceCountdown;
 
         // Cleared rather than accumulated across chunks, so a chunk in which
         // nothing sounds publishes silence. That is what makes a source which
@@ -677,6 +794,20 @@ void VoiceEngine::renderVoicesCapturing (float* const* output, int numChannels, 
 
         for (std::size_t tap = 0; tap < numTaps; ++tap)
             telemetryHub->scope (destinations[tap]).write (tapScratch[tap].data(), chunk);
+
+        // The modulation traces are sampled here rather than captured, because a
+        // modulator is a slow value and not a waveform: one entry every 7.8 ms
+        // *is* the picture, where a scope's window is a thousand samples thrown
+        // away to draw a hundred and ninety-two.
+        traceCountdown -= chunk;
+
+        if (traceCountdown <= 0)
+        {
+            traceCountdown += traceInterval;
+            publishModulation();
+        }
+
+        offset += chunk;
     }
 }
 

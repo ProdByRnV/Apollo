@@ -1,12 +1,15 @@
 #include "UI/TelemetryBridge.h"
 
+#include "Engine/WavetableFrame.h"
+
 #include <utility>
 
 namespace apollo::ui
 {
 
-TelemetryBridge::TelemetryBridge (telemetry::TelemetryHub& hubToUse)
-    : hub (hubToUse)
+TelemetryBridge::TelemetryBridge (telemetry::TelemetryHub& hubToUse,
+                                  const dsp::WavetableLibrary& libraryToUse)
+    : hub (hubToUse), library (libraryToUse)
 {
 }
 
@@ -41,6 +44,38 @@ void TelemetryBridge::setOutboundHandler (OutboundHandler handler)
 void TelemetryBridge::timerCallback()
 {
     sendFrames();
+
+    // One timer, two rates. A second juce::Timer would be a second thread-safe
+    // object and a second thing to start and stop in step with the first, for a
+    // rate that is an exact division of this one.
+    if (--framesUntilInstrument <= 0)
+    {
+        framesUntilInstrument = instrumentFrameDivider;
+        sendInstrumentFrame();
+    }
+}
+
+juce::String TelemetryBridge::createInstrumentFrame()
+{
+    // MESSAGE THREAD.
+    (void) telemetry::buildInstrumentFrame (hub, instrumentFrame);
+
+    // The waveforms are drawn here rather than captured, because a wavetable is
+    // a resource and not a signal: the audio thread publishes only which table
+    // and which position, and the 128 points come from reading an immutable
+    // table on this thread. Sending them would cost more than drawing them.
+    for (auto& wavetable : instrumentFrame.wavetables)
+        engine::fillWavetableFrame (library, wavetable);
+
+    return makeInstrumentFrameMessage (instrumentFrame);
+}
+
+void TelemetryBridge::sendInstrumentFrame()
+{
+    if (! outboundHandler)
+        return;
+
+    outboundHandler (createInstrumentFrame());
 }
 
 juce::String TelemetryBridge::createScopeFrames()

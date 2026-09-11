@@ -181,6 +181,10 @@ void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpected
 
     voiceEngine.prepare (sampleRate);
 
+    // The meter's ballistics are expressed in seconds and its clip hold in
+    // samples, so both have to be re-derived whenever the device changes.
+    telemetry->prepare (sampleRate);
+
     // 20 ms is long enough to remove the step from an automated gain change and
     // short enough that a deliberate move still feels immediate.
     masterGain.reset (sampleRate, 0.02);
@@ -703,8 +707,17 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // is — an instance with no editor open should cost what it did before scopes
     // existed, and in a session holding twenty of them that is nineteen.
     if (telemetry->isCapturing())
+    {
         telemetry->scope (telemetry::ScopeSource::output)
             .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
+
+        // The meter measures the same buffer at the same point, because it is
+        // answering a question about the same thing: what leaves the plugin. A
+        // second pass rather than a branch inside the first, because a meter and
+        // a scope want different arithmetic and merging them would produce a
+        // loop that did neither job plainly.
+        telemetry->outputMeter().process (outputs, numOutputChannels, 0, numSamples);
+    }
 }
 
 //==============================================================================

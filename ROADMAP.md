@@ -487,36 +487,37 @@ migration, the browsers the engine cannot yet feed, and every visualizer.
 
 - [x] Oscilloscope for the final output. — a lock-free capture ring per source, triggered and decimated on the message thread, drawn on a canvas at 30 Hz. Silent, sounding and released all verified on screen (ADR-0047) (7a)
 - [x] Per-source oscilloscopes — oscillator 1, oscillator 2, sub, noise and the post-filter signal, each with its own scope. Tapped inside the voice loop and summed across the whole pool, so a source shows what every voice producing it is producing together; the four source taps sit before the filter and the amplifier, the post-filter tap after both (ADR-0048) (7b)
-- [ ] Wavetable visualization.
-- [ ] Envelope visualization — a live trace of the value being produced, not a static picture of the shape.
-- [ ] LFO visualization — likewise.
-- [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — all six taps together add 0.05 % of real time at one voice and 0.76 % at thirty-two; six frames cost 0.05 % at 30 Hz on the message thread. Because that is 8-18 % of the render it follows, capture runs only while an editor is watching, and an unwatched instance costs what it did before scopes existed. A stopped source reads as silent because the capture records the silence rather than inferring it from the absence of a write (7a, 7b)
-- [ ] Optional spectrum visualization.
-- [ ] Voice/activity indicators.
-- [ ] Output metering.
+- [x] Wavetable visualization. — one cycle of the wave each oscillator is actually reading, at the *effective* position including whatever the matrix adds, rendered on the message thread from the immutable table rather than captured (ADR-0049) (7c)
+- [x] Envelope visualization — a live trace of the value being produced, not a static picture of the shape. All four, one entry every 7.8 ms over a one-second window, following the most recently started sounding voice, with the DAHDSR stage named in words (7c)
+- [x] LFO visualization — likewise, and an LFO nothing routes says "unrouted" rather than leaving a flat line to look like a fault (7c)
+- [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — everything a watched instance pays adds 0.12 % of real time at one voice and 0.47 % at thirty-two; six scope frames cost 0.05 % at 30 Hz on the message thread. Because it is a meaningful fraction of the render, capture runs only while an editor is watching, and an unwatched instance costs what it did before scopes existed. A stopped source reads as silent because the capture records the silence rather than inferring it from the absence of a write (7a, 7b, 7c)
+- [ ] Optional spectrum visualization. — the one item in this section still outstanding, and explicitly optional; it is an FFT and a log frequency axis rather than more of the transport built here
+- [x] Voice/activity indicators. — sounding voices against the polyphony ceiling, in the meter's caption where it is read alongside the level (7c)
+- [x] Output metering. — peak with a 20 dB/s fall beside RMS over 300 ms, and a clip held for a second and a half after the sample that caused it. The first real use of the red overload token, said in a word as well as a colour (ADR-0049) (7c)
 
 ### Telemetry
 
 - [x] Implement lock-free/atomic telemetry snapshots. — `Telemetry/ScopeBuffer.h`: one-way, allocation-free, and read behind the writer so the reader and writer are a ring apart (7a)
-- [x] Rate-limit UI updates. — frames at 30 Hz, decimated to 192 points and rounded to three decimals before they leave the native side; the timer follows the outbound handler, so a closed editor serializes nothing (7a)
+- [x] Rate-limit UI updates. — scope frames at 30 Hz decimated to 192 points; instrument frames (traces, meter, wavetables) at 15 Hz, because a meter needle reads perfectly at half the rate a waveform needs. Points travel as integer thousandths on one line rather than as pretty-printed doubles, which took a scope frame from 18 KB to 5 KB (ADR-0049). The timer follows the outbound handler, so a closed editor serializes nothing (7a, 7c)
 - [x] Ensure visualizers never access mutable DSP state directly. — the interface never sees a voice, a buffer or an engine; it sees a frame of floats that was copied out of a ring (7a)
-- [ ] Verify UI CPU usage independently of DSP CPU usage.
+- [x] Verify UI CPU usage independently of DSP CPU usage. — the frame builders are timed separately on the message thread and reported as their own row: six scope frames cost 0.05 % of real time at 30 Hz, which is the whole of the interface's share of a core (7a, 7c)
 
 ## Exit Criteria
 
 - [x] UI controls accurately represent native state. — every control is built from parameter metadata and echoes the engine's own value back (Phase 5, brought forward)
 - [x] UI interactions produce correct parameter changes. — verified by hand and by the parameter-bridge tests
 - [x] UI reload restores state correctly. — a project load bumps the reload counter and resynchronises parameters, MIDI mappings and the learn state wholesale
-- [x] Visualizers remain responsive without affecting audio processing. — measured across all six taps: 0.05 % of real time at one voice, 0.76 % at thirty-two, and nothing at all in an instance nobody is watching. A test renders the same note with and without capture and compares the audio sample for sample (7a, 7b); re-measure when the envelope and LFO traces land in 7c
+- [x] Visualizers remain responsive without affecting audio processing. — measured across everything a watched instance pays, with the two cases interleaved so the difference is not a measurement of the laptop warming up: 0.12 % of real time at one voice, 0.47 % at thirty-two, and nothing at all in an instance nobody is watching. A test renders the same note with and without capture and compares the audio sample for sample (7a, 7b, 7c)
 - [x] UI remains usable across supported display configurations. — verified at 1920x1080 with 150 % scaling
 
 ---
 
-> **Phase status:** 7a and 7b are in — the visualisation transport, the output
-> oscilloscope, and a scope on every one of the five sources, with the capture
-> cost measured rather than assumed and gated on whether anything is watching.
-> Two sub-phases remain: **7c** envelope and LFO traces, metering and wavetable
-> display, and **7d** the React migration.
+> **Phase status:** 7a, 7b and 7c are in — the visualisation transport, six
+> oscilloscopes, eight modulator traces, the output meter, the voice count and a
+> wavetable display per oscillator, with every cost measured rather than assumed
+> and all of it gated on whether anything is watching. One sub-phase remains:
+> **7d**, the React migration. Spectrum analysis is the only Visualization item
+> left unticked and is marked optional.
 
 ---
 

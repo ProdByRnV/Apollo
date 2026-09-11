@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -79,6 +80,50 @@ template <typename RenderBlock>
     const auto rendered = static_cast<double> (blocks * blockSize) / sampleRate;
 
     return { best / rendered, rendered };
+}
+
+/** Measures two renderers *alternately* and returns the best of each.
+
+    Use this wherever the headline is the difference between two measurements
+    rather than either of them. Measuring one for twelve seconds and then the
+    other for twelve more compares two different machines: a laptop warms up,
+    and something else wants the core. That is not a theoretical concern here —
+    measured one after the other, the visualisation overhead at eight voices came
+    out *lower* than at one, and at thirty-two it came out negative, which is not
+    a fact about the code.
+
+    Alternating puts both under the same drift; taking the best of each pass
+    still drops the passes something else interrupted.
+*/
+template <typename FirstBlock, typename SecondBlock>
+[[nodiscard]] std::pair<Measurement, Measurement> measurePair (double seconds, FirstBlock&& first,
+                                                               SecondBlock&& second)
+{
+    const auto blocks = static_cast<int> (seconds * sampleRate / static_cast<double> (blockSize));
+    const auto rendered = static_cast<double> (blocks * blockSize) / sampleRate;
+
+    auto bestFirst = std::numeric_limits<double>::max();
+    auto bestSecond = std::numeric_limits<double>::max();
+
+    const auto time = [blocks] (auto&& render)
+    {
+        const auto start = std::chrono::steady_clock::now();
+
+        for (int i = 0; i < blocks; ++i)
+            render();
+
+        const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
+        return elapsed.count();
+    };
+
+    for (int pass = 0; pass < 3; ++pass)
+    {
+        bestFirst = std::min (bestFirst, time (first));
+        bestSecond = std::min (bestSecond, time (second));
+    }
+
+    return { Measurement { bestFirst / rendered, rendered },
+             Measurement { bestSecond / rendered, rendered } };
 }
 
 void printHeading (const char* title)
@@ -376,26 +421,31 @@ void benchmarkTelemetry()
         hub.setCapturing (false);
         voiceEngine.setTelemetry (&hub);
 
+        // Alternated rather than measured one after the other, because the
+        // headline here is the *difference* between them — see measurePair.
+        //
         // With nobody watching this must be the render the engine has always
         // done: the whole point of the gate is that an instance with its editor
         // closed pays nothing, so the first row is also a check that the gate
-        // works.
-        const auto renderOnly = measure (secondsPerMeasurement, [&]
-        {
-            voiceEngine.render (channels, 2, 0, blockSize);
-        });
-
-        hub.setCapturing (true);
-
-        // Everything a watched instance pays: the five taps inside the voice
-        // loop, which scale with polyphony, and the output tap after it, which
-        // does not.
-        const auto withCapture = measure (secondsPerMeasurement, [&]
-        {
-            voiceEngine.render (channels, 2, 0, blockSize);
-            hub.scope (telemetry::ScopeSource::output)
-                .writeMixedToMono (channels, 2, 0, blockSize);
-        });
+        // works. The second is everything a watched instance pays: the five taps
+        // inside the voice loop, which scale with polyphony, the modulation
+        // traces sampled between chunks, and the output tap and meter after it,
+        // which do not.
+        const auto [renderOnly, withCapture] = measurePair (
+            secondsPerMeasurement,
+            [&]
+            {
+                hub.setCapturing (false);
+                voiceEngine.render (channels, 2, 0, blockSize);
+            },
+            [&]
+            {
+                hub.setCapturing (true);
+                voiceEngine.render (channels, 2, 0, blockSize);
+                hub.scope (telemetry::ScopeSource::output)
+                    .writeMixedToMono (channels, 2, 0, blockSize);
+                hub.outputMeter().process (channels, 2, 0, blockSize);
+            });
 
         hub.setCapturing (false);
 

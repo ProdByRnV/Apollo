@@ -965,6 +965,184 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     opacity: 0.7;
 }
 
+/* Display zoom. Off by default and obviously off: the factor is always on the
+   button, so a magnified trace can never be mistaken for a loud one. */
+.scope__zoom {
+    appearance: none;
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+}
+
+.scope__zoom:hover {
+    color: var(--text);
+    border-color: var(--line-strong);
+}
+
+.scope__zoom[data-active="true"] {
+    color: var(--accent-bright);
+    border-color: var(--accent-bright);
+}
+
+/* ==========================================================================
+   MODULATOR TRACES
+
+   Green rather than violet, because a modulator moving *is* activity and green
+   is what activity means here (§24.2). The scopes stay violet: audio is not a
+   modulation indicator, it is simply what is there.
+   ========================================================================== */
+
+.trace {
+    --trace-line: var(--active);
+
+    flex: 0 0 auto;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.trace__canvas {
+    display: block;
+    width: 100%;
+    background: var(--surface-void);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+}
+
+.trace__caption,
+.wavetable__caption,
+.meter__caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.trace__name,
+.wavetable__name {
+    text-transform: uppercase;
+    opacity: 0.6;
+}
+
+/* A modulator nothing routes is not running, so its flat line is true. It
+   recedes and says "unrouted" rather than disappearing, which is the same
+   distinction the scopes draw between silent and uncaptured. */
+.trace[data-routed="false"] {
+    --trace-line: var(--line-strong);
+}
+
+.trace[data-routed="false"] .trace__canvas {
+    opacity: 0.7;
+}
+
+/* ==========================================================================
+   WAVETABLE DISPLAY
+   ========================================================================== */
+
+.wavetable {
+    --wave-line: var(--accent-bright);
+
+    flex: 0 0 auto;
+    width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.wavetable__canvas {
+    display: block;
+    width: 100%;
+    background: var(--surface-void);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+}
+
+/* ==========================================================================
+   OUTPUT METER
+
+   Two bars that grow upward, with RMS behind peak rather than beside it: they
+   describe the same signal, and side by side they read as two signals.
+   ========================================================================== */
+
+.meter {
+    flex: 0 0 auto;
+    width: 92px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.meter__bars {
+    display: flex;
+    gap: 3px;
+    height: 84px;
+    padding: 3px;
+    background: var(--surface-void);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+}
+
+.meter__channel {
+    position: relative;
+    flex: 1 1 0;
+    border-radius: 1px;
+    background: var(--line-faint);
+    overflow: hidden;
+}
+
+.meter__rms,
+.meter__peak {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0;
+}
+
+.meter__rms {
+    background: var(--accent);
+}
+
+/* The peak rides over the RMS as a thin cap rather than a second fill, so the
+   two are one reading with a ceiling rather than two competing bars. */
+.meter__peak {
+    border-top: 2px solid var(--accent-bright);
+}
+
+.meter[data-clipped="true"] .meter__peak {
+    border-top-color: var(--danger);
+}
+
+/* A literal colour rather than color-mix: the WebView runtime is the user's,
+   not the SDK we pin, and a rule the runtime cannot parse is dropped silently —
+   which for a clip indicator means failing in exactly the case it exists for. */
+.meter[data-clipped="true"] .meter__channel {
+    background: rgba(255, 77, 94, 0.28);
+}
+
+/* The first real use of the red token (§24.2) — and a word beside it, because
+   an indicator that is only a colour tells a colour-blind user nothing (§39). */
+.meter__clip {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.meter[data-active="false"] .meter__bars {
+    opacity: 0.6;
+}
+
 /* The controller-profile picker. Its own row rather than a control well,
    because it is an action rather than a value. */
 .profiles {

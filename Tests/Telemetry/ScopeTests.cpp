@@ -511,7 +511,7 @@ private:
 
         // A viewer arriving arms every ring. This is what the editor does when
         // it attaches its outbound handler.
-        ui::TelemetryBridge bridge (hub);
+        ui::TelemetryBridge bridge (hub, processor.getVoiceEngine().getWavetableLibrary());
         bridge.setOutboundHandler ([] (const juce::String&) {});
 
         expect (hub.isCapturing());
@@ -745,7 +745,8 @@ private:
         processor.setRateAndBufferSizeDetails (testSampleRate, testBlockSize);
         processor.prepareToPlay (testSampleRate, testBlockSize);
 
-        ui::TelemetryBridge bridge (processor.getTelemetry());
+        ui::TelemetryBridge bridge (processor.getTelemetry(),
+                                    processor.getVoiceEngine().getWavetableLibrary());
 
         std::vector<juce::String> sent;
         bridge.setOutboundHandler ([&sent] (const juce::String& message) { sent.push_back (message); });
@@ -791,6 +792,16 @@ private:
 
         if (sent.empty())
             return;
+
+        // Logged for the same reason the instrument frame's size is: this goes
+        // out thirty times a second, and a change that quietly multiplies it
+        // should be noticed here rather than in a profiler.
+        const auto bytes = sent.back().getNumBytesAsUTF8();
+        logMessage ("scope frame: " + juce::String (static_cast<int> (bytes)) + " bytes");
+
+        expect (bytes < 8u * 1024u,
+                "the scope frame has grown to " + juce::String (static_cast<int> (bytes))
+                    + " bytes");
 
         juce::var parsed;
         expect (juce::JSON::parse (sent.back(), parsed).wasOk(),
@@ -862,13 +873,19 @@ private:
 
         for (const auto& point : *points)
         {
-            const auto value = static_cast<double> (point);
+            // Integer thousandths of full scale, not a fraction: a JSON number
+            // is a double and JUCE spells one out to sixteen places, so the
+            // points travel scaled and the page divides by a thousand.
+            expect (point.isInt(),
+                    "a point reached the interface as something other than an integer");
+
+            const auto value = static_cast<double> (point) / 1000.0;
 
             expect (std::isfinite (value), "a non-finite point reached the interface");
             expect (value >= -1.0 && value <= 1.0,
                     "a point outside full scale reached the interface: " + juce::String (value));
 
-            if (std::abs (value - static_cast<double> (points->getFirst())) > 1.0e-4)
+            if (std::abs (value - static_cast<double> (points->getFirst()) / 1000.0) > 1.0e-4)
                 varies = true;
         }
 

@@ -553,7 +553,7 @@ The list is fixed at build time and never pushed unprompted.
 
 ---
 
-### 10.4 Visualisation frames (Phase 7a, 7b)
+### 10.4 Scope frames (Phase 7a, 7b)
 
 Scope frames are a **broadcast**, not a conversation: the frontend asks for
 nothing and acknowledges nothing, and a dropped frame costs one repaint. They
@@ -568,7 +568,7 @@ otherwise be coupled by accident.
   "scopes": [
     {
       "source": "output",
-      "points": [0.0, 0.031, 0.062],
+      "points": [0, 31, 62],
       "peak": 0.0812,
       "silent": false,
       "triggered": true
@@ -579,9 +579,10 @@ otherwise be coupled by accident.
 
 - `source` is a stable token — `output`, `osc1`, `osc2`, `sub`, `noise`,
   `filter` — that the frontend keys its scopes on.
-- `points` is the trace, oldest first, 192 values in -1 to +1, rounded to three
-  decimals. Three decimals is below a pixel on any scope anyone will draw and
-  roughly halves the message (§12).
+- `points` is the trace, oldest first, 192 values as **integer thousandths of
+  full scale** — divide by 1000. A thousandth is below a pixel on any scope
+  anyone will draw, and sending it as an integer rather than a rounded fraction
+  is what keeps a frame at 5 KB instead of 18 (§12).
 - `peak` is the largest absolute sample in the *window the frame came from*, not
   in the decimated points, so it is the real level rather than what survived
   decimation.
@@ -620,6 +621,78 @@ the five source taps live inside the voice loop, so their cost rises with
 polyphony, and an instance nobody is watching has no reason to pay it. Attaching
 a handler also clears every ring, so the first frames a viewer sees can never be
 audio left behind by the last one.
+
+---
+
+### 10.5 Instrument frames (Phase 7c)
+
+The second broadcast, and deliberately not more of the first. It carries the
+modulator traces, the output meter, the voice count and each oscillator's current
+waveform — everything that moves at human speed rather than at the sample rate.
+
+**It travels at half the scope rate**, 15 Hz. A scope is a moving picture and
+reads as a slideshow below about twenty-five frames a second; a meter needle and
+an envelope trace are perfectly legible at half that, and halving the rate of the
+larger of the two messages is worth more than the tidiness of having one. Both
+run off the same timer, so they can never drift apart.
+
+```json
+{
+  "type": "instrumentFrame",
+  "version": 1,
+  "modulators": [
+    { "source": "env1", "points": [0, 120, 240], "current": 0.82,
+      "routed": true, "stage": 5 },
+    { "source": "lfo1", "current": 0.0, "routed": false, "stage": 0 }
+  ],
+  "wavetables": [
+    { "osc": 1, "points": [0, 49, 98], "position": 0.25, "table": 0 }
+  ],
+  "meter": { "active": true, "peak": [0.0512, 0.0498],
+             "rms": [0.0311, 0.0305], "clipped": false },
+  "voices": 1,
+  "polyphony": 16
+}
+```
+
+**Modulators.** `source` is a stable token — `env1`-`env4`, `lfo1`-`lfo4`. A
+modulator nothing has traced is omitted entirely, exactly as an uncaptured scope
+source is.
+
+- `points` is one second of history, oldest first, 128 integer thousandths — one
+  entry every **7.8 ms**. Anything faster than that, a 5 ms attack for instance,
+  shows as a single step rather than a ramp: that is the resolution of the
+  picture, stated rather than hidden behind interpolation that would invent the
+  values in between.
+- `points` is **absent when `routed` is false**, and that is not an omission. An
+  LFO nothing reads is not advanced by the engine at all, so its trace is a flat
+  line by construction; the page draws the zero line and the word "unrouted"
+  rather than a straight trace that would look like a fault. On the default
+  patch, which routes nothing, this is seven eighths of the message.
+- `current` is the newest entry, sent as a number because the interface wants it
+  beside the picture and re-deriving "the last point" in the page would be a
+  second place to get the trace's orientation wrong.
+- `stage` is `dsp::EnvelopeStage`'s numeric value — 0 idle, 1 delay, 2 attack,
+  3 hold, 4 decay, 5 sustain, 6 release — and is meaningless for an LFO.
+
+**The trace follows the most recently started sounding voice.** Envelopes and
+LFOs are per voice, so a trace has to choose one: summing four envelopes
+describes nothing and averaging would flatten what is being watched. The newest
+note is the one whose envelope you are listening to while you adjust it.
+
+**Wavetables** are keyed by `osc` rather than by array position, for the same
+reason the scopes are keyed by token: entries drop out when there is nothing to
+report, and a position would then silently mean a different oscillator.
+`position` is the **effective** position — the parameter plus whatever the matrix
+is adding — so the display sweeps when the oscillator does.
+
+**The meter** reports linear amplitude, not decibels: the conversion is
+presentation, and doing it natively would mean choosing a floor for silence that
+the page would have to know about anyway. `peak` falls at 20 dB/s from an instant
+attack; `rms` is averaged over 300 ms; `clipped` is held for a second and a half
+after the last sample at or beyond full scale, so a clip nobody was watching for
+is still seen. `active` is false until a block has been measured, which is not
+the same as silence.
 
 ---
 
@@ -680,6 +753,27 @@ WebView
 UI telemetry should normally be sampled at a display-appropriate rate, approximately 30–120 Hz depending on the visualization.
 
 The audio thread must never wait for the UI to consume telemetry.
+
+**As built** (Phases 7a-7c): every item on that list exists except spectrum
+data, and all of it takes the flow above. Scope waveforms and modulator traces
+travel through per-source lock-free rings; the meter, the voice count and the
+wavetable positions are plain atomics the audio thread refreshes once a block.
+Nothing is requested and nothing waits.
+
+**Two rates rather than one**, because 30-120 Hz is a range and the range is
+wide for good reason: scopes go at 30 Hz because a waveform below about 25 reads
+as a slideshow, and everything else goes at 15 because a meter needle and an
+envelope trace do not (§10.4, §10.5). Capture itself is armed only while an
+editor has a handler attached, so an instance nobody is watching pays nothing.
+
+**How numbers are encoded matters more than it looks.** Points travel as integer
+thousandths of full scale on a single line. Sending them as JSON numbers is the
+obvious thing and is three and a half times larger: `juce::JSON` spells a double
+between 0.1 and 1 to sixteen decimal places, and pretty-prints each array element
+on its own indented line. Measured, one scope frame was 18,395 bytes thirty times
+a second; it is now 5,199, and an instrument frame 2,765. Both are asserted as
+budgets in `Tests/Telemetry` and logged, so a change that multiplies them is
+noticed there rather than in a profiler (ADR-0049).
 
 ---
 

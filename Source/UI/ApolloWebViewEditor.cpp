@@ -123,7 +123,8 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     : juce::AudioProcessorEditor (processorToUse),
       processor (processorToUse),
       bridge (processorToUse.getValueTreeState()),
-      telemetry (processorToUse.getTelemetry()),
+      telemetry (processorToUse.getTelemetry(),
+                 processorToUse.getVoiceEngine().getWavetableLibrary()),
       webView (withPlatformBackend (juce::WebBrowserComponent::Options {}
                    .withNativeIntegrationEnabled()
                    .withResourceProvider ([this] (const auto& path) { return provideResource (path); })
