@@ -431,22 +431,30 @@ Build the complete interactive Apollo interface on top of the established bindin
 ## Tasks
 
 Part of this phase was brought forward and landed against the Phase 5 engine:
-the interface itself, as a dependency-free page under `Source/UI/Web` embedded
-by CMake (ADR-0038, ADR-0039, ADR-0040). What remains here is the React
-migration, the browsers the engine cannot yet feed, and every visualizer.
+the interface itself, first as a dependency-free page embedded by CMake
+(ADR-0038, ADR-0039, ADR-0040) and since 7d as a React and TypeScript
+application under `WebUI/` bundled by the same CMake step (ADR-0050). The
+visualizers followed in 7a-7c.
 
 ### Frontend foundation
 
-- [ ] Establish React/TypeScript project structure. — the current page is
-      framework-free; the design tokens and control behaviour transfer as-is
-- [ ] Establish frontend build process.
+- [x] Establish React/TypeScript project structure. — `WebUI/`, with the page
+      split into components, layout modules, parameter mapping, the wire contract
+      as types, and four stores (ADR-0050) (7d)
+- [x] Establish frontend build process. — esbuild and `tsc --noEmit`, twelve
+      packages in total, run from CMake so the bundle can never disagree with its
+      source. Building the plugin needs Node; the engine and its tests do not (7d)
 - [x] Integrate compiled assets with CMake/JUCE. — `juce_add_binary_data`, with
-      the editor serving a fixed path/MIME table (ADR-0038)
+      the editor serving a fixed path/MIME table (ADR-0038), now fed by the
+      bundler's output rather than by three hand-written files (7d)
 - [x] Establish reusable UI component system. — knob, segmented switch, select,
-      bipolar rail, module frame and tab strip, all built from metadata
-- [x] Implement parameter-control abstraction. — one `bind(id, control)` path,
-      normalised↔plain mapping mirroring `juce::NormalisableRange`, gesture
-      begin/end around every edit, and echo suppression while a control is held
+      bipolar rail, module frame and tab strip, all built from metadata, and since
+      7d all real components with typed props
+- [x] Implement parameter-control abstraction. — normalised↔plain mapping
+      mirroring `juce::NormalisableRange`, gesture begin/end around every edit,
+      and echo suppression while a control is held. Since 7d a store with one
+      listener set per parameter id, so a knob re-renders when its own value moves
+      and at no other time (7d)
 
 ### Core interface
 
@@ -512,12 +520,13 @@ migration, the browsers the engine cannot yet feed, and every visualizer.
 
 ---
 
-> **Phase status:** 7a, 7b and 7c are in — the visualisation transport, six
-> oscilloscopes, eight modulator traces, the output meter, the voice count and a
-> wavetable display per oscillator, with every cost measured rather than assumed
-> and all of it gated on whether anything is watching. One sub-phase remains:
-> **7d**, the React migration. Spectrum analysis is the only Visualization item
-> left unticked and is marked optional.
+> **Phase status:** complete. 7a built the visualisation transport, 7b put a
+> scope on every source, 7c added the modulator traces, the output meter and the
+> wavetable displays, and 7d moved the whole interface to React and TypeScript
+> with no change a user can see. Every cost is measured rather than assumed and
+> all capture is gated on whether anything is watching. Two items remain
+> unticked and both are marked optional or deferred: a spectrum analyser, and
+> the hosts and browsers this environment cannot reach.
 
 ---
 

@@ -35,6 +35,7 @@ include(ApolloBuildOptions)
 include(ApolloCompilerWarnings)
 include(ApolloDependencies)
 include(ApolloWebView)
+include(ApolloWebUI)
 
 add_subdirectory(Source)
 

@@ -152,25 +152,33 @@ add_library(apollo::editor ALIAS apollo_editor)
 if(APOLLO_ENABLE_WEBVIEW)
     # The frontend, compiled into the binary.
     #
-    # The page lives in UI/Web as real .html, .css and .js files rather than as
-    # raw string literals in C++, because an interface is edited far more often
-    # than the code that serves it and a stylesheet trapped in a string literal
-    # gets no syntax highlighting, no diff that reads sensibly, and no way to
-    # open it in a browser. Embedding rather than shipping loose files keeps the
-    # plugin a single relocatable binary with no install-time asset path to get
-    # wrong (CLAUDE.md Â§31.2), and means the WebView is never pointed at the
-    # filesystem (UI_BINDINGS.md Â§14).
+    # The page is a React and TypeScript application under WebUI/, bundled by
+    # CMake/ApolloWebUI.cmake into the same three files it has always produced:
+    # index.html, apollo.css and apollo.js. Fixed names rather than hashed ones,
+    # because there is no cache to bust when a page is served out of a plugin
+    # binary, and a hashed name would mean regenerating the C++ resource table on
+    # every build.
     #
-    # Listing the files here is what makes them build inputs: touch the CSS and
-    # the plugin relinks, which is the whole point of putting web assets through
-    # CMake rather than beside it (CLAUDE.md Â§31).
+    # Embedding rather than shipping loose files keeps the plugin a single
+    # relocatable binary with no install-time asset path to get wrong
+    # (CLAUDE.md 31.2), and means the WebView is never pointed at the filesystem
+    # (UI_BINDINGS.md 14). Listing the built files here is what makes the bundle
+    # a build input: edit a component and the plugin relinks, which is the same
+    # property the hand-written files had and the one most easily lost in a
+    # migration.
+    apollo_build_webui(APOLLO_WEBUI_FILES)
+
     juce_add_binary_data(apollo_web_assets
         NAMESPACE ApolloWebAssets
         HEADER_NAME ApolloWebAssets.h
-        SOURCES
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/index.html"
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/apollo.css"
-            "${CMAKE_CURRENT_SOURCE_DIR}/UI/Web/apollo.js")
+        SOURCES ${APOLLO_WEBUI_FILES})
+
+    # The bundle is generated, so the binary-data target has to wait for it.
+    # CMake can infer that from the OUTPUT list within one directory, but the
+    # dependency is stated anyway: a generator that orders custom targets rather
+    # than files would otherwise race, and the failure — embedding whatever was
+    # in the output directory last time — is silent.
+    add_dependencies(apollo_web_assets apollo_webui)
 
     # The VST3 is a shared library, so everything linked into it must be
     # position independent or the link fails on Linux.

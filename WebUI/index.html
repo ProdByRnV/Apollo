@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apollo</title>
+
+<!--
+    Apollo's interface shell.
+
+    Deliberately almost empty, and more so since Phase 7d than before it. Every
+    control on the page is built from the parameter metadata the native side
+    sends, never from markup written here, because a control hard-coded in HTML
+    can disagree with the engine about a range or a default and there is nothing
+    to catch it when it does (UI_BINDINGS.md §16). What used to live here — the
+    masthead and the footer — is now rendered by React along with everything
+    else, because both carry live state and markup that is half static and half
+    filled in by script is the worst of the two.
+
+    The stylesheet and script are fetched from the resource provider on the
+    native side; nothing here is loaded over a network (CLAUDE.md §40).
+-->
+
+<link rel="stylesheet" href="apollo.css">
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="apollo.js"></script>
+</body>
+</html>

@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 7 — Web UI / UX System |
-| **Status** | **7c complete** (six oscilloscopes, eight modulator traces, the output meter, the voice count and a wavetable display per oscillator). 7d remains |
+| **Phase** | Phase 7 — Web UI / UX System (complete); Phase 8 — Effects Rack is next |
+| **Status** | **Phase 7 complete.** The interface is a React/TypeScript application with six oscilloscopes, eight modulator traces, an output meter, a voice count and a wavetable display per oscillator |
 | **Milestone** | M7 — Interface |
-| **Next step** | Phase 7d — the React/TypeScript migration, which closes Phase 7 |
+| **Next step** | Phase 8 — the effects rack, and the first consumer of the Phase 4c oversampler |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -30,12 +30,13 @@ asserted: worst case -98.5 dBc against a -60 dBc budget.
 Voices are now shaped by a real DAHDSR envelope with adjustable curve tension,
 not the linear placeholder.
 
-The instrument now has a real interface. The 139-slider placeholder page was
-replaced with a signal-flow layout of rotary controls, segmented switches and a
-sixteen-slot matrix, built from real files under `Source/UI/Web` and embedded at
-build time (ADR-0038, ADR-0039, ADR-0040). This is Phase 7 work pulled forward
-because the instrument had become unusable to audition by hand; it does not
-close Phase 7, which still owns the React migration and every visualizer.
+The instrument now has a real interface: a signal-flow layout of rotary controls,
+segmented switches and a sixteen-slot matrix, written in React and TypeScript
+under `WebUI/`, bundled by CMake and embedded in the binary (ADR-0038, ADR-0039,
+ADR-0040, ADR-0050). It replaced a 139-slider placeholder page in work pulled
+forward from Phase 7, was rebuilt from hand-written JavaScript into components in
+7d, and no part of it states a parameter's range: every control is built from the
+metadata the engine sends.
 
 Still placeholders: the four built-in wavetables are mathematically defined
 morphs rather than designed factory content (Phase 9).
@@ -120,10 +121,19 @@ Everything below was configured, built and executed on this machine.
   frontend from a fixed table of path, resource name and MIME type; any other
   path is refused rather than mapped onto the filesystem.
 
-### Frontend (Phase 7, brought forward)
+### Frontend (Phase 7)
 
-- `Source/UI/Web/{index.html, apollo.css, apollo.js}`, compiled into the binary
-  by `juce_add_binary_data` (ADR-0038). Editing the CSS relinks the plugin.
+- **React and TypeScript under `WebUI/`** (Phase 7d), bundled by esbuild into the
+  same three files the plugin has always embedded — `index.html`, `apollo.css`,
+  `apollo.js` — through `juce_add_binary_data` (ADR-0038, ADR-0050). CMake runs
+  the bundler, so the built page can never disagree with its source; editing a
+  component relinks the plugin.
+- **Twelve packages in the whole dependency tree**: react, react-dom, esbuild,
+  typescript and their types. No dev server, no plugin ecosystem, and nothing
+  loaded over a network at run time (CLAUDE.md §32, §40).
+- **Building the plugin needs Node; the engine and its tests do not.** The test
+  suite has never had a browser dependency and did not acquire one, and the
+  sanitizer job configures the editor out entirely.
 - Controls are built **from the parameter metadata alone** — ranges, defaults,
   steps and skews are never restated in the page (UI_BINDINGS.md §16). Discrete
   *labels* are presentation and do live in the page, applied only when the label
@@ -136,8 +146,14 @@ Everything below was configured, built and executed on this machine.
 - Accessibility: `role="slider"` with live `aria-valuenow`/`aria-valuetext`,
   `radiogroup` semantics on switches, visible focus, and no state signalled by
   colour alone (ADR-0039, CLAUDE.md §39).
-- No framework and no network: the page has no dependencies and loads nothing
-  over the wire (CLAUDE.md §40). The React migration remains Phase 7's.
+- **Values reach controls through stores, not props**: one listener set per
+  parameter id read through `useSyncExternalStore`, so a knob re-renders when its
+  own value moves and at no other time. The MIDI mappings and the modulation
+  lighting are two more stores, shaped for how often each changes.
+- **The eleven canvases are drawn imperatively**, outside the React tree: a frame
+  is delivered by call to whoever subscribed to that source. Routing thirty
+  frames a second through state would re-render eleven components to produce
+  markup that never changes (ADR-0050).
 - **Now also present:** every visualizer Apollo owes except a spectrum analyser
   (Phase 7a-7c). Six oscilloscopes — the output, both wavetable oscillators, the
   sub, the noise generator and the post-filter signal — from frames broadcast at
@@ -571,7 +587,7 @@ Everything below was configured, built and executed on this machine.
 
 | Phase | Absent |
 |---|---|
-| 7 | The React migration (7d), and an optional spectrum analyser. Everything else in the phase is in: the transport in **7a**, a scope on the output and all five sources in **7b**, and the modulator traces, output meter, voice count and wavetable displays in **7c** |
+| 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
 | 9 | Presets, wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
@@ -788,6 +804,22 @@ means what it is supposed to.
 | Clipping is visible and said in words | A ten-note chord at maximum master drove the meter to full, the bar caps to red, the channel wash to red and the caption to **CLIP**, with **10/16** voices. The peak had already fallen to −2.1 dB by then while the clip was still held — which is exactly why both exist |
 | The display zoom magnifies the trace and nothing else | ×4 on the output scope: the trace four times larger, the button lit, and the reading still **−29.6 dB** — matching the meter beside it |
 
+### The React interface, 2026-09-12
+
+The migration changes nothing a user can see, which makes "looks the same" the
+entire acceptance criterion and a test suite almost useless for checking it. All
+of this was driven by hand against the running standalone, with the application
+left open throughout at the developer's request.
+
+| Checked | Result |
+|---|---|
+| The page is the page | Side by side with the build before it: same masthead, same modules in the same order, same knobs, same values, same footer. The only difference found was the footer sitting below the window, from an extra wrapper element between `body` and the application frame — fixed by making the React root *be* the frame |
+| A knob still tracks the hand | Dragging Position moved it and the wavetable display followed; releasing returned the control to rest. The first build did **not**: the held flag lived in a ref, and a ref mutated on pointer-up re-renders nothing, so the control stayed lit. Now `useState` in both draggable controls |
+| Pictures still arrive at frame rate | A held A2 drew the wavetable shape at 18 %, the scope beside it at **−0.6 dB**, envelope 1 at **sustain · 1.00**, and LFO 1 as exactly one sine cycle across the one-second window at **1.00 Hz** |
+| The matrix still lights what it moves | Routing LFO 1 → Filter 1 Cutoff at +100 % turned the masthead to **MOD 1/16** with its lamp lit, and filter 1's Cutoff knob green while Resonance stayed violet |
+| MIDI Learn is still a mode | Toggling it outlined every assignable control, revealed **Clear all**, and changed the footer hint. Clicking Oscillator 1's Level armed learn — amber **LEARN** badge, status line naming the parameter |
+| A learn still completes and a mapping still drives | CC 74 completed the learn and the badge turned green; sending CC 74 = 40 moved Level to **31 %**. Tabbing to it in learn mode and pressing Delete released it again, leaving the instrument as it was found |
+
 ---
 
 ## 5b. CPU measurements
@@ -989,44 +1021,38 @@ change that multiplies them is caught there (ADR-0049).
 
 ## 7. Blockers
 
-**None.** Phase 7d can begin.
+**None.** Phase 8 can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Close **Phase 7** with **7d — the React/TypeScript migration**. It is the last
-sub-phase and the only one that changes nothing a user can see, which makes it
-the one most in need of a clear account of why it is worth doing at all.
+Begin **Phase 8 — the Effects Rack**. Phase 7 is closed, and the next phase is
+the first since Phase 4 whose work is entirely DSP.
 
-1. **The case for it is the page's size, not its framework.** `apollo.js` is now
-   the largest single source file in the project and builds every control, scope,
-   trace, meter and display by hand from `document.createElement`. That was the
-   right way to start — no dependencies, no build step, and the parameter
-   metadata as the single source of truth (ADR-0038) — and it is starting to
-   cost: state lives in module-level Maps, and "what redraws when this changes"
-   is answered by reading the whole file.
-2. **The thing not to lose is that no control invents its own range.** Every knob
-   is built from the metadata the engine sent (UI_BINDINGS.md §16). A migration
-   that hard-codes a range or a default into a component has broken the property
-   the page was built around, and it will break silently.
-3. **Nor the accessibility.** `role="slider"` with live `aria-valuenow`, radio
-   semantics on the switches, visible focus, and nothing signalled by colour
-   alone (ADR-0039). React makes all of that easier to write and easier to
-   forget.
-4. **The canvases are the interesting part.** There are now eleven of them
-   redrawing on a timer, and they must not become React render cycles: a canvas
-   belongs behind a ref, drawn imperatively from the frame that arrived, and the
-   component around it should re-render only when something other than the
-   picture changes.
-5. **A build step is the real cost.** It means CMake has to build the frontend
-   before `juce_add_binary_data` embeds it, and it means CI needs Node. That is a
-   decision to take deliberately rather than inherit from a template.
+1. **The oversampler finally gets a consumer.** Phase 4c built it and nothing has
+   used it since; distortion and waveshaping are what it was built for
+   (CLAUDE.md §23). The first thing to establish is which stages are oversampled
+   and at what factor, decided by measuring aliasing rather than by applying 2×
+   everywhere.
+2. **The common interface is a real decision, not boilerplate.** CLAUDE.md §17
+   sketches `prepare`/`reset`/`process`, and a reorderable rack means every
+   effect has to be movable without any of them knowing what is on either side.
+   That is where latency reporting lives too, which the plugin currently declares
+   as zero.
+3. **The FX parameters that already exist are inert.** `fx_distortion_mix` and
+   `fx_delay_time` are in the registry, on screen, and connected to nothing —
+   the two of 143 that do not affect audio. They are the seam the rack plugs
+   into, and closing that gap is the visible half of the phase.
+4. **The scopes are already waiting for it.** `postFilter` and `output` are
+   nearly the same picture today, because nothing sits between them. As soon as
+   the rack exists they become the dry instrument against the processed one,
+   which is the comparison that pair was built for (ADR-0048).
 
 A spectrum analyser remains the one unticked Visualization item, and both PRD and
 ROADMAP mark it optional. It is an FFT, a window function and a log frequency
-axis — a genuinely separate piece of DSP rather than more of the transport built
-in 7a-7c — so it belongs after Phase 7 rather than inside it.
+axis — genuinely separate DSP rather than more of the transport built in 7a-7c —
+so it is better placed after the effects work than before it.
 
 ---
 

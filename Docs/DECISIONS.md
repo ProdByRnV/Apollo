@@ -1008,10 +1008,13 @@ registry is the source of truth, and the count assertion in
 
 **Phase 6 (UI) · Accepted**
 
-The interface lives in `Source/UI/Web` as `index.html`, `apollo.css` and
-`apollo.js`. CMake compiles those three files into the binary with
-`juce_add_binary_data`, and `ApolloWebViewEditor::provideResource` serves them
-from a small table of path, resource name and MIME type.
+The interface lives outside C++, and CMake compiles it into the binary with
+`juce_add_binary_data`; `ApolloWebViewEditor::provideResource` serves it from a
+small table of path, resource name and MIME type. When this was decided the
+three files were hand-written and lived in `Source/UI/Web`; since Phase 7d they
+are the output of the bundler in `WebUI/` (ADR-0050), with the same three names
+and the same table. Everything below is unchanged by that: what mattered here
+was that the interface is not a string literal.
 
 They were previously a single `constexpr const char*` raw string literal inside
 `ApolloWebViewEditor.cpp`. That was the right shape for a placeholder proving
@@ -1626,3 +1629,92 @@ resettable clip indicator. The first would need a ring three hundred times the
 size of the picture for a detail below the refresh rate of the screen; the second
 would need an inbound command on the parameter bridge, which is a conversation
 about parameters and has no business carrying one about a meter.
+
+---
+
+## ADR-0050 — The interface is React and TypeScript, bundled by esbuild from CMake
+
+**Phase 7d (UI) · Accepted**
+
+`apollo.js` had grown to two thousand lines and was the largest single source
+file in the project. It built every control, scope, trace, meter and display by
+hand from `document.createElement`, kept its state in module-level `Map`s, and
+answered "what redraws when this changes" only by being read end to end. That was
+the right way to start — no dependencies, no build step, and the parameter
+metadata as the single source of truth (ADR-0038) — and it had stopped being the
+right way to continue.
+
+**What the migration had to preserve, and did.** Three properties were the whole
+value of the old page and every one of them is a property a rewrite loses
+quietly:
+
+- *No control invents its own range.* Every knob is still built from the
+  metadata the engine sent (UI_BINDINGS.md §16). A component with a hard-coded
+  minimum would look right until someone changed `ParameterDefinitions.h`.
+- *The accessibility semantics.* `role="slider"` with live `aria-valuenow` and
+  `aria-valuetext`, radio semantics on the switches, visible focus, and nothing
+  signalled by colour alone (ADR-0039). React makes all of that easier to write
+  and easier to forget.
+- *Nothing re-renders that does not have to.* This is the one that changed shape.
+  The old page achieved it by never re-rendering at all; the new one achieves it
+  with stores.
+
+**Values reach controls through stores, not through props.** A parameter store
+with **one listener set per id**, read through `useSyncExternalStore`, so a knob
+re-renders when its own value moves and at no other time. A `useState` at the top
+of the tree would have re-rendered the page on every 30 Hz echo and on all
+hundred and forty-three values when a project loads. The same shape, with one
+listener set rather than one per id, carries the MIDI mappings — those change a
+few times a minute, and per-id machinery for that frequency would be cost without
+benefit. Which knobs a live routing lights is a third store whose hook returns a
+**boolean**, so a knob re-renders when its own answer flips rather than whenever
+any slot moves.
+
+**The eleven canvases are drawn imperatively and are not React's business.**
+Frames arrive thirty times a second; routing them through state would mean eleven
+components re-rendering to produce markup that never changes, because the canvas
+element is the same element every frame and only the pixels differ. So a frame is
+delivered by call to whoever subscribed to that source, and the component draws.
+This is the one place in the migration where the idiomatic answer is the wrong
+one, and it is worth saying out loud: `useState` there would have looked cleaner
+and cost the interface most of its frame budget. Captions *are* state — a caption
+is one text node, which is exactly what a diff is cheap at.
+
+**esbuild rather than a framework.** The requirement is TypeScript compiled, JSX
+transformed, several dozen modules bundled and a stylesheet emitted, and that is
+what esbuild does in one dependency. Vite or webpack would add a dev server
+Apollo cannot use — the page only ever runs inside the plugin, served from
+memory — a plugin ecosystem nothing here needs, and a few hundred transitive
+packages to audit for a licence review that is a real obligation (CLAUDE.md §32).
+The whole tree is **twelve packages**. esbuild does not type-check, so `tsc
+--noEmit` runs first and CMake runs both; without that a type error would reach
+the plugin as a perfectly valid bundle that is wrong at run time.
+
+**CMake runs the bundler; the built files are not committed.** The alternative —
+checking the bundle in — is a generated file that can silently disagree with its
+source: someone edits a component, forgets to rebuild, and the plugin ships the
+previous interface with no diff to show for it. The cost is that **building the
+plugin now needs Node**. `apollo_core` and `ApolloTests` do not, deliberately:
+the test suite has never had a browser dependency and must not acquire one, and
+the sanitizer job configures the editor out entirely. The three output names are
+fixed rather than hashed, because there is no cache to bust when a page is served
+out of a plugin binary and a hashed name would mean regenerating the C++ resource
+table on every build.
+
+**The bundle is 170 KB against the old page's 70.** That is React and ReactDOM,
+and it is the honest cost of the migration. Next to a VST3 binary it is nothing,
+and it buys a page that can be read one component at a time.
+
+**What the migration cost, concretely.** One real regression, found by driving
+the running application rather than by any test: the knob's held flag was kept in
+a ref, and a ref mutated on pointer-up re-renders nothing, so a control stayed
+lit after the hand left it. The hand-built page wrote the attribute directly and
+could not have had the problem. It is the exact shape of mistake a declarative
+tree invites — state that is *rendered* must live where rendering can see it —
+and it is now a `useState` in both draggable controls.
+
+**Given up:** a frontend anyone can edit with a text editor and reload. Changing
+the interface now needs Node installed and a build step to run. That is the
+price of types and components, it was paid deliberately, and
+`-DAPOLLO_ENABLE_WEBVIEW=OFF` remains the escape hatch for a machine without
+Node that only wants the engine and its tests.

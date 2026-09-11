@@ -56,6 +56,23 @@ jobs:
         if: runner.os == 'Linux'
         uses: ./.github/actions/install-linux-deps
 
+      # Apollo's interface is React and TypeScript (Phase 7d), so building the
+      # plugin means running a bundler. Only the plugin: `apollo_core` and
+      # `ApolloTests` have no frontend dependency and the sanitizer job below
+      # configures the editor out entirely, so this is the one job kind that
+      # needs Node at all.
+      #
+      # Pinned rather than left to whatever the runner image ships, for the same
+      # reason JUCE is pinned: a toolchain that changes under you turns an
+      # unrelated push into a red build. The npm cache is keyed on the lock file,
+      # so it is reused until the pinned tree changes.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: WebUI/package-lock.json
+
       # The JUCE checkout is the expensive part of a cold configure. Keying on
       # the dependency file means the cache is invalidated exactly when the pin
       # changes.

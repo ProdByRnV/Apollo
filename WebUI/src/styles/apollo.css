@@ -157,7 +157,10 @@ body::before {
    APP SHELL
    ========================================================================== */
 
-#app {
+/* The React root is the application frame itself rather than a wrapper around
+   one: two nested elements where the outer has no height is how the footer
+   ended up off the bottom of the window the first time this was built. */
+#root {
     position: relative;
     z-index: 1;
     display: flex;
@@ -1188,4 +1191,10 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
         transition-duration: 0.01ms !important;
         animation-duration: 0.01ms !important;
     }
+}
+
+/* The matrix lays itself out as a block rather than as a row of controls: its
+   two banks are tables, and a flex row would stretch them. */
+.module__body--block {
+    display: block;
 }

@@ -66,10 +66,19 @@ Apollo/
 │   ├── Plugin/                 VST3 wrapper shell                         [Phase 1]
 │   └── Standalone/             Standalone application shell               [Phase 1]
 │
-├── WebUI/                      React / TypeScript frontend                [Phase 7]
-│   ├── package.json
-│   ├── public/
+├── WebUI/                      React / TypeScript frontend                [Phase 7d]
+│   ├── package.json            react, react-dom, esbuild, typescript
+│   ├── build.mjs               esbuild bundle; CMake runs it
+│   ├── tsconfig.json
+│   ├── index.html              the shell; everything else is React
 │   └── src/
+│       ├── bridge/             the wire contract, as types, and the transport
+│       ├── params/             range mapping, formatting, enumeration labels
+│       ├── state/              parameter, telemetry, MIDI and modulation stores
+│       ├── canvas/             the drawing primitives every picture shares
+│       ├── components/         knob, segmented, select, rail, scope, trace, meter
+│       ├── modules/            the layout, in signal order
+│       └── styles/
 │
 ├── Assets/                     Shipped resources                          [Phase 9]
 │   ├── Wavetables/

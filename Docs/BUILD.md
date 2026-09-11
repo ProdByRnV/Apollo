@@ -12,7 +12,8 @@ project is checked in (CLAUDE.md §31, ARCHITECTURE.md §10).
 | CMake | 3.22 or newer |
 | C++20 toolchain | MSVC 19.3x+ / Apple Clang 14+ / Clang 15+ / GCC 12+ |
 | Git | Required at configure time to fetch and verify the pinned JUCE revision |
-| Network access | Required on the first configure only, unless `APOLLO_JUCE_SOURCE_DIR` is used |
+| Node.js 20+ | Required to **build the plugin**, which bundles the React/TypeScript interface. Not required for `apollo_core` or `ApolloTests`, and not required at all with `-DAPOLLO_ENABLE_WEBVIEW=OFF` |
+| Network access | Required on the first configure only, unless `APOLLO_JUCE_SOURCE_DIR` is used, and on the first frontend build to install its twelve packages |
 
 Platform toolchains:
 
@@ -27,6 +28,13 @@ Platform toolchains:
 Apollo pins **JUCE 8.0.15** (commit `91ad83ae…`). The configure step verifies the
 resolved commit and fails if it does not match, so the pin is enforced rather
 than merely documented.
+
+The frontend is pinned the same way, in `WebUI/package-lock.json`, and CMake
+installs it with `npm ci` rather than `npm install` — the difference being that
+`ci` installs exactly the locked tree and fails if the lock file and the manifest
+disagree. Editing anything under `WebUI/src` rebuilds the bundle and relinks the
+plugin; the built files live in the build tree and are never committed
+(ADR-0050).
 
 ---
 

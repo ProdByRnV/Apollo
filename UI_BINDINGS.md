@@ -880,6 +880,25 @@ ParameterDefinition
 └── capabilities
 ```
 
+**As built** (Phase 7d). The store is not React state and this is the whole
+design: parameter values arrive at 30 Hz and a hundred and forty-three of them
+change at once when a project loads, so a `useState` at the top of the tree would
+re-render the page on every echo. `state/parameters.ts` keeps one listener set
+**per parameter id**, read through `useSyncExternalStore`; a knob re-renders when
+its own value moves and at no other time.
+
+Three more stores follow the same shape with the granularity each frequency
+deserves. MIDI mappings change a few times a minute and share one listener set.
+Which knobs a live routing lights is published by the matrix and read by each
+knob as a **boolean**, so a knob re-renders when its own answer flips rather than
+whenever any slot moves. Telemetry frames do not go through React at all
+(§10.4, §10.5): a frame is delivered by call to whoever subscribed to that
+source, and the canvas is drawn imperatively.
+
+The metadata shape above is the wire shape, typed in `bridge/protocol.ts` — so a
+component that reads a field the native side does not send no longer compiles
+(ADR-0050).
+
 ---
 
 ## 17. UI Component Contract
