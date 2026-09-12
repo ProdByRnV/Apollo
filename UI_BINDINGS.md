@@ -232,6 +232,14 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_delay_lowcut` | Rotary Knob | `20–2000 Hz` | `20` | 8b | Highpass inside the feedback path; switched out at the bottom of its range |
 | `fx_delay_pingpong` | Segmented | Discrete `[0, 1]` | `0` | 8b | Crosses the feedback paths so each repeat alternates channels |
 | `fx_delay_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 8b | Delay dry/wet mix |
+| `fx_reverb_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8c | Switched out of circuit; the network keeps running so its tail decays rather than freezing |
+| `fx_reverb_mode` | Segmented | Discrete `[0, 1]` | `1` | 8c | 0 room, 1 hall; index into `dsp::Reverb::Mode`. The modes differ in the network's delay lengths |
+| `fx_reverb_size` | Rotary Knob | Normalized `[0, 1]` | `0.5` | 8c | Scales every line length between half and one and a half times the mode's base |
+| `fx_reverb_decay` | Rotary Knob | `200–20000 ms` | `2000` | 8c | RT60: how long the tail takes to fall 60 dB. Independent of size |
+| `fx_reverb_damping` | Rotary Knob | `500–20000 Hz` | `6000` | 8c | Lowpass inside every line, so each pass is darker than the last |
+| `fx_reverb_predelay` | Rotary Knob | `0–250 ms` | `20` | 8c | The gap before the room answers |
+| `fx_reverb_width` | Rotary Knob | Normalized `[0, 1]` | `1` | 8c | Mid/side balance of the tail; 0 collapses it to the centre |
+| `fx_reverb_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 8c | Reverb dry/wet mix |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.

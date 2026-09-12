@@ -105,6 +105,15 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     delayPingPong = state.getRawParameterValue ("fx_delay_pingpong");
     delayMix = state.getRawParameterValue ("fx_delay_mix");
 
+    reverbBypass = state.getRawParameterValue ("fx_reverb_bypass");
+    reverbMode = state.getRawParameterValue ("fx_reverb_mode");
+    reverbSize = state.getRawParameterValue ("fx_reverb_size");
+    reverbDecay = state.getRawParameterValue ("fx_reverb_decay");
+    reverbDamping = state.getRawParameterValue ("fx_reverb_damping");
+    reverbPreDelay = state.getRawParameterValue ("fx_reverb_predelay");
+    reverbWidth = state.getRawParameterValue ("fx_reverb_width");
+    reverbMix = state.getRawParameterValue ("fx_reverb_mix");
+
     jassert (distortionBypass != nullptr && distortionMode != nullptr
              && distortionDrive != nullptr && distortionTone != nullptr
              && distortionMix != nullptr && distortionOutput != nullptr);
@@ -113,6 +122,11 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
              && delayDivision != nullptr && delayFeedback != nullptr
              && delayDamping != nullptr && delayLowCut != nullptr
              && delayPingPong != nullptr && delayMix != nullptr);
+
+    jassert (reverbBypass != nullptr && reverbMode != nullptr && reverbSize != nullptr
+             && reverbDecay != nullptr && reverbDamping != nullptr
+             && reverbPreDelay != nullptr && reverbWidth != nullptr
+             && reverbMix != nullptr);
 }
 
 void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
@@ -506,6 +520,9 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
             case dsp::EffectType::delay:
                 return readParameter (effectParameters.delayBypass, 0.0f) >= 0.5f;
 
+            case dsp::EffectType::reverb:
+                return readParameter (effectParameters.reverbBypass, 0.0f) >= 0.5f;
+
             default:
                 return false;
         }
@@ -558,6 +575,24 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     delay.mix = readParameter (effectParameters.delayMix, 0.0f);
 
     effects.delay().setSettings (delay);
+
+    dsp::Reverb::Settings reverb;
+
+    reverb.mode = readParameter (effectParameters.reverbMode, 1.0f) >= 0.5f
+                    ? dsp::Reverb::Mode::hall
+                    : dsp::Reverb::Mode::room;
+    reverb.size = readParameter (effectParameters.reverbSize, 0.5f);
+
+    // The registry carries the decay in milliseconds, because that is the unit
+    // every other time control uses and the frontend formats from the unit. The
+    // DSP works in seconds, where the RT60 arithmetic lives.
+    reverb.decaySeconds = readParameter (effectParameters.reverbDecay, 2000.0f) * 0.001f;
+    reverb.dampingHz = readParameter (effectParameters.reverbDamping, 6000.0f);
+    reverb.preDelayMs = readParameter (effectParameters.reverbPreDelay, 20.0f);
+    reverb.width = readParameter (effectParameters.reverbWidth, 1.0f);
+    reverb.mix = readParameter (effectParameters.reverbMix, 0.0f);
+
+    effects.reverb().setSettings (reverb);
 
     // Latency is a property of which effects are in the chain, so it moves only
     // when the user rearranges the rack. In the steady state this is a load and

@@ -561,10 +561,10 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### Reverb
 
-- [ ] Implement/reuse suitable reverb architecture.
-- [ ] Validate decay stability.
-- [ ] Handle denormals.
-- [ ] Measure CPU cost.
+- [x] Implement/reuse suitable reverb architecture. — an eight-line feedback delay network with a Hadamard mix, four diffusion allpasses per channel, damping inside every line, pre-delay, and room and hall base lengths (ADR-0057) (8c)
+- [x] Validate decay stability. — the orthogonal matrix preserves energy exactly, so the decay gains are the only thing that can make the tail grow; measured over a minute at the longest decay with no input, against the envelope RT60 describes (8c)
+- [x] Handle denormals. — every line's feedback write is flushed below 1e-18, and a test asserts the tail reaches **exactly** zero rather than grinding on inaudibly (8c)
+- [x] Measure CPU cost. — about 1.2 % of one core, stereo, and nearly the same bypassed, because a bypassed reverb still has to let its tail decay (PROJECT-STATE.md §5b) (8c)
 
 ### Gate / dynamics
 

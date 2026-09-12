@@ -27,7 +27,7 @@ import {
 import { PROTOCOL_VERSION } from './bridge/protocol';
 import type { InboundMessage } from './bridge/protocol';
 
-import { DelayEffect, Distortion, Rack } from './modules/Effects';
+import { DelayEffect, Distortion, Rack, ReverbEffect } from './modules/Effects';
 import { Envelopes, Lfos } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
@@ -338,6 +338,7 @@ export function App(): JSX.Element {
                         <div className="rank rank--pair">
                             <Distortion />
                             <DelayEffect />
+                            <ReverbEffect />
                         </div>
 
                         <div className="rank rank--compact">

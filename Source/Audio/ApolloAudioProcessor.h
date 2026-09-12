@@ -388,6 +388,15 @@ private:
         std::atomic<float>* delayPingPong = nullptr;
         std::atomic<float>* delayMix = nullptr;
 
+        std::atomic<float>* reverbBypass = nullptr;
+        std::atomic<float>* reverbMode = nullptr;
+        std::atomic<float>* reverbSize = nullptr;
+        std::atomic<float>* reverbDecay = nullptr;
+        std::atomic<float>* reverbDamping = nullptr;
+        std::atomic<float>* reverbPreDelay = nullptr;
+        std::atomic<float>* reverbWidth = nullptr;
+        std::atomic<float>* reverbMix = nullptr;
+
         void resolve (juce::AudioProcessorValueTreeState& state);
     };
 

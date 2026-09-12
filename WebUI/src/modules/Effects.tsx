@@ -26,6 +26,7 @@ export const RACK_SLOT_COUNT = 6;
 /** Matches dsp::EffectType. */
 export const EFFECT_DISTORTION = 1;
 export const EFFECT_DELAY = 2;
+export const EFFECT_REVERB = 3;
 
 /** The effects that exist in this build, matching dsp::EffectsRack::isImplemented.
 
@@ -34,7 +35,7 @@ export const EFFECT_DELAY = 2;
     the interface telling the user something the instrument does not agree with.
     Each of 8b to 8e adds its effect to this list as it lands.
 */
-const IMPLEMENTED_EFFECTS: readonly number[] = [EFFECT_DISTORTION, EFFECT_DELAY];
+const IMPLEMENTED_EFFECTS: readonly number[] = [EFFECT_DISTORTION, EFFECT_DELAY, EFFECT_REVERB];
 
 export const RACK_PARAMETER_IDS: string[] = Array.from(
     { length: RACK_SLOT_COUNT },
@@ -153,6 +154,33 @@ export function DelayEffect(): JSX.Element {
             <Knob id="fx_delay_damping" label="Damping" />
             <Knob id="fx_delay_lowcut" label="Low Cut" />
             <Knob id="fx_delay_mix" label="Mix" />
+        </Module>
+    );
+}
+
+export function ReverbEffect(): JSX.Element {
+    const placed = useInChain(EFFECT_REVERB);
+
+    return (
+        <Module title="Reverb" inactive={!placed}>
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Segmented id="fx_reverb_mode" label="Space" table={LABELS.fx_reverb_mode} />
+                    <Segmented id="fx_reverb_bypass" label="State" table={LABELS.fx_reverb_bypass} />
+                </div>
+            </div>
+
+            {/*
+                Size and Decay sit next to each other because the pair is the
+                control: they are independent, and which combination you pick is
+                the difference between a tiled bathroom and a treated studio.
+            */}
+            <Knob id="fx_reverb_size" label="Size" />
+            <Knob id="fx_reverb_decay" label="Decay" />
+            <Knob id="fx_reverb_predelay" label="Pre-Delay" />
+            <Knob id="fx_reverb_damping" label="Damping" />
+            <Knob id="fx_reverb_width" label="Width" />
+            <Knob id="fx_reverb_mix" label="Mix" />
         </Module>
     );
 }

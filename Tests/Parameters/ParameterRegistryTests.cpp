@@ -55,10 +55,13 @@ using namespace apollo::params;
 // path, ping-pong, and a mix. `fx_delay_time` was already there, inert since the
 // initial registry, and 8b is what connected it.
 //
+// Phase 8c added eight for the reverb: a bypass, the room-or-hall mode, size,
+// decay, damping, pre-delay, width and mix — exactly the set PRD §21 names.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 162, "the registry has a hundred and sixty-two parameters");
+static_assert (parameterCount() == 170, "the registry has a hundred and seventy parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

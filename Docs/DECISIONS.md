@@ -2042,3 +2042,68 @@ per-channel delay times — the left and right lines share one time, and a stere
 offset would be a fourth control on a panel that already has nine. Ping-pong
 gives the stereo behaviour that offset is usually reached for; a true left/right
 split can be added later without changing anything decided here.
+
+---
+
+## ADR-0057 — The reverb is a feedback delay network, and its stability is a property rather than a measurement
+
+**Phase 8c · Accepted**
+
+**Why an FDN and not a bank of combs.** The classic Schroeder arrangement —
+parallel comb filters into series allpasses — is simpler, is what most open
+reverbs are, and has the problem it is famous for: each comb rings at its own
+harmonic series, so the tail has a pitch, and the usual remedy is to tune the
+comb lengths by ear until the ringing is spread out enough to ignore. A feedback
+delay network mixes every line into every other line through an orthogonal
+matrix, so no line's echoes stay in their own series and the modes are spread by
+construction rather than by taste.
+
+The orthogonal matrix is also where the stability argument comes from, and that
+is the better reason. An orthonormal matrix preserves energy exactly, so the only
+thing that can change the loop's energy is the decay gain applied to each line —
+and those are below one by construction. "Validate decay stability" then becomes
+a claim that can be *reasoned* about and then checked, rather than a hope
+supported by one listening session. The matrix is a Hadamard, implemented as a
+fast Walsh-Hadamard transform: 24 additions instead of 64 multiply-adds, and the
+structure makes the orthogonality visible rather than buried in a coefficient
+table.
+
+**Eight lines.** Four is audibly sparse on transients; sixteen costs twice as
+much for a difference that needs a quiet room to hear. The base lengths are
+mutually prime, which is asserted in the tests rather than left to a comment,
+because lengths sharing a factor put their echoes on top of each other at the
+common multiple — which is exactly the pitched tail the FDN was chosen to avoid.
+
+**Room and hall are different lengths, not different decays.** A hall is not a
+room with a longer tail: its walls are further away. The two modes are two sets
+of base delays — 26 to 57 ms and 52 to 119 ms — and size scales whichever set is
+chosen. Decay is independent of both, because a small room with a long decay is a
+tiled bathroom and a large one with a short decay is a treated studio, and both
+are sounds people want.
+
+**Damping is inside each line.** A lowpass across the output darkens every repeat
+by the same amount once; inside the loop it darkens each pass a little more than
+the last, which is what air and soft surfaces do.
+
+**Two level decisions that were measured rather than assumed.** The input is
+scaled by 1/sqrt(4) on the way into the four lines that carry each channel, and
+the four lines summed into each output tap are scaled by the same. For the
+decorrelated tail that is energy-preserving, which is what the steady-state level
+should follow. For the *first* pass it matters more: every line carrying a
+channel holds the same signal then, so the output tap sums four correlated
+copies, and without the scaling that sum reached **twice the input** — a reverb
+louder than the sound that caused it, which no room is. The test asserts the
+worst case is now at most unity.
+
+**Bypass keeps decaying rather than freezing.** Like the delay's (ADR-0056), but
+more so: the network keeps running while the effect is out of circuit, so the
+tail fades away instead of waiting to be resumed seconds later. The honest cost
+is that **a bypassed reverb costs almost exactly what an active one costs** —
+1.28 % against 1.36 % — because the tail has to go somewhere. Removing it from
+the chain is the free option, and that is the difference between the two gestures.
+
+**Given up:** modulated delay lengths, which most large halls use to break up
+metallic ringing at long decays; early-reflection patterns modelled on a room
+shape; and any control over the diffusion amount, which is fixed. All three are
+additions rather than changes, and none of them alters the stability argument
+above.

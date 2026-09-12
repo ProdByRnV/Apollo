@@ -9,11 +9,11 @@ bool EffectsRack::isImplemented (EffectType type) noexcept
     {
         case EffectType::distortion:
         case EffectType::delay:
+        case EffectType::reverb:
             return true;
 
-        // Phases 8c to 8e. Selectable now because the parameter's range is
+        // Phases 8d and 8e. Selectable now because the parameter's range is
         // permanent; silent until the DSP behind them lands.
-        case EffectType::reverb:
         case EffectType::gate:
         case EffectType::compressor:
         case EffectType::equaliser:
@@ -34,6 +34,8 @@ AudioEffect* EffectsRack::effectFor (EffectType type) noexcept
             return &delayUnit;
 
         case EffectType::reverb:
+            return &reverbUnit;
+
         case EffectType::gate:
         case EffectType::compressor:
         case EffectType::equaliser:
@@ -47,14 +49,16 @@ void EffectsRack::prepare (double sampleRate, int maxBlockSize)
 {
     distortionUnit.prepare (sampleRate, maxBlockSize);
     delayUnit.prepare (sampleRate, maxBlockSize);
+    reverbUnit.prepare (sampleRate, maxBlockSize);
 
-    refreshReporting();
+    refreshLatency();
 }
 
 void EffectsRack::reset() noexcept
 {
     distortionUnit.reset();
     delayUnit.reset();
+    reverbUnit.reset();
 }
 
 void EffectsRack::setTempo (double bpm) noexcept
@@ -96,32 +100,49 @@ void EffectsRack::setChain (const Chain& newChain) noexcept
 
     chain = resolved;
 
-    refreshReporting();
+    refreshLatency();
 }
 
-void EffectsRack::refreshReporting() noexcept
+const AudioEffect* EffectsRack::effectFor (EffectType type) const noexcept
+{
+    return const_cast<EffectsRack*> (this)->effectFor (type);
+}
+
+void EffectsRack::refreshLatency() noexcept
 {
     latencySamples = 0;
-    tailSeconds = 0.0;
 
     for (const auto& slot : chain)
     {
-        auto* effect = effectFor (slot.effect);
+        const auto* effect = effectFor (slot.effect);
+
+        if (effect != nullptr)
+            latencySamples += effect->getLatencySamples();
+    }
+}
+
+double EffectsRack::getTailSeconds() const noexcept
+{
+    auto longest = 0.0;
+
+    for (const auto& slot : chain)
+    {
+        // Tail, unlike latency, belongs to the active path: a bypassed effect
+        // is not ringing out, so it has nothing for an offline render to wait
+        // for.
+        if (slot.bypassed)
+            continue;
+
+        const auto* effect = effectFor (slot.effect);
 
         if (effect == nullptr)
             continue;
 
-        latencySamples += effect->getLatencySamples();
-
-        // Tail, unlike latency, belongs to the active path: a bypassed effect
-        // is not ringing out, so it has nothing for an offline render to wait
-        // for.
-        if (! slot.bypassed)
-        {
-            const auto tail = effect->getTailSeconds();
-            tailSeconds = tail > tailSeconds ? tail : tailSeconds;
-        }
+        const auto tail = effect->getTailSeconds();
+        longest = tail > longest ? tail : longest;
     }
+
+    return longest;
 }
 
 void EffectsRack::process (float* const* channels, int numChannels, int numSamples) noexcept

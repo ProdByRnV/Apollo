@@ -54,6 +54,9 @@ add_library(apollo_core STATIC
     DSP/Modulation/ModulationTypes.cpp
     DSP/Modulation/ModulationTypes.h
     Engine/FilterSettings.h
+    DSP/Reverb/Allpass.h
+    DSP/Reverb/Reverb.cpp
+    DSP/Reverb/Reverb.h
     DSP/Oversampling/HalfbandFilter.cpp
     DSP/Oversampling/HalfbandFilter.h
     DSP/Oversampling/Oversampler.cpp

@@ -413,6 +413,8 @@ void benchmarkEffects()
         { "distortion, diode (exp at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::diode, false },
         { "delay, bypassed", dsp::EffectType::delay, dsp::Distortion::Mode::soft, true },
         { "delay, stereo with feedback", dsp::EffectType::delay, dsp::Distortion::Mode::soft, false },
+        { "reverb, bypassed", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, true },
+        { "reverb, 8-line FDN", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, false },
     };
 
     for (const auto& testCase : cases)
@@ -438,6 +440,12 @@ void benchmarkEffects()
         delay.lowCutHz = 120.0f;
         delay.mix = 0.5f;
         rack.delay().setSettings (delay);
+
+        dsp::Reverb::Settings reverb;
+        reverb.decaySeconds = 3.0f;
+        reverb.dampingHz = 6000.0f;
+        reverb.mix = 0.5f;
+        rack.reverb().setSettings (reverb);
 
         std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
         std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);

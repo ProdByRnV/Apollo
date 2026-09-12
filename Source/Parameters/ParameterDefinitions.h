@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 162> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 170> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1172,6 +1172,61 @@ inline constexpr std::array<ParameterDefinition, 162> parameterDefinitions { {
       true, false, false },
 
     { "fx_delay_mix", "Delay Mix",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Reverb (Phase 8c) ------------------------------------------------------
+    { "fx_reverb_bypass", "Reverb Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // 0 room, 1 hall. Matches dsp::Reverb::Mode. The two differ in the network's
+    // delay lengths, which is what room size physically is.
+    { "fx_reverb_mode", "Reverb Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_reverb_size", "Reverb Size",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.5f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // RT60: how long the tail takes to fall 60 dB. Independent of size on
+    // purpose — a small room with a long decay is a tiled bathroom, and a large
+    // one with a short decay is a treated studio.
+    { "fx_reverb_decay", "Reverb Decay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      200.0f, 20000.0f, 2000.0f,
+      // Places 2 s near the centre of the control's travel.
+      0.4353f, 0.0f,
+      true, false, true },
+
+    { "fx_reverb_damping", "Reverb Damping",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      500.0f, 20000.0f, 6000.0f,
+      0.3374f, 0.0f,
+      true, false, true },
+
+    { "fx_reverb_predelay", "Reverb Pre-Delay",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 250.0f, 20.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_reverb_width", "Reverb Width",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_reverb_mix", "Reverb Mix",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,

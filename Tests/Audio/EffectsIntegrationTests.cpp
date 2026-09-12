@@ -115,6 +115,8 @@ public:
         testCorruptSlotValueIsRejected();
         testDelayReachesTheAudioAndReportsItsTail();
         testSyncedDelayWorksWithNoTransport();
+        testReverbReachesTheAudioAndReportsItsTail();
+        testTheWholeChainRunsTogether();
     }
 
 private:
@@ -365,6 +367,99 @@ private:
         // second and the tail is the release plus several repeats of that.
         expect (processor.getTailLengthSeconds() > 0.5,
                 "the fallback tempo must give a usable delay time rather than zero");
+    }
+
+    void testReverbReachesTheAudioAndReportsItsTail()
+    {
+        beginTest ("a reverb in the chain is still sounding after the note, and says how long for");
+
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", 3.0f);          // dsp::EffectType::reverb
+        setPlain (processor, "fx_reverb_decay", 4000.0f);
+        setPlain (processor, "fx_reverb_predelay", 40.0f);
+        setPlain (processor, "fx_reverb_mix", 1.0f);
+
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        expectEquals (processor.getLatencySamples(), 0, "a reverb is not a lookahead");
+
+        // The decay, the pre-delay and the envelope's release, in series.
+        expect (processor.getTailLengthSeconds() > 4.0,
+                "the reported tail must cover the decay, and was "
+                    + juce::String (processor.getTailLengthSeconds(), 3) + " s");
+
+        const auto note = renderNote (processor, 4);
+        expect (peakOf (note) > 0.05f, "the note itself must sound");
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+
+        auto heard = 0.0f;
+
+        for (int block = 0; block < 40; ++block)
+        {
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+            midi.clear();
+
+            if (block > 20)
+                heard = std::max (heard, buffer.getMagnitude (0, blockSize));
+        }
+
+        expect (heard > 0.0005f,
+                "the room must still be answering long after the note was released, and peaked at "
+                    + juce::String (heard, 6));
+    }
+
+    void testTheWholeChainRunsTogether()
+    {
+        beginTest ("all three effects at once produce finite, bounded audio");
+
+        // Not a claim about how it sounds — a claim that three effects sharing a
+        // chain do not interact into something unbounded. The distortion feeds
+        // the delay, whose repeats feed the reverb, whose tail feeds back into
+        // nothing; the failure this guards against is the one that only appears
+        // when they are all on at once.
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", 1.0f);
+        setPlain (processor, "fx_slot2", 2.0f);
+        setPlain (processor, "fx_slot3", 3.0f);
+
+        setPlain (processor, "fx_distortion_drive", 30.0f);
+        setPlain (processor, "fx_distortion_mix", 1.0f);
+
+        setPlain (processor, "fx_delay_time", 90.0f);
+        setPlain (processor, "fx_delay_feedback", 0.9f);
+        setPlain (processor, "fx_delay_mix", 0.7f);
+
+        setPlain (processor, "fx_reverb_decay", 8000.0f);
+        setPlain (processor, "fx_reverb_mix", 0.7f);
+
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        const auto rendered = renderNote (processor, 16);
+
+        for (const auto sample : rendered)
+        {
+            expect (std::isfinite (sample), "a full chain must not produce a NaN or an infinity");
+            expect (std::abs (sample) < 4.0f, "and must not run away with the level");
+        }
+
+        const auto threeEffects = processor.getLatencySamples();
+        expect (threeEffects > 0, "the distortion in the chain has a round trip to report");
+
+        // And the chain's latency is the distortion's alone: taking the other
+        // two out must not change it, because neither of them adds any.
+        setPlain (processor, "fx_slot2", 0.0f);
+        setPlain (processor, "fx_slot3", 0.0f);
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        expectEquals (processor.getLatencySamples(), threeEffects,
+                      "a delay and a reverb add repeats and tails, not latency");
     }
 };
 

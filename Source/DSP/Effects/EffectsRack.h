@@ -33,6 +33,7 @@
 #include "DSP/Delay/Delay.h"
 #include "DSP/Distortion/Distortion.h"
 #include "DSP/Effects/AudioEffect.h"
+#include "DSP/Reverb/Reverb.h"
 
 #include <array>
 
@@ -92,8 +93,20 @@ public:
     */
     [[nodiscard]] int getLatencySamples() const noexcept { return latencySamples; }
 
-    /** The longest tail any active effect in the chain has, in seconds. */
-    [[nodiscard]] double getTailSeconds() const noexcept { return tailSeconds; }
+    /** The longest tail any active effect in the chain has, in seconds.
+
+        Computed on demand rather than cached, and that is not an oversight: an
+        effect's tail depends on its *settings* — a delay's time and feedback, a
+        reverb's decay — not only on whether it is in the chain. A cached figure
+        was refreshed when the chain changed and then went stale the moment
+        anyone turned the decay control, which meant the host was told the tail
+        of a reverb nobody was using any more.
+
+        Latency stays cached because the audio thread reads it on every block
+        and it genuinely only moves with the chain. This is read by the host on
+        the message thread, where six virtual calls cost nothing worth saving.
+    */
+    [[nodiscard]] double getTailSeconds() const noexcept;
 
     /** True for an effect that exists in this build.
 
@@ -118,21 +131,25 @@ public:
     [[nodiscard]] Delay& delay() noexcept { return delayUnit; }
     [[nodiscard]] const Delay& delay() const noexcept { return delayUnit; }
 
+    [[nodiscard]] Reverb& reverb() noexcept { return reverbUnit; }
+    [[nodiscard]] const Reverb& reverb() const noexcept { return reverbUnit; }
+
 private:
     /** @returns the effect an enum names, or nullptr for `none` and for
         anything not implemented yet.
     */
     [[nodiscard]] AudioEffect* effectFor (EffectType type) noexcept;
+    [[nodiscard]] const AudioEffect* effectFor (EffectType type) const noexcept;
 
-    void refreshReporting() noexcept;
+    void refreshLatency() noexcept;
 
     Distortion distortionUnit;
     Delay delayUnit;
+    Reverb reverbUnit;
 
     Chain chain {};
 
     int latencySamples = 0;
-    double tailSeconds = 0.0;
 };
 
 } // namespace apollo::dsp
