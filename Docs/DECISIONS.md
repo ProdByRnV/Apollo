@@ -1977,3 +1977,68 @@ the difference is `tanh` itself. Docs/OVERSAMPLING.md carries the tables.
 of these curves is most of the way to a square wave and a square wave's harmonics
 do not stop. The test says so in those terms rather than holding the effect to a
 budget it cannot meet while doing its job.
+
+---
+
+## ADR-0056 — The delay glides, its feedback is bounded by construction, and its filters are in the loop
+
+**Phase 8b · Accepted**
+
+Three decisions inside one effect, and one about where the tempo comes from.
+
+**The time glides rather than crossfading.** Moving a delay time moves the read
+pointer, and there are exactly two honest things to do about that: glide the
+pointer, which stretches or compresses the repeats and therefore pitches them, or
+crossfade between an old tap and a new one, which holds the pitch and blurs the
+transition. Apollo glides. It is what a delay has sounded like since tape, it is
+the behaviour people automate a delay time *in order to get*, and the alternative
+needs a second read head, a fade shape and a decision about the fade's length —
+three new things to get wrong in exchange for removing a sound users want. The
+read is linearly interpolated so the glide is continuous; rounding to whole
+samples would make the pointer step, and a stepped read pointer is a click per
+step. `testTimeChangesDoNotClick` sweeps the time as fast as a control can move
+and asserts no discontinuity larger than the signal itself contains.
+
+**Feedback cannot run away, because the control cannot ask it to.** The parameter
+scales to a loop gain of at most 0.95, which is below unity with the filters
+wide open, so every repeat is smaller than the one before it as a matter of
+arithmetic rather than of tuning. That is what makes ROADMAP's "validate feedback
+stability" a test that can pass: thirty seconds at the top of the range with
+silence going in, asserting the tail is quieter every second, never louder than
+what went in, and near silence by the end. A control that reached 1.0 would be
+a self-oscillating delay — a real instrument in its own right, and a different
+feature with a different safety story.
+
+**The filters are inside the feedback path.** A lowpass across the output darkens
+every repeat identically, once. The same filter inside the loop darkens each
+repeat a little more than the last, which is what an echo in a room does and what
+tape does to itself. The highpass is there for the other direction: without it,
+any DC or subsonic content that enters the loop is still circulating minutes
+later, eating headroom in everything downstream. Both are switched out entirely
+at the ends of their travel rather than run wide open, so a control turned fully
+off is transparent rather than merely gentle.
+
+**Bypass empties the lines rather than freezing them.** The delay has no latency
+to compensate, so `processBypassed` could have been the default no-op — but this
+is the first effect with memory, and a frozen line means that switching the
+effect back in replays whatever was playing when it was switched out, seconds
+late and with no warning. It writes silence instead, so the effect comes back
+clean. That is a real difference from the distortion, whose `processBypassed`
+exists to preserve latency rather than to forget anything.
+
+**Tempo reaches the effect through the rack, from the processor, once per
+block.** The playhead is read in `processBlock` before the effects are
+configured, so everything synced this block is synced to the same tempo. Every
+step of that is optional at the host's discretion — there may be no playhead
+(the standalone has none), no position, or no tempo inside the position — and
+each falls through to 120 BPM rather than to zero, because a synced delay that
+stopped repeating in the standalone would be a bug in the fallback rather than
+an honest report of missing information (CLAUDE.md §38). The rack hands the
+tempo to every effect that syncs, not only to the ones currently in a slot, so
+an effect dropped into the chain mid-bar already knows what tempo it is at.
+
+**Given up:** a self-oscillating delay, a pitch-preserving time change, and
+per-channel delay times — the left and right lines share one time, and a stereo
+offset would be a fourth control on a panel that already has nine. Ping-pong
+gives the stereo behaviour that offset is usually reached for; a true left/right
+split can be added later without changing anything decided here.

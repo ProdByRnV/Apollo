@@ -8,11 +8,11 @@ bool EffectsRack::isImplemented (EffectType type) noexcept
     switch (type)
     {
         case EffectType::distortion:
+        case EffectType::delay:
             return true;
 
-        // Phases 8b to 8e. Selectable now because the parameter's range is
+        // Phases 8c to 8e. Selectable now because the parameter's range is
         // permanent; silent until the DSP behind them lands.
-        case EffectType::delay:
         case EffectType::reverb:
         case EffectType::gate:
         case EffectType::compressor:
@@ -31,6 +31,8 @@ AudioEffect* EffectsRack::effectFor (EffectType type) noexcept
             return &distortionUnit;
 
         case EffectType::delay:
+            return &delayUnit;
+
         case EffectType::reverb:
         case EffectType::gate:
         case EffectType::compressor:
@@ -44,6 +46,7 @@ AudioEffect* EffectsRack::effectFor (EffectType type) noexcept
 void EffectsRack::prepare (double sampleRate, int maxBlockSize)
 {
     distortionUnit.prepare (sampleRate, maxBlockSize);
+    delayUnit.prepare (sampleRate, maxBlockSize);
 
     refreshReporting();
 }
@@ -51,6 +54,15 @@ void EffectsRack::prepare (double sampleRate, int maxBlockSize)
 void EffectsRack::reset() noexcept
 {
     distortionUnit.reset();
+    delayUnit.reset();
+}
+
+void EffectsRack::setTempo (double bpm) noexcept
+{
+    // Handed to every effect that syncs rather than only to the ones currently
+    // in the chain: an effect put into a slot mid-bar must already know what
+    // tempo it is at, not find out on the next block.
+    delayUnit.setTempo (bpm);
 }
 
 void EffectsRack::setChain (const Chain& newChain) noexcept

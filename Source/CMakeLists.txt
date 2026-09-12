@@ -38,6 +38,9 @@ add_library(apollo_core STATIC
     DSP/Oscillators/WavetableOscillator.h
     DSP/Envelopes/Envelope.cpp
     DSP/Envelopes/Envelope.h
+    DSP/Delay/Delay.cpp
+    DSP/Delay/Delay.h
+    DSP/Delay/DelayLine.h
     DSP/Distortion/Distortion.cpp
     DSP/Distortion/Distortion.h
     DSP/Effects/AudioEffect.h

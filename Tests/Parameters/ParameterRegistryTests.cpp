@@ -50,10 +50,15 @@ using namespace apollo::params;
 // effects from the start, including the five whose phases have not landed,
 // because a discrete parameter's range is permanent (ADR-0054).
 //
+// Phase 8b added eight more for the delay: a bypass, the free-or-synced switch
+// and the note division it reads, feedback, the two filters inside the feedback
+// path, ping-pong, and a mix. `fx_delay_time` was already there, inert since the
+// initial registry, and 8b is what connected it.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 154, "the registry has a hundred and fifty-four parameters");
+static_assert (parameterCount() == 162, "the registry has a hundred and sixty-two parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

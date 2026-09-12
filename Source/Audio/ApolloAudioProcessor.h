@@ -198,6 +198,11 @@ private:
     */
     void applyEffectParameters() noexcept;
 
+    /** Reads the host's tempo, if it has one, and gives it to the rack. Audio
+        thread.
+    */
+    void applyHostTempo() noexcept;
+
     /** Tells the host that the rack's latency changed.
 
         Message thread, woken by the audio thread only when the number actually
@@ -372,6 +377,16 @@ private:
         std::atomic<float>* distortionTone = nullptr;
         std::atomic<float>* distortionMix = nullptr;
         std::atomic<float>* distortionOutput = nullptr;
+
+        std::atomic<float>* delayBypass = nullptr;
+        std::atomic<float>* delaySync = nullptr;
+        std::atomic<float>* delayTime = nullptr;
+        std::atomic<float>* delayDivision = nullptr;
+        std::atomic<float>* delayFeedback = nullptr;
+        std::atomic<float>* delayDamping = nullptr;
+        std::atomic<float>* delayLowCut = nullptr;
+        std::atomic<float>* delayPingPong = nullptr;
+        std::atomic<float>* delayMix = nullptr;
 
         void resolve (juce::AudioProcessorValueTreeState& state);
     };

@@ -25,6 +25,7 @@ export const RACK_SLOT_COUNT = 6;
 
 /** Matches dsp::EffectType. */
 export const EFFECT_DISTORTION = 1;
+export const EFFECT_DELAY = 2;
 
 /** The effects that exist in this build, matching dsp::EffectsRack::isImplemented.
 
@@ -33,7 +34,7 @@ export const EFFECT_DISTORTION = 1;
     the interface telling the user something the instrument does not agree with.
     Each of 8b to 8e adds its effect to this list as it lands.
 */
-const IMPLEMENTED_EFFECTS: readonly number[] = [EFFECT_DISTORTION];
+const IMPLEMENTED_EFFECTS: readonly number[] = [EFFECT_DISTORTION, EFFECT_DELAY];
 
 export const RACK_PARAMETER_IDS: string[] = Array.from(
     { length: RACK_SLOT_COUNT },
@@ -111,6 +112,47 @@ export function Distortion(): JSX.Element {
             <Knob id="fx_distortion_tone" label="Tone" />
             <Knob id="fx_distortion_output" label="Output" />
             <Knob id="fx_distortion_mix" label="Mix" />
+        </Module>
+    );
+}
+
+export function DelayEffect(): JSX.Element {
+    const placed = useInChain(EFFECT_DELAY);
+
+    return (
+        <Module title="Delay" inactive={!placed}>
+            {/*
+                Two ways of asking for a time, and the switch says which one is
+                being read — the same job the filter's type control does. Both
+                stay visible and at full strength either way: a control that
+                dims when it is not in use makes a panel look broken, and a
+                control that disappears has to be rediscovered (ADR-0052).
+            */}
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Segmented id="fx_delay_sync" label="Timing" table={LABELS.fx_delay_sync} />
+                    <Segmented
+                        id="fx_delay_pingpong"
+                        label="Stereo"
+                        table={LABELS.fx_delay_pingpong}
+                    />
+                    <Segmented id="fx_delay_bypass" label="State" table={LABELS.fx_delay_bypass} />
+                </div>
+            </div>
+
+            <div className="cluster cluster--banner">
+                <Segmented
+                    id="fx_delay_division"
+                    label="Division"
+                    table={LABELS.fx_delay_division}
+                />
+            </div>
+
+            <Knob id="fx_delay_time" label="Time" />
+            <Knob id="fx_delay_feedback" label="Feedback" />
+            <Knob id="fx_delay_damping" label="Damping" />
+            <Knob id="fx_delay_lowcut" label="Low Cut" />
+            <Knob id="fx_delay_mix" label="Mix" />
         </Module>
     );
 }

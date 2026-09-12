@@ -89,7 +89,9 @@ public:
         testUnimplementedEffectsLeaveTheSlotEmpty();
         testDuplicatesResolveToTheFirst();
         testPositionInTheChainDoesNotChangeTheSound();
+        testOrderBetweenTwoEffectsIsAudible();
         testLatencyFollowsMembershipNotBypass();
+        testLatencyIsUnaffectedByEffectsThatAddNone();
         testBypassIsPurelyDelay();
         testTailIgnoresBypassedEffects();
     }
@@ -124,7 +126,7 @@ private:
         EffectsRack rack;
         rack.prepare (testSampleRate, blockSize);
 
-        for (const auto type : { EffectType::delay, EffectType::reverb, EffectType::gate,
+        for (const auto type : { EffectType::reverb, EffectType::gate,
                                  EffectType::compressor, EffectType::equaliser })
         {
             rack.setChain (chainWith (1, type));
@@ -162,10 +164,9 @@ private:
     {
         beginTest ("one effect sounds the same wherever in the chain it sits");
 
-        // With a single effect implemented this is the whole of what ordering
-        // can be asserted: the slot an effect occupies is its position, not a
-        // different configuration of it. Ordering between effects becomes
-        // testable in 8b, when there are two things to order.
+        // An effect alone in the rack is doing the same job in slot 1 and in
+        // slot 6: the slot is its position, not a different configuration of
+        // it. What position *does* change is the subject of the next test.
         std::vector<float> first;
         std::vector<float> last;
 
@@ -184,6 +185,56 @@ private:
 
         for (std::size_t i = 0; i < first.size(); ++i)
             expect (first[i] == last[i], "moving an effect must not change what it does");
+    }
+
+    void testOrderBetweenTwoEffectsIsAudible()
+    {
+        beginTest ("the order two effects are in changes the result");
+
+        // The first thing 8b makes testable, and the claim the rack exists for:
+        // distorting a delayed signal is not the same as delaying a distorted
+        // one. The first clips the repeats along with the note; the second
+        // repeats what the clipper already flattened.
+        const auto renderOrder = [] (EffectType first, EffectType second)
+        {
+            EffectsRack rack;
+            rack.prepare (testSampleRate, blockSize);
+            rack.distortion().setSettings (audibleSettings());
+
+            Delay::Settings delay;
+            delay.timeMs = 2.0f;        // short enough to overlap inside one block
+            delay.feedback = 0.6f;
+            delay.mix = 0.6f;
+            rack.delay().setSettings (delay);
+
+            EffectsRack::Chain chain;
+            chain[0].effect = first;
+            chain[1].effect = second;
+            rack.setChain (chain);
+
+            auto signal = sine (440.0, 0.7f);
+
+            // Two blocks, so the delay line has something in it by the time the
+            // measured one is rendered.
+            render (rack, signal);
+
+            signal = sine (440.0, 0.7f);
+            render (rack, signal);
+
+            return signal;
+        };
+
+        const auto distortionFirst = renderOrder (EffectType::distortion, EffectType::delay);
+        const auto delayFirst = renderOrder (EffectType::delay, EffectType::distortion);
+
+        auto difference = 0.0f;
+
+        for (std::size_t i = 0; i < distortionFirst.size(); ++i)
+            difference = std::max (difference, std::abs (distortionFirst[i] - delayFirst[i]));
+
+        expect (difference > 0.01f,
+                "swapping two effects must change the output, and differed by only "
+                    + juce::String (difference, 5));
     }
 
     void testLatencyFollowsMembershipNotBypass()
@@ -236,14 +287,50 @@ private:
         EffectsRack rack;
         rack.prepare (testSampleRate, blockSize);
 
-        // The distortion has no tail, so this asserts the rule rather than a
-        // number: nothing in the chain yet rings out, and the reported tail is
-        // zero in every arrangement of it. The rule earns its keep in 8b and 8c.
+        // The distortion has nothing to ring out with.
         rack.setChain (chainWith (1, EffectType::distortion));
         expectEquals (rack.getTailSeconds(), 0.0);
 
-        rack.setChain (chainWith (1, EffectType::distortion, /*bypassed*/ true));
-        expectEquals (rack.getTailSeconds(), 0.0);
+        // The delay does, which is what makes the rule checkable rather than
+        // merely stated.
+        Delay::Settings delay;
+        delay.timeMs = 400.0f;
+        delay.feedback = 0.6f;
+        delay.mix = 1.0f;
+        rack.delay().setSettings (delay);
+
+        rack.setChain (chainWith (1, EffectType::delay));
+
+        const auto tail = rack.getTailSeconds();
+
+        expect (tail > 0.4, "a delay in the chain must report a tail at least one repeat long");
+        expectWithinAbsoluteError (tail, rack.delay().getTailSeconds(), 1.0e-9,
+                                   "and the rack must report the effect's own figure");
+
+        rack.setChain (chainWith (1, EffectType::delay, /*bypassed*/ true));
+        expectEquals (rack.getTailSeconds(), 0.0,
+                      "a bypassed effect is not ringing out, so it has no tail to wait for");
+    }
+
+    void testLatencyIsUnaffectedByEffectsThatAddNone()
+    {
+        beginTest ("an effect with no latency does not add any");
+
+        EffectsRack rack;
+        rack.prepare (testSampleRate, blockSize);
+
+        const auto distortionLatency = rack.distortion().getLatencySamples();
+
+        rack.setChain (chainWith (1, EffectType::delay));
+        expectEquals (rack.getLatencySamples(), 0, "a delay is not a lookahead");
+
+        EffectsRack::Chain both;
+        both[0].effect = EffectType::delay;
+        both[1].effect = EffectType::distortion;
+        rack.setChain (both);
+
+        expectEquals (rack.getLatencySamples(), distortionLatency,
+                      "a chain's latency is the sum of what its effects add, and the delay adds nothing");
     }
 };
 

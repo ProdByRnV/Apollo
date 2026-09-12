@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 154> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 162> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1117,6 +1117,63 @@ inline constexpr std::array<ParameterDefinition, 154> parameterDefinitions { {
     { "fx_distortion_output", "Distortion Output",
       ParameterType::floatingPoint, ParameterUnit::decibels,
       -24.0f, 12.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Delay (Phase 8b) -------------------------------------------------------
+    { "fx_delay_bypass", "Delay Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // 0 free, 1 synced to the host's tempo. Two ways of asking for a time, and
+    // the switch is what says which of the two controls below is being read.
+    { "fx_delay_sync", "Delay Sync",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Matches dsp::Delay::Division: whole through thirty-second, with the
+    // dotted and triplet forms of the useful ones. Fourteen values, fixed from
+    // the start for the reason the rack's slots are (ADR-0054).
+    { "fx_delay_division", "Delay Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 13.0f, 5.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_delay_feedback", "Delay Feedback",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.35f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Inside the feedback path, so each repeat is darker than the last.
+    { "fx_delay_damping", "Delay Damping",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      500.0f, 20000.0f, 8000.0f,
+      // Places 3 kHz near the centre of the control's travel.
+      0.3374f, 0.0f,
+      true, false, true },
+
+    { "fx_delay_lowcut", "Delay Low Cut",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 2000.0f, 20.0f,
+      // Places 200 Hz near the centre.
+      0.3868f, 0.0f,
+      true, false, true },
+
+    { "fx_delay_pingpong", "Delay Ping-Pong",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_delay_mix", "Delay Mix",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, false, true },
 

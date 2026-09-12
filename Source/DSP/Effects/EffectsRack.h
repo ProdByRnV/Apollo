@@ -30,6 +30,7 @@
     nothing, lock nothing and perform no I/O (CLAUDE.md §7).
 */
 
+#include "DSP/Delay/Delay.h"
 #include "DSP/Distortion/Distortion.h"
 #include "DSP/Effects/AudioEffect.h"
 
@@ -102,9 +103,20 @@ public:
     */
     [[nodiscard]] static bool isImplemented (EffectType type) noexcept;
 
-    /** The distortion unit, for the caller that resolves its parameters. */
+    /** The host's tempo, for the effects that sync to it. Audio-thread safe.
+
+        The rack takes it rather than each effect being handed it separately,
+        because the tempo is a property of the session rather than of any one
+        effect, and one call per block is cheaper than asking which effects care.
+    */
+    void setTempo (double bpm) noexcept;
+
+    /** The effects themselves, for the caller that resolves their parameters. */
     [[nodiscard]] Distortion& distortion() noexcept { return distortionUnit; }
     [[nodiscard]] const Distortion& distortion() const noexcept { return distortionUnit; }
+
+    [[nodiscard]] Delay& delay() noexcept { return delayUnit; }
+    [[nodiscard]] const Delay& delay() const noexcept { return delayUnit; }
 
 private:
     /** @returns the effect an enum names, or nullptr for `none` and for
@@ -115,6 +127,7 @@ private:
     void refreshReporting() noexcept;
 
     Distortion distortionUnit;
+    Delay delayUnit;
 
     Chain chain {};
 

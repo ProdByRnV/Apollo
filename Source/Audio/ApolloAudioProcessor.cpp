@@ -95,9 +95,24 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     distortionMix = state.getRawParameterValue ("fx_distortion_mix");
     distortionOutput = state.getRawParameterValue ("fx_distortion_output");
 
+    delayBypass = state.getRawParameterValue ("fx_delay_bypass");
+    delaySync = state.getRawParameterValue ("fx_delay_sync");
+    delayTime = state.getRawParameterValue ("fx_delay_time");
+    delayDivision = state.getRawParameterValue ("fx_delay_division");
+    delayFeedback = state.getRawParameterValue ("fx_delay_feedback");
+    delayDamping = state.getRawParameterValue ("fx_delay_damping");
+    delayLowCut = state.getRawParameterValue ("fx_delay_lowcut");
+    delayPingPong = state.getRawParameterValue ("fx_delay_pingpong");
+    delayMix = state.getRawParameterValue ("fx_delay_mix");
+
     jassert (distortionBypass != nullptr && distortionMode != nullptr
              && distortionDrive != nullptr && distortionTone != nullptr
              && distortionMix != nullptr && distortionOutput != nullptr);
+
+    jassert (delayBypass != nullptr && delaySync != nullptr && delayTime != nullptr
+             && delayDivision != nullptr && delayFeedback != nullptr
+             && delayDamping != nullptr && delayLowCut != nullptr
+             && delayPingPong != nullptr && delayMix != nullptr);
 }
 
 void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
@@ -217,6 +232,7 @@ void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpected
     // latency immediately after preparing — which is when most of them ask —
     // gets the answer for the chain the session was saved with rather than for
     // an empty rack.
+    applyHostTempo();
     applyEffectParameters();
     setLatencySamples (effects.getLatencySamples());
     reportedLatencySamples.store (effects.getLatencySamples(), std::memory_order_relaxed);
@@ -448,11 +464,52 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     voiceEngine.setFilterParameters (filters);
 }
 
+void ApolloAudioProcessor::applyHostTempo() noexcept
+{
+    // Read once per block, before the effects are configured, so everything
+    // synced this block is synced to the same tempo.
+    //
+    // Every step of this is optional at the host's discretion: there may be no
+    // playhead at all (the standalone has none), the position may be
+    // unavailable, and the tempo inside it may be absent even when the rest is
+    // there. Each of those falls through to the effect's own fallback rather
+    // than to zero, so a synced delay keeps repeating musically wherever it is
+    // running (CLAUDE.md §38).
+    auto bpm = dsp::Delay::fallbackBpm;
+
+    if (auto* transport = getPlayHead())
+    {
+        if (const auto position = transport->getPosition())
+        {
+            if (const auto hostBpm = position->getBpm())
+                bpm = *hostBpm;
+        }
+    }
+
+    effects.setTempo (bpm);
+}
+
 void ApolloAudioProcessor::applyEffectParameters() noexcept
 {
     dsp::EffectsRack::Chain chain;
 
-    const auto bypassed = readParameter (effectParameters.distortionBypass, 0.0f) >= 0.5f;
+    // Bypass is per effect rather than per slot, because it belongs to the
+    // effect: moving a bypassed delay to another position must not switch it
+    // back on.
+    const auto isBypassed = [this] (dsp::EffectType type)
+    {
+        switch (type)
+        {
+            case dsp::EffectType::distortion:
+                return readParameter (effectParameters.distortionBypass, 0.0f) >= 0.5f;
+
+            case dsp::EffectType::delay:
+                return readParameter (effectParameters.delayBypass, 0.0f) >= 0.5f;
+
+            default:
+                return false;
+        }
+    };
 
     for (std::size_t slot = 0; slot < chain.size(); ++slot)
     {
@@ -465,7 +522,7 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
             selected < 0 ? 0 : (selected >= dsp::effectTypeCount ? dsp::effectTypeCount - 1 : selected));
 
         chain[slot].effect = type;
-        chain[slot].bypassed = type == dsp::EffectType::distortion ? bypassed : false;
+        chain[slot].bypassed = isBypassed (type);
     }
 
     // The rack resolves duplicates and unimplemented effects, and does nothing
@@ -484,6 +541,23 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     distortion.outputDb = readParameter (effectParameters.distortionOutput, 0.0f);
 
     effects.distortion().setSettings (distortion);
+
+    dsp::Delay::Settings delay;
+
+    const auto division = static_cast<int> (readParameter (effectParameters.delayDivision, 5.0f));
+    const auto lastDivision = dsp::Delay::divisionCount - 1;
+
+    delay.tempoSynced = readParameter (effectParameters.delaySync, 0.0f) >= 0.5f;
+    delay.timeMs = readParameter (effectParameters.delayTime, 500.0f);
+    delay.division = static_cast<dsp::Delay::Division> (
+        division < 0 ? 0 : (division > lastDivision ? lastDivision : division));
+    delay.feedback = readParameter (effectParameters.delayFeedback, 0.35f);
+    delay.dampingHz = readParameter (effectParameters.delayDamping, 8000.0f);
+    delay.lowCutHz = readParameter (effectParameters.delayLowCut, 20.0f);
+    delay.pingPong = readParameter (effectParameters.delayPingPong, 0.0f) >= 0.5f;
+    delay.mix = readParameter (effectParameters.delayMix, 0.0f);
+
+    effects.delay().setSettings (delay);
 
     // Latency is a property of which effects are in the chain, so it moves only
     // when the user rearranges the rack. In the steady state this is a load and
@@ -784,6 +858,7 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // chain that changed halfway through a block would be a difference no one
     // could hear and everyone would have to reason about — while the controls
     // that would step audibly are smoothed per sample inside the effect itself.
+    applyHostTempo();
     applyEffectParameters();
     effects.process (outputs, numOutputChannels, numSamples);
 

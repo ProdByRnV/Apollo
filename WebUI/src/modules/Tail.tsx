@@ -29,13 +29,11 @@ export function Output(): JSX.Element {
             <Meter />
 
             {/*
-                The distortion's controls moved to its own panel in 8a, where
-                the rest of the effect is. `fx_delay_time` stays here until 8b
-                builds the delay that owns it, because a parameter with nothing
-                behind it is better placed beside the master fader than in a
-                panel pretending to be an effect.
+                The effects' controls live in their own panels, beside the rest
+                of the effect they belong to: the distortion's moved there in 8a
+                and `fx_delay_time` followed in 8b, when the delay that owns it
+                was built. Nothing from the rack is left here.
             */}
-            <Knob id="fx_delay_time" label="Delay Time" />
             <Knob id="master_gain" label="Master" />
         </Module>
     );

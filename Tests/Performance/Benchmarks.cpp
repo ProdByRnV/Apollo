@@ -411,6 +411,8 @@ void benchmarkEffects()
         { "distortion, soft (tanh at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::soft, false },
         { "distortion, hard (clip at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::hard, false },
         { "distortion, diode (exp at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::diode, false },
+        { "delay, bypassed", dsp::EffectType::delay, dsp::Distortion::Mode::soft, true },
+        { "delay, stereo with feedback", dsp::EffectType::delay, dsp::Distortion::Mode::soft, false },
     };
 
     for (const auto& testCase : cases)
@@ -428,6 +430,14 @@ void benchmarkEffects()
         settings.driveDb = 18.0f;
         settings.mix = 1.0f;
         rack.distortion().setSettings (settings);
+
+        dsp::Delay::Settings delay;
+        delay.timeMs = 350.0f;
+        delay.feedback = 0.5f;
+        delay.dampingHz = 6000.0f;
+        delay.lowCutHz = 120.0f;
+        delay.mix = 0.5f;
+        rack.delay().setSettings (delay);
 
         std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
         std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);

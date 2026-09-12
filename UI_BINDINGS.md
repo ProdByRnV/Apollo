@@ -223,7 +223,15 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_distortion_tone` | Rotary Knob | `500–20000 Hz` | `20000` | 8a | Post lowpass on the wet path; switched out at the top of its range |
 | `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix; the dry path is delayed to match the wet path's latency |
 | `fx_distortion_output` | Rotary Knob | `-24–12 dB` | `0` | 8a | Output trim on the wet path |
-| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time. Inert until Phase 8b builds the delay |
+| `fx_delay_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8b | Switched out of circuit; its lines are fed silence so it cannot replay old audio when switched back |
+| `fx_delay_sync` | Segmented | Discrete `[0, 1]` | `0` | 8b | 0 takes the time from `fx_delay_time`, 1 from the host's tempo and `fx_delay_division` |
+| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time when free-running. Connected in 8b |
+| `fx_delay_division` | Segmented | Discrete `[0, 13]` | `5` | 8b | Note value when synced; index into `dsp::Delay::Division`, 5 being a quarter note |
+| `fx_delay_feedback` | Rotary Knob | Normalized `[0, 1]` | `0.35` | 8b | Scaled to a loop gain of at most 0.95, so the repeats always decay |
+| `fx_delay_damping` | Rotary Knob | `500–20000 Hz` | `8000` | 8b | Lowpass inside the feedback path; switched out at the top of its range |
+| `fx_delay_lowcut` | Rotary Knob | `20–2000 Hz` | `20` | 8b | Highpass inside the feedback path; switched out at the bottom of its range |
+| `fx_delay_pingpong` | Segmented | Discrete `[0, 1]` | `0` | 8b | Crosses the feedback paths so each repeat alternates channels |
+| `fx_delay_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 8b | Delay dry/wet mix |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.

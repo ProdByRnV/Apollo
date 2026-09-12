@@ -551,13 +551,13 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### Delay
 
-- [ ] Implement delay buffer.
-- [ ] Implement delay time.
-- [ ] Implement feedback.
-- [ ] Implement wet/dry mix.
-- [ ] Implement stereo/ping-pong behavior where required.
-- [ ] Handle parameter smoothing.
-- [ ] Validate feedback stability.
+- [x] Implement delay buffer. — `dsp::DelayLine`, four seconds, fractional reads, kept separate from the effect so the reverb in 8c can use the same buffer without the musical part (8b)
+- [x] Implement delay time. — free in milliseconds or synced to the host's tempo across fourteen note values, with 120 BPM as the fallback when no transport reports one (8b)
+- [x] Implement feedback. — bounded by construction at 0.95, with a lowpass and a highpass inside the loop so each repeat is darker than the last (8b)
+- [x] Implement wet/dry mix. — and a dry mix is bit-exactly the input, because a delay adds no latency to compensate for (8b)
+- [x] Implement stereo/ping-pong behavior where required. — crossed feedback, so a repeat alternates sides (8b)
+- [x] Handle parameter smoothing. — the time glides rather than stepping, which is the tape behaviour a swept delay is expected to have; measured as the absence of any discontinuity while sweeping (ADR-0056) (8b)
+- [x] Validate feedback stability. — thirty seconds at maximum feedback with no input: every second quieter than the last, nothing ever louder than what went in, and near silence by the end (8b)
 
 ### Reverb
 

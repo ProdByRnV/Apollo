@@ -29,12 +29,21 @@ export const LABELS: Record<string, readonly string[]> = {
     // landed are selectable — the slot parameter's range is permanent, so it
     // covers all six from the start (ADR-0054) — and say so, rather than
     // appearing to work and doing nothing.
-    fxSlot: ['—', 'DISTORTION', 'DELAY (soon)', 'REVERB (soon)',
+    fxSlot: ['—', 'DISTORTION', 'DELAY', 'REVERB (soon)',
              'GATE (soon)', 'COMP (soon)', 'EQ (soon)'],
 
     // Matches dsp::Distortion::Mode.
     fx_distortion_mode: ['SOFT', 'HARD', 'DIODE'],
     fx_distortion_bypass: ['ACTIVE', 'BYPASS'],
+
+    fx_delay_bypass: ['ACTIVE', 'BYPASS'],
+    fx_delay_sync: ['FREE', 'SYNC'],
+    fx_delay_pingpong: ['STEREO', 'PING-PONG'],
+
+    // Matches dsp::Delay::Division. A dot is dotted and a T is a triplet, which
+    // is how they are written on paper.
+    fx_delay_division: ['1/1', '1/2.', '1/2', '1/2T', '1/4.', '1/4', '1/4T',
+                        '1/8.', '1/8', '1/8T', '1/16.', '1/16', '1/16T', '1/32'],
 
     // Matches dsp::LfoShape.
     lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],

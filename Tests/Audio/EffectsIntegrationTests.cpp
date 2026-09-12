@@ -113,6 +113,8 @@ public:
         testLatencyIsReportedToTheHost();
         testChainSurvivesStateRestore();
         testCorruptSlotValueIsRejected();
+        testDelayReachesTheAudioAndReportsItsTail();
+        testSyncedDelayWorksWithNoTransport();
     }
 
 private:
@@ -273,6 +275,96 @@ private:
             for (const auto sample : rendered)
                 expect (std::isfinite (sample), "an unbuilt effect must not corrupt the audio");
         }
+    }
+
+    void testDelayReachesTheAudioAndReportsItsTail()
+    {
+        beginTest ("a delay in the chain repeats, and the host is told how long it rings for");
+
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", 2.0f);          // dsp::EffectType::delay
+        setPlain (processor, "fx_delay_time", 120.0f);
+        setPlain (processor, "fx_delay_feedback", 0.6f);
+        setPlain (processor, "fx_delay_mix", 1.0f);
+
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        expectEquals (processor.getLatencySamples(), 0,
+                      "a delay adds repeats, not latency");
+
+        // Tail is the envelope's release plus the chain's, because they are in
+        // series: the delay is still repeating a note the envelope finished.
+        const auto tail = processor.getTailLengthSeconds();
+
+        expect (tail > 0.12,
+                "the reported tail must cover at least one repeat, and was "
+                    + juce::String (tail, 3) + " s");
+
+        // One note, then silence: what is still sounding afterwards is the
+        // delay, because nothing else in the instrument can be.
+        const auto note = renderNote (processor, 4);
+
+        expect (peakOf (note) > 0.05f, "the note itself must sound before its repeats can");
+
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        juce::MidiBuffer midi;
+
+        midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+
+        auto silenced = false;
+        auto heard = 0.0f;
+
+        for (int block = 0; block < 20; ++block)
+        {
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+            midi.clear();
+
+            const auto peak = buffer.getMagnitude (0, blockSize);
+
+            // The first blocks still contain the note's release; what matters is
+            // that sound is still arriving well after it has gone.
+            if (block > 8)
+            {
+                silenced = true;
+                heard = std::max (heard, peak);
+            }
+        }
+
+        expect (silenced && heard > 0.001f,
+                "the repeats must still be sounding after the note has been released, and peaked at "
+                    + juce::String (heard, 5));
+    }
+
+    void testSyncedDelayWorksWithNoTransport()
+    {
+        beginTest ("a synced delay still repeats when nothing is providing a tempo");
+
+        // The standalone has no playhead at all, which makes this the normal
+        // case rather than the edge one (CLAUDE.md §38). The processor is driven
+        // here exactly as it is there: nothing has set a playhead on it.
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", 2.0f);
+        setPlain (processor, "fx_delay_sync", 1.0f);
+        setPlain (processor, "fx_delay_division", 5.0f);   // quarter note
+        setPlain (processor, "fx_delay_feedback", 0.4f);
+        setPlain (processor, "fx_delay_mix", 1.0f);
+
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        const auto rendered = renderNote (processor, 8);
+
+        expect (peakOf (rendered) > 0.05f, "the instrument must still sound");
+
+        for (const auto sample : rendered)
+            expect (std::isfinite (sample), "and must not produce a NaN for want of a tempo");
+
+        // 120 BPM is the documented fallback, so a quarter note is half a
+        // second and the tail is the release plus several repeats of that.
+        expect (processor.getTailLengthSeconds() > 0.5,
+                "the fallback tempo must give a usable delay time rather than zero");
     }
 };
 

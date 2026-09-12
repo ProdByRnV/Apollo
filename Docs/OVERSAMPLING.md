@@ -186,6 +186,12 @@ transcendental, which is where any future optimisation should start looking. All
 of it is paid once on the mix rather than once per voice, which is the whole
 argument for putting distortion in the rack rather than in the voice (ADR-0033).
 
+Re-measured in Phase 8b on the same machine after several hours of load, every
+row came out one and a half to two times higher, and two idle runs minutes apart
+disagreed by 40 %. PROJECT-STATE.md §5b carries both columns and the warning that
+goes with them: these figures are ratios within one run, not absolutes to compare
+across sessions.
+
 `Factor::none` is a real setting, not a special case for callers to branch
 around: it passes the signal through, reports zero latency, and lets a quality
 control switch oversampling off without the surrounding code changing shape.
