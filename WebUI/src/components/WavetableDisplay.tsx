@@ -36,10 +36,10 @@ export function WavetableDisplay({ oscillator }: WavetableDisplayProps): JSX.Ele
         const size = fitCanvas(root, canvas, ASPECT);
 
         context.clearRect(0, 0, size.width, size.height);
-        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#292935'));
+        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#d9c99f'));
 
         strokeSeries(context, pointsRef.current, size, {
-            colour: cssColour(root, '--wave-line', '#7b5cff'),
+            colour: cssColour(root, '--wave-line', '#8a6408'),
             zero: 0.5,
             weight: 1.6,
         });
