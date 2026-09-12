@@ -1058,10 +1058,16 @@ decoration:
 This is CLAUDE.md §24.2 made specific enough to hold. The rule that made it
 worth writing down is the second half: a state that is shown in colour is also
 shown some other way. A modulated knob turns green *and* the routing that moves
-it is a highlighted row in the matrix with a number beside it. A filter that is
-off is dimmed *and* reads OFF. A depth's sign is a fill direction *and* a signed
-percentage. Nothing in the interface can only be perceived as a hue
+it is a highlighted row in the matrix with a number beside it. A source that is
+not in the signal path carries an OFF chip in its heading *and* reads zero on its
+level *and* says "silent" on its scope. A depth's sign is a fill direction *and*
+a signed percentage. Nothing in the interface can only be perceived as a hue
 (CLAUDE.md §39).
+
+That OFF chip used to be a dimmed panel, which was the same rule applied badly:
+brightness is a difference with no words attached, and it made the two
+oscillators look like two different products whenever one of them sat at zero.
+The chip says the thing; every panel is now the same shade (ADR-0052).
 
 The accent — violet when this was written, gold since ADR-0051 — is used *as* an
 accent: it appears on the control under the hand and almost nowhere else. It is
@@ -1774,3 +1780,43 @@ opacity treatment works and the trace glows.
 state carried by hue alone — are untouched; only two of the four hues moved, and
 the whole change is the token block plus three canvas fallback colours, because
 the stylesheet never re-invents a value below its tokens.
+
+---
+
+## ADR-0052 — A module that is off is marked, not dimmed
+
+**Post-Phase 7 (UI) · Accepted**
+
+A module whose source is not in the signal path — a level at zero, a filter set
+to Off — used to render at 55 % opacity. The developer looked at the two
+oscillators side by side and said the disparity was not acceptable: Oscillator 1
+and Oscillator 2 are a matched pair, structurally identical and adjacent, and one
+of them being a different brightness read as one being *special* rather than one
+being *silent*.
+
+They offered two ways out: give each oscillator an explicit ON/OFF switch that
+lights when on, or make both panels the same shade. **The second, with the state
+kept**: every panel now renders identically and the module's heading carries a
+small OFF chip.
+
+**Why not the switch.** Level already *is* the enable — a source at exactly zero
+is skipped by the voice rather than rendered and multiplied by nothing (Voice.cpp
+`renderAdding`), so a separate enable would be a second control for a state that
+already has one, two new automatable parameters, and a state-schema migration for
+presets that do not need it. It would also not have solved the problem as stated:
+with oscillator 2 off, its switch would be unlit and oscillator 1's lit, which is
+the same disparity in a smaller rectangle.
+
+**Why the chip is better than the dim regardless.** Opacity is a difference with
+no words attached: it says "this panel matters less", not "this source is
+silent", and a reader has to have another panel to compare it against to notice
+at all. ADR-0039 requires that no state be carried by appearance alone, and a
+brightness wash is the weakest possible compliance with that. The chip states it
+in a word, beside the module's own name, and it is legible on the module by
+itself.
+
+**Given up:** the at-a-glance sense of which half of the instrument is live,
+which the dim did give. The level readings, the OFF chips and the scopes' own
+"silent" captions all still say it; none of them say it as fast. That is the
+trade the developer asked for, and it buys a page where two identical modules
+look identical.

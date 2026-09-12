@@ -361,10 +361,29 @@ body::before {
     border-color: var(--line-strong);
 }
 
-/* A module that is switched off recedes rather than disappearing: still
-   readable, clearly not in circuit. */
-.module[data-inactive="true"] {
-    opacity: 0.55;
+/* A module that is not in the signal path is *marked*, not dimmed.
+
+   It used to lose forty-five per cent of its opacity. That is how a matched
+   pair — the two oscillators, the two filters — ended up looking like two
+   different products whenever one of them sat at zero, which is the complaint
+   that changed this. Brightness is also the weakest available way to say it: it
+   reads as "this panel matters less" rather than as "this source is silent", and
+   it is a difference in shade with no words attached (CLAUDE.md §39).
+
+   So every panel is the same shade, and the heading carries a chip that says
+   OFF. The level reading and the scope's own caption already said so too; this
+   makes it legible without having to compare two panels side by side. */
+.module__off {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+    padding: 3px 5px;
 }
 
 .module__head {
@@ -931,9 +950,12 @@ body::before {
     50%      { opacity: 0.45; }
 }
 
-/* Assignment mode. The workspace dims slightly and every assignable control is
-   outlined, because in this mode a click does something quite different from
-   what it does the rest of the time and that must not be a surprise. */
+/* Assignment mode. The cursor changes and every assignable control is outlined,
+   because in this mode a click does something quite different from what it does
+   the rest of the time and that must not be a surprise. The outline is a plain
+   hairline rather than the accent: gold means interaction, and in this mode
+   nothing has been interacted with yet. It turns green on hover and goes solid
+   green once a control is mapped. */
 body[data-midi-mode="true"] .workspace {
     cursor: crosshair;
 }

@@ -2,9 +2,14 @@
     The frame every section of the instrument sits in, and the tab strip two of
     them use.
 
-    `inactive` dims a module when the thing it controls is not in the signal
-    path. Dimming rather than hiding: a user needs to see that the sub oscillator
-    is at zero, not to find that its controls have vanished.
+    `inactive` marks a module whose source is not in the signal path — a level at
+    zero, a filter set to Off. It puts an OFF chip in the heading and changes
+    nothing else. It used to dim the whole panel instead, which made the two
+    oscillators look like different products whenever one of them was silent, and
+    said so only in brightness (see the stylesheet).
+
+    Marked rather than hidden either way: a user needs to see that the sub
+    oscillator is at zero, not to find that its controls have vanished.
 
     In the hand-built page that was `dimWhen`, which pushed a callback onto a
     global watcher list and matched it against the id of whatever had just
@@ -35,6 +40,7 @@ export function Module(
             <div className="module__head">
                 <div className="module__title">{title}</div>
                 {index !== undefined ? <span className="module__index">{index}</span> : null}
+                {inactive ? <span className="module__off">off</span> : null}
                 <div className="module__spacer" />
                 {head}
             </div>

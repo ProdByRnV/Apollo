@@ -12,9 +12,9 @@ import { plainOf, useParameterValue } from '../state/parameters';
 
 /** True while a source is at a level that puts it outside the signal path. */
 function useSilent(id: string): boolean {
-    // Subscribed to rather than read, so the module dims the moment the level
-    // does. The value itself comes from the store's plain form, which applies
-    // the engine's own range.
+    // Subscribed to as well as read, so the module's OFF chip appears and
+    // disappears the moment the level crosses zero. The value itself comes from
+    // the store's plain form, which applies the engine's own range.
     useParameterValue(id);
     return plainOf(id) <= 0.0001;
 }

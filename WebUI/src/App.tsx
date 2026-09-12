@@ -223,7 +223,7 @@ export function App(): JSX.Element {
     }, []);
 
     // The mode is on the body rather than on the workspace, because the cursor
-    // and the dimmed-control treatment apply to the whole window.
+    // and the outlined-control treatment apply to the whole window.
     useEffect(() => {
         document.body.dataset.midiMode = midi.mode ? 'true' : 'false';
     }, [midi.mode]);

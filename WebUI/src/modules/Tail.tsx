@@ -101,7 +101,7 @@ function ProfilePicker(): JSX.Element {
 */
 export function Expression(): JSX.Element {
     // Everything but the bend range is inert until a zone is chosen, and saying
-    // so with the same recede treatment the silent sources use is cheaper than
+    // so with the same OFF chip the silent sources carry is cheaper than
     // explaining it (ADR-0039).
     useParameterValue('mpe_zone');
     const zoneOff = plainOf('mpe_zone') < 0.5;

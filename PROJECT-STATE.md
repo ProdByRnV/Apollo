@@ -840,7 +840,8 @@ standalone at 1920×1080, 150 % scaling.
 | `#F7EF8A` is where it is loudest | The scope, wavetable and post-filter traces, drawn on the dark display insets; a held value's readout; and every hover |
 | A filled gold chip stays readable | The selected wavetable and LFO-shape buttons carry the ground's own near-black as their label. Light text on gold was unreadable at ten pixels and was changed |
 | Green and red kept their jobs | The MIDI badge and lamps green, the matrix's assigned-row wash green, the clip indicator red — unchanged in meaning, only in shade (§24.2) |
-| The displays are dark insets again | And the recede treatments work: a silent scope and an inactive module both dim cleanly, which is exactly what failed in the light build |
+| The displays are dark insets again | And a silent scope's canvas dims cleanly against the dark ground, which is exactly what failed in the light build |
+| Two identical modules look identical | Oscillator 1 and Oscillator 2 render at the same shade with the same knob and trace brightness, with an **OFF** chip in the heading as the only difference when one is at level zero. The 55 % opacity that used to mark an inactive module made a matched pair look like two different products, and is gone everywhere — sub, noise, filter 2 and the MIDI module carry the chip too (ADR-0052) |
 | MIDI Learn still reads as a mode | A dashed hairline outline on every assignable control — grey, not gold, and deliberately: the accent means *interaction*, and in this mode nothing has been interacted with yet. It turns green on hover and solid green once mapped. Green **MIDI LEARN**, **CLEAR ALL** revealed, footer hint changed |
 
 An interim light build — ivory and gold — was made and discarded the same day.
