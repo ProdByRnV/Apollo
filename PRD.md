@@ -642,6 +642,10 @@ FX chain.
 Macros.
 Global settings where appropriate.
 Preset format should be versioned.
+Preset files shall use the extension .rnv — one preset per file, the same
+extension for factory and user content, and the same validated reader for both
+(ADR-0053). A preset file shall carry the versioned state document together with
+its own metadata: name, author, category and comment.
 Example:
 ```json
 {

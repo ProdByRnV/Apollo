@@ -1116,6 +1116,19 @@ Presets should include:
 
 Preset data must be versioned.
 
+## 29.1 Preset Files
+
+A user-created preset is a file on disk with the extension **`.rnv`** — one
+preset per file, one sound per preset. Factory and user content use the same
+extension and the same reader; nothing about a preset's origin changes its
+format.
+
+A `.rnv` file carries the versioned state document the project already
+serializes, plus preset metadata (name, author, category, comment). The
+extension is how the browser and the file dialogs find presets — it is not
+evidence of what is inside, so a `.rnv` file must still be validated and
+rejected safely if it is not Apollo state (§33; ADR-0053).
+
 Example:
 
 ```json

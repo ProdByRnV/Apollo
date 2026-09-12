@@ -596,7 +596,7 @@ Everything below was configured, built and executed on this machine.
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
-| 9 | Presets, wavetable resources, resource packaging |
+| 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **141 of the 143 registered parameters now affect audio** — the whole source

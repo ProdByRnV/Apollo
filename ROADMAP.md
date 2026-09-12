@@ -607,8 +607,8 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 
 ## Tasks
 
-- [ ] Define preset file format.
-- [ ] Define preset metadata.
+- [ ] Define preset file format. — the extension is **`.rnv`**, one preset per file, factory and user content alike (ADR-0053)
+- [ ] Define preset metadata. — name, author, category, comment, carried in the file beside the state document
 - [ ] Implement preset browser/indexing.
 - [ ] Implement preset loading.
 - [ ] Implement preset saving where required.

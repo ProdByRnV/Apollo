@@ -542,6 +542,15 @@ Large resources must not be synchronously loaded from disk during audio processi
 
 Preset operations should be performed asynchronously or outside the real-time callback, with validated handoff of prepared data to the DSP engine.
 
+A preset is a single file with the extension **`.rnv`**, holding the same
+versioned state document the plugin writes into a host project plus preset
+metadata. Factory and user presets share the extension and the reader; only
+their location differs, and user locations are resolved through platform-
+appropriate paths rather than hard-coded directories. Because the extension only
+says where a file came from and not what is in it, every `.rnv` goes through the
+same validation as incoming host state and is rejected without disturbing the
+current sound if it fails (§6.3, ADR-0053).
+
 ---
 
 ## 12. Concurrency & Communication Model

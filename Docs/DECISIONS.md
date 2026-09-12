@@ -1820,3 +1820,55 @@ which the dim did give. The level readings, the OFF chips and the scopes' own
 "silent" captions all still say it; none of them say it as fast. That is the
 trade the developer asked for, and it buys a page where two identical modules
 look identical.
+
+---
+
+## ADR-0053 — A preset is a `.rnv` file
+
+**Pre-Phase 9 · Accepted**
+
+The developer asked for user presets saved with the extension **`.rnv`**, after
+the initials of ProdByRnV, which already name the plugin manufacturer code
+`Prnv`. The preset *system* was always specified (PRD §32, ROADMAP Phase 9); the
+extension was not, and is now fixed before Phase 9 builds against it.
+
+**One preset is one file, one sound.** No container holding several patches, and
+no separate bank format: a bank is a folder, which the filesystem already
+implements and the user already knows how to copy, rename and share. A container
+would add a second format, a second reader, a second failure mode and an
+in-place-edit problem, in exchange for one fewer file per sound.
+
+**Factory and user presets use the same extension and the same reader.** Origin
+is a location, not a format. This means a user can open a factory preset, change
+it and save it beside their own, which is how presets are actually used, and it
+means there is only one loader to keep correct.
+
+**What is in the file.** The versioned state document Apollo already serializes
+into a host project (`schemaVersion`, `product`, `productVersion`,
+`Source/State/StateSerialization.h`), plus preset metadata that a project does
+not need — name, author, category, comment. Presets therefore inherit the
+migration path built in Phase 2 and exercised in Phase 5b (ADR-0032): a preset
+written by an older build migrates by the same code that migrates an older
+project, rather than by a second, quieter implementation that drifts from it.
+
+**Text, not binary.** A `.rnv` is the serialized state document as text. It is
+inspectable, diffable, survivable by hand when something goes wrong, and cheap
+to support; preset-sized state does not justify a binary format, and a binary
+one would make every future forensic question harder.
+
+**The extension is not evidence.** A `.rnv` is whatever the user's disk says it
+is — renamed, truncated, written by something else, or corrupt. It goes through
+the same validation as incoming host state, and a rejection preserves the sound
+already loaded rather than replacing it with nothing (CLAUDE.md §33). The
+existing `product` check is what distinguishes Apollo's state from anything else
+wearing the extension.
+
+**Given up:** `.rnv` names the vendor rather than the product, so a second
+ProdByRnV instrument cannot use it without ambiguity at the file-manager level.
+That is tolerable because the `product` property inside the file is what actually
+decides whether a document loads, and a future instrument can take its own
+extension without changing this one. Also given up is the tidiness of a
+single-file bank, which is deliberate, above.
+
+**Not implemented.** Phase 9 owns preset files; this decision only fixes the
+format they will take.

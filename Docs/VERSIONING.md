@@ -57,6 +57,12 @@ Rules:
 - Loading must validate, and must fail without destroying the current state
   (CLAUDE.md §33).
 
+Preset files (`.rnv`, ADR-0053) carry this same schema version rather than a
+second one of their own, so a preset written by an older build migrates through
+the same code that migrates an older project. A preset's own metadata — name,
+author, category, comment — is additive and does not, by itself, move the schema
+version.
+
 ---
 
 ## 4. UI bridge protocol version
