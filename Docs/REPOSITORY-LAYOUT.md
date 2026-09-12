@@ -57,7 +57,10 @@ Apollo/
 │   ├── Engine/                 Voice management, synthesis engine         [Phase 3]
 │   ├── DSP/                    Oscillators, Filters, Envelopes, LFO,      [Phase 4+]
 │   │                           Modulation, Unison, Distortion, Delay,
-│   │                           Reverb, Dynamics, EQ, Oversampling
+│   │                           Reverb, Dynamics, EQ, Oversampling,
+│   │                           Effects (the rack and the contract every
+│   │                           effect obeys — the one directory here that
+│   │                           holds no DSP of its own)
 │   ├── State/                  Serialization, presets, migration          [Phase 2/9]
 │   ├── MIDI/                   MIDI handling, MIDI Learn, profiles        [Phase 6]
 │   ├── Resources/              Wavetable and resource management          [Phase 9]

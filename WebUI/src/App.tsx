@@ -27,6 +27,7 @@ import {
 import { PROTOCOL_VERSION } from './bridge/protocol';
 import type { InboundMessage } from './bridge/protocol';
 
+import { Distortion, Rack } from './modules/Effects';
 import { Envelopes, Lfos } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
@@ -317,6 +318,26 @@ export function App(): JSX.Element {
                         <div className="rank rank--wide"><Envelopes /></div>
                         <div className="rank rank--wide"><Lfos /></div>
                         <div className="rank rank--wide"><Matrix /></div>
+
+                        {/*
+                            The rack sits after everything that makes and moves
+                            the sound and before what leaves, because that is
+                            where it sits in the signal path: effects process the
+                            finished mix, and the master fader is still the last
+                            thing in the chain.
+                        */}
+                        <div className="rank rank--wide"><Rack /></div>
+
+                        {/*
+                            The effects sit in a pair rank, so they fill the row
+                            two at a time as 8b to 8e add them. With one built
+                            that is a full-width panel, which is also what keeps
+                            its controls on one line at the narrowest window the
+                            instrument is usable in.
+                        */}
+                        <div className="rank rank--pair">
+                            <Distortion />
+                        </div>
 
                         <div className="rank rank--compact">
                             <Output />

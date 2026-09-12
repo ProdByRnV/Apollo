@@ -22,9 +22,12 @@ target_sources(ApolloTests PRIVATE
     DSP/FilterTests.cpp
     DSP/LfoTests.cpp
     DSP/ModulationTests.cpp
+    DSP/DistortionTests.cpp
+    DSP/EffectsRackTests.cpp
     DSP/OversamplingTests.cpp
     Performance/Benchmarks.cpp
     DSP/NoiseTests.cpp
+    Audio/EffectsIntegrationTests.cpp
     Audio/MidiRenderingTests.cpp
     MIDI/MidiMappingTests.cpp
     MIDI/ControllerProfileTests.cpp

@@ -63,6 +63,8 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     filter2Parameters.resolve (apvts, "filter2_");
     filterRoutingParameter = apvts.getRawParameterValue ("filter_routing");
 
+    effectParameters.resolve (apvts);
+
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
@@ -78,6 +80,24 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     bendRangeParameterIndex = params::indexOfParameter ("midi_bend_range");
     mpeZoneParameterIndex = params::indexOfParameter ("mpe_zone");
     mpeMembersParameterIndex = params::indexOfParameter ("mpe_members");
+}
+
+void ApolloAudioProcessor::EffectParameterPointers::resolve (
+    juce::AudioProcessorValueTreeState& state)
+{
+    for (std::size_t slot = 0; slot < slots.size(); ++slot)
+        slots[slot] = state.getRawParameterValue ("fx_slot" + juce::String (slot + 1));
+
+    distortionBypass = state.getRawParameterValue ("fx_distortion_bypass");
+    distortionMode = state.getRawParameterValue ("fx_distortion_mode");
+    distortionDrive = state.getRawParameterValue ("fx_distortion_drive");
+    distortionTone = state.getRawParameterValue ("fx_distortion_tone");
+    distortionMix = state.getRawParameterValue ("fx_distortion_mix");
+    distortionOutput = state.getRawParameterValue ("fx_distortion_output");
+
+    jassert (distortionBypass != nullptr && distortionMode != nullptr
+             && distortionDrive != nullptr && distortionTone != nullptr
+             && distortionMix != nullptr && distortionOutput != nullptr);
 }
 
 void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
@@ -167,7 +187,14 @@ void ApolloAudioProcessor::ModSlotParameterPointers::resolve (
     jassert (source != nullptr && destination != nullptr && depth != nullptr);
 }
 
-ApolloAudioProcessor::~ApolloAudioProcessor() = default;
+ApolloAudioProcessor::~ApolloAudioProcessor()
+{
+    // A latency notification posted from the last block must not arrive after
+    // the object it would call into has gone. JUCE's own destructor would also
+    // cancel it; doing it first, explicitly, keeps the ordering independent of
+    // which base class is destroyed when.
+    cancelPendingUpdate();
+}
 
 //==============================================================================
 // Processing lifecycle
@@ -180,6 +207,19 @@ void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpected
     preparedBlockSize.store (maximumExpectedSamplesPerBlock, std::memory_order_relaxed);
 
     voiceEngine.prepare (sampleRate);
+
+    // Every effect is prepared, including the ones no slot has selected: an
+    // effect that allocated the first time it was added to the chain would be
+    // allocating on the audio thread (CLAUDE.md §9.2).
+    effects.prepare (sampleRate, maximumExpectedSamplesPerBlock);
+
+    // The chain is read here as well as per block, so that a host asking for
+    // latency immediately after preparing — which is when most of them ask —
+    // gets the answer for the chain the session was saved with rather than for
+    // an empty rack.
+    applyEffectParameters();
+    setLatencySamples (effects.getLatencySamples());
+    reportedLatencySamples.store (effects.getLatencySamples(), std::memory_order_relaxed);
 
     // The meter's ballistics are expressed in seconds and its clip hold in
     // samples, so both have to be re-derived whenever the device changes.
@@ -207,6 +247,11 @@ void ApolloAudioProcessor::reset()
     // safe to call at any time, including before prepareToPlay.
     voiceEngine.reset();
     masterGain.setCurrentAndTargetValue (readMasterGainLinear());
+
+    // Including the delay lines the rack's latency compensation holds, so a
+    // transport jump cannot leave half a block of the previous position sitting
+    // in front of the next one.
+    effects.reset();
 
     // Captures go with the audio they were taken from. A transport jump or a
     // device change must not leave a scope showing a picture of sound that is no
@@ -401,6 +446,62 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
                         : engine::FilterRouting::series;
 
     voiceEngine.setFilterParameters (filters);
+}
+
+void ApolloAudioProcessor::applyEffectParameters() noexcept
+{
+    dsp::EffectsRack::Chain chain;
+
+    const auto bypassed = readParameter (effectParameters.distortionBypass, 0.0f) >= 0.5f;
+
+    for (std::size_t slot = 0; slot < chain.size(); ++slot)
+    {
+        const auto selected = static_cast<int> (readParameter (effectParameters.slots[slot], 0.0f));
+
+        // Clamped rather than cast blindly: the value indexes an enum, and a
+        // corrupt preset or a future Apollo's state must not be able to name
+        // something that is not there.
+        const auto type = static_cast<dsp::EffectType> (
+            selected < 0 ? 0 : (selected >= dsp::effectTypeCount ? dsp::effectTypeCount - 1 : selected));
+
+        chain[slot].effect = type;
+        chain[slot].bypassed = type == dsp::EffectType::distortion ? bypassed : false;
+    }
+
+    // The rack resolves duplicates and unimplemented effects, and does nothing
+    // at all when the chain is the one it already has — which is every block
+    // but the one the user changed something on.
+    effects.setChain (chain);
+
+    dsp::Distortion::Settings distortion;
+
+    const auto mode = static_cast<int> (readParameter (effectParameters.distortionMode, 0.0f));
+
+    distortion.mode = static_cast<dsp::Distortion::Mode> (mode < 0 ? 0 : (mode > 2 ? 2 : mode));
+    distortion.driveDb = readParameter (effectParameters.distortionDrive, 12.0f);
+    distortion.toneHz = readParameter (effectParameters.distortionTone, 20000.0f);
+    distortion.mix = readParameter (effectParameters.distortionMix, 0.0f);
+    distortion.outputDb = readParameter (effectParameters.distortionOutput, 0.0f);
+
+    effects.distortion().setSettings (distortion);
+
+    // Latency is a property of which effects are in the chain, so it moves only
+    // when the user rearranges the rack. In the steady state this is a load and
+    // a comparison; on the block where it changes, the message thread is woken
+    // to tell the host, because telling it from here would call back into this
+    // processor from inside its own callback (ADR-0054).
+    const auto latency = effects.getLatencySamples();
+
+    if (latency != reportedLatencySamples.load (std::memory_order_relaxed))
+    {
+        reportedLatencySamples.store (latency, std::memory_order_relaxed);
+        triggerAsyncUpdate();
+    }
+}
+
+void ApolloAudioProcessor::handleAsyncUpdate()
+{
+    setLatencySamples (reportedLatencySamples.load (std::memory_order_relaxed));
 }
 
 void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) noexcept
@@ -674,6 +775,18 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (position < numSamples)
         voiceEngine.render (outputs, numOutputChannels, position, numSamples - position);
 
+    // The rack, on the finished mix. After every voice and before the master
+    // gain: an effect processes what the instrument played, and the master
+    // fader is the last thing in the signal path because that is what a fader
+    // is (ARCHITECTURE.md §4).
+    //
+    // Read once per block for the same reason the source parameters are — a
+    // chain that changed halfway through a block would be a difference no one
+    // could hear and everyone would have to reason about — while the controls
+    // that would step audibly are smoothed per sample inside the effect itself.
+    applyEffectParameters();
+    effects.process (outputs, numOutputChannels, numSamples);
+
     // Master gain last, so it scales the finished mix rather than one stage of
     // it. Smoothed per sample: an automated gain move must not step.
     masterGain.setTargetValue (readMasterGainLinear());
@@ -772,8 +885,12 @@ double ApolloAudioProcessor::getTailLengthSeconds() const
     // It tracks the envelope's release control rather than a constant: since
     // Phase 5a that is a user parameter reaching ten seconds, and a fixed value
     // would silently truncate every patch with a long tail.
-    // Effects that ring out report their own tails in Phase 8.
-    return static_cast<double> (readParameter (envelopeParameters[0].releaseMs, 50.0f)) * 0.001;
+    // An effect that rings out adds its own tail to the envelope's, because the
+    // two are in series: the reverb is still decaying the note the envelope has
+    // already finished releasing. Summed rather than maxed, for that reason.
+    const auto release = static_cast<double> (readParameter (envelopeParameters[0].releaseMs, 50.0f)) * 0.001;
+
+    return release + effects.getTailSeconds();
 }
 
 //==============================================================================

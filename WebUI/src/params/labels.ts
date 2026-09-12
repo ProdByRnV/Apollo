@@ -25,6 +25,17 @@ export const LABELS: Record<string, readonly string[]> = {
     filter2_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH'],
     filter_routing: ['SERIES', 'PARALLEL'],
 
+    // 0 empty, then dsp::EffectType in order. The effects whose phases have not
+    // landed are selectable — the slot parameter's range is permanent, so it
+    // covers all six from the start (ADR-0054) — and say so, rather than
+    // appearing to work and doing nothing.
+    fxSlot: ['—', 'DISTORTION', 'DELAY (soon)', 'REVERB (soon)',
+             'GATE (soon)', 'COMP (soon)', 'EQ (soon)'],
+
+    // Matches dsp::Distortion::Mode.
+    fx_distortion_mode: ['SOFT', 'HARD', 'DIODE'],
+    fx_distortion_bypass: ['ACTIVE', 'BYPASS'],
+
     // Matches dsp::LfoShape.
     lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],
     lfoRetrigger: ['FREE', 'RETRIG'],

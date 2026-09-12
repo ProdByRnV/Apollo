@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 143> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 154> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1020,11 +1020,105 @@ inline constexpr std::array<ParameterDefinition, 143> parameterDefinitions { {
       true, false, true },
 
     // Effects ----------------------------------------------------------------
+    //
+    // The rack is six ordered slots, each naming the effect that occupies it:
+    // 0 empty, 1 distortion, 2 delay, 3 reverb, 4 gate, 5 compressor, 6 EQ.
+    // Reordering the chain is a rewrite of these six values and nothing else
+    // (dsp::EffectsRack).
+    //
+    // Every slot's range covers every effect Apollo will have, including the
+    // ones whose phases have not landed. A discrete parameter's range is part
+    // of the permanent automation contract: growing it from 0-1 to 0-6 as
+    // effects arrived would remap every automation lane and every preset
+    // written before the change, because a host stores the normalised value
+    // (Docs/PARAMETER-CONVENTIONS.md §1, ADR-0054).
+    //
+    // All six default to empty. The rack therefore starts out doing nothing at
+    // all, which is both the safe default and the honest one: an instrument
+    // should not arrive distorted, and an empty chain costs exactly what having
+    // no rack cost.
+    { "fx_slot1", "FX Slot 1",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_slot2", "FX Slot 2",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_slot3", "FX Slot 3",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_slot4", "FX Slot 4",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_slot5", "FX Slot 5",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_slot6", "FX Slot 6",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 6.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Distortion (Phase 8a) --------------------------------------------------
+    //
+    // Bypass is a switch of its own rather than a slot set to empty, because
+    // the two say different things: empty forgets where the effect was, bypass
+    // keeps its position and its latency and takes it out of circuit. It is the
+    // one an arrangement automates.
+    { "fx_distortion_bypass", "Distortion Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // 0 soft, 1 hard, 2 diode. Matches dsp::Distortion::Mode.
+    { "fx_distortion_mode", "Distortion Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // 36 dB is enough to take a synthesiser's output well past any of the three
+    // curves' knees. The unit compensates for the level this adds, so the
+    // control changes the tone rather than the volume.
+    { "fx_distortion_drive", "Distortion Drive",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      0.0f, 36.0f, 12.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_distortion_tone", "Distortion Tone",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      500.0f, 20000.0f, 20000.0f,
+      // Places 3 kHz near the centre of the control's travel.
+      0.3374f, 0.0f,
+      true, false, true },
+
     { "fx_distortion_mix", "Distortion Mix",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    { "fx_distortion_output", "Distortion Output",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -24.0f, 12.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
 
     { "fx_delay_time", "Delay Time",
       ParameterType::floatingPoint, ParameterUnit::milliseconds,

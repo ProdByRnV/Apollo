@@ -44,10 +44,16 @@ using namespace apollo::params;
 // and none is automatable, because a pitch-bend range moving on an automation
 // lane is a bug being recorded rather than a musical gesture.
 //
+// Phase 8a added eleven: the rack's six slot selectors, and the five the
+// distortion unit needs beyond the `fx_distortion_mix` that had been sitting
+// inert since the initial registry. The slots are enumerated for all six
+// effects from the start, including the five whose phases have not landed,
+// because a discrete parameter's range is permanent (ADR-0054).
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 143, "the registry has a hundred and forty-three parameters");
+static_assert (parameterCount() == 154, "the registry has a hundred and fifty-four parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

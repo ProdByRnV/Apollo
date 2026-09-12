@@ -1269,3 +1269,45 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 .module__body--block {
     display: block;
 }
+
+/* ---------------------------------------------------------------------------
+   The effects rack.
+
+   Six positions in a row, numbered, each naming what occupies it. The number is
+   the point of the design: an effect's position in the chain is what the rack
+   is for, and a row of unnumbered dropdowns would make the order something you
+   have to infer from where your eye lands.
+   --------------------------------------------------------------------------- */
+.module__body--rack {
+    display: block;
+}
+
+.rack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    align-items: flex-end;
+}
+
+.rack__slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 116px;
+    flex: 1 1 116px;
+}
+
+.rack__index {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+}
+
+/* A slot with something in it is stated twice — the name in the control, and
+   the number above it lit — because the empty ones are the majority and the
+   full ones are what the eye is looking for (CLAUDE.md §24.2). */
+.rack__slot[data-filled="true"] .rack__index {
+    color: var(--accent);
+}

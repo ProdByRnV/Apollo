@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 7 — Web UI / UX System (complete); Phase 8 — Effects Rack is next |
-| **Status** | **Phase 7 complete.** The interface is a React/TypeScript application with six oscilloscopes, eight modulator traces, an output meter, a voice count and a wavetable display per oscillator |
-| **Milestone** | M7 — Interface |
-| **Next step** | Phase 8 — the effects rack, and the first consumer of the Phase 4c oversampler |
+| **Phase** | Phase 8 — Effects Rack, in progress; **8a complete** |
+| **Status** | **8a complete.** A six-slot reorderable rack sits between the voice engine and the master gain, holding the distortion — three curves, 4x oversampled, with compensated drive, pre/post filtering and a latency-matched dry path |
+| **Milestone** | M8 — Effects |
+| **Next step** | Phase 8b — the delay: a stereo delay line with feedback, ping-pong, filtering and host-tempo sync |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -590,20 +590,74 @@ Everything below was configured, built and executed on this machine.
 - **Not yet present:** a spectrum analyser, which PRD and ROADMAP both mark
   optional; and the React migration (7d).
 
+### The effects rack and the distortion (Phase 8a)
+
+- **The rack is a permutation, not a container.** Six slots, each naming the
+  effect that occupies it. Every effect is constructed and prepared once and
+  lives in the rack for the instrument's lifetime, so rearranging the chain is
+  six integers changing and nothing is created, destroyed or allocated while
+  audio is running (ADR-0054). PRD §18's add, remove, reorder and bypass all land
+  on that.
+- **The slot parameters enumerate all six effects from the start**, including the
+  five whose phases have not landed. A discrete parameter's range is part of the
+  permanent automation contract — a host stores the normalised value — so a range
+  that grew as effects arrived would remap every lane and every preset written
+  before the change. The unbuilt entries read "(soon)" in the interface and
+  resolve to an empty slot in the engine.
+- **The default rack is empty**, and that is deliberate: a new instance sounds
+  exactly as it did before the rack existed, costs what it cost, and reports zero
+  latency. An instrument should not arrive distorted.
+- **Bypass keeps its position and its latency.** A bypassed effect is routed
+  *through* rather than around: the distortion pushes the signal through its
+  compensation delay and does nothing else, so toggling bypass does not make the
+  host re-plan its graph. Tail follows the active chain instead, because a
+  bypassed reverb is not ringing out.
+- **Latency reaches the host from the message thread.** The audio thread compares
+  the rack's latency against what the host was last told — one relaxed load and
+  one comparison per block — and only a chain change wakes an `AsyncUpdater` to
+  call `setLatencySamples`, which notifies the host and can call straight back in.
+- **The distortion is the first consumer of the Phase 4c oversampler**, which is
+  what ADR-0033 said it would be: 4x, fixed, 59 samples of round trip, with the
+  dry path delayed by exactly that so the mix blends instead of combing.
+- **Three curves that share a derivative at the origin** — `tanh`, a hard
+  ceiling, and an asymmetric exponential diode — so switching mode changes the
+  harmonic content rather than the level, and a quiet signal passes through any
+  of them untouched.
+- **Drive is compensated at a -6 dBFS reference**, ramped with the drive itself,
+  so the control changes the tone rather than the volume and an A/B is not won by
+  whichever side is louder.
+- **Four filters, each with a job**: a subsonic highpass in front so rumble
+  cannot pump the clipper, a DC highpass after so the diode curve's asymmetry
+  does not eat headroom, a tone lowpass on the wet path that switches out
+  entirely at the top of its travel, and the oversampler's own halfbands.
+- **Measured, not asserted.** Fold-back is 13 to 15 dB lower than the same curves
+  run at the base rate and -100 dBc on a 1 kHz note at moderate drive; the stage
+  costs 1.4 % of one core hard-clipping and 2.7 % through `tanh`, stereo
+  (Docs/OVERSAMPLING.md). Hard driving still folds at about -29 dBc, which is the
+  arithmetic of a near-square wave rather than a defect, and the test says so in
+  those terms.
+- **Not yet present:** the delay (8b), reverb (8c), gate and compressor (8d), EQ
+  (8e), and the whole-chain validation that needs more than one effect to mean
+  anything (8f).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
-| 8 | Every effect and the FX rack — and the first consumer of the Phase 4c oversampler |
+| 8 | **8a is done** — the rack and the distortion, the first consumer of the Phase 4c oversampler. Absent: the delay (8b), reverb (8c), gate and compressor (8d), EQ (8e), and whole-chain validation (8f) |
 | 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**141 of the 143 registered parameters now affect audio** — the whole source
+**153 of the 154 registered parameters now affect audio** — the whole source
 section, four envelopes, four LFOs, both filters, sixteen modulation slots, the
-MIDI expression settings and `master_gain`. Only two remain inert
-(`fx_distortion_mix` and `fx_delay_time`), and they wait on the effects rack in
-Phase 8.
+MIDI expression settings, `master_gain`, and since 8a the rack's six slots and
+the distortion's six controls. Exactly one remains inert, `fx_delay_time`, and it
+waits on the delay in 8b.
+
+Phase 8a added eleven, and six of them are the rack's slots. Those enumerate all
+six effects from the start, including the five not built yet, because a discrete
+parameter's range is permanent once it ships (ADR-0054).
 
 The registry grew from 38 to 139 in Phase 5d, which is what a modulation matrix
 costs: 21 for envelopes 2-4, 32 for the four LFOs, and 48 for sixteen routing
@@ -656,7 +710,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,717,712 assertions, 0 failures**, across 24 test classes. The table below
+**1,762,226 assertions, 0 failures**, across 27 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -679,6 +733,10 @@ subsystems they test.
 | MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
 | Telemetry | Visualisation transport | An untouched source distinguishable from a silent one; the window read back in order, including across the ring's wrap; a stopped source seen to stop rather than holding its last picture; reset; the silence threshold; triggering, including that a flat line reports itself free-running; decimation that shows alternating samples rather than averaging them to nothing; per-source isolation and unique wire tokens; the processor capturing its own output through `processBlock`; and the bridge sending a frame whose points are finite, inside full scale, and actually a waveform. Phase 7b added the four claims that matter most: that an unwatched instance captures nothing and still sounds; that arming discards the picture the last viewer left behind; that the same note rendered with and without capture comes back **sample for sample identical**, including when the block is long enough for the capture path to split it; that a source at level zero is captured *as silence* rather than left uncaptured, and survives a closed filter that takes the mix away; and that a source's trace grows with the voice pool rather than showing one voice from it. Both frame builders also log and bound their message size, so an encoding change that multiplies the traffic is caught here rather than in a profiler |
 | Telemetry | Instrument telemetry | The modulator traces, the meter, the voice count and the wavetable displays, added in 7c. A modulator nothing traces is distinguishable from one sitting still; the trace is the most recent second across the ring's wrap; the meter takes a peak in the block it happened in and gives it up over about a second and a half; peak and RMS disagree about a single spike and agree about a constant tone, which is why there are two of them; a clip is still reported half a second after the samples that caused it and clears itself after the hold; an envelope's trace shows its rise, settles at the sustain level and falls on release, with the stage reported at each point; the two ends of a wavetable draw different waves, so the display is following the position rather than ignoring it; an unrouted LFO does not claim to be running and starts to when something routes it; and the frame that reaches the interface names every modulator exactly once and both oscillators by number rather than by array position |
+
+| DSP | Distortion | The curve is bounded, monotonic and centred, and every mode passes a quiet signal through unchanged — which is what lets the mode be switched without a jump; drive compensation holds a -6 dBFS sine within 4 dB across the whole 0 to 36 dB range on all three curves; a fully dry mix is the input delayed by **exactly** the reported latency, asserted sample for sample rather than approximately, because a dry path that has been through arithmetic is a bug; latency does not move with mode, drive, mix or bypass; oversampling removes 13 to 15 dB of fold-back against the same curves at the base rate, and a musical note at moderate drive stays under -60 dBc; absurd and denormal input produces finite output, and a very hot signal leaves bounded by the curve's own ceiling; and a reset leaves no tail in the filters or the delay line |
+| DSP | Effects rack | An empty rack is **bit-exactly** transparent and reports no latency or tail; an effect whose phase has not landed leaves its slot empty; the same effect in two slots runs once, in the earlier one; an effect sounds the same wherever in the chain it sits; latency counts what is in the chain whether bypassed or not, and drops only when the effect is removed; a bypassed effect delays the signal and does nothing else; and tail is reported for the active chain only |
+| Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; and a slot naming an effect this build does not have is simply empty rather than surprising |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
@@ -848,6 +906,28 @@ An interim light build — ivory and gold — was made and discarded the same da
 The reason it failed is recorded in ADR-0051 rather than here, because it is a
 design fact worth not repeating rather than a verification result.
 
+### The effects rack, 2026-09-12
+
+Driven against the running standalone after 8a. What was confirmed on screen:
+
+| Checked | Result |
+|---|---|
+| The rack renders as a chain | **FX RACK** across the width of the workspace: six numbered positions, each a dropdown, all reading `—` on a fresh instance |
+| The option list is honest about what exists | `—`, `DISTORTION`, then `DELAY (soon)`, `REVERB (soon)`, `GATE (soon)`, `COMP (soon)`, `EQ (soon)` — the five whose phases have not landed say so rather than appearing to work |
+| Choosing an effect fills the slot | Selecting `DISTORTION` in position 1 set the slot, and the position number turned gold. A slot naming an unbuilt effect leaves its number dim, because the engine will resolve it to empty and the interface must not claim otherwise |
+| The panel follows the chain | The **DISTORTION** panel carries the `OFF` chip while nothing in the rack selects it, and the chip cleared the moment the slot was filled (ADR-0052) |
+| The panel reads correctly | Curve `SOFT`/`HARD`/`DIODE`, State `ACTIVE`/`BYPASS`, and four knobs — Drive `+12.0 dB`, Tone `20.00 kHz`, Output `+0.0 dB`, Mix `0 %` — each with its unit, matching the registry |
+| The panel is reachable from the keyboard | The whole interaction above was performed with Tab and the arrow keys, including the type-ahead that selects an effect by name (CLAUDE.md §39) |
+
+**Not driven by hand this session, and stated plainly rather than implied:** the
+audio through the rack. Synthetic mouse input did not reach the WebView in this
+environment — native JUCE menus and keyboard input did — and no MIDI source was
+attached to play a note into the configured chain. What that check would have
+shown is instead asserted directly against the processor in
+`Tests/Audio/EffectsIntegrationTests.cpp`: the same note rendered with an empty
+rack and with the distortion at full mix differs by 0.377 RMS, stays bounded and
+finite, reports its latency to the host, and survives a state round trip.
+
 ---
 
 ## 5b. CPU measurements
@@ -964,6 +1044,26 @@ Cheap next to the voice engine: a stereo 4x-oversampled distortion costs about
 1.6 % of one core, which is why 4x is a reasonable default for a distortion stage
 rather than a luxury.
 
+### Effects rack
+
+Measured in Phase 8a, stereo, on the finished mix — once per block no matter how
+many notes are held, which is the whole argument for putting a shaper here rather
+than in the voice (ADR-0033).
+
+| Rack | Cost |
+|---|---:|
+| Empty | 0.062 % |
+| Distortion, bypassed | 0.075 % |
+| Distortion, hard clip at 4x | 1.374 % |
+| Distortion, diode (`exp`) at 4x | 2.152 % |
+| Distortion, soft (`tanh`) at 4x | 2.666 % |
+
+The empty row is the honest baseline: it is the benchmark's own input loop, not
+the rack, which does nothing at all when no slot is filled. Hard clipping against
+the soft curve separates the conversion from the transcendental — roughly 1.3 %
+each — which is where any later optimisation should start, and it is Phase 10
+that owns profiling.
+
 ### Visualisation capture
 
 PRD §30.1's own requirement: scopes for every source must not materially reduce
@@ -1049,33 +1149,36 @@ change that multiplies them is caught there (ADR-0049).
 
 ## 7. Blockers
 
-**None.** Phase 8 can begin.
+**None.** Phase 8b can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Begin **Phase 8 — the Effects Rack**. Phase 7 is closed, and the next phase is
-the first since Phase 4 whose work is entirely DSP.
+Continue with **Phase 8b — the delay**. The rack and its first effect are done;
+8b is the first effect to put the rack's ordering to a real test, because it is
+the first time there are two things to order.
 
-1. **The oversampler finally gets a consumer.** Phase 4c built it and nothing has
-   used it since; distortion and waveshaping are what it was built for
-   (CLAUDE.md §23). The first thing to establish is which stages are oversampled
-   and at what factor, decided by measuring aliasing rather than by applying 2×
-   everywhere.
-2. **The common interface is a real decision, not boilerplate.** CLAUDE.md §17
-   sketches `prepare`/`reset`/`process`, and a reorderable rack means every
-   effect has to be movable without any of them knowing what is on either side.
-   That is where latency reporting lives too, which the plugin currently declares
-   as zero.
-3. **The FX parameters that already exist are inert.** `fx_distortion_mix` and
-   `fx_delay_time` are in the registry, on screen, and connected to nothing —
-   the two of 143 that do not affect audio. They are the seam the rack plugs
-   into, and closing that gap is the visible half of the phase.
-4. **The scopes are already waiting for it.** `postFilter` and `output` are
-   nearly the same picture today, because nothing sits between them. As soon as
-   the rack exists they become the dry instrument against the processed one,
-   which is the comparison that pair was built for (ADR-0048).
+1. **It is the first effect with memory.** The distortion is memoryless apart
+   from its filters, so nothing it does depends on what came before. A delay line
+   makes `reset` load-bearing — a transport jump must not leave the previous
+   position in the buffer — and makes tail reporting mean something for the first
+   time, since the rack's tail rule has so far only been asserted, never
+   exercised.
+2. **Feedback needs a stability argument, not a clamp.** ROADMAP asks for
+   validated feedback stability; the honest version measures what a feedback path
+   at its maximum setting actually does over minutes, including with the delay
+   time being swept while it rings.
+3. **Host tempo arrives with it.** PRD §20 and CLAUDE.md §38 both require sync
+   that degrades gracefully when the host offers no tempo — which the standalone
+   never will, so the fallback is the normal case rather than the edge one.
+4. **`fx_delay_time` is the last inert parameter.** It has been in the registry
+   and on screen since Phase 2, connected to nothing. 8b is what closes that gap
+   and makes every registered parameter one that affects audio.
+
+Also still open from 8a: whole-chain validation — arbitrary orderings, and
+aliasing measured across a chain rather than one stage — which is 8f and needs
+more than one effect to mean anything.
 
 A spectrum analyser remains the one unticked Visualization item, and both PRD and
 ROADMAP mark it optional. It is an FFT, a window function and a log frequency

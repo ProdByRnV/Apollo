@@ -543,11 +543,11 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### Distortion / saturation
 
-- [ ] Implement smooth saturation.
-- [ ] Implement hard clipping.
-- [ ] Implement gain compensation.
-- [ ] Implement pre/post filtering.
-- [ ] Validate nonlinear behavior with oversampling.
+- [x] Implement smooth saturation. — `tanh`, and a third asymmetric `diode` curve PRD §19 also names, which is what produces even harmonics (8a)
+- [x] Implement hard clipping. — a flat ceiling, untouched below the threshold (8a)
+- [x] Implement gain compensation. — the shaper's gain at a -6 dBFS reference, divided out and ramped with the drive, so the control changes the tone rather than the level (8a)
+- [x] Implement pre/post filtering. — a subsonic highpass before the shaper, a DC highpass after it for the asymmetric curve, and a tone lowpass on the wet path (8a)
+- [x] Validate nonlinear behavior with oversampling. — 4x, measured: 13 to 15 dB less fold-back than the same curves at the base rate, and -100 dBc on a musical note (Docs/OVERSAMPLING.md §2)
 
 ### Delay
 
@@ -581,13 +581,13 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### FX rack
 
-- [ ] Implement common effect-module interface.
-- [ ] Implement bypass.
-- [ ] Implement reordering.
-- [ ] Implement state serialization.
-- [ ] Implement latency reporting where relevant.
-- [ ] Implement tail reporting where relevant.
-- [ ] Test arbitrary valid effect orderings.
+- [x] Implement common effect-module interface. — `dsp::AudioEffect`: prepare, process, processBypassed, reset, latency, tail (8a)
+- [x] Implement bypass. — per effect, keeping its position and its latency, so toggling it does not renegotiate the plugin's delay (8a)
+- [x] Implement reordering. — six slot parameters naming what occupies each position; duplicates resolve to the first occurrence (8a)
+- [x] Implement state serialization. — the chain is parameters, so it saves and restores with everything else; covered in `Tests/Audio/EffectsIntegrationTests.cpp` (8a)
+- [x] Implement latency reporting where relevant. — summed over the chain, published to the host from the message thread when it changes (8a)
+- [x] Implement tail reporting where relevant. — the longest tail in the active chain, added to the envelope's release (8a)
+- [ ] Test arbitrary valid effect orderings. — the machinery is tested in 8a; ordering between two effects becomes testable in 8b, and the whole chain in 8f
 
 ## Exit Criteria
 

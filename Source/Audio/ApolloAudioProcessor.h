@@ -15,6 +15,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "DSP/Effects/EffectsRack.h"
 #include "Engine/VoiceEngine.h"
 #include "MIDI/MidiControlManager.h"
 #include "MIDI/MpeZone.h"
@@ -29,7 +30,8 @@
 namespace apollo
 {
 
-class ApolloAudioProcessor final : public juce::AudioProcessor
+class ApolloAudioProcessor final : public juce::AudioProcessor,
+                                   private juce::AsyncUpdater
 {
 public:
     ApolloAudioProcessor();
@@ -191,6 +193,20 @@ private:
     /** Pushes the source-section parameters into the engine. Audio thread. */
     void applySourceParameters() noexcept;
 
+    /** Pushes the chain into the rack and the settings into the effects. Audio
+        thread; looks nothing up by string and allocates nothing.
+    */
+    void applyEffectParameters() noexcept;
+
+    /** Tells the host that the rack's latency changed.
+
+        Message thread, woken by the audio thread only when the number actually
+        moves. `setLatencySamples` notifies the host, which may re-plan its
+        graph and call straight back into this processor, so it must not be
+        called from the audio callback (CLAUDE.md §7.1).
+    */
+    void handleAsyncUpdate() override;
+
     /** @returns the master gain as a linear multiplier. */
     [[nodiscard]] float readMasterGainLinear() const noexcept;
     /** Apollo's bus layout.
@@ -343,6 +359,25 @@ private:
     FilterParameterPointers filter2Parameters;
     std::atomic<float>* filterRoutingParameter = nullptr;
 
+    /** The effects rack's raw parameter values: which effect is in each slot,
+        and everything the effects themselves need.
+    */
+    struct EffectParameterPointers
+    {
+        std::array<std::atomic<float>*, static_cast<std::size_t> (dsp::rackSlotCount)> slots {};
+
+        std::atomic<float>* distortionBypass = nullptr;
+        std::atomic<float>* distortionMode = nullptr;
+        std::atomic<float>* distortionDrive = nullptr;
+        std::atomic<float>* distortionTone = nullptr;
+        std::atomic<float>* distortionMix = nullptr;
+        std::atomic<float>* distortionOutput = nullptr;
+
+        void resolve (juce::AudioProcessorValueTreeState& state);
+    };
+
+    EffectParameterPointers effectParameters;
+
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;
@@ -370,6 +405,24 @@ private:
         still a positive linear value.
     */
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> masterGain;
+
+    /** The effects rack, between the voice engine and the master gain.
+
+        Owned by the processor rather than by the engine: an effect processes the
+        finished mix once, not each voice, which is the whole reason the rack can
+        afford oversampling that a voice cannot (ADR-0033).
+    */
+    dsp::EffectsRack effects;
+
+    /** What the host was last told the rack's latency is.
+
+        The audio thread compares the rack's current latency against this on
+        every block and, in the steady state, finds them equal and does nothing
+        further: one relaxed load and one comparison. Only a chain change makes
+        them differ, and only then is the message thread woken to tell the host
+        (ADR-0054).
+    */
+    std::atomic<int> reportedLatencySamples { 0 };
 
     /** Declared after the members it does not depend on, but before anything
         that observes it: APVTS must outlive every listener attached to it.

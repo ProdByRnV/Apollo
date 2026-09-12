@@ -211,8 +211,19 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `mod16_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 16 source; index into `dsp::ModSource` |
 | `mod16_destination` | Selector / Dropdown | Discrete `[0, 16]` | `0` | 5d | Slot 16 destination; index into `dsp::ModDestination` |
 | `mod16_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 16 depth; negative inverts the source |
-| `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix |
-| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time |
+| `fx_slot1` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | What occupies chain position 1; index into `dsp::EffectType`, 0 empty |
+| `fx_slot2` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | Chain position 2 |
+| `fx_slot3` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | Chain position 3 |
+| `fx_slot4` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | Chain position 4 |
+| `fx_slot5` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | Chain position 5 |
+| `fx_slot6` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | Chain position 6. The range covers every effect Apollo will have, because a discrete range is permanent (ADR-0054) |
+| `fx_distortion_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8a | Switched out of circuit while keeping its position and its latency |
+| `fx_distortion_mode` | Segmented | Discrete `[0, 2]` | `0` | 8a | Transfer curve; index into `dsp::Distortion::Mode` — soft, hard, diode |
+| `fx_distortion_drive` | Rotary Knob | `0–36 dB` | `12` | 8a | Gain into the shaper; compensated, so it changes the tone rather than the level |
+| `fx_distortion_tone` | Rotary Knob | `500–20000 Hz` | `20000` | 8a | Post lowpass on the wet path; switched out at the top of its range |
+| `fx_distortion_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 2 | Distortion dry/wet mix; the dry path is delayed to match the wet path's latency |
+| `fx_distortion_output` | Rotary Knob | `-24–12 dB` | `0` | 8a | Output trim on the wet path |
+| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time. Inert until Phase 8b builds the delay |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.

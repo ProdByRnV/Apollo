@@ -1872,3 +1872,108 @@ single-file bank, which is deliberate, above.
 
 **Not implemented.** Phase 9 owns preset files; this decision only fixes the
 format they will take.
+
+---
+
+## ADR-0054 — The rack is a permutation, its slot range is permanent, and its latency is constant
+
+**Phase 8a · Accepted**
+
+Four decisions that only make sense together, because each one is what makes the
+next one affordable.
+
+**The rack owns every effect and a slot says which one is where.** Nothing is
+created or destroyed when the user rearranges the chain: every effect is
+constructed and prepared once, and a slot holds an enum. Reordering is six
+integers changing, which is why it is safe to do while audio is running
+(CLAUDE.md §9.1). PRD §18's four verbs land on that as add (put it in a slot),
+remove (set the slot empty), reorder (put it in a different slot) and bypass (a
+switch of its own).
+
+The cost is that the rack cannot hold two of the same effect, and there is no
+sensible way to make it: there is one distortion object, so running it twice
+would feed its own output back into its own filters. A chain that names an effect
+twice resolves to first-occurrence-wins, deterministically, because a preset that
+resolved differently on different days would be worse than one that resolves
+plainly.
+
+**Every effect is enumerated from the start, including the five not built yet.**
+`fx_slotN` has a range of 0 to 6 in Phase 8a, when only one of those values does
+anything. This looks like shipping dead options and is the opposite: a discrete
+parameter's range is part of Apollo's permanent automation contract, because a
+host stores the *normalised* value. A range that grew from 0-1 to 0-6 as effects
+landed would silently remap every automation lane and every saved preset written
+before the change — `fx_slot1` at 1.0 would mean "distortion" in one version and
+"EQ" in the next (Docs/PARAMETER-CONVENTIONS.md §1). Fixing the range now costs a
+dropdown with five entries marked "(soon)", which is honest about what it is, and
+the rack resolves any of them to an empty slot.
+
+**Bypass routes through the effect rather than around it.** An effect with
+latency reports the same latency bypassed as active, and `processBypassed` exists
+so it can: the distortion pushes the signal through its compensation delay and
+does nothing else. The alternative — skipping the effect entirely — would change
+the plugin's latency every time someone automated a bypass, and a host re-planning
+its graph mid-performance is a click at best. Tail is the opposite and follows the
+active chain, because a bypassed reverb is not ringing out.
+
+**Latency is published from the message thread, and only when it moves.** The
+audio thread compares the rack's latency against what the host was last told:
+one relaxed load and one comparison, on every block, finding them equal. Only a
+chain change makes them differ, and only then is an `AsyncUpdater` triggered so
+`setLatencySamples` — which notifies the host and can call straight back into the
+processor — runs where it is allowed to (CLAUDE.md §7.1). The same number is
+reported directly from `prepareToPlay`, because that is when most hosts ask.
+
+**Given up:** an effect cannot appear twice in a chain, a slot can name something
+that does not exist yet, and a bypassed effect still costs its delay line. The
+first is inherent to one-object-per-effect; the second is the price of a
+permanent contract; the third is a few kilobytes and a copy.
+
+---
+
+## ADR-0055 — Distortion is the rack's first effect, and where its latency comes from
+
+**Phase 8a · Accepted**
+
+The distortion is the first consumer of the Phase 4c oversampler, which ADR-0033
+predicted it would be: the filter drive could not afford oversampling because it
+runs per voice, and a rack effect can because it runs once on the mix.
+
+**4x, fixed.** CLAUDE.md §23 names 4x as the preferred quality mode, and fixing
+it is what keeps the reported latency constant (ADR-0054). The round trip is 59
+samples at the base rate — 1.2 ms at 48 kHz — and the dry path is delayed by
+exactly that, because a dry path that is not delayed does not blend with the wet
+path, it combs with it.
+
+**Three curves, not one with a shape control.** `soft` is `tanh`, `hard` is a
+flat ceiling, and `diode` is exponential and asymmetric. All three have a
+derivative of exactly 1 at the origin, which is what lets the mode be switched
+without the level jumping, and what makes a quiet signal pass through any of them
+untouched. The mode change is deliberately not crossfaded: crossfading two
+transfer curves produces, for the length of the fade, a third curve that is
+neither of them.
+
+**Drive is compensated.** The shaper's gain at a -6 dBFS reference is divided out
+and ramped along with the drive itself, so turning it up changes the harmonic
+content rather than the volume. Without that, every A/B of this effect would be
+won by whichever side was louder, which is not an opinion about the sound.
+
+**Four filters, and each earns its place.** A subsonic highpass in front, because
+rumble under a clipper is not heard as rumble — it moves the whole signal against
+the threshold and is heard as the distortion pumping in time with something
+inaudible. A DC highpass after, because the asymmetry that gives the diode curve
+its even harmonics also leaves an offset behind. A tone lowpass on the wet path,
+switched out entirely at the top of its range so a fully open tone control is
+transparent rather than merely gentle. And the oversampler's own halfbands, which
+are the point of the whole arrangement.
+
+**Measured, not asserted.** Fold-back is 13 to 15 dB lower than the same curves
+at the base rate, and -100 dBc on a 1 kHz note at moderate drive; the stage costs
+1.4 % of one core in hard mode and 2.7 % in soft, stereo, where roughly half of
+the difference is `tanh` itself. Docs/OVERSAMPLING.md carries the tables.
+
+**Given up:** hard driving still folds — about -29 dBc at 30 dB of drive on a
+5 kHz tone. No practical oversampling factor fixes that, because 30 dB into any
+of these curves is most of the way to a square wave and a square wave's harmonics
+do not stop. The test says so in those terms rather than holding the effect to a
+budget it cannot meet while doing its job.

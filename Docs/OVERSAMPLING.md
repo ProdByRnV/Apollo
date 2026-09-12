@@ -32,16 +32,38 @@ stops improving on the unprocessed case by at least 10 dB.
 
 ## 2. Where Apollo oversamples
 
-Nothing yet. Apollo has one nonlinear stage as of Phase 5b — the filter drive —
-and it is deliberately not oversampled; §3 and ADR-0033 record why, with the
-measurements that decided it. The infrastructure still waits for its first
-consumer, which is the distortion in Phase 8.
+**The distortion, at 4x** (Phase 8a). It is the first and so far only consumer,
+which is what this infrastructure was built in Phase 4c to serve. The factor is
+fixed rather than user-selectable, because a quality control would be a latency
+change in disguise — a host renegotiation every time someone turned it
+(ADR-0054).
+
+Measured in `Tests/DSP/DistortionTests.cpp`, driving a 5 kHz tone — the hard case,
+whose harmonics reach four times Nyquist by the nineteenth:
+
+| Curve | 6 dB drive | 30 dB drive |
+|---|---|---|
+| soft (tanh) | **-49.7 dBc**, against -36.2 without | **-28.8 dBc**, against -14.3 without |
+| hard clip | **-44.5 dBc**, against -31.0 without | **-29.4 dBc**, against -14.3 without |
+| diode | **-42.8 dBc**, against -29.3 without | **-28.9 dBc**, against -14.4 without |
+
+Oversampling buys 13 to 15 dB in every case. It does not buy silence, and the
+test does not pretend otherwise: 30 dB into any of these curves is most of the
+way to a square wave, and a square wave's harmonics continue past 4x Nyquist no
+matter how the stage is built. What folds there is the effect the user asked for.
+On a musical note the picture is completely different — the same curves at 6 dB
+on a 1 kHz tone fold back at **-100 to -103 dBc**, because eighty harmonics fit
+below the oversampled Nyquist before anything wraps. That is the number the test
+holds to a budget.
+
+The other nonlinear stage, the filter drive, is deliberately **not** oversampled;
+§3 and ADR-0033 record why, with the measurements that decided it.
 
 The stages that **will** use it, and the factor each is expected to want:
 
 | Stage | Phase | Expected factor | Why |
 |---|---|---|---|
-| Distortion / waveshaping | 8 | 4x | The reason this exists. Hard clipping is the worst case measured above |
+| Distortion / waveshaping | 8a | **4x, built** | The reason this exists. Measured above; 59 samples of latency at the base rate, compensated internally so the dry path does not comb |
 | Filter drive (`filterN_drive`) | 5b | **none** | Re-measured when it was built, which is what this table said should happen. Its range was cut instead: a per-voice stage means up to 128 conversions and 39 samples of latency each. See ADR-0033 |
 | Aggressive oscillator warp | later | 2x, if measured | Warp reshapes a band-limited table and can break its band-limiting |
 | Compressor / gate gain computer | 8 | none | See below |
@@ -147,6 +169,22 @@ Per channel, including a `tanh` drive, as a percentage of real time
 A stereo 4x-oversampled distortion therefore costs roughly 1.6 % of one core —
 small next to the voice engine, and the reason the default for a distortion stage
 can reasonably be 4x rather than 2x.
+
+The built stage measures close to that prediction, and the shaper's own cost is
+now visible beside it (`--benchmark`, Effects rack section):
+
+| Rack | Cost |
+|---|---|
+| empty | 0.062 % |
+| distortion, bypassed | 0.075 % |
+| distortion, hard clip at 4x | 1.374 % |
+| distortion, diode (`exp`) at 4x | 2.152 % |
+| distortion, soft (`tanh`) at 4x | 2.666 % |
+
+Roughly half of the soft curve's cost is the conversion and half is the
+transcendental, which is where any future optimisation should start looking. All
+of it is paid once on the mix rather than once per voice, which is the whole
+argument for putting distortion in the rack rather than in the voice (ADR-0033).
 
 `Factor::none` is a real setting, not a special case for callers to branch
 around: it passes the signal through, reports zero latency, and lets a quality

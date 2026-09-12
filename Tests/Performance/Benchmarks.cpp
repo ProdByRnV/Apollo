@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "DSP/Effects/EffectsRack.h"
 #include "DSP/LFO/Lfo.h"
 #include "DSP/Oversampling/Oversampler.h"
 #include "Engine/VoiceEngine.h"
@@ -387,6 +388,71 @@ void benchmarkOversampling()
     }
 }
 
+/** What the rack costs on the finished mix.
+
+    Reported per stage rather than per voice, and that distinction is the whole
+    argument for putting distortion here instead of in the voice: this figure is
+    paid once no matter how many notes are held, where the same shaper inside a
+    voice would be paid thirty-two times (ADR-0033).
+
+    The empty rack is measured alongside, because "the rack costs nothing when
+    it is empty" is a claim about the default patch that ought to be checked
+    rather than asserted.
+*/
+void benchmarkEffects()
+{
+    printHeading ("Effects rack, stereo, per block");
+
+    struct Case { const char* name; dsp::EffectType effect; dsp::Distortion::Mode mode; bool bypassed; };
+
+    const Case cases[] = {
+        { "empty rack", dsp::EffectType::none, dsp::Distortion::Mode::soft, false },
+        { "distortion, bypassed", dsp::EffectType::distortion, dsp::Distortion::Mode::soft, true },
+        { "distortion, soft (tanh at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::soft, false },
+        { "distortion, hard (clip at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::hard, false },
+        { "distortion, diode (exp at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::diode, false },
+    };
+
+    for (const auto& testCase : cases)
+    {
+        static dsp::EffectsRack rack;
+        rack.prepare (sampleRate, blockSize);
+
+        dsp::EffectsRack::Chain chain;
+        chain[0].effect = testCase.effect;
+        chain[0].bypassed = testCase.bypassed;
+        rack.setChain (chain);
+
+        dsp::Distortion::Settings settings;
+        settings.mode = testCase.mode;
+        settings.driveDb = 18.0f;
+        settings.mix = 1.0f;
+        rack.distortion().setSettings (settings);
+
+        std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
+        float* channels[] = { left.data(), right.data() };
+
+        const auto measurement = measure (secondsPerMeasurement, [&]
+        {
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const auto sample = 0.5f * static_cast<float> (std::sin (0.05 * static_cast<double> (i)));
+
+                left[static_cast<std::size_t> (i)] = sample;
+                right[static_cast<std::size_t> (i)] = sample;
+            }
+
+            rack.process (channels, 2, blockSize);
+        });
+
+        printRow (testCase.name, measurement, 0);
+    }
+
+    std::cout << "      (includes filling the input buffer, which the empty-rack row isolates)"
+              << std::endl;
+}
+
 } // namespace
 
 /** What a visualisation tap costs.
@@ -525,6 +591,7 @@ void run()
     benchmarkModulation();
     benchmarkLfos();
     benchmarkOversampling();
+    benchmarkEffects();
     benchmarkTelemetry();
 
     std::cout << "\nMeasured on this machine, in this configuration. These numbers are\n"
