@@ -1050,9 +1050,9 @@ decoration:
 
 | Colour | Means |
 |---|---|
-| violet | interaction — focus, hover, the value being held |
+| violet — now **gold** (ADR-0051) | interaction — focus, hover, the value being held |
 | green | modulation and activity — something is moving |
-| amber | caution — a negative depth, approaching a limit |
+| amber — now **orange** (ADR-0051) | caution — a negative depth, approaching a limit |
 | red | clipping, danger, error |
 
 This is CLAUDE.md §24.2 made specific enough to hold. The rule that made it
@@ -1063,12 +1063,17 @@ off is dimmed *and* reads OFF. A depth's sign is a fill direction *and* a signed
 percentage. Nothing in the interface can only be perceived as a hue
 (CLAUDE.md §39).
 
-Violet is the accent CLAUDE.md §24.1 asks for, used as an accent: it appears on
-the control under the hand and almost nowhere else. It is deliberately not a
-gradient wash across panels — surfaces are near-black graphite separated by
-hairlines, and depth comes from those rules rather than from shadows, because a
-tool that is stared at for six hours should recede and let the values be the
+The accent — violet when this was written, gold since ADR-0051 — is used *as* an
+accent: it appears on the control under the hand and almost nowhere else. It is
+deliberately not a gradient wash across panels; surfaces are dark metal separated
+by hairlines, and depth comes from those rules rather than from shadows, because
+a tool that is stared at for six hours should recede and let the values be the
 brightest thing on screen.
+
+**Which hue is which is not what this ADR decided**, and that is worth saying
+plainly: everything above survived the recolour untouched, because the decision
+here is that each colour has exactly one job and that no state is carried by hue
+alone. ADR-0051 changed two of the four hues and none of the rules.
 
 **Given up:** using colour for visual interest. Every hue in the interface is
 load-bearing, which is a constraint on future UI work rather than a
@@ -1718,3 +1723,54 @@ the interface now needs Node installed and a build step to run. That is the
 price of types and components, it was paid deliberately, and
 `-DAPOLLO_ENABLE_WEBVIEW=OFF` remains the escape hatch for a machine without
 Node that only wants the engine and its tests.
+
+---
+
+## ADR-0051 — The accent is gold on gunmetal, not violet on graphite
+
+**Post-Phase 7 (UI) · Accepted**
+
+Apollo is named after the Greek god Apollo — god of the sun and of music — and
+the interface did not say so. It was deep violet on near-black graphite from
+Phase 6 through Phase 7d, because CLAUDE.md §24.1 asked for a "deep purple accent
+system" and that line was taken at face value. The developer read it back off the
+screen and said it had never been the intent: the accent should be gold, keyed to
+`#F7EF8A`, and the ground a dark metallic grey. Under CLAUDE.md §42 the later
+explicit requirement wins, and they asked for the written specifications to be
+corrected rather than merely noted — so CLAUDE.md, PRD.md, ARCHITECTURE.md and
+ROADMAP.md were updated with it.
+
+**The grey is neutral and faintly cool, which is a decision.** Gold against a
+warm grey goes muddy: the two are close in hue and end up arguing about
+saturation rather than contrasting. Gold against steel rings, and steel is what
+brushed metal actually looks like. The surfaces are therefore gunmetal —
+`#15181b` through `#313840` — rather than the warm graphite that a gold accent
+first suggests.
+
+**Three intensities of gold, and `#F7EF8A` is the bright end.** On a dark ground
+the brand colour is where the accent should be loudest: it is the scope and
+wavetable trace, the value being held, and every hover. A richer `#d4a72c` does
+the quieter work — knob arcs, borders, the filled chip of a selected switch, with
+the ground's own colour as that chip's label, because light text on gold is
+unreadable at ten pixels and dark text on gold is a struck coin. A deep `#5a4712`
+is left for a border or a wash that must not draw the eye.
+
+**Amber became orange.** CLAUDE.md §24.2 gives caution its own colour, and amber
+beside a gold accent is the accent wearing a different hat. Orange is far enough
+away to be read as a different statement.
+
+**A light theme was built first, and failed for a reason worth recording.** The
+first correction said the plugin should not be dark-themed at all, so it was
+rebuilt as ivory and gold — marble and sunlight. Two things went wrong. A module
+that recedes does so by losing opacity, and a *dark* display losing opacity
+against a *light* page does not dim, it turns muddy grey: every silent scope and
+every inactive module looked broken. Making the displays light instead fixed that
+and created the second problem, which is that a gold trace on parchment is a dark
+line on a pale field rather than something that radiates. The developer looked at
+it and asked for dark metallic grey, which resolves both: on a dark ground the
+opacity treatment works and the trace glows.
+
+**Given up:** nothing structural. ADR-0039's rules — one job per colour, and no
+state carried by hue alone — are untouched; only two of the four hues moved, and
+the whole change is the token block plus three canvas fallback colours, because
+the stylesheet never re-invents a value below its tokens.

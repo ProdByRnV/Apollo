@@ -541,8 +541,8 @@ Where possible, development should support hot reloading in development builds w
 ---
 28. UI Design Language
 The default visual identity should use:
-Dark-mode base.
-Deep purple primary theme.
+Dark-mode base, in a neutral and faintly cool metallic grey.
+Gold primary theme, keyed to #F7EF8A — Apollo is named after the Greek god of the sun and of music. This replaces the deep purple theme previously specified here (ADR-0051).
 Bright green parameter/modulation activity indicators.
 Red indicators for clipping, critical warnings, and aggressive distortion states.
 The UI must remain usable without relying solely on color.

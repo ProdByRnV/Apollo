@@ -476,8 +476,11 @@ visualizers followed in 7a-7c.
 ### Visual system
 
 - [x] Implement dark UI foundation.
-- [x] Implement deep-purple visual language. — as a single interaction accent
-      rather than as decoration (ADR-0039)
+- [x] Implement a gold visual language, keyed to `#F7EF8A`. — as a single
+      interaction accent rather than as decoration (ADR-0039, ADR-0051). The
+      deep-purple language this item originally asked for was built and shipped
+      through Phase 7d, then replaced when the developer said it had never been
+      the intent
 - [x] Implement green active-state indicators. — modulation and activity only
 - [ ] Implement red warning/error indicators. — the token and its meaning are
       defined; nothing yet produces a clipping or overload state to show

@@ -50,10 +50,10 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
         const size = fitCanvas(root, canvas, ASPECT);
 
         context.clearRect(0, 0, size.width, size.height);
-        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#d9c99f'), zero);
+        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#2b3138'), zero);
 
         strokeSeries(context, pointsRef.current, size, {
-            colour: cssColour(root, '--trace-line', '#2e8b46'),
+            colour: cssColour(root, '--trace-line', '#3ddc84'),
             zero,
         });
     }, [zero]);

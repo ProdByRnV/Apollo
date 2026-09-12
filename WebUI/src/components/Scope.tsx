@@ -56,10 +56,10 @@ export function Scope({ source, label }: ScopeProps): JSX.Element {
         const size = fitCanvas(root, canvas, ASPECT);
 
         context.clearRect(0, 0, size.width, size.height);
-        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#d9c99f'));
+        strokeZeroLine(context, size, cssColour(root, '--scope-grid', '#2b3138'));
 
         strokeSeries(context, pointsRef.current, size, {
-            colour: cssColour(root, '--scope-trace', '#8a6408'),
+            colour: cssColour(root, '--scope-trace', '#f7ef8a'),
             zero: 0.5,
             scale: zoom,
         });

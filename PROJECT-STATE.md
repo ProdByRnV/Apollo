@@ -38,6 +38,13 @@ forward from Phase 7, was rebuilt from hand-written JavaScript into components i
 7d, and no part of it states a parameter's range: every control is built from the
 metadata the engine sends.
 
+It is **gold on gunmetal** (ADR-0051). Apollo is named after the Greek god of the
+sun and of music, and the accent — keyed to `#F7EF8A` — is where that is said: it
+is the scope and wavetable trace, the value being held, and every hover, against
+a neutral dark metallic grey. The deep violet the interface carried from Phase 6
+through 7d came from a written default the developer had never intended, and the
+specification documents were corrected with it.
+
 Still placeholders: the four built-in wavetables are mathematically defined
 morphs rather than designed factory content (Phase 9).
 
@@ -544,7 +551,7 @@ Everything below was configured, built and executed on this machine.
   picture of the shape it was configured with (CLAUDE.md §26.1). All four
   envelopes and all four LFOs, one entry every 7.8 ms over a one-second window,
   drawn green because a modulator moving *is* activity and green is what activity
-  means here (§24.2) — the scopes stay violet, because audio is not a modulation
+  means here (§24.2) — the scopes stay gold, because audio is not a modulation
   indicator.
 - **Sampled rather than captured**, which is the design decision worth knowing: a
   modulator moves at a few hertz, so the ring *is* the picture — 128 entries
@@ -819,6 +826,26 @@ left open throughout at the developer's request.
 | The matrix still lights what it moves | Routing LFO 1 → Filter 1 Cutoff at +100 % turned the masthead to **MOD 1/16** with its lamp lit, and filter 1's Cutoff knob green while Resonance stayed violet |
 | MIDI Learn is still a mode | Toggling it outlined every assignable control, revealed **Clear all**, and changed the footer hint. Clicking Oscillator 1's Level armed learn — amber **LEARN** badge, status line naming the parameter |
 | A learn still completes and a mapping still drives | CC 74 completed the learn and the badge turned green; sending CC 74 = 40 moved Level to **31 %**. Tabbing to it in learn mode and pressing Delete released it again, leaving the instrument as it was found |
+
+### Gold on gunmetal, 2026-09-12
+
+The recolour (ADR-0051) is a token change, so the suite cannot judge it at all:
+every rule below the token block reads a variable, and the compiler is perfectly
+happy with a palette nobody can read. Driven by hand against the running
+standalone at 1920×1080, 150 % scaling.
+
+| Checked | Result |
+|---|---|
+| The accent is gold everywhere it was violet | Knob arcs, the filled chip of a selected switch, module index badges, the rule under the wordmark, focus rings and the masthead border |
+| `#F7EF8A` is where it is loudest | The scope, wavetable and post-filter traces, drawn on the dark display insets; a held value's readout; and every hover |
+| A filled gold chip stays readable | The selected wavetable and LFO-shape buttons carry the ground's own near-black as their label. Light text on gold was unreadable at ten pixels and was changed |
+| Green and red kept their jobs | The MIDI badge and lamps green, the matrix's assigned-row wash green, the clip indicator red — unchanged in meaning, only in shade (§24.2) |
+| The displays are dark insets again | And the recede treatments work: a silent scope and an inactive module both dim cleanly, which is exactly what failed in the light build |
+| MIDI Learn still reads as a mode | A dashed hairline outline on every assignable control — grey, not gold, and deliberately: the accent means *interaction*, and in this mode nothing has been interacted with yet. It turns green on hover and solid green once mapped. Green **MIDI LEARN**, **CLEAR ALL** revealed, footer hint changed |
+
+An interim light build — ivory and gold — was made and discarded the same day.
+The reason it failed is recorded in ADR-0051 rather than here, because it is a
+design fact worth not repeating rather than a verification result.
 
 ---
 

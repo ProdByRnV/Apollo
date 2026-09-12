@@ -1,46 +1,44 @@
 /*
     Apollo — design system and interface styles.
 
-    DESIGN DIRECTION: sunlight on marble.
+    DESIGN DIRECTION: gold on gunmetal.
 
-    Apollo is named after the god of the sun and of music, and the interface is
-    meant to look like it. So the ground is warm ivory rather than graphite, the
-    accent is gold rather than violet, and the whole thing is lit rather than
-    unlit. It is still built like measuring equipment and not like a consumer
-    app — hairline rules instead of shadows, tight corners instead of soft pills,
-    every number in a tabular monospace so a value never jitters as it changes —
-    but it is equipment standing in daylight.
+    Apollo is named after the god of the sun and of music, and gold is where that
+    is said. The ground is dark brushed metal — a tool you stare at for six hours
+    while chasing a sound should not glow at you — and every point of interaction
+    on it is gold. It is built like measuring equipment and not like a consumer
+    app: hairline rules instead of shadows, tight corners instead of soft pills,
+    and every number in a tabular monospace so a value never jitters as it
+    changes.
 
-    NOTHING IS DARK, INCLUDING THE DISPLAYS. The first attempt kept the scopes,
-    traces and wavetables as dark insets on the theory that a gold trace needs
-    warm ink to radiate against. It looked wrong for two reasons and both are
-    worth recording. A module that recedes does so by losing opacity, and a dark
-    panel losing opacity against ivory does not dim — it turns muddy grey, which
-    is how every silent scope and every inactive module looked. And a page that
-    is light everywhere except its six most eye-catching rectangles is a dark
-    interface with a light frame around it. So a display is a shade *below* the
-    module it sits in rather than a hole punched through it, and its trace is a
-    deep gold that reads on parchment like ink on vellum.
+    THE GREY IS NEUTRAL AND FAINTLY COOL, which is a decision rather than a
+    default. Gold against a warm grey goes muddy — the two are the same hue
+    arguing about saturation — while gold against steel rings. It is also what
+    brushed metal actually looks like.
 
-    What it deliberately is NOT: floating white cards, blurred glass, soft drop
+    A NOTE FOR ANYONE READING THE HISTORY. This file was violet on near-black
+    until Phase 7d, then ivory and gold for one commit, and is now this. The
+    middle step is worth knowing about because it failed for a reason that is
+    easy to repeat: a module recedes by losing opacity, and a dark display losing
+    opacity against a light page does not dim, it turns muddy grey. Every silent
+    scope and every inactive module looked broken. On a dark ground the same
+    treatment works, which is why the displays are dark insets again here and
+    were not there.
+
+    What it deliberately is NOT: floating cards, blurred glass, soft drop
     shadows, or a gradient wash. Gold is an *accent* — a single interaction
     colour with a defined role — rather than decoration sprayed across surfaces.
-    The one exception is the masthead, which carries a sun, once.
+    The one exception is the masthead, which carries a sun, once, at low alpha.
 
     COLOUR HAS MEANING HERE, and only these meanings (CLAUDE.md §24.2):
 
         gold     interaction. Focus, hover, the value you are holding.
         green    modulation and activity. Something is moving.
-        amber    caution. Approaching a limit.
+        orange   caution. Approaching a limit.
         red      clipping, danger, error.
 
     Nothing is coloured for prettiness, and nothing is signalled by colour
     alone — every state also carries a number, a label, or a shape (§24.2).
-
-    A NOTE ON THE SPEC. CLAUDE.md §24.1 still describes a dark interface with a
-    deep purple accent, which is what this file was until the developer said that
-    was never the intent. Under §42 the later instruction wins; the section is
-    left to be reconciled rather than edited unasked.
 */
 
 /* ==========================================================================
@@ -51,53 +49,57 @@
 :root {
     /* Native controls — select popups, scrollbars, focus rings — follow this
        rather than guessing from the background they happen to sit on. */
-    color-scheme: light;
+    color-scheme: dark;
 
-    /* --- Surfaces. A ladder of warm neutrals, close together on purpose:
-       depth is communicated by hairlines, not by contrast jumps. ---------- */
-    --surface-base: #e9dcbc;   /* The application ground. */
-    --surface-panel: #f9f3e3;  /* A module. */
-    --surface-raised: #fffcf2; /* A control well, an input. */
-    --surface-hover: #fdf6e2;
+    /* --- Surfaces. A ladder of gunmetal greys, close together on purpose:
+       depth is communicated by hairlines, not by contrast jumps. Neutral and
+       faintly cool, because that is what brushed metal is and because gold
+       against a warm grey goes muddy while gold against steel rings. ------ */
+    --surface-void: #0d0f11;   /* Behind everything, and the label colour on a
+                                  filled badge, where light-on-colour would not
+                                  survive the green. */
+    --surface-base: #15181b;   /* The application ground. */
+    --surface-panel: #1d2126;  /* A module. */
+    --surface-raised: #262b31; /* A control well, an input. */
+    --surface-hover: #313840;
 
-    /* The inside of a display: a scope, a trace, a wavetable, a meter. A shade
-       below the module it sits in, so it reads as recessed rather than as a
-       panel that failed to paint. */
-    --display-ground: #f2e7c8;
-
-    /* Warm ink. The one dark value in the interface, and it is a *text* colour
-       rather than a surface: the label on a filled badge, where light-on-colour
-       would not survive the green. */
-    --surface-void: #241d0e;
+    /* The inside of a display: a scope, a trace, a wavetable, a meter. Below
+       the module it sits in, so it reads as recessed and so a gold trace has
+       something to radiate against. */
+    --display-ground: #101316;
 
     /* --- Lines. Apollo separates things with rules, not shadows. --------- */
-    --line-faint: #e5d9ba;
-    --line: #d5c49b;
-    --line-strong: #b9a273;
+    --line-faint: #23282e;
+    --line: #313841;
+    --line-strong: #454f5a;
 
     /* --- Text. Three steps and no more. --------------------------------- */
-    --text-bright: #2a220f;
-    --text: #554823;
-    --text-dim: #8d7c50;
+    --text-bright: #f1f4f7;
+    --text: #b6bec7;
+    --text-dim: #79838e;
 
     /* --- Accent: interaction. One gold, three intensities. #f7ef8a is the
-       brand colour and it is a *fill*: on a light ground a bright gold works
-       behind dark text, not as text or as a hairline. --------------------- */
-    --accent: #c2921a;         /* Rules, arcs, borders, outlines. */
-    --accent-bright: #f7ef8a;  /* A filled ground a dark label sits on. */
-    --accent-deep: #8a6408;    /* Accent-coloured text, and traces on a display. */
-    --accent-glow: rgba(194, 146, 26, 0.20);
+       brand colour, and on a dark ground it is the *bright* end: it radiates
+       as a trace, as held text and as a hover, which is exactly where an
+       accent should be loudest. ------------------------------------------- */
+    --accent: #d4a72c;         /* Rules, arcs, borders, filled controls. */
+    --accent-bright: #f7ef8a;  /* Traces, hover, the value being held. */
+    --accent-dim: #5a4712;     /* Quiet gold: a border or a wash, not a fill. */
+    --accent-glow: rgba(212, 167, 44, 0.18);
 
     /* --- Semantic. --------------------------------------------------- */
-    --active: #2e8b46;         /* Modulation, activity (§24.2). */
-    --active-glow: rgba(46, 139, 70, 0.16);
-    --caution: #b0650b;
-    --danger: #c02b1f;
+    --active: #3ddc84;         /* Modulation, activity (§24.2). */
+    --active-glow: rgba(61, 220, 132, 0.14);
+
+    /* Orange rather than amber, which on a gold-accented interface would be
+       the accent colour wearing a different hat. */
+    --caution: #ff8f3f;
+    --danger: #ff5a5a;
 
     /* --- Inside a display. Its own grid and its own idle trace: the page's
-       hairlines are pitched for ivory, and a display is a shade below it. -- */
-    --display-grid: #d9c99f;
-    --display-dim: #c2b28a;
+       hairlines are pitched for the panel, and a display sits below it. --- */
+    --display-grid: #2b3138;
+    --display-dim: #4c555f;
 
     /* --- Radii. Tight. This is equipment, not a phone app. -------------- */
     --r-xs: 2px;
@@ -217,11 +219,11 @@ body::before {
        of music, and this is where that is said — once, in the masthead, rather
        than as a wash across every surface. */
     background:
-        radial-gradient(150% 280% at 9% -90%,
-                        rgba(247, 239, 138, 0.95) 0%,
-                        rgba(247, 239, 138, 0.40) 36%,
-                        transparent 70%),
-        linear-gradient(180deg, var(--surface-raised), var(--surface-panel));
+        radial-gradient(150% 300% at 9% -100%,
+                        rgba(247, 239, 138, 0.30) 0%,
+                        rgba(247, 239, 138, 0.10) 34%,
+                        transparent 68%),
+        linear-gradient(180deg, var(--surface-panel), var(--surface-base));
 }
 
 .wordmark {
@@ -310,7 +312,7 @@ body::before {
 }
 
 .workspace::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-bright);
+    background: var(--accent-dim);
 }
 
 /* A rank of modules. Signal flow reads left to right, top to bottom. */
@@ -386,9 +388,9 @@ body::before {
 .module__index {
     font-family: var(--font-mono);
     font-size: var(--t-label);
-    color: var(--accent-deep);
+    color: var(--accent-bright);
     background: var(--accent-glow);
-    border: 1px solid var(--accent-bright);
+    border: 1px solid var(--accent-dim);
     border-radius: var(--r-xs);
     padding: 0 4px;
     line-height: 15px;
@@ -477,7 +479,7 @@ body::before {
     stroke-linecap: round;
 }
 
-/* The value arc. Violet because it is what the hand is holding. */
+/* The value arc. Gold because it is what the hand is holding. */
 .knob__arc {
     fill: none;
     stroke: var(--accent);
@@ -488,7 +490,7 @@ body::before {
 
 .knob:hover .knob__arc,
 .knob:focus-visible .knob__arc {
-    stroke: var(--accent-deep);
+    stroke: var(--accent-bright);
 }
 
 /* While a value is being modulated, its arc turns green — the same meaning
@@ -542,11 +544,11 @@ body::before {
 /* Held: the readout takes the accent, so the control you are turning is
    unambiguous even out of the corner of an eye. */
 .knob[data-held="true"] .knob__value {
-    color: var(--accent-deep);
+    color: var(--accent-bright);
 }
 
 .knob[data-held="true"] .knob__arc {
-    stroke: var(--accent-deep);
+    stroke: var(--accent-bright);
 }
 
 /* ==========================================================================
@@ -602,13 +604,15 @@ body::before {
     box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* A filled gold chip with the ground's own colour as its label. Light text on
+   gold is unreadable at this size; dark text on gold is a struck coin. */
 .segmented__option[aria-checked="true"] {
-    background: var(--accent-bright);
-    color: var(--text-bright);
+    background: var(--accent);
+    color: var(--surface-void);
 }
 
 .segmented__option[aria-checked="true"]:hover {
-    background: var(--accent);
+    background: var(--accent-bright);
 }
 
 /* ==========================================================================
@@ -951,7 +955,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 /* ==========================================================================
    OSCILLOSCOPE
 
-   The trace uses the accent violet rather than the green: green means active
+   The trace uses the accent gold rather than the green: green means active
    modulation in Apollo (§24.2), and a scope showing the output is not a
    modulation indicator — it is simply what is there, all the time.
    ========================================================================== */
@@ -960,7 +964,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
    beside knobs rather than push them out of the module, and a width taken from
    the container would do exactly that — which is what the first version did. */
 .scope {
-    --scope-trace: var(--accent-deep);
+    --scope-trace: var(--accent-bright);
     --scope-grid: var(--display-grid);
 
     flex: 0 0 auto;
@@ -1034,8 +1038,8 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 }
 
 .scope__zoom[data-active="true"] {
-    color: var(--accent-deep);
-    border-color: var(--accent-deep);
+    color: var(--accent-bright);
+    border-color: var(--accent-bright);
 }
 
 /* ==========================================================================
@@ -1100,7 +1104,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
    ========================================================================== */
 
 .wavetable {
-    --wave-line: var(--accent-deep);
+    --wave-line: var(--accent-bright);
 
     flex: 0 0 auto;
     width: 150px;
@@ -1166,7 +1170,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 /* The peak rides over the RMS as a thin cap rather than a second fill, so the
    two are one reading with a ceiling rather than two competing bars. */
 .meter__peak {
-    border-top: 2px solid var(--accent-deep);
+    border-top: 2px solid var(--accent-bright);
 }
 
 .meter[data-clipped="true"] .meter__peak {
@@ -1177,7 +1181,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
    not the SDK we pin, and a rule the runtime cannot parse is dropped silently —
    which for a clip indicator means failing in exactly the case it exists for. */
 .meter[data-clipped="true"] .meter__channel {
-    background: rgba(192, 43, 31, 0.30);
+    background: rgba(255, 90, 90, 0.28);
 }
 
 /* The first real use of the red token (§24.2) — and a word beside it, because

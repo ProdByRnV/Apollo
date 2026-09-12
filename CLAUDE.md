@@ -923,10 +923,19 @@ Apollo should use a dark-mode interface intended for long sound-design sessions.
 
 Primary visual direction:
 
-- Dark base.
-- Deep purple accent system.
+- Dark, neutral, faintly cool metallic grey base — brushed metal rather than
+  black.
+- **Gold accent system**, keyed to `#F7EF8A`. Apollo is named after the Greek god
+  of the sun and of music, and gold is where that is said; it is the single
+  interaction colour, used for focus, hover, and the value being held.
 - Bright green active/modulation indicators.
 - Red alerts and overload indicators.
+- Orange rather than amber for caution, which on a gold-accented interface would
+  otherwise be the accent colour wearing a different hat.
+
+This replaces the deep purple accent system this section previously specified.
+That was a written default rather than an intended one, and the developer
+directed the change after seeing it built (§42; ADR-0051).
 
 ## 24.2 Color Semantics
 

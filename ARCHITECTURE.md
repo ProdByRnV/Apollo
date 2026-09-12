@@ -322,8 +322,9 @@ Visualizers should degrade gracefully when CPU resources are constrained.
 
 The default design system uses:
 
-- Dark background.
-- Deep-purple primary visual language.
+- Dark background, in a neutral and faintly cool metallic grey.
+- Gold primary visual language, keyed to `#F7EF8A`, replacing the deep-purple
+  language this section previously described (ADR-0051).
 - Green active-state indicators.
 - Red warning/error indicators.
 
