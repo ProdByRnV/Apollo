@@ -30,7 +30,7 @@ export const LABELS: Record<string, readonly string[]> = {
     // covers all six from the start (ADR-0054) — and say so, rather than
     // appearing to work and doing nothing.
     fxSlot: ['—', 'DISTORTION', 'DELAY', 'REVERB',
-             'GATE', 'COMPRESSOR', 'EQ (soon)'],
+             'GATE', 'COMPRESSOR', 'EQ'],
 
     // Matches dsp::Distortion::Mode.
     fx_distortion_mode: ['SOFT', 'HARD', 'DIODE'],
@@ -50,6 +50,18 @@ export const LABELS: Record<string, readonly string[]> = {
     fx_reverb_bypass: ['ACTIVE', 'BYPASS'],
     fx_gate_bypass: ['ACTIVE', 'BYPASS'],
     fx_compressor_bypass: ['ACTIVE', 'BYPASS'],
+    fx_eq_bypass: ['ACTIVE', 'BYPASS'],
+
+    // Matches dsp::EqualiserBand::Type. One table shared by all seven bands,
+    // because the bands are identical — the module passes the same one to each.
+    fx_eq_band_type: ['OFF', 'LP', 'BP', 'HP', 'NOTCH', 'LO SHELF', 'BELL', 'HI SHELF'],
+
+    // The order is instances of the shape in series, which for a pass filter is
+    // what its slope is. Labelled in decibels per octave because that is the
+    // number an engineer reaches for, and it is the same four positions either
+    // way — a bell at 24 is a bell applied twice.
+    fx_eq_band_order: ['12', '24', '36', '48'],
+    fx_eq_band_mute: ['IN', 'MUTE'],
 
     // Matches dsp::LfoShape.
     lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],

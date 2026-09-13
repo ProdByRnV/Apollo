@@ -35,8 +35,17 @@ export function formatPlain(definition: ParameterDefinition, plain: number): str
         case 'cents':
             return `${plain > 0 ? '+' : ''}${plain.toFixed(0)} c`;
 
+        // Two different quantities share this unit, and they are written
+        // differently. A transposition is a whole number of octaves up or down,
+        // where the sign is the reading; a bandwidth is a continuous width,
+        // where a sign means nothing and rounding to a whole number would show a
+        // half-octave band as "+0". The step tells them apart, which is the
+        // engine's own description of the parameter rather than a list of ids
+        // kept here.
         case 'oct':
-            return `${plain > 0 ? '+' : ''}${Math.round(plain)}`;
+            return definition.step >= 1
+                ? `${plain > 0 ? '+' : ''}${Math.round(plain)} oct`
+                : `${plain.toFixed(2)} oct`;
 
         default:
             if (definition.step >= 1) return String(Math.round(plain));

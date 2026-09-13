@@ -112,7 +112,9 @@ public:
         testTheChainReachesTheAudio();
         testLatencyIsReportedToTheHost();
         testChainSurvivesStateRestore();
-        testCorruptSlotValueIsRejected();
+        testEverySlotValueIsSafe();
+        testEqualiserReachesTheAudio();
+        testEqualiserChainSurvivesStateRestore();
         testDelayReachesTheAudioAndReportsItsTail();
         testSyncedDelayWorksWithNoTransport();
         testReverbReachesTheAudioAndReportsItsTail();
@@ -256,28 +258,148 @@ private:
                 "a restored chain must report its latency as soon as it is prepared");
     }
 
-    void testCorruptSlotValueIsRejected()
+    void testEverySlotValueIsSafe()
     {
-        beginTest ("a slot naming an effect this build does not have is simply empty");
+        beginTest ("every value a slot can hold produces audio, and only empty is empty");
 
-        apollo::ApolloAudioProcessor processor;
-
-        // Every non-distortion value is either unbuilt or empty, and all of them
-        // must leave the audio alone rather than doing something surprising
-        // (CLAUDE.md §33).
-        for (const auto effect : { 0.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f })
+        // Written the other way round until 8e, when the last unbuilt effect
+        // landed: the question then was whether selecting an effect that did not
+        // exist yet did something surprising. Now every value the parameter can
+        // express names something real, and what is left to assert is that none
+        // of them — including the empty one — corrupts the audio or surprises the
+        // host (CLAUDE.md §33).
+        for (auto effect = 0; effect <= 6; ++effect)
         {
-            setPlain (processor, "fx_slot1", effect);
+            apollo::ApolloAudioProcessor processor;
+
+            setPlain (processor, "fx_slot1", static_cast<float> (effect));
+            processor.prepareToPlay (testSampleRate, blockSize);
+
+            // Only the distortion looks ahead; everything else, empty included,
+            // is sample-in sample-out.
+            const auto expectedLatency = effect == 1 ? 59 : 0;
+
+            expectEquals (processor.getLatencySamples(), expectedLatency,
+                          "a slot's latency must be the effect in it and nothing else");
+
+            const auto rendered = renderNote (processor, 6);
+
+            auto peak = 0.0f;
+
+            for (const auto sample : rendered)
+            {
+                expect (std::isfinite (sample), "no effect may corrupt the audio");
+                peak = std::max (peak, std::abs (sample));
+            }
+
+            // The gate is the one effect that can legitimately silence a default
+            // note, because its default threshold sits above one. Every other
+            // slot value must still be audible: an effect that swallowed the
+            // instrument would pass a finiteness check and fail a listener.
+            if (effect != 4)
+                expect (peak > 0.001f, "a default patch must still sound through this effect");
+        }
+    }
+
+    void testEqualiserReachesTheAudio()
+    {
+        beginTest ("an equaliser band in the chain changes what is heard and reports no latency");
+
+        // A note low enough that a wide low shelf under it is unambiguous, and a
+        // shelf deep enough that the difference cannot be measurement noise.
+        const auto peakWithShelf = [this] (float gainDb)
+        {
+            apollo::ApolloAudioProcessor processor;
+
+            setPlain (processor, "fx_slot1", 6.0f);                 // EffectType::equaliser
+            setPlain (processor, "fx_eq_band1_type", 5.0f);         // Type::lowShelf
+            setPlain (processor, "fx_eq_band1_freq", 2000.0f);
+            setPlain (processor, "fx_eq_band1_gain", gainDb);
+
             processor.prepareToPlay (testSampleRate, blockSize);
 
             expectEquals (processor.getLatencySamples(), 0,
-                          "an effect that does not exist yet cannot contribute latency");
+                          "an equaliser is IIR and looks ahead at nothing");
 
-            const auto rendered = renderNote (processor, 4);
+            auto peak = 0.0f;
 
-            for (const auto sample : rendered)
-                expect (std::isfinite (sample), "an unbuilt effect must not corrupt the audio");
+            for (const auto sample : renderNote (processor, 8))
+                peak = std::max (peak, std::abs (sample));
+
+            return peak;
+        };
+
+        const auto flat = peakWithShelf (0.0f);
+        const auto lifted = peakWithShelf (12.0f);
+        const auto cut = peakWithShelf (-12.0f);
+
+        logMessage ("  peak " + juce::String (flat, 4) + " flat, "
+                    + juce::String (lifted, 4) + " with +12 dB under it, "
+                    + juce::String (cut, 4) + " with -12 dB");
+
+        expect (flat > 0.001f, "a band at 0 dB must leave the note where it was");
+        expect (lifted > flat * 1.5f, "a twelve-decibel shelf under the note must lift it");
+
+        // Not the same margin in the other direction, and the asymmetry is the
+        // shelf behaving correctly rather than the test being lenient. This is a
+        // peak measurement of a wavetable note, which has harmonics above the
+        // shelf that it does not touch. Boosting the fundamental by four makes
+        // the fundamental the peak; cutting it by four leaves those harmonics
+        // where they were, and they become the peak. A shelf that took the whole
+        // signal down by twelve decibels would be a fader, not a shelf.
+        expect (cut < flat * 0.85f, "and cutting by the same must take it down");
+    }
+
+    void testEqualiserChainSurvivesStateRestore()
+    {
+        beginTest ("a band's six settings survive the round trip a preset puts them through");
+
+        juce::MemoryBlock state;
+
+        {
+            apollo::ApolloAudioProcessor processor;
+
+            setPlain (processor, "fx_slot2", 6.0f);
+            setPlain (processor, "fx_eq_band4_type", 7.0f);         // Type::highShelf
+            setPlain (processor, "fx_eq_band4_freq", 6000.0f);
+            setPlain (processor, "fx_eq_band4_gain", -7.5f);
+            setPlain (processor, "fx_eq_band4_bandwidth", 2.5f);
+            setPlain (processor, "fx_eq_band4_order", 3.0f);
+            setPlain (processor, "fx_eq_band4_mute", 1.0f);
+            setPlain (processor, "fx_eq_level", -4.0f);
+
+            processor.getStateInformation (state);
         }
+
+        apollo::ApolloAudioProcessor restored;
+        restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+        restored.prepareToPlay (testSampleRate, blockSize);
+
+        const auto plainOf = [&restored] (const juce::String& id)
+        {
+            const auto* parameter = restored.getValueTreeState().getParameter (id);
+            return parameter != nullptr ? parameter->convertFrom0to1 (parameter->getValue()) : -1.0f;
+        };
+
+        expectWithinAbsoluteError (plainOf ("fx_slot2"), 6.0f, 0.001f,
+                                   "the slot the equaliser was placed in must come back");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_type"), 7.0f, 0.001f,
+                                   "the shape must come back");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_freq"), 6000.0f, 1.0f,
+                                   "and the frequency");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_gain"), -7.5f, 0.01f,
+                                   "and the gain");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_bandwidth"), 2.5f, 0.01f,
+                                   "and the bandwidth");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_order"), 3.0f, 0.001f,
+                                   "and the slope");
+        expectWithinAbsoluteError (plainOf ("fx_eq_band4_mute"), 1.0f, 0.001f,
+                                   "and the mute, which is the one a band can be lost behind");
+        expectWithinAbsoluteError (plainOf ("fx_eq_level"), -4.0f, 0.01f,
+                                   "and the output trim");
+
+        expectEquals (restored.getLatencySamples(), 0,
+                      "a restored equaliser still reports no latency");
     }
 
     void testDelayReachesTheAudioAndReportsItsTail()

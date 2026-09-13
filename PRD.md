@@ -467,19 +467,25 @@ Sidechain input.
 External sidechain routing.
 ---
 24. Equalizer
-Apollo shall include a parametric 4-band EQ.
+Apollo shall include a parametric 7-band EQ.
+Seven rather than the four this section previously specified: the developer asked for the equivalent of Fruity Parametric EQ 2, which has seven bands, and the later requirement governs (CLAUDE.md §42; ADR-0059).
 Each band should support:
 Frequency
 Gain
-Q
+Bandwidth in octaves, which is the quantity a Q describes in the unit a musician can hear
 Filter type
-Enable/bypass
+Slope, as instances of the shape in series: 12, 24, 36 or 48 dB per octave for a pass filter, and that many times the gain for a bell or a shelf
+Enable/bypass, per band and for the whole equaliser
 Potential filter types:
 Bell
 Low shelf
 High shelf
 Low-pass
 High-pass
+Band-pass
+Notch
+The equaliser shall also provide an output trim, so gain taken by a boost can be given back without moving the master.
+The response curve shall be displayed, drawn at the rate the engine is actually running at rather than an assumed one.
 ---
 25. Oversampling
 Oversampling shall be used where required to control nonlinear aliasing.

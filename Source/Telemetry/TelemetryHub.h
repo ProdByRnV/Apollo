@@ -246,9 +246,25 @@ public:
     /** Prepares anything whose behaviour depends on the sample rate. Not
         real-time safe; call from prepareToPlay.
     */
-    void prepare (double sampleRate) noexcept
+    void prepare (double newSampleRate) noexcept
     {
-        meter.prepare (sampleRate);
+        meter.prepare (newSampleRate);
+        sampleRate.store (newSampleRate, std::memory_order_relaxed);
+    }
+
+    /** MESSAGE THREAD. The rate the engine is prepared at, or zero before it
+        has been, for the displays whose arithmetic depends on it — the
+        equaliser's response curve is designed with the same bilinear transform
+        the filters are, and at 96 kHz that curve is a different shape near the
+        top of the spectrum than it is at 44.1.
+
+        Kept on the hub rather than in the snapshot because it is not a capture:
+        `reset()` clears the pictures, and clearing a picture does not change the
+        rate it was taken at.
+    */
+    [[nodiscard]] double getSampleRate() const noexcept
+    {
+        return sampleRate.load (std::memory_order_relaxed);
     }
 
     /** Clears every capture, so nothing survives a device or sample-rate change
@@ -330,6 +346,8 @@ private:
     InstrumentSnapshot instrument;
 
     std::atomic<bool> capturing { false };
+
+    std::atomic<double> sampleRate { 0.0 };
 };
 
 } // namespace apollo::telemetry

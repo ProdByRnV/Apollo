@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-12
+**Last verified:** 2026-09-14
 **Apollo version:** 0.1.0
 
 ---
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 8 — Effects Rack, in progress; **8a through 8d complete** |
-| **Status** | **8d complete.** The six-slot rack holds five effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), and a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix |
+| **Phase** | Phase 8 — Effects Rack, in progress; **8a through 8e complete** |
+| **Status** | **8e complete, and the rack is now full.** All six slots can hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged |
 | **Milestone** | M8 — Effects |
-| **Next step** | Phase 8e — the parametric EQ: four bands of frequency, gain, Q and type |
+| **Next step** | Phase 8f — whole-chain validation: arbitrary orderings of all six effects at once |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -742,31 +742,118 @@ Everything below was configured, built and executed on this machine.
 - **Cheap**: the gate costs about 0.03 % of a core above an empty rack and the
   compressor about 0.11 %, stereo — an order of magnitude less than the
   distortion, because neither runs a filter bank or a delay network.
-- **Not yet present:** the EQ (8e) and whole-chain validation (8f). Deliberately
-  absent: a soft knee, peak detection on the compressor, and sidechain input,
-  all of which PRD §23 lists as future work.
+- **Not yet present in 8d:** the EQ (8e) and whole-chain validation (8f).
+  Deliberately absent: a soft knee, peak detection on the compressor, and
+  sidechain input, all of which PRD §23 lists as future work.
+
+### The parametric equaliser (Phase 8e)
+
+- **Seven bands, not the four the specification asked for.** The developer asked
+  for the equivalent of Fruity Parametric EQ 2, and the later requirement governs
+  (CLAUDE.md §42; ADR-0059). CLAUDE.md §22 and PRD §24 were corrected rather than
+  left to disagree with the code. Four bands force a choice between a high pass,
+  a low shelf, a midrange cut and an air shelf, when the work usually wants all
+  four *and* somewhere to notch a resonance.
+- **A biquad, where the voice filter is deliberately not one.** The state-variable
+  argument still stands for a synthesiser, whose cutoff is swept constantly; an
+  equaliser's bands sit still, and in exchange the biquad gives the named,
+  standard response shapes an equaliser is expected to have. The RBJ cookbook is
+  where the coefficients come from, in **double precision**, because a narrow band
+  low in the spectrum at a high sample rate puts the poles close enough to the
+  unit circle that single-precision quantises their position audibly.
+- **Stability is checked, not asserted.** Every design in the whole parameter
+  space — eight shapes, the full frequency, gain and bandwidth ranges, four sample
+  rates — has both poles inside the unit circle, and the frequency is clamped
+  below Nyquist before any trigonometry, so no setting a parameter can express can
+  produce an unstable one.
+- **Slope is instances, and the gain multiplies with it.** Order N is N identical
+  sections in series: 12, 24, 36 or 48 dB per octave for a pass filter, and N
+  times the gain for a bell or a shelf. Not normalised away, deliberately — an
+  equaliser that quietly divided the gain to compensate would be one whose
+  displayed gain is not its gain. ROADMAP asks for *predictable* gain behaviour,
+  and a stated rule is what makes it predictable.
+- **Bandwidth in octaves rather than Q**, because it is the half of that pair a
+  musician can hear: one octave is one octave wherever the band sits, whereas the
+  Q that produces it is a different number at 50 Hz than at 5 kHz.
+- **A transparent band is skipped, not processed.** A band that is off, muted, or
+  a gain shape at exactly 0 dB is the identity — at 0 dB the cookbook's numerator
+  becomes its denominator term for term — so it is bypassed entirely. A freshly
+  placed equaliser is bit-transparent and costs **0.037 % of a core against an
+  empty rack's 0.035 %**, which is what makes it safe to leave in the chain.
+- **Seven bands dialled in cost 0.35 % at one instance and 0.48 % at four.** Four
+  times the sections for a third more time, measured at every order in between: a
+  biquad's state update waits on the previous sample's, so one section per band
+  leaves most of the processor's execution units idle and the extra sections fill
+  those slots rather than queueing behind them. Raising the slope is close to
+  free, and that is a measurement rather than an argument about the arithmetic.
+- **No latency and no linear-phase mode.** These are IIR filters working on the
+  samples in front of them. The reference's linear-phase mode is an FFT and a
+  latency budget rather than a variation on this, and is deliberately absent.
+- **Smoothed per block, in the units the ear uses** — frequency in the log domain
+  and gain in decibels, so a swept band travels evenly instead of rushing through
+  the bottom of its range. Coefficients are never interpolated, only the settings
+  they are designed from: an interpolated coefficient set is not necessarily a
+  stable filter, while a filter designed from an intermediate frequency always is.
+- **A band coming back into circuit starts from silence**, rather than pouring
+  seconds-old audio back in — the bug the reverb's bypass had in 8c.
+- **The interface draws the response curve, and this is the one place the page
+  holds DSP arithmetic.** A curve is a continuous function of frequency, and
+  sending it as points would mean the engine re-serialising a hundred and sixty
+  values every time a knob moves, for a picture that depends on nothing the page
+  does not already have. `WebUI/src/params/eqCurve.ts` transcribes the cookbook;
+  `Tests/DSP/EqualiserTests.cpp` pins the exact decibels a table of reference
+  settings must produce, and every number in that table was produced by the
+  TypeScript and is asserted against the C++.
+- **The instrument frame now carries the engine's sample rate**, which is why.
+  The same +6 dB shelf at 15 kHz reads 5.60 dB at 20 kHz at 44.1 kHz and 6.62 dB
+  at 96 kHz: the bilinear transform compresses the top of the spectrum, and how
+  much depends on where Nyquist is. A curve drawn at an assumed rate would be a
+  picture the sound does not agree with.
+- **The curve is a control as well as a display**, and the only one on the page
+  that is both. Dragging a handle sets that band's frequency and gain, bracketed
+  as one automation gesture per parameter; a shape with no gain moves only in
+  frequency, so dragging a low pass up the screen does not write a value the
+  engine would ignore. The knobs remain, still built from metadata, still the way
+  to set an exact value and the way to reach the control from a keyboard.
+- **Forty-four parameters, all arriving at once**, because a band added later
+  could not be numbered without renumbering the bands after it and a parameter ID
+  is permanent (ADR-0054's reasoning, applied again).
+- **The rack is now complete.** `EffectsRack::isImplemented` returns true for
+  every effect the enum names, and the test that used to assert an unbuilt effect
+  resolved to an empty slot now asserts the opposite: the only value that means
+  nothing is the one that means nothing.
+- **Not yet present:** whole-chain validation (8f). Deliberately absent: a
+  linear-phase mode, per-band solo, a spectrum analyser behind the curve, and
+  reorderable bands — a cascade of minimum-phase filters commutes, so reordering
+  would be a control that changes nothing (ADR-0059).
 
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
-| 8 | **8a through 8d are done** — the rack, the distortion, the delay, the reverb, the gate and the compressor. Absent: the EQ (8e) and whole-chain validation (8f) |
+| 8 | **8a through 8e are done** — the rack, the distortion, the delay, the reverb, the gate, the compressor and the equaliser. Every effect the slot parameter can name now exists. Absent: whole-chain validation (8f) |
 | 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**All 183 registered parameters now affect audio** — the whole source section,
+**All 227 registered parameters now affect audio** — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
-expression settings, `master_gain`, the rack's six slots, and the five effects in
+expression settings, `master_gain`, the rack's six slots, and all six effects in
 it. `fx_delay_time` was the last one that did not, inert since Phase 2 and
 connected in 8b; for the first time since the registry started growing there is
 nothing in it that does nothing.
 
-Phase 8a added eleven, 8b eight, 8c eight and 8d thirteen. Six of 8a's are the
-rack's slots, which enumerate all six effects from the start, including the one
+Phase 8a added eleven, 8b eight, 8c eight, 8d thirteen and 8e forty-four. Six of 8a's are the
+rack's slots, which enumerated all six effects from the start, including the ones
 not built yet, because a discrete parameter's range is permanent once it ships
-(ADR-0054). The delay's note-division parameter is fixed the same way, at
-fourteen values.
+(ADR-0054) — a decision that has now paid off twice, with the delay's
+note-division parameter fixed the same way at fourteen values and the
+equaliser's eight band shapes fixed at eight.
+
+8e's forty-four are the largest single addition since the modulation matrix, and
+for the same structural reason: six controls for each of seven bands cannot
+arrive a band at a time, because a band added later could not be numbered without
+renumbering the ones after it.
 
 The registry grew from 38 to 139 in Phase 5d, which is what a modulation matrix
 costs: 21 for envelopes 2-4, 32 for the four LFOs, and 48 for sixteen routing
@@ -819,7 +906,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,949,273 assertions, 0 failures**, across 30 test classes. The table below
+**2,191,427 assertions, 0 failures**, across 31 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -848,7 +935,8 @@ subsystems they test.
 | DSP | Delay | Where the repeat lands, in free time and in synced time — a quarter note at 120 BPM is 500 ms and nothing else, a slow whole note is clamped to the buffer rather than wrapping, a free delay ignores the tempo, and no tempo at all falls back to 120 rather than to silence; each repeat quieter than the last; **thirty seconds at maximum feedback with no input**, asserting the tail is quieter every second, never louder than what went in, and near silence at the end; a dry mix is the input sample for sample and the latency is zero; ping-pong puts the first repeat on the side the sound arrived on and the second on the other; damping keeps taking more top off each pass rather than settling after one; sweeping the time as fast as a control can move produces no discontinuity; a bypassed delay is fed silence so it cannot replay old audio when it comes back; reset leaves no tail; absurd and denormal input stays finite through the feedback path and still settles; and the reported tail covers at least one repeat and is bounded |
 | DSP | Reverb | The network's line lengths share no factors, in both modes, and a hall's shortest path is much longer than a room's; size scales the lines and mode changes which lines they are; a dry mix is the input sample for sample and the latency is zero; a burst is still sounding a second later; **a minute at the longest decay with no input** stays under the envelope RT60 describes, never exceeds what went in, and is gone by the end; the decay control measures as RT60, as a slope between two later times and in RMS rather than peak; the tail reaches **exactly zero** rather than grinding on as denormals; damping shortens the tail as well as darkening it; pre-delay is a real gap with nothing in it; width at zero puts the tail in the centre; a bypassed reverb goes on decaying and comes back silent rather than resuming; reset leaves nothing behind; absurd input stays finite and still settles; and the reported tail covers the decay and the pre-delay |
 | DSP | Dynamics | The compression curve is the ratio expressed in decibels, checked against the static formula and then against rendered audio — 4 dB over the threshold at 4:1 comes out 1 dB over, to within 0.07 dB; the gain ramp travels 1 - 1/e of the way in the time it is given, at three settings; the compressor as a whole is slower than that and the detector's share of the lag is measured rather than hidden; a signal 30 dB below the threshold passes through untouched and the compressor reports that it is doing nothing; makeup lifts the output by exactly what it says and a mix of zero is the input exactly; a gate opens fully on a loud signal and settles at its range on a quiet one; **hold** takes a gate that moved eleven times in two thirds of a second down to once; range means how far down, and the bottom of its travel is exact silence; one channel getting loud moves the other channel's gain too, which is what stereo linking is for; neither processor adds latency or a tail; and absurd input stays finite and settles to silence afterwards |
-| Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; and a slot naming an effect this build does not have is simply empty rather than surprising |
+| DSP | Equaliser | A fresh equaliser is **bit for bit** its input, and a band switched off or muted is the exact identity; a bell applies exactly the decibels on its dial at its own centre; **the curve the display draws is the curve the filter applies**, checked against rendered audio at fifteen frequencies for every shape; a table of reference settings produces exactly the decibels the frontend's own transcription produces, which is the contract between the two implementations of the cookbook; a wider bandwidth reaches further from the centre; order is instances, so a bell's gain applies that many times and a pass filter loses twelve decibels per octave per instance; a shelf reaches its full gain on its own side and nothing on the other; a notch removes its own frequency and leaves its neighbours alone; a band pass is unity at its centre whatever its width; the four shapes with no gain ignore the gain parameter; bands in series add in decibels; the output trim applies exactly the gain it names; **every design in the whole parameter space has both poles inside the unit circle**, at four sample rates; the same settings sound the same at every sample rate; a band coming back into circuit brings nothing with it; only a band that can ring reports a tail and that ring reaches **exactly zero** rather than grinding on as denormals; absurd input produces finite output; a band travels to a new setting over many blocks rather than arriving in one, measured on the logarithmic axis it actually travels along; sweeping a band across the spectrum keeps the output in range; and an equaliser declares and adds no latency |
+| Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; every value a slot can hold produces audio and reports the latency of the effect in it and nothing else, with only the empty slot empty and only the gate — whose default threshold sits above a default note — allowed to silence one; an equaliser band in the chain lifts a note with a shelf under it and takes it down when the shelf is inverted, reporting no latency either way; and a band's six settings plus the output trim survive the round trip a preset puts them through |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
@@ -1089,6 +1177,57 @@ audible check would have shown is asserted through the processor in
 long after the note is released, reports a tail that covers its repeats, adds no
 latency, and keeps repeating with no transport to sync to.
 
+### The equaliser, 2026-09-14
+
+The first sub-phase since 8a whose interface was actually **driven** rather than
+only read, because the input problem the last four entries record was solved. The
+technique is worth keeping: synthetic input posted at the *desktop* — moving the
+real cursor and injecting wheel and button events — reaches whatever window
+happens to be in front, which is unreliable and, on a machine someone is using,
+rude. Posting `WM_MOUSEWHEEL`, `WM_LBUTTONDOWN`, `WM_MOUSEMOVE` and
+`WM_LBUTTONUP` straight to Apollo's `Chrome_RenderWidgetHostHWND` child window
+reaches the page directly, and `PrintWindow` with `PW_RENDERFULLCONTENT` captures
+the WebView's own surface without the window needing to be in front. Two things
+to know: the wheel needs the window focused, and the process doing the posting
+must call `SetProcessDPIAware` or it measures a 1920x1080 window as 1280x720 and
+captures only its top-left corner — which is what made the layout look broken
+before it was.
+
+| Checked | Result |
+|---|---|
+| Every parameter reaches the page | Footer reads **227 parameters bound · protocol v1**, and the "Unassigned" safety-net module does not appear — so all forty-four new entries have a home in the layout |
+| The panel renders | **EQUALISER** on a row of its own, with the band number in its heading, the `OFF` chip while nothing in the rack selects it, and the band strip `1 2 3 4 5 6 7` at the right of the heading |
+| The response curve draws | Grid at ±18 dB and at the decade frequencies, a flat line at 0 dB, and seven numbered handles spread evenly along the logarithm from 47 Hz to 8.43 kHz — the registry's own defaults |
+| Discrete controls show names | Shape `OFF LP BP HP NOTCH LO SHELF BELL HI SHELF` with **BELL** selected, Slope `12 24 36 48` with **12**, In Circuit `IN`/`MUTE`, State `ACTIVE`/`BYPASS` |
+| Defaults match the registry | Band 1 at `47.0 Hz`, `0.0 dB`, `1.00 oct`; the equaliser's Level at `0.0 dB` |
+| **Dragging a handle works, and lands where it should** | Band 4's handle dragged up and to the right put the band at **1.60 kHz** and **+10.9 dB** — the frequency the logarithmic axis says that pixel is, and the gain the ±18 dB axis says that row is, both within a pixel's worth |
+| The knobs follow the drag | Frequency and Gain updated to those values *from the engine's echo*, not from the page: the drag writes a parameter and the knob reads what comes back |
+| The curve follows the band | The flat line became a bell peaking at the handle, drawn from the page's own transcription of the cookbook |
+| **The chain survives a restart** | Closed the window normally and relaunched: the bell came back at the same frequency and gain, with handle 4 still at its peak. The band strip reset to band 1, which is correct — which band is on screen is interface state and belongs to nobody's patch |
+
+Two defects were found by looking rather than by testing, and both are fixed:
+
+- **The curve did not stretch to its module.** `.cluster--banner` lays its
+  children out in a column and aligns them to the start, so the curve sat at its
+  minimum width with most of the panel empty beside it. It now asks for the width
+  explicitly, and its height is clamped rather than following the aspect all the
+  way up — at full width a constant aspect made it half the height of the screen,
+  and a decibel axis spanning ±18 needs nothing like that.
+- **A bandwidth read as `+1`.** The `oct` unit had one formatter, written for the
+  sub oscillator's octave transposition, which rounds to a whole number and adds a
+  sign. Applied to a continuous width that turned 1.0 octaves into "+1" and would
+  have shown a half-octave band as "+0". The formatter now reads the parameter's
+  own step to tell a discrete transposition from a continuous width, which is the
+  engine's description rather than a list of ids kept in the page.
+
+**Not driven by hand:** audio through the equaliser in the standalone. No virtual
+MIDI port was running on this machine, so there was no way to play a note into a
+configured chain. What that check would have shown is asserted through the
+processor in `Tests/Audio/EffectsIntegrationTests.cpp`, which renders a real note
+through `processBlock` with the equaliser in a slot: a 12 dB low shelf under the
+note lifts its peak from 0.0718 to 0.2845, inverting the shelf takes it to 0.0547,
+and the latency stays at zero throughout.
+
 ---
 
 ## 5b. CPU measurements
@@ -1211,19 +1350,22 @@ Measured in Phase 8a, stereo, on the finished mix — once per block no matter h
 many notes are held, which is the whole argument for putting a shaper here rather
 than in the voice (ADR-0033).
 
-| Rack | 8a, cool machine | 8b, same binary, later | 8c, later still | 8d, cool again |
-|---|---:|---:|---:|---:|
-| Empty | 0.062 % | 0.081 % | 0.151 % | 0.029 % |
-| Distortion, bypassed | 0.075 % | 0.098 % | 0.185 % | 0.048 % |
-| Distortion, hard clip at 4x | 1.374 % | 2.880 % | 4.848 % | 1.368 % |
-| Distortion, diode (`exp`) at 4x | 2.152 % | 3.098 % | 4.989 % | 1.516 % |
-| Distortion, soft (`tanh`) at 4x | 2.666 % | 3.538 % | 5.863 % | 1.631 % |
-| Delay, bypassed | — | 0.096 % | 0.156 % | 0.036 % |
-| Delay, stereo with feedback | — | 0.270 % | 0.499 % | 0.103 % |
-| Reverb, bypassed | — | — | 1.283 % | 0.337 % |
-| Reverb, 8-line FDN | — | — | 1.359 % | 0.369 % |
-| Gate, stereo-linked peak | — | — | — | 0.054 % |
-| Compressor, stereo-linked RMS | — | — | — | 0.137 % |
+| Rack | 8a, cool machine | 8b, same binary, later | 8c, later still | 8d, cool again | 8e |
+|---|---:|---:|---:|---:|---:|
+| Empty | 0.062 % | 0.081 % | 0.151 % | 0.029 % | 0.035 % |
+| Distortion, bypassed | 0.075 % | 0.098 % | 0.185 % | 0.048 % | 0.056 % |
+| Distortion, hard clip at 4x | 1.374 % | 2.880 % | 4.848 % | 1.368 % | 1.664 % |
+| Distortion, diode (`exp`) at 4x | 2.152 % | 3.098 % | 4.989 % | 1.516 % | 1.784 % |
+| Distortion, soft (`tanh`) at 4x | 2.666 % | 3.538 % | 5.863 % | 1.631 % | 1.875 % |
+| Delay, bypassed | — | 0.096 % | 0.156 % | 0.036 % | 0.042 % |
+| Delay, stereo with feedback | — | 0.270 % | 0.499 % | 0.103 % | 0.138 % |
+| Reverb, bypassed | — | — | 1.283 % | 0.337 % | 0.381 % |
+| Reverb, 8-line FDN | — | — | 1.359 % | 0.369 % | 0.441 % |
+| Gate, stereo-linked peak | — | — | — | 0.054 % | 0.069 % |
+| Compressor, stereo-linked RMS | — | — | — | 0.137 % | 0.171 % |
+| Equaliser, all bands transparent | — | — | — | — | 0.037 % |
+| Equaliser, 7 bands x1 | — | — | — | — | 0.399 % |
+| Equaliser, 7 bands x4 | — | — | — | — | 0.526 % |
 
 The empty row is the honest baseline: it is the benchmark's own input loop, not
 the rack, which does nothing at all when no slot is filled. Against it, in the
@@ -1236,7 +1378,16 @@ active costs**, because the network keeps running so its tail can decay rather
 than freeze (ADR-0057). Removing an effect from the chain is the free option;
 bypassing it is a musical gesture, not a CPU one.
 
-**The four columns are the same code**, and the fourth is the proof that the
+The equaliser's three rows say two things. **A transparent equaliser is free** —
+0.037 % against an empty rack's 0.035 %, which is a transparent band being skipped
+rather than multiplied through, and is what makes one safe to leave in the chain.
+And **four times the sections is a third more time, not four times**: 0.35 % net
+at one instance against 0.48 % at four, measured at every order in between. A
+biquad's state update waits on the previous sample's, so one section per band
+leaves most of the processor's execution units idle; the extra sections fill those
+slots rather than queueing behind them. Raising the slope is close to free.
+
+**The five columns are the same code**, and the fourth is the proof that the
 drift is the machine rather than Apollo: measured on a fresh cool laptop, 8d's
 distortion rows land back where 8a's were and the reverb measures a *third* of
 what it did in 8c — from the same binary. Two *idle* runs minutes apart had
@@ -1327,6 +1478,8 @@ change that multiplies them is caught there (ADR-0049).
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 | 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
+| 15 | ~~Synthetic input does not reach the WebView reliably~~ | **Closed** | Four sub-phases in a row (8b-8d, §5a) recorded that the interface could be read but not driven, because injecting input at the desktop reaches whatever window is in front. Solved in 8e by posting the mouse messages directly to Apollo's `Chrome_RenderWidgetHostHWND` child and capturing with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the cursor nor the foreground. The driving process must call `SetProcessDPIAware` first, or it measures a 1920x1080 window as 1280x720 and captures only its corner. |
+| 16 | No MIDI source on this machine for chain tests | Low | 8e could drive the interface but could not play a note into a configured chain, because no virtual MIDI port was running. Each effect's audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead. Worth having a port available before 8f, whose whole subject is what a chain of six effects does to a note. |
 
 ---
 

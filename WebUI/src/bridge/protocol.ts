@@ -123,6 +123,10 @@ export interface InstrumentFrameMessage {
     meter: MeterFrame;
     voices: number;
     polyphony: number;
+
+    /** The rate the engine is prepared at, or 0 before it has been. Carried
+        here because the equaliser's curve is designed with it. */
+    sampleRate: number;
 }
 
 export interface MidiMappingEntry {

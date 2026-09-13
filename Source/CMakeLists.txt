@@ -48,6 +48,12 @@ add_library(apollo_core STATIC
     DSP/Dynamics/LevelDetector.h
     DSP/Dynamics/NoiseGate.cpp
     DSP/Dynamics/NoiseGate.h
+    DSP/EQ/Biquad.cpp
+    DSP/EQ/Biquad.h
+    DSP/EQ/Equaliser.cpp
+    DSP/EQ/Equaliser.h
+    DSP/EQ/EqualiserBand.cpp
+    DSP/EQ/EqualiserBand.h
     DSP/Effects/AudioEffect.h
     DSP/Effects/EffectsRack.cpp
     DSP/Effects/EffectsRack.h

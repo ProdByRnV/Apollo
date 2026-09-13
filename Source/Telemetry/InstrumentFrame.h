@@ -99,6 +99,15 @@ struct InstrumentFrame
 
     int activeVoices = 0;
     int polyphony = 0;
+
+    /** The rate the engine is prepared at, or zero before it has been.
+
+        Not sampled from the audio thread like everything above it — it is a
+        property of the preparation rather than of what is being played — but it
+        travels with the frame because the interface needs it for the same reason
+        the DSP does: a filter response is a different shape at a different rate.
+    */
+    double sampleRate = 0.0;
 };
 
 /** Reads the hub into a frame.

@@ -31,6 +31,7 @@ import {
     CompressorEffect,
     DelayEffect,
     Distortion,
+    EqualiserEffect,
     GateEffect,
     Rack,
     ReverbEffect,
@@ -337,10 +338,10 @@ export function App(): JSX.Element {
 
                         {/*
                             The effects sit in a pair rank, so they fill the row
-                            two at a time as 8b to 8e add them. With one built
-                            that is a full-width panel, which is also what keeps
-                            its controls on one line at the narrowest window the
-                            instrument is usable in.
+                            two at a time. With five of them that is two full
+                            rows and one panel on a third, which is also what
+                            keeps their controls on one line at the narrowest
+                            window the instrument is usable in.
                         */}
                         <div className="rank rank--pair">
                             <Distortion />
@@ -349,6 +350,14 @@ export function App(): JSX.Element {
                             <GateEffect />
                             <CompressorEffect />
                         </div>
+
+                        {/*
+                            The equaliser is on its own row because it is the one
+                            effect that is a picture as well as a set of
+                            controls, and a response curve squeezed into half a
+                            row would be a curve nobody could read a notch off.
+                        */}
+                        <div className="rank rank--wide"><EqualiserEffect /></div>
 
                         <div className="rank rank--compact">
                             <Output />

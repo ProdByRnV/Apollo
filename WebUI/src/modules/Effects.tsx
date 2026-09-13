@@ -14,12 +14,25 @@
     when it becomes relevant is a control you have to find twice.
 */
 
+import { useState } from 'react';
+
+import { EqCurve } from '../components/EqCurve';
 import { Knob } from '../components/Knob';
-import { Module } from '../components/Module';
+import { Module, Tabs } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Select } from '../components/Select';
+import { gesture } from '../bridge/bridge';
+import { EQ_BAND_COUNT, EQ_FALLBACK_SAMPLE_RATE, eqTypeHasGain } from '../params/eqCurve';
+import type { BandSettings } from '../params/eqCurve';
 import { LABELS } from '../params/labels';
-import { plainOf, useParameterValue } from '../state/parameters';
+import { toNormalized } from '../params/mapping';
+import {
+    commitValue,
+    definitionOf,
+    plainOf,
+    useParameterValue,
+} from '../state/parameters';
+import { useSampleRate } from '../state/telemetry';
 
 export const RACK_SLOT_COUNT = 6;
 
@@ -29,13 +42,16 @@ export const EFFECT_DELAY = 2;
 export const EFFECT_REVERB = 3;
 export const EFFECT_GATE = 4;
 export const EFFECT_COMPRESSOR = 5;
+export const EFFECT_EQUALISER = 6;
 
 /** The effects that exist in this build, matching dsp::EffectsRack::isImplemented.
 
     A slot naming anything else resolves to empty in the engine, so it must read
     as empty here too: lighting a slot that the rack is going to ignore would be
     the interface telling the user something the instrument does not agree with.
-    Each of 8b to 8e adds its effect to this list as it lands.
+    With 8e landed this is every effect the rack knows about, and the list is
+    kept rather than replaced by a range: the next effect to be added will need
+    it again.
 */
 const IMPLEMENTED_EFFECTS: readonly number[] = [
     EFFECT_DISTORTION,
@@ -43,6 +59,7 @@ const IMPLEMENTED_EFFECTS: readonly number[] = [
     EFFECT_REVERB,
     EFFECT_GATE,
     EFFECT_COMPRESSOR,
+    EFFECT_EQUALISER,
 ];
 
 export const RACK_PARAMETER_IDS: string[] = Array.from(
@@ -236,6 +253,183 @@ export function CompressorEffect(): JSX.Element {
             <Knob id="fx_compressor_release" label="Release" />
             <Knob id="fx_compressor_makeup" label="Makeup" />
             <Knob id="fx_compressor_mix" label="Mix" />
+        </Module>
+    );
+}
+
+/*
+    The equaliser.
+
+    Seven bands is forty-two controls, which is more than the rest of the rack
+    put together and far more than a panel can show at once. So the panel shows
+    the *curve* — all seven bands at once, as the shape they make — and one
+    band's controls at a time behind a tab strip, which is the arrangement the
+    reference uses and the same one the envelopes and LFOs already use here.
+
+    The band on screen and the band selected on the curve are the same band:
+    clicking a handle moves the tab strip, and moving the tab strip changes which
+    handle is filled. Two ways of selecting that disagreed would be worse than
+    either alone.
+*/
+
+const BAND_INDICES = Array.from({ length: EQ_BAND_COUNT }, (_, index) => index + 1);
+
+/** Reads one band's six parameters and subscribes to each.
+
+    Hooks in a loop, which is allowed here for the same reason it is in
+    `useInChain`: the number of bands is a compile-time constant, so every render
+    calls the same hooks in the same order.
+*/
+function useBand(index: number): BandSettings {
+    const prefix = `fx_eq_band${index}_`;
+
+    useParameterValue(`${prefix}type`);
+    useParameterValue(`${prefix}freq`);
+    useParameterValue(`${prefix}gain`);
+    useParameterValue(`${prefix}bandwidth`);
+    useParameterValue(`${prefix}order`);
+    useParameterValue(`${prefix}mute`);
+
+    return {
+        type: Math.round(plainOf(`${prefix}type`)),
+        frequencyHz: plainOf(`${prefix}freq`),
+        gainDb: plainOf(`${prefix}gain`),
+        bandwidthOctaves: plainOf(`${prefix}bandwidth`),
+        order: Math.round(plainOf(`${prefix}order`)),
+        muted: plainOf(`${prefix}mute`) >= 0.5,
+    };
+}
+
+/** Writes a plain value to a parameter, converting through its own metadata.
+
+    Nothing here knows a range: the definition the engine sent is what turns
+    hertz or decibels into the normalised value the bridge carries (UI_BINDINGS
+    §16). A parameter the engine has not described is left alone rather than
+    guessed at.
+*/
+function commitPlain(id: string, plain: number): void {
+    const definition = definitionOf(id);
+    if (!definition) return;
+
+    commitValue(id, toNormalized(definition, plain));
+}
+
+export function EqualiserEffect(): JSX.Element {
+    const placed = useInChain(EFFECT_EQUALISER);
+    const [selected, setSelected] = useState(0);
+
+    // One entry per band, in order. The hook count is fixed by the constant, so
+    // this loop is as stable as writing the seven calls out.
+    const bands = BAND_INDICES.map((index) => useBand(index));
+
+    useParameterValue('fx_eq_level');
+    const levelDb = plainOf('fx_eq_level');
+
+    // Before the first instrument frame there is no rate to draw at. Falling
+    // back keeps the curve on screen from the moment the page loads; the real
+    // rate arrives within a frame or two and redraws it.
+    const reported = useSampleRate();
+    const sampleRate = reported > 0 ? reported : EQ_FALLBACK_SAMPLE_RATE;
+
+    const onDrag = (index: number, frequencyHz: number, gainDb: number | undefined): void => {
+        const prefix = `fx_eq_band${index + 1}_`;
+
+        commitPlain(`${prefix}freq`, frequencyHz);
+
+        // Undefined for the four shapes with no gain, so dragging a low pass up
+        // the screen moves its frequency and nothing else — rather than writing
+        // a gain the engine is going to ignore and the curve is not going to
+        // show, which would look like a broken control.
+        if (gainDb !== undefined) commitPlain(`${prefix}gain`, gainDb);
+    };
+
+    // The drag is bracketed as one automation gesture per parameter, the same as
+    // a knob's, so a host records one move rather than a few hundred writes.
+    const onGrab = (index: number): void => {
+        setSelected(index);
+
+        const prefix = `fx_eq_band${index + 1}_`;
+        gesture(`${prefix}freq`, 'begin');
+
+        if (eqTypeHasGain(bands[index]?.type ?? 0)) gesture(`${prefix}gain`, 'begin');
+    };
+
+    const onDragEnd = (index: number): void => {
+        const prefix = `fx_eq_band${index + 1}_`;
+        gesture(`${prefix}freq`, 'end');
+
+        if (eqTypeHasGain(bands[index]?.type ?? 0)) gesture(`${prefix}gain`, 'end');
+    };
+
+    return (
+        <Module
+            title="Equaliser"
+            index={String(selected + 1)}
+            inactive={!placed}
+            head={(
+                <Tabs
+                    count={EQ_BAND_COUNT}
+                    prefix=""
+                    selected={selected}
+                    onSelect={setSelected}
+                />
+            )}
+        >
+            <div className="cluster cluster--banner">
+                <EqCurve
+                    bands={bands}
+                    levelDb={levelDb}
+                    sampleRate={sampleRate}
+                    selected={selected}
+                    onGrab={onGrab}
+                    onDrag={onDrag}
+                    onDragEnd={onDragEnd}
+                />
+            </div>
+
+            {BAND_INDICES.map((index) => {
+                const prefix = `fx_eq_band${index}_`;
+
+                return (
+                    <div key={index} className="cluster" hidden={index !== selected + 1}>
+                        <div className="cluster cluster--banner">
+                            <div className="cluster">
+                                <Segmented
+                                    id={`${prefix}type`}
+                                    label="Shape"
+                                    table={LABELS.fx_eq_band_type}
+                                />
+                                <Segmented
+                                    id={`${prefix}order`}
+                                    label="Slope"
+                                    table={LABELS.fx_eq_band_order}
+                                />
+                                <Segmented
+                                    id={`${prefix}mute`}
+                                    label="In Circuit"
+                                    table={LABELS.fx_eq_band_mute}
+                                />
+                            </div>
+                        </div>
+
+                        <Knob id={`${prefix}freq`} label="Frequency" />
+                        <Knob id={`${prefix}gain`} label="Gain" />
+                        <Knob id={`${prefix}bandwidth`} label="Width" />
+                    </div>
+                );
+            })}
+
+            {/*
+                The two controls that belong to the whole equaliser rather than
+                to a band, kept outside the tab pages so they do not appear to
+                be band 1's.
+            */}
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Segmented id="fx_eq_bypass" label="State" table={LABELS.fx_eq_bypass} />
+                    <Knob id="fx_eq_level" label="Level" />
+                </div>
+            </div>
         </Module>
     );
 }

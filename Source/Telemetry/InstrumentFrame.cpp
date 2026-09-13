@@ -37,6 +37,7 @@ bool buildInstrumentFrame (const TelemetryHub& hub, InstrumentFrame& frame)
 
     frame.activeVoices = instrument.activeVoices.load (std::memory_order_relaxed);
     frame.polyphony = instrument.polyphony.load (std::memory_order_relaxed);
+    frame.sampleRate = hub.getSampleRate();
 
     for (std::size_t i = 0; i < wavetableDisplayCount; ++i)
     {

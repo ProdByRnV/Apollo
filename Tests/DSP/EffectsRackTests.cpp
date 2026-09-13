@@ -86,7 +86,7 @@ public:
     void runTest() override
     {
         testEmptyRackIsTransparent();
-        testUnimplementedEffectsLeaveTheSlotEmpty();
+        testEveryNamedEffectExists();
         testDuplicatesResolveToTheFirst();
         testPositionInTheChainDoesNotChangeTheSound();
         testOrderBetweenTwoEffectsIsAudible();
@@ -119,22 +119,40 @@ private:
         expectEquals (rack.getTailSeconds(), 0.0, "an empty rack has no tail");
     }
 
-    void testUnimplementedEffectsLeaveTheSlotEmpty()
+    void testEveryNamedEffectExists()
     {
-        beginTest ("an effect whose phase has not landed leaves its slot empty");
+        beginTest ("every effect the enum names is in the build, and empty is the only empty");
 
         EffectsRack rack;
         rack.prepare (testSampleRate, blockSize);
 
-        for (const auto type : { EffectType::equaliser })
+        // Until 8e this test asserted the opposite — that selecting an effect
+        // whose phase had not landed resolved to an empty slot — and every phase
+        // from 8a onwards shortened its list. The equaliser was the last name on
+        // it, so the assertion now inverts: the rack is complete, and the only
+        // value that resolves to nothing is the one that means nothing.
+        for (auto value = 1; value < effectTypeCount; ++value)
         {
+            const auto type = static_cast<EffectType> (value);
+
+            expect (EffectsRack::isImplemented (type),
+                    "every effect the automation contract can name must exist");
+
             rack.setChain (chainWith (1, type));
 
-            expect (rack.getChain()[0].effect == EffectType::none,
-                    "selecting an effect that does not exist yet must resolve to empty");
-            expectEquals (rack.getLatencySamples(), 0,
-                          "an empty slot cannot contribute latency");
+            expect (rack.getChain()[0].effect == type,
+                    "an implemented effect must survive being put in a slot");
         }
+
+        expect (! EffectsRack::isImplemented (EffectType::none),
+                "the empty slot is not an effect");
+
+        rack.setChain (chainWith (1, EffectType::none));
+
+        expect (rack.getChain()[0].effect == EffectType::none,
+                "an empty slot stays empty");
+        expectEquals (rack.getLatencySamples(), 0,
+                      "an empty slot cannot contribute latency");
     }
 
     void testDuplicatesResolveToTheFirst()

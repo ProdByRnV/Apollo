@@ -2167,3 +2167,129 @@ says why that line must not be written twice.
 **Given up:** a soft knee, peak detection on the compressor, sidechain input and
 external sidechain routing — all four are listed as future work in PRD §23 and
 none of them changes the structure above.
+
+---
+
+## ADR-0059 — The equaliser has seven bands, is built on biquads, and draws its own curve
+
+**Phase 8e · Accepted**
+
+**Seven bands, not four.** CLAUDE.md §22 and PRD §22 both asked for a four-band
+parametric equaliser. The developer subsequently asked for the equivalent of
+Fruity Parametric EQ 2, which has seven, and the later requirement governs
+(CLAUDE.md §42). The specification documents were corrected rather than left to
+disagree with the code, the way §24.1 was when the accent colour changed.
+
+The difference is not cosmetic. Four bands force a choice between a high pass, a
+low shelf, a midrange cut and an air shelf; anyone mixing wants all four *and*
+somewhere to notch a resonance they have just found. Seven is also where the
+reference sits, and matching a reference means matching the thing people reach
+for it to do.
+
+All forty-four parameters — a bypass, an output trim and six per band — arrive at
+once, because they have to. A band added in a later phase could not be given a
+number without renumbering the bands after it, and a parameter ID is permanent
+once it has shipped in a preset or an automation lane
+(Docs/PARAMETER-CONVENTIONS.md §1). This is the same reasoning that made the
+rack's slot range cover all six effects from the start (ADR-0054).
+
+**A biquad, where the voice filter is deliberately not one.**
+`StateVariableFilter.h` argues at length that a biquad is wrong for a
+synthesiser's filter: its delay-free feedback path is only correct for the
+coefficients it was built with, and a synthesiser sweeps its cutoff constantly.
+An equaliser is the opposite case. Its bands sit still — set once, nudged
+occasionally, automated slowly if at all — and in exchange the biquad gives the
+one thing the TPT form does not: the named, standard, universally agreed response
+shapes. A +6 dB bell one octave wide means one specific curve, every equaliser in
+the world draws that curve, and the RBJ Audio EQ Cookbook is where its
+coefficients come from. The reference is RBJ too.
+
+Double precision, deliberately. A narrow band low in the spectrum at a high
+sample rate puts the poles very close to the unit circle, where single-precision
+coefficients quantise the pole position audibly and single-precision state
+accumulates noise in the feedback path. The cost is a few multiplies per sample
+on the master bus; the return is a filter that behaves the same at 192 kHz as at
+44.1. Every design in the whole parameter space is tested for both poles inside
+the unit circle, which is what "validate filter stability" means as something
+that passes rather than something asserted.
+
+**The bilinear warp is real and is not compensated.** The transform compresses
+the frequency axis towards Nyquist, so a band asked for at 18 kHz at 44.1 kHz
+lands slightly below it with its shape slightly squeezed. Pre-warping the centre
+would fix the centre and leave the shape squeezed — one visible error traded for
+a subtler one. Every equaliser that quotes RBJ behaves this way, and matching
+that is the point. What *is* guaranteed is that the frequency is clamped below
+Nyquist before any trigonometry, so no setting can produce an unstable design.
+
+**Slope is instances, and the gain multiplies with it.** The reference describes
+its slope control as the number of instances of the filter, so that is what it
+is: order N is N identical sections in series. For a pass filter that is 12 dB
+per octave per instance, giving 12, 24, 36 and 48. For a bell or a shelf it means
+the gain applies N times over, so a +6 dB bell at order 3 is +18 dB at its
+centre.
+
+That consequence is deliberate and is not a bug to be normalised away. An
+equaliser that quietly divided the gain to compensate would be an equaliser whose
+displayed gain is not its gain. The roadmap asks for *predictable* gain behaviour,
+not constant gain behaviour, and predictable is what a stated rule gives.
+
+**Bandwidth rather than Q**, because it is the half of that pair a musician can
+hear: one octave is one octave wherever the band sits, whereas the Q that
+produces it is a different number at 50 Hz than at 5 kHz. The cookbook's own
+relation reconciles them.
+
+**A transparent band is skipped, not processed.** A band that is off, muted, or a
+gain shape sitting at exactly 0 dB is mathematically the identity — at 0 dB the
+cookbook's numerator becomes its denominator term for term — so it is bypassed
+entirely. A freshly placed equaliser is therefore bit-transparent and costs
+almost nothing: measured at 0.037 % of a core against an empty rack's 0.035 %.
+Seven bands actually dialled in cost 0.35 % at one instance and 0.48 % at four —
+four times the sections for a third more time, because a biquad's state update
+waits on the previous sample's and the extra sections fill execution slots that
+were idle rather than queueing behind them.
+
+A band coming back into circuit starts its sections from silence. Letting a
+skipped band's old memory back in pours seconds-old audio into the signal, which
+is the bug the reverb's bypass had in 8c.
+
+**Smoothing is per block, in the units the ear uses.** Frequency is smoothed in
+the log domain and gain in decibels, so a swept band travels evenly rather than
+rushing through the bottom of its range. Coefficients are never interpolated —
+only the settings they are designed from are — because an interpolated
+coefficient set is not necessarily a stable filter, while a filter designed from
+an intermediate frequency always is. The step happens once per block because
+redesigning a biquad costs trigonometry and a block is a few milliseconds.
+
+**The interface draws the curve, and this is the one place the page holds DSP
+arithmetic.** Everything else on Apollo's page is built from metadata and draws
+what the engine sent it. A response curve cannot be: it is a continuous function
+of frequency, and sending it as points would mean the engine redrawing and
+re-serialising a hundred and sixty values every time a knob moves, for a picture
+that depends on nothing the page does not already have. So
+`WebUI/src/params/eqCurve.ts` transcribes the cookbook, and
+`Tests/DSP/EqualiserTests.cpp` pins the exact decibels a table of reference
+settings must produce — the numbers in that table were produced by the TypeScript
+and are asserted against the C++, so the two were equal when they were written.
+
+That is also why the instrument frame now carries the engine's sample rate. The
+curve is designed with the same bilinear transform the filter is, and the same
++6 dB shelf at 15 kHz reads 5.60 dB at 20 kHz at 44.1 kHz and 6.62 dB at 96 kHz.
+Drawing at an assumed rate would put a picture on screen that the sound does not
+agree with, which is the one thing an equaliser display must not do.
+
+**The curve is a control as well as a display**, and it is the only one on the
+page that is both. An equaliser's settings *are* a shape, so dragging a bell to
+where it should sit is the gesture; reading a frequency off a knob to type it in
+is the long way round. The knobs remain, still built from metadata, still the way
+to set an exact value and the way to reach the control from a keyboard — the
+handles are the fast path, not the only one, which is why they are not given
+seven more tab stops that would duplicate twenty-one controls.
+
+**Given up:** a linear-phase mode, which the reference also offers and which is
+an FFT and a latency budget rather than a variation on this; per-band solo; a
+spectrum analyser behind the curve, which PRD and ROADMAP both already mark
+optional; and reorderable bands, which would be a control that changes nothing —
+a cascade of minimum-phase filters commutes, so bands 3 and 5 sound the same
+whichever runs first. What the fixed numbering buys instead is a stable identity
+for automation and for the display: band 4 is band 4 in every preset ever
+written.

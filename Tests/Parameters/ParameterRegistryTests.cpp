@@ -64,10 +64,18 @@ using namespace apollo::params;
 // alone because it is what stops a gate chattering, and a compressor has no
 // equivalent problem to solve.
 //
+// Phase 8e added forty-four for the parametric equaliser: a bypass, an output
+// trim, and six for each of seven bands — type, frequency, gain, bandwidth,
+// slope and mute. Seven rather than the four CLAUDE.md §22 originally asked for,
+// because the developer asked for parity with Fruity Parametric EQ 2 and the
+// later requirement governs (CLAUDE.md §42, ADR-0059). All forty-four arrive at
+// once by necessity: a band added afterwards could not be numbered without
+// renumbering the bands after it, and a parameter ID is permanent.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 183, "the registry has a hundred and eighty-three parameters");
+static_assert (parameterCount() == 227, "the registry has two hundred and twenty-seven parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

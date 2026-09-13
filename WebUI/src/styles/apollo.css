@@ -1144,6 +1144,60 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 }
 
 /* ==========================================================================
+   EQUALISER RESPONSE CURVE
+
+   The one display on the page that is also a control, so it is the one that
+   takes the full width of its module rather than sitting beside knobs at a
+   fixed size: a notch drawn 200 px wide is a notch nobody can place.
+   ========================================================================== */
+
+.eq-curve {
+    --wave-line: var(--accent-bright);
+    --scope-grid: var(--display-grid);
+
+    /* Stretched to the module rather than sized like the scopes, which are
+       control-sized because they sit beside knobs. This one is the panel: a
+       notch drawn two hundred pixels wide is a notch nobody can place. The
+       banner it sits in lays its children out in a column and aligns them to
+       the start, so the width has to be asked for explicitly. */
+    width: 100%;
+    align-self: stretch;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.eq-curve__canvas {
+    display: block;
+    width: 100%;
+    background: var(--display-ground);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+
+    /* A handle is grabbed rather than a value dragged, so the cursor says so
+       over the whole box rather than only over the five pixels of a dot. */
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.eq-curve__caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.eq-curve__axis {
+    opacity: 0.6;
+}
+
+/* ==========================================================================
    OUTPUT METER
 
    Two bars that grow upward, with RMS behind peak rather than beside it: they

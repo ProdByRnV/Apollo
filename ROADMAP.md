@@ -575,9 +575,9 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### EQ
 
-- [ ] Implement EQ architecture.
-- [ ] Validate filter stability.
-- [ ] Provide predictable gain behavior.
+- [x] Implement EQ architecture. — seven RBJ biquad bands in series, in double precision, each with a type, a frequency, a gain, a bandwidth in octaves, a slope and a mute, plus an output trim. Seven rather than four because the developer asked for parity with Fruity Parametric EQ 2 and the later requirement governs (ADR-0059) (8e)
+- [x] Validate filter stability. — every design in the whole parameter space, at four sample rates, has both poles inside the unit circle; the frequency is clamped below Nyquist before any trigonometry, so no setting a parameter can express can produce an unstable one (8e)
+- [x] Provide predictable gain behavior. — a bell applies exactly the decibels on its dial at its own centre, a shelf reaches its full gain on its own side and nothing on the other, and a slope of N applies the gain N times over rather than being silently normalised: predictable, which is what was asked for, rather than constant (8e)
 
 ### FX rack
 
@@ -587,7 +587,7 @@ Implement Apollo's modular, reorderable effects architecture.
 - [x] Implement state serialization. — the chain is parameters, so it saves and restores with everything else; covered in `Tests/Audio/EffectsIntegrationTests.cpp` (8a)
 - [x] Implement latency reporting where relevant. — summed over the chain, published to the host from the message thread when it changes (8a)
 - [x] Implement tail reporting where relevant. — the longest tail in the active chain, added to the envelope's release (8a)
-- [ ] Test arbitrary valid effect orderings. — the machinery is tested in 8a; ordering between two effects becomes testable in 8b, and the whole chain in 8f
+- [ ] Test arbitrary valid effect orderings. — the machinery is tested in 8a and ordering between two effects in 8b; the whole chain, with all six effects in it, is 8f
 
 ## Exit Criteria
 

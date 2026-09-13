@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 183> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 227> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1329,6 +1329,307 @@ inline constexpr std::array<ParameterDefinition, 183> parameterDefinitions { {
       // Places 250 ms near the centre of the control's travel.
       0.3327f, 0.0f,
       true, true, true },
+
+    // Parametric equaliser (Phase 8e) ---------------------------------------
+    //
+    // Seven bands, matching Fruity Parametric EQ 2, which the developer asked
+    // Apollo's equaliser to be the equivalent of. CLAUDE.md §22 originally
+    // specified four; the later requirement governs (CLAUDE.md §42, ADR-0059).
+    //
+    // Six parameters per band, and every one of them automatable, because an
+    // equaliser move is a mix move: a filter sweep, a notch that follows a
+    // resonance, a shelf that opens at the chorus. That is 42 parameters plus a
+    // bypass and an output trim, which is a large number of IDs to commit to at
+    // once — and committing to them at once is precisely the point, since a
+    // band added later could not be given a number without renumbering the ones
+    // after it (Docs/PARAMETER-CONVENTIONS.md §1).
+    { "fx_eq_bypass", "EQ Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // The reference's main fader: somewhere to give back the gain a boost took,
+    // without reaching for the master and moving everything downstream of the
+    // rack with it. Drawn to the same ±18 dB the bands are, so one scale reads
+    // the whole effect.
+    { "fx_eq_level", "EQ Level",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Per band, in `EqualiserBand::Settings` order:
+    //
+    //   type       0 off, then dsp::EqualiserBand::Type in order. Defaults to 6,
+    //              a peaking bell, which at 0 dB is the exact identity — so a
+    //              freshly placed equaliser is transparent and costs nothing.
+    //   freq       20 Hz to 20 kHz, skewed so that the geometric centre of that
+    //              range sits at the centre of the control's travel. The seven
+    //              defaults are spaced evenly along the same logarithm, which is
+    //              what spreads the bands across the display rather than piling
+    //              them into the middle.
+    //   gain       ±18 dB, the scale the reference's fader is labelled to.
+    //              Ignored by the four shapes that have no gain.
+    //   bandwidth  octaves rather than Q, because octaves are the half of that
+    //              pair a musician can hear and because wider being a larger
+    //              number is the direction the reference's control moves.
+    //   order      instances of the shape in series: 12, 24, 36 or 48 dB per
+    //              octave for a pass filter, and that many times the gain for a
+    //              bell or a shelf.
+    //   mute       takes the band out without losing where it was.
+
+    { "fx_eq_band1_type", "EQ Band 1 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band1_freq", "EQ Band 1 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 47.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band1_gain", "EQ Band 1 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band1_bandwidth", "EQ Band 1 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band1_order", "EQ Band 1 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band1_mute", "EQ Band 1 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band2_type", "EQ Band 2 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band2_freq", "EQ Band 2 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 112.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band2_gain", "EQ Band 2 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band2_bandwidth", "EQ Band 2 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band2_order", "EQ Band 2 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band2_mute", "EQ Band 2 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band3_type", "EQ Band 3 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band3_freq", "EQ Band 3 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 267.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band3_gain", "EQ Band 3 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band3_bandwidth", "EQ Band 3 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band3_order", "EQ Band 3 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band3_mute", "EQ Band 3 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band4_type", "EQ Band 4 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band4_freq", "EQ Band 4 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 632.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band4_gain", "EQ Band 4 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band4_bandwidth", "EQ Band 4 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band4_order", "EQ Band 4 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band4_mute", "EQ Band 4 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band5_type", "EQ Band 5 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band5_freq", "EQ Band 5 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 1500.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band5_gain", "EQ Band 5 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band5_bandwidth", "EQ Band 5 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band5_order", "EQ Band 5 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band5_mute", "EQ Band 5 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band6_type", "EQ Band 6 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band6_freq", "EQ Band 6 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 3550.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band6_gain", "EQ Band 6 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band6_bandwidth", "EQ Band 6 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band6_order", "EQ Band 6 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band6_mute", "EQ Band 6 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band7_type", "EQ Band 7 Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 7.0f, 6.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band7_freq", "EQ Band 7 Frequency",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 20000.0f, 8430.0f,
+      0.1989f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band7_gain", "EQ Band 7 Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -18.0f, 18.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band7_bandwidth", "EQ Band 7 Bandwidth",
+      ParameterType::floatingPoint, ParameterUnit::octaves,
+      0.05f, 6.0f, 1.0f,
+      0.3778f, 0.0f,
+      true, false, true },
+
+    { "fx_eq_band7_order", "EQ Band 7 Slope",
+      ParameterType::integer, ParameterUnit::none,
+      1.0f, 4.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_eq_band7_mute", "EQ Band 7 Mute",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
 
     // MIDI expression --------------------------------------------------------
     //

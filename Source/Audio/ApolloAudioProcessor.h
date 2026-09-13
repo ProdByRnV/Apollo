@@ -412,6 +412,28 @@ private:
         std::atomic<float>* compressorMakeup = nullptr;
         std::atomic<float>* compressorMix = nullptr;
 
+        /** One equaliser band's six controls.
+
+            An array of these rather than forty-two named members: the bands are
+            identical to each other and are indexed, not chosen, so naming them
+            individually would add forty-two lines and no information.
+        */
+        struct EqualiserBandPointers
+        {
+            std::atomic<float>* type = nullptr;
+            std::atomic<float>* frequency = nullptr;
+            std::atomic<float>* gain = nullptr;
+            std::atomic<float>* bandwidth = nullptr;
+            std::atomic<float>* order = nullptr;
+            std::atomic<float>* mute = nullptr;
+        };
+
+        std::atomic<float>* eqBypass = nullptr;
+        std::atomic<float>* eqLevel = nullptr;
+
+        std::array<EqualiserBandPointers,
+                   static_cast<std::size_t> (dsp::Equaliser::bandCount)> eqBands {};
+
         void resolve (juce::AudioProcessorValueTreeState& state);
     };
 

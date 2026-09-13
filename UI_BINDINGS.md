@@ -253,6 +253,50 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_compressor_release` | Rotary Knob | `5–2000 ms` | `120` | 8d | Time to let the gain back up |
 | `fx_compressor_makeup` | Rotary Knob | `-12–24 dB` | `0` | 8d | Applied after compression; deliberately not automatic |
 | `fx_compressor_mix` | Rotary Knob | Normalized `[0, 1]` | `1` | 8d | Below 1 this is parallel compression |
+| `fx_eq_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8e | Switched out of circuit; the bands keep their settings |
+| `fx_eq_level` | Rotary Knob | `-18–18 dB` | `0` | 8e | Output trim, applied after every band — somewhere to give back the gain a boost took |
+| `fx_eq_band1_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band1_freq` | Rotary Knob | `20–20000 Hz` | `47` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band1_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band1_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band1_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band1_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band2_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band2_freq` | Rotary Knob | `20–20000 Hz` | `112` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band2_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band2_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band2_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band2_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band3_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band3_freq` | Rotary Knob | `20–20000 Hz` | `267` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band3_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band3_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band3_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band3_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band4_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band4_freq` | Rotary Knob | `20–20000 Hz` | `632` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band4_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band4_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band4_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band4_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band5_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band5_freq` | Rotary Knob | `20–20000 Hz` | `1500` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band5_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band5_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band5_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band5_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band6_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band6_freq` | Rotary Knob | `20–20000 Hz` | `3550` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band6_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band6_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band6_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band6_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
+| `fx_eq_band7_type` | Segmented | Discrete `[0, 7]` | `6` | 8e | 0 off, then `dsp::EqualiserBand::Type`: LP, BP, HP, notch, low shelf, bell, high shelf. Defaults to a bell, which at 0 dB is the exact identity |
+| `fx_eq_band7_freq` | Rotary Knob | `20–20000 Hz` | `8430` | 8e | Centre frequency. The seven defaults are spaced evenly along the logarithm, so the bands start spread across the display |
+| `fx_eq_band7_gain` | Rotary Knob | `-18–18 dB` | `0` | 8e | Boost or cut. Ignored by the four shapes that have no gain |
+| `fx_eq_band7_bandwidth` | Rotary Knob | `0.05–6 octaves` | `1` | 8e | Width of the band. The quantity a Q describes, in the unit a musician can hear |
+| `fx_eq_band7_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
+| `fx_eq_band7_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.
@@ -691,9 +735,21 @@ run off the same timer, so they can never drift apart.
   "meter": { "active": true, "peak": [0.0512, 0.0498],
              "rms": [0.0311, 0.0305], "clipped": false },
   "voices": 1,
-  "polyphony": 16
+  "polyphony": 16,
+  "sampleRate": 48000
 }
 ```
+
+**Sample rate.** The rate the engine is prepared at, as a whole number, or 0
+before it has been prepared. It rides on this message rather than on the state
+snapshot because it is not a parameter: nothing can set it and it does not belong
+to a patch.
+
+The interface needs it because the equaliser draws its own response curve, and
+that curve is designed with the same bilinear transform the filter is. The same
++6 dB shelf at 15 kHz reads 5.60 dB at 20 kHz at 44.1 kHz and 6.62 dB at 96 kHz —
+so a curve drawn at an assumed rate would be a picture the sound does not agree
+with (ADR-0059).
 
 **Modulators.** `source` is a stable token — `env1`-`env4`, `lfo1`-`lfo4`. A
 modulator nothing has traced is omitted entirely, exactly as an uncaptured scope

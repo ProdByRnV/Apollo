@@ -632,6 +632,10 @@ juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame
     object->setProperty ("voices", frame.activeVoices);
     object->setProperty ("polyphony", frame.polyphony);
 
+    // Sent as a whole number. Every rate a device offers is one, and rounding
+    // here keeps a rate out of the JSON in sixteen decimal places.
+    object->setProperty ("sampleRate", static_cast<int> (std::lround (frame.sampleRate)));
+
     return juce::JSON::toString (juce::var (object), oneLine);
 }
 

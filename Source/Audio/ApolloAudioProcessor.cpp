@@ -129,6 +129,31 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     compressorMakeup = state.getRawParameterValue ("fx_compressor_makeup");
     compressorMix = state.getRawParameterValue ("fx_compressor_mix");
 
+    eqBypass = state.getRawParameterValue ("fx_eq_bypass");
+    eqLevel = state.getRawParameterValue ("fx_eq_level");
+
+    // Forty-two pointers resolved in a loop rather than written out forty-two
+    // times. The string building happens here, once, on the message thread; the
+    // audio thread only ever dereferences what this leaves behind.
+    for (std::size_t band = 0; band < eqBands.size(); ++band)
+    {
+        const auto prefix = "fx_eq_band" + juce::String (band + 1) + "_";
+        auto& pointers = eqBands[band];
+
+        pointers.type = state.getRawParameterValue (prefix + "type");
+        pointers.frequency = state.getRawParameterValue (prefix + "freq");
+        pointers.gain = state.getRawParameterValue (prefix + "gain");
+        pointers.bandwidth = state.getRawParameterValue (prefix + "bandwidth");
+        pointers.order = state.getRawParameterValue (prefix + "order");
+        pointers.mute = state.getRawParameterValue (prefix + "mute");
+
+        jassert (pointers.type != nullptr && pointers.frequency != nullptr
+                 && pointers.gain != nullptr && pointers.bandwidth != nullptr
+                 && pointers.order != nullptr && pointers.mute != nullptr);
+    }
+
+    jassert (eqBypass != nullptr && eqLevel != nullptr);
+
     jassert (distortionBypass != nullptr && distortionMode != nullptr
              && distortionDrive != nullptr && distortionTone != nullptr
              && distortionMix != nullptr && distortionOutput != nullptr);
@@ -552,6 +577,9 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
             case dsp::EffectType::compressor:
                 return readParameter (effectParameters.compressorBypass, 0.0f) >= 0.5f;
 
+            case dsp::EffectType::equaliser:
+                return readParameter (effectParameters.eqBypass, 0.0f) >= 0.5f;
+
             default:
                 return false;
         }
@@ -643,6 +671,42 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     compressor.mix = readParameter (effectParameters.compressorMix, 1.0f);
 
     effects.compressor().setSettings (compressor);
+
+    dsp::Equaliser::Settings equaliser;
+
+    equaliser.levelDb = readParameter (effectParameters.eqLevel, 0.0f);
+
+    for (std::size_t band = 0; band < equaliser.bands.size(); ++band)
+    {
+        const auto& pointers = effectParameters.eqBands[band];
+        auto& settings = equaliser.bands[band];
+
+        // Clamped rather than cast blindly, for the reason the slot selector is:
+        // the value indexes an enum, and a corrupt preset must not be able to
+        // name a shape that does not exist.
+        const auto type = static_cast<int> (readParameter (pointers.type, 6.0f));
+        const auto lastType = dsp::EqualiserBand::typeCount - 1;
+
+        settings.type = static_cast<dsp::EqualiserBand::Type> (
+            type < 0 ? 0 : (type > lastType ? lastType : type));
+
+        settings.frequencyHz = readParameter (pointers.frequency,
+                                              dsp::Equaliser::defaultFrequencies[band]);
+        settings.gainDb = readParameter (pointers.gain, 0.0f);
+        settings.bandwidthOctaves = readParameter (pointers.bandwidth, 1.0f);
+
+        // The band clamps this too, but doing it here as well keeps the settings
+        // the interface reads back identical to the ones the DSP acted on.
+        const auto order = static_cast<int> (readParameter (pointers.order, 1.0f));
+
+        settings.order = order < 1 ? 1
+                       : (order > dsp::EqualiserBand::maxOrder ? dsp::EqualiserBand::maxOrder
+                                                               : order);
+
+        settings.muted = readParameter (pointers.mute, 0.0f) >= 0.5f;
+    }
+
+    effects.equaliser().setSettings (equaliser);
 
     // Latency is a property of which effects are in the chain, so it moves only
     // when the user rearranges the rack. In the steady state this is a load and

@@ -458,6 +458,15 @@ private:
 
         expectEquals (object->getProperty ("type").toString(), juce::String ("instrumentFrame"));
 
+        // The rate the engine is prepared at. The interface needs it because the
+        // equaliser's response curve is designed with the same bilinear
+        // transform the filters are, and that curve is a different shape near
+        // the top of the spectrum at 96 kHz than at 44.1 — so a curve drawn at
+        // an assumed rate would be a picture the sound does not agree with.
+        expectEquals (static_cast<int> (object->getProperty ("sampleRate")),
+                      static_cast<int> (testSampleRate),
+                      "the frame must carry the rate the engine is running at");
+
         // Every modulator, each named exactly once: the page keys its traces on
         // these tokens, so a collision would send two modulators to one canvas.
         const auto* modulators = object->getProperty ("modulators").getArray();

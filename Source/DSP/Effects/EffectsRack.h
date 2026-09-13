@@ -34,6 +34,7 @@
 #include "DSP/Distortion/Distortion.h"
 #include "DSP/Dynamics/Compressor.h"
 #include "DSP/Dynamics/NoiseGate.h"
+#include "DSP/EQ/Equaliser.h"
 #include "DSP/Effects/AudioEffect.h"
 #include "DSP/Reverb/Reverb.h"
 
@@ -142,6 +143,9 @@ public:
     [[nodiscard]] Compressor& compressor() noexcept { return compressorUnit; }
     [[nodiscard]] const Compressor& compressor() const noexcept { return compressorUnit; }
 
+    [[nodiscard]] Equaliser& equaliser() noexcept { return equaliserUnit; }
+    [[nodiscard]] const Equaliser& equaliser() const noexcept { return equaliserUnit; }
+
 private:
     /** @returns the effect an enum names, or nullptr for `none` and for
         anything not implemented yet.
@@ -156,6 +160,7 @@ private:
     Reverb reverbUnit;
     NoiseGate gateUnit;
     Compressor compressorUnit;
+    Equaliser equaliserUnit;
 
     Chain chain {};
 

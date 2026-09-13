@@ -860,15 +860,25 @@ Future support may include:
 
 # 22. Equalizer
 
-Provide a parametric 4-band EQ.
+Provide a parametric **7-band** EQ.
+
+Seven rather than the four this section previously specified. The developer asked
+for the equivalent of Fruity Parametric EQ 2, which has seven bands, and the later
+requirement governs (§42; ADR-0059). Four bands force a choice between a high
+pass, a low shelf, a midrange cut and an air shelf, when the work usually wants
+all four and somewhere to notch a resonance as well.
 
 Each band should support:
 
 - Frequency.
 - Gain.
-- Q.
+- Bandwidth, in octaves. The same quantity a Q describes, in the half of the pair
+  a musician can hear: one octave is one octave wherever the band sits, whereas
+  the Q that produces it is a different number at 50 Hz than at 5 kHz.
 - Filter type.
-- Enable/bypass.
+- Slope, as instances of the shape in series — 12, 24, 36 or 48 dB per octave for
+  a pass filter, and that many times the gain for a bell or a shelf.
+- Enable/bypass, per band and for the whole equaliser.
 
 Potential types:
 
@@ -877,6 +887,14 @@ Potential types:
 - High shelf.
 - Low-pass.
 - High-pass.
+- Band-pass.
+- Notch.
+
+The equaliser should also provide an output trim, so that gain taken by a boost
+can be given back without moving the master and everything downstream of it.
+
+The response curve should be displayed, drawn at the rate the engine is actually
+running at rather than an assumed one.
 
 ---
 

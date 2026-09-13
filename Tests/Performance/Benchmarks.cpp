@@ -417,7 +417,31 @@ void benchmarkEffects()
         { "reverb, 8-line FDN", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, false },
         { "gate, stereo-linked peak", dsp::EffectType::gate, dsp::Distortion::Mode::soft, false },
         { "compressor, stereo-linked RMS", dsp::EffectType::compressor, dsp::Distortion::Mode::soft, false },
+        { "equaliser, all bands transparent", dsp::EffectType::equaliser, dsp::Distortion::Mode::soft, false },
+        { "equaliser, 7 bands x1", dsp::EffectType::equaliser, dsp::Distortion::Mode::soft, false },
+        { "equaliser, 7 bands x4", dsp::EffectType::equaliser, dsp::Distortion::Mode::soft, false },
     };
+
+    // The three equaliser rows are the same effect with different settings
+    // rather than different effects, so they are told apart by position: the
+    // first leaves every band at its transparent default, and the other two dial
+    // all seven in at one instance and at four.
+    //
+    // The first is the row that matters most — a transparent band is skipped
+    // rather than multiplied through, so an equaliser sitting in the chain doing
+    // nothing should cost almost nothing, and this is where that is checked
+    // rather than claimed.
+    //
+    // The other two are worth having together because the difference between
+    // them is not the one you would guess. Four times the sections is nowhere
+    // near four times the cost: measured at every order in between, seven bands
+    // cost 0.35 % of a core at one instance and 0.48 % at four. A biquad's state
+    // update depends on the previous sample's, so one section per band leaves
+    // the processor waiting on that recurrence with most of its execution units
+    // idle; the extra sections fill those slots rather than queueing behind
+    // them. Raising the slope is close to free, and that is a measurement rather
+    // than a claim about the arithmetic.
+    auto equaliserCase = 0;
 
     for (const auto& testCase : cases)
     {
@@ -457,6 +481,28 @@ void benchmarkEffects()
         compressor.thresholdDb = -24.0f;
         compressor.ratio = 4.0f;
         rack.compressor().setSettings (compressor);
+
+        if (testCase.effect == dsp::EffectType::equaliser)
+        {
+            auto equaliser = dsp::Equaliser::defaultSettings();
+
+            if (equaliserCase > 0)
+            {
+                const auto order = equaliserCase == 1 ? 1 : dsp::EqualiserBand::maxOrder;
+
+                for (std::size_t band = 0; band < equaliser.bands.size(); ++band)
+                {
+                    // Alternating boost and cut, so no band is left at exactly
+                    // zero and skipped — the expensive case is the one being
+                    // measured here.
+                    equaliser.bands[band].gainDb = (band % 2 == 0) ? 6.0f : -6.0f;
+                    equaliser.bands[band].order = order;
+                }
+            }
+
+            rack.equaliser().setSettings (equaliser);
+            ++equaliserCase;
+        }
 
         std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
         std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
