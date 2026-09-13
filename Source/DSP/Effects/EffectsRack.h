@@ -32,6 +32,8 @@
 
 #include "DSP/Delay/Delay.h"
 #include "DSP/Distortion/Distortion.h"
+#include "DSP/Dynamics/Compressor.h"
+#include "DSP/Dynamics/NoiseGate.h"
 #include "DSP/Effects/AudioEffect.h"
 #include "DSP/Reverb/Reverb.h"
 
@@ -134,6 +136,12 @@ public:
     [[nodiscard]] Reverb& reverb() noexcept { return reverbUnit; }
     [[nodiscard]] const Reverb& reverb() const noexcept { return reverbUnit; }
 
+    [[nodiscard]] NoiseGate& gate() noexcept { return gateUnit; }
+    [[nodiscard]] const NoiseGate& gate() const noexcept { return gateUnit; }
+
+    [[nodiscard]] Compressor& compressor() noexcept { return compressorUnit; }
+    [[nodiscard]] const Compressor& compressor() const noexcept { return compressorUnit; }
+
 private:
     /** @returns the effect an enum names, or nullptr for `none` and for
         anything not implemented yet.
@@ -146,6 +154,8 @@ private:
     Distortion distortionUnit;
     Delay delayUnit;
     Reverb reverbUnit;
+    NoiseGate gateUnit;
+    Compressor compressorUnit;
 
     Chain chain {};
 

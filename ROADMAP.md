@@ -568,10 +568,10 @@ Implement Apollo's modular, reorderable effects architecture.
 
 ### Gate / dynamics
 
-- [ ] Implement noise gate.
-- [ ] Implement compressor.
-- [ ] Define envelope detector behavior.
-- [ ] Validate attack/release behavior.
+- [x] Implement noise gate. — threshold, attack, hold, release and range, with peak detection because a gate must not miss the transient that arrives while it is shut (8d)
+- [x] Implement compressor. — feed-forward, RMS-detected, hard knee, with threshold, ratio, attack, release, makeup and a mix control that makes it a parallel compressor (8d)
+- [x] Define envelope detector behavior. — peak for the gate and RMS for the compressor, both feeding one stereo-linked detector so neither can move the stereo image; the choice and its reasoning are in `LevelDetector.h` and ADR-0058 (8d)
+- [x] Validate attack/release behavior. — against the stated convention: the ramp travels 1 - 1/e of the way in the time it is given, measured to within a percentage point at three settings, with the detector's own lag measured separately rather than hidden inside it (8d)
 
 ### EQ
 

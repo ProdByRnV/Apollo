@@ -27,6 +27,8 @@ export const RACK_SLOT_COUNT = 6;
 export const EFFECT_DISTORTION = 1;
 export const EFFECT_DELAY = 2;
 export const EFFECT_REVERB = 3;
+export const EFFECT_GATE = 4;
+export const EFFECT_COMPRESSOR = 5;
 
 /** The effects that exist in this build, matching dsp::EffectsRack::isImplemented.
 
@@ -35,7 +37,13 @@ export const EFFECT_REVERB = 3;
     the interface telling the user something the instrument does not agree with.
     Each of 8b to 8e adds its effect to this list as it lands.
 */
-const IMPLEMENTED_EFFECTS: readonly number[] = [EFFECT_DISTORTION, EFFECT_DELAY, EFFECT_REVERB];
+const IMPLEMENTED_EFFECTS: readonly number[] = [
+    EFFECT_DISTORTION,
+    EFFECT_DELAY,
+    EFFECT_REVERB,
+    EFFECT_GATE,
+    EFFECT_COMPRESSOR,
+];
 
 export const RACK_PARAMETER_IDS: string[] = Array.from(
     { length: RACK_SLOT_COUNT },
@@ -181,6 +189,53 @@ export function ReverbEffect(): JSX.Element {
             <Knob id="fx_reverb_damping" label="Damping" />
             <Knob id="fx_reverb_width" label="Width" />
             <Knob id="fx_reverb_mix" label="Mix" />
+        </Module>
+    );
+}
+
+export function GateEffect(): JSX.Element {
+    const placed = useInChain(EFFECT_GATE);
+
+    return (
+        <Module title="Gate" inactive={!placed}>
+            <div className="cluster cluster--banner">
+                <Segmented id="fx_gate_bypass" label="State" table={LABELS.fx_gate_bypass} />
+            </div>
+
+            {/*
+                Hold sits between attack and release because that is where it
+                acts: it is the time the gate stays open after the signal has
+                already gone, and it is what stops a signal sitting at the
+                threshold from strobing the gate open and shut.
+            */}
+            <Knob id="fx_gate_threshold" label="Threshold" />
+            <Knob id="fx_gate_attack" label="Attack" />
+            <Knob id="fx_gate_hold" label="Hold" />
+            <Knob id="fx_gate_release" label="Release" />
+            <Knob id="fx_gate_range" label="Range" />
+        </Module>
+    );
+}
+
+export function CompressorEffect(): JSX.Element {
+    const placed = useInChain(EFFECT_COMPRESSOR);
+
+    return (
+        <Module title="Compressor" inactive={!placed}>
+            <div className="cluster cluster--banner">
+                <Segmented
+                    id="fx_compressor_bypass"
+                    label="State"
+                    table={LABELS.fx_compressor_bypass}
+                />
+            </div>
+
+            <Knob id="fx_compressor_threshold" label="Threshold" />
+            <Knob id="fx_compressor_ratio" label="Ratio" />
+            <Knob id="fx_compressor_attack" label="Attack" />
+            <Knob id="fx_compressor_release" label="Release" />
+            <Knob id="fx_compressor_makeup" label="Makeup" />
+            <Knob id="fx_compressor_mix" label="Mix" />
         </Module>
     );
 }

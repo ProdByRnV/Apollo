@@ -25,6 +25,7 @@ target_sources(ApolloTests PRIVATE
     DSP/ReverbTests.cpp
     DSP/DelayTests.cpp
     DSP/DistortionTests.cpp
+    DSP/DynamicsTests.cpp
     DSP/EffectsRackTests.cpp
     DSP/OversamplingTests.cpp
     Performance/Benchmarks.cpp

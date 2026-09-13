@@ -27,7 +27,14 @@ import {
 import { PROTOCOL_VERSION } from './bridge/protocol';
 import type { InboundMessage } from './bridge/protocol';
 
-import { DelayEffect, Distortion, Rack, ReverbEffect } from './modules/Effects';
+import {
+    CompressorEffect,
+    DelayEffect,
+    Distortion,
+    GateEffect,
+    Rack,
+    ReverbEffect,
+} from './modules/Effects';
 import { Envelopes, Lfos } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
@@ -339,6 +346,8 @@ export function App(): JSX.Element {
                             <Distortion />
                             <DelayEffect />
                             <ReverbEffect />
+                            <GateEffect />
+                            <CompressorEffect />
                         </div>
 
                         <div className="rank rank--compact">

@@ -126,7 +126,7 @@ private:
         EffectsRack rack;
         rack.prepare (testSampleRate, blockSize);
 
-        for (const auto type : { EffectType::gate, EffectType::compressor, EffectType::equaliser })
+        for (const auto type : { EffectType::equaliser })
         {
             rack.setChain (chainWith (1, type));
 

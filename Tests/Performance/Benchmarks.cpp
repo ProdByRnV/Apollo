@@ -415,6 +415,8 @@ void benchmarkEffects()
         { "delay, stereo with feedback", dsp::EffectType::delay, dsp::Distortion::Mode::soft, false },
         { "reverb, bypassed", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, true },
         { "reverb, 8-line FDN", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, false },
+        { "gate, stereo-linked peak", dsp::EffectType::gate, dsp::Distortion::Mode::soft, false },
+        { "compressor, stereo-linked RMS", dsp::EffectType::compressor, dsp::Distortion::Mode::soft, false },
     };
 
     for (const auto& testCase : cases)
@@ -446,6 +448,15 @@ void benchmarkEffects()
         reverb.dampingHz = 6000.0f;
         reverb.mix = 0.5f;
         rack.reverb().setSettings (reverb);
+
+        dsp::NoiseGate::Settings gate;
+        gate.thresholdDb = -30.0f;
+        rack.gate().setSettings (gate);
+
+        dsp::Compressor::Settings compressor;
+        compressor.thresholdDb = -24.0f;
+        compressor.ratio = 4.0f;
+        rack.compressor().setSettings (compressor);
 
         std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
         std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);

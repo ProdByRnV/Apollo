@@ -30,7 +30,7 @@ export const LABELS: Record<string, readonly string[]> = {
     // covers all six from the start (ADR-0054) — and say so, rather than
     // appearing to work and doing nothing.
     fxSlot: ['—', 'DISTORTION', 'DELAY', 'REVERB',
-             'GATE (soon)', 'COMP (soon)', 'EQ (soon)'],
+             'GATE', 'COMPRESSOR', 'EQ (soon)'],
 
     // Matches dsp::Distortion::Mode.
     fx_distortion_mode: ['SOFT', 'HARD', 'DIODE'],
@@ -48,6 +48,8 @@ export const LABELS: Record<string, readonly string[]> = {
     // Matches dsp::Reverb::Mode.
     fx_reverb_mode: ['ROOM', 'HALL'],
     fx_reverb_bypass: ['ACTIVE', 'BYPASS'],
+    fx_gate_bypass: ['ACTIVE', 'BYPASS'],
+    fx_compressor_bypass: ['ACTIVE', 'BYPASS'],
 
     // Matches dsp::LfoShape.
     lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],

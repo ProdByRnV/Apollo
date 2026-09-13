@@ -397,6 +397,21 @@ private:
         std::atomic<float>* reverbWidth = nullptr;
         std::atomic<float>* reverbMix = nullptr;
 
+        std::atomic<float>* gateBypass = nullptr;
+        std::atomic<float>* gateThreshold = nullptr;
+        std::atomic<float>* gateAttack = nullptr;
+        std::atomic<float>* gateHold = nullptr;
+        std::atomic<float>* gateRelease = nullptr;
+        std::atomic<float>* gateRange = nullptr;
+
+        std::atomic<float>* compressorBypass = nullptr;
+        std::atomic<float>* compressorThreshold = nullptr;
+        std::atomic<float>* compressorRatio = nullptr;
+        std::atomic<float>* compressorAttack = nullptr;
+        std::atomic<float>* compressorRelease = nullptr;
+        std::atomic<float>* compressorMakeup = nullptr;
+        std::atomic<float>* compressorMix = nullptr;
+
         void resolve (juce::AudioProcessorValueTreeState& state);
     };
 

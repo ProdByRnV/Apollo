@@ -240,6 +240,19 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_reverb_predelay` | Rotary Knob | `0–250 ms` | `20` | 8c | The gap before the room answers |
 | `fx_reverb_width` | Rotary Knob | Normalized `[0, 1]` | `1` | 8c | Mid/side balance of the tail; 0 collapses it to the centre |
 | `fx_reverb_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 8c | Reverb dry/wet mix |
+| `fx_gate_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8d | Switched out of circuit |
+| `fx_gate_threshold` | Rotary Knob | `-80–0 dB` | `-60` | 8d | Level the peak detector must exceed to open the gate |
+| `fx_gate_attack` | Rotary Knob | `0.1–100 ms` | `1` | 8d | Time to open, on the one-pole convention documented in `LevelDetector.h` |
+| `fx_gate_hold` | Rotary Knob | `0–500 ms` | `50` | 8d | How long the gate stays open after the signal falls back below the threshold — what stops it chattering |
+| `fx_gate_release` | Rotary Knob | `1–2000 ms` | `100` | 8d | Time to shut |
+| `fx_gate_range` | Rotary Knob | `-80–0 dB` | `-60` | 8d | How far down a shut gate pushes the signal; the bottom of the range is exact silence |
+| `fx_compressor_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8d | Switched out of circuit |
+| `fx_compressor_threshold` | Rotary Knob | `-60–0 dB` | `-18` | 8d | Level above which the ratio applies, measured in RMS |
+| `fx_compressor_ratio` | Rotary Knob | `1–20` | `2` | 8d | Decibels in per decibel out above the threshold; 1 is no compression |
+| `fx_compressor_attack` | Rotary Knob | `0.1–200 ms` | `10` | 8d | Gain ramp's time constant; the RMS window adds its own lag ahead of it |
+| `fx_compressor_release` | Rotary Knob | `5–2000 ms` | `120` | 8d | Time to let the gain back up |
+| `fx_compressor_makeup` | Rotary Knob | `-12–24 dB` | `0` | 8d | Applied after compression; deliberately not automatic |
+| `fx_compressor_mix` | Rotary Knob | Normalized `[0, 1]` | `1` | 8d | Below 1 this is parallel compression |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.

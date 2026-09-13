@@ -2107,3 +2107,63 @@ metallic ringing at long decays; early-reflection patterns modelled on a room
 shape; and any control over the diffusion amount, which is fixed. All three are
 additions rather than changes, and none of them alters the stability argument
 above.
+
+---
+
+## ADR-0058 — The gate watches peaks, the compressor watches RMS, and both share one detector per pair of channels
+
+**Phase 8d · Accepted**
+
+**Peak or RMS is not a preference.** RMS averages the squared signal over a
+window and therefore follows how loud something *sounds*, ignoring transients too
+short for a listener to hear as level — which is exactly what a compressor
+should do. A gate has the opposite job: it is deciding whether there is a signal
+at all, and the transient arriving while it is shut is the thing it must not
+miss. So the compressor detects RMS and the gate detects peak, and they share one
+class that does both rather than two classes that each do one.
+
+**The attack and release convention is named, because it is a convention.** Both
+are one-pole ramps, and "10 ms attack" here means the gain travels 1 - 1/e — about
+63 % — of the way to its target in 10 ms. Other designs quote 10 % to 90 %, which
+for the same filter is a different number, so the figure is stated in
+`LevelDetector.h` and measured against in `Tests/DSP/DynamicsTests.cpp` to within
+a percentage point at three settings.
+
+A compressor as a whole is slower than its attack control says, and that is
+reported rather than hidden: the RMS detector has its own window, and the ramp
+cannot move towards a target the detector has not yet reported. The test measures
+the ramp's convention on the ramp and the combined behaviour on the compressor,
+so neither number is quietly standing in for the other.
+
+**Stereo is linked, and that is a stereo-image decision rather than a CPU one.**
+One detector per channel would let a loud left channel duck only the left, which
+pulls the image sideways every time anything transient happens. Both processors
+feed one detector from the louder of the two channels and apply the result to
+both, which is why `LevelDetector` has no notion of channels at all.
+
+**Feed-forward, hard knee, no lookahead.** The detector reads the input rather
+than the output, so the ratio on the dial is the ratio applied — a feedback
+design has a characteristic sound precisely because its effective ratio is not
+the one you set. The knee is hard: a soft knee is a fourth control on the curve
+and makes the measured ratio a function of level, and it can be added later
+without changing anything decided here. Neither processor looks ahead, so neither
+adds latency, and a transient shorter than the attack passes before the gain has
+finished moving — which is what the attack control is for.
+
+**Hold is the gate's alone.** It keeps the gate open for a fixed time after the
+signal last exceeded the threshold, and without it a signal sitting at the
+threshold strobes the gate dozens of times a second — far more audible than the
+noise the gate was opening and shutting to remove. Measured: a tone swinging 6 dB
+either side of the threshold eight times a second moved an unheld gate eleven
+times in two thirds of a second, and a gate with 60 ms of hold once.
+
+**A bug this arrangement caused, and the fix.** `prepare` and `setSettings` each
+derived the gate's ramp times, and only one of them performed the attack/release
+swap that lets the shared ramp keep a gate's control names. A prepared gate
+therefore opened slowly and shut quickly — precisely backwards, and deaf to
+anything short. Both now go through one `refreshDerived`, and the comment on it
+says why that line must not be written twice.
+
+**Given up:** a soft knee, peak detection on the compressor, sidechain input and
+external sidechain routing — all four are listed as future work in PRD §23 and
+none of them changes the structure above.

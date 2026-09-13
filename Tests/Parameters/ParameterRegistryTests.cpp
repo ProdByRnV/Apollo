@@ -58,10 +58,16 @@ using namespace apollo::params;
 // Phase 8c added eight for the reverb: a bypass, the room-or-hall mode, size,
 // decay, damping, pre-delay, width and mix — exactly the set PRD §21 names.
 //
+// Phase 8d added thirteen for the dynamics pair: six for the gate — bypass,
+// threshold, attack, hold, release and range — and seven for the compressor,
+// which is those minus hold plus ratio, makeup and mix. Hold is the gate's
+// alone because it is what stops a gate chattering, and a compressor has no
+// equivalent problem to solve.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 170, "the registry has a hundred and seventy parameters");
+static_assert (parameterCount() == 183, "the registry has a hundred and eighty-three parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

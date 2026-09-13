@@ -43,6 +43,11 @@ add_library(apollo_core STATIC
     DSP/Delay/DelayLine.h
     DSP/Distortion/Distortion.cpp
     DSP/Distortion/Distortion.h
+    DSP/Dynamics/Compressor.cpp
+    DSP/Dynamics/Compressor.h
+    DSP/Dynamics/LevelDetector.h
+    DSP/Dynamics/NoiseGate.cpp
+    DSP/Dynamics/NoiseGate.h
     DSP/Effects/AudioEffect.h
     DSP/Effects/EffectsRack.cpp
     DSP/Effects/EffectsRack.h

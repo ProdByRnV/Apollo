@@ -10,12 +10,12 @@ bool EffectsRack::isImplemented (EffectType type) noexcept
         case EffectType::distortion:
         case EffectType::delay:
         case EffectType::reverb:
-            return true;
-
-        // Phases 8d and 8e. Selectable now because the parameter's range is
-        // permanent; silent until the DSP behind them lands.
         case EffectType::gate:
         case EffectType::compressor:
+            return true;
+
+        // Phase 8e. Selectable now because the parameter's range is permanent;
+        // silent until the DSP behind it lands.
         case EffectType::equaliser:
         case EffectType::none:
         default:
@@ -37,7 +37,11 @@ AudioEffect* EffectsRack::effectFor (EffectType type) noexcept
             return &reverbUnit;
 
         case EffectType::gate:
+            return &gateUnit;
+
         case EffectType::compressor:
+            return &compressorUnit;
+
         case EffectType::equaliser:
         case EffectType::none:
         default:
@@ -50,6 +54,8 @@ void EffectsRack::prepare (double sampleRate, int maxBlockSize)
     distortionUnit.prepare (sampleRate, maxBlockSize);
     delayUnit.prepare (sampleRate, maxBlockSize);
     reverbUnit.prepare (sampleRate, maxBlockSize);
+    gateUnit.prepare (sampleRate, maxBlockSize);
+    compressorUnit.prepare (sampleRate, maxBlockSize);
 
     refreshLatency();
 }
@@ -59,6 +65,8 @@ void EffectsRack::reset() noexcept
     distortionUnit.reset();
     delayUnit.reset();
     reverbUnit.reset();
+    gateUnit.reset();
+    compressorUnit.reset();
 }
 
 void EffectsRack::setTempo (double bpm) noexcept

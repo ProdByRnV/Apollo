@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 8 — Effects Rack, in progress; **8a, 8b and 8c complete** |
-| **Status** | **8c complete.** The six-slot rack holds three effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync) and a reverb (an eight-line feedback delay network with room and hall spaces, damping inside every line, and a decay that measures as RT60) |
+| **Phase** | Phase 8 — Effects Rack, in progress; **8a through 8d complete** |
+| **Status** | **8d complete.** The six-slot rack holds five effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), and a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix |
 | **Milestone** | M8 — Effects |
-| **Next step** | Phase 8d — the gate and the compressor: the first effects whose gain depends on what the signal is doing |
+| **Next step** | Phase 8e — the parametric EQ: four bands of frequency, gain, Q and type |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -709,29 +709,62 @@ Everything below was configured, built and executed on this machine.
 - **Bypass keeps decaying** rather than freezing, and costs almost exactly what
   running it costs — 1.28 % against 1.36 % — because the tail has to go somewhere.
   Removing it from the chain is the free option.
-- **Not yet present:** gate and compressor (8d), EQ (8e), and whole-chain
-  validation (8f). Deliberately absent from the reverb itself: modulated line
-  lengths, modelled early reflections, and a diffusion control (ADR-0057).
+- **Not yet present in 8c:** gate and compressor, EQ, and whole-chain validation.
+  Deliberately absent from the reverb itself: modulated line lengths, modelled
+  early reflections, and a diffusion control (ADR-0057).
+
+### The gate and the compressor (Phase 8d)
+
+- **The first effects whose gain depends on what the signal is doing.** Both are
+  a detector and a gain computer, and they share the detector class because they
+  disagree about only one thing in it.
+- **Peak for the gate, RMS for the compressor**, and that is not a preference:
+  RMS follows how loud something sounds and ignores transients too short to hear
+  as level, which is right for a compressor and wrong for a gate, whose whole job
+  is catching the transient that arrives while it is shut (ADR-0058).
+- **The attack convention is stated and measured.** "10 ms" means the gain
+  travels 1 - 1/e — about 63 % — of the way in 10 ms; the ramp is measured
+  against that to within a percentage point at three settings. The compressor as
+  a whole is slower, because the RMS detector has to notice the signal first, and
+  that lag is measured separately rather than folded in silently.
+- **Stereo is linked**, so a loud left channel cannot duck only the left and drag
+  the image sideways. One detector, fed the louder channel, applied to both.
+- **Hold is what makes a gate a gate.** A tone swinging 6 dB either side of the
+  threshold eight times a second moved an unheld gate eleven times in two thirds
+  of a second; with 60 ms of hold, once. That is PRD §22's "avoiding audible
+  pumping" as a measurement.
+- **Feed-forward, hard knee, no lookahead.** The ratio on the dial is the ratio
+  applied, and neither processor adds latency.
+- **A real bug the tests caught**: `prepare` and `setSettings` each derived the
+  gate's ramp times and only one performed the attack/release swap, so a prepared
+  gate opened slowly and shut quickly — backwards, and deaf to anything short.
+  One `refreshDerived` now serves both.
+- **Cheap**: the gate costs about 0.03 % of a core above an empty rack and the
+  compressor about 0.11 %, stereo — an order of magnitude less than the
+  distortion, because neither runs a filter bank or a delay network.
+- **Not yet present:** the EQ (8e) and whole-chain validation (8f). Deliberately
+  absent: a soft knee, peak detection on the compressor, and sidechain input,
+  all of which PRD §23 lists as future work.
 
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
-| 8 | **8a, 8b and 8c are done** — the rack, the distortion, the delay and the reverb. Absent: gate and compressor (8d), EQ (8e), and whole-chain validation (8f) |
+| 8 | **8a through 8d are done** — the rack, the distortion, the delay, the reverb, the gate and the compressor. Absent: the EQ (8e) and whole-chain validation (8f) |
 | 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
-**All 170 registered parameters now affect audio** — the whole source section,
+**All 183 registered parameters now affect audio** — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
-expression settings, `master_gain`, the rack's six slots, and the two effects in
+expression settings, `master_gain`, the rack's six slots, and the five effects in
 it. `fx_delay_time` was the last one that did not, inert since Phase 2 and
 connected in 8b; for the first time since the registry started growing there is
 nothing in it that does nothing.
 
-Phase 8a added eleven, 8b eight and 8c eight more. Six of 8a's are the rack's
-slots, which enumerate all six effects from the start, including the three not
-built yet, because a discrete parameter's range is permanent once it ships
+Phase 8a added eleven, 8b eight, 8c eight and 8d thirteen. Six of 8a's are the
+rack's slots, which enumerate all six effects from the start, including the one
+not built yet, because a discrete parameter's range is permanent once it ships
 (ADR-0054). The delay's note-division parameter is fixed the same way, at
 fourteen values.
 
@@ -786,7 +819,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**1,936,424 assertions, 0 failures**, across 29 test classes. The table below
+**1,949,273 assertions, 0 failures**, across 30 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -814,6 +847,7 @@ subsystems they test.
 | DSP | Effects rack | An empty rack is **bit-exactly** transparent and reports no latency or tail; an effect whose phase has not landed leaves its slot empty; the same effect in two slots runs once, in the earlier one; an effect sounds the same wherever in the chain it sits; latency counts what is in the chain whether bypassed or not, and drops only when the effect is removed; a bypassed effect delays the signal and does nothing else; and tail is reported for the active chain only |
 | DSP | Delay | Where the repeat lands, in free time and in synced time — a quarter note at 120 BPM is 500 ms and nothing else, a slow whole note is clamped to the buffer rather than wrapping, a free delay ignores the tempo, and no tempo at all falls back to 120 rather than to silence; each repeat quieter than the last; **thirty seconds at maximum feedback with no input**, asserting the tail is quieter every second, never louder than what went in, and near silence at the end; a dry mix is the input sample for sample and the latency is zero; ping-pong puts the first repeat on the side the sound arrived on and the second on the other; damping keeps taking more top off each pass rather than settling after one; sweeping the time as fast as a control can move produces no discontinuity; a bypassed delay is fed silence so it cannot replay old audio when it comes back; reset leaves no tail; absurd and denormal input stays finite through the feedback path and still settles; and the reported tail covers at least one repeat and is bounded |
 | DSP | Reverb | The network's line lengths share no factors, in both modes, and a hall's shortest path is much longer than a room's; size scales the lines and mode changes which lines they are; a dry mix is the input sample for sample and the latency is zero; a burst is still sounding a second later; **a minute at the longest decay with no input** stays under the envelope RT60 describes, never exceeds what went in, and is gone by the end; the decay control measures as RT60, as a slope between two later times and in RMS rather than peak; the tail reaches **exactly zero** rather than grinding on as denormals; damping shortens the tail as well as darkening it; pre-delay is a real gap with nothing in it; width at zero puts the tail in the centre; a bypassed reverb goes on decaying and comes back silent rather than resuming; reset leaves nothing behind; absurd input stays finite and still settles; and the reported tail covers the decay and the pre-delay |
+| DSP | Dynamics | The compression curve is the ratio expressed in decibels, checked against the static formula and then against rendered audio — 4 dB over the threshold at 4:1 comes out 1 dB over, to within 0.07 dB; the gain ramp travels 1 - 1/e of the way in the time it is given, at three settings; the compressor as a whole is slower than that and the detector's share of the lag is measured rather than hidden; a signal 30 dB below the threshold passes through untouched and the compressor reports that it is doing nothing; makeup lifts the output by exactly what it says and a mix of zero is the input exactly; a gate opens fully on a loud signal and settles at its range on a quiet one; **hold** takes a gate that moved eleven times in two thirds of a second down to once; range means how far down, and the bottom of its travel is exact silence; one channel getting loud moves the other channel's gain too, which is what stereo linking is for; neither processor adds latency or a tail; and absurd input stays finite and settles to silence afterwards |
 | Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; and a slot naming an effect this build does not have is simply empty rather than surprising |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
@@ -1025,7 +1059,17 @@ finite, reports its latency to the host, and survives a state round trip.
 | The decay's unit survives the round trip | The registry carries it in milliseconds, because that is the unit every other time control uses; the frontend formats 2000 ms as `2.00 s`, and the DSP works in seconds where the RT60 arithmetic lives |
 | The rack offers the reverb as a real choice | `REVERB` in the slot list, no longer marked "(soon)" |
 
-**Not driven by hand, for the third sub-phase running:** selecting an effect into
+### The gate and the compressor, 2026-09-13
+
+| Checked | Result |
+|---|---|
+| Both have panels of their own | **GATE** and **COMPRESSOR** in the effects rank beside the other three, each carrying the `OFF` chip while nothing in the rack selects it |
+| The gate reads correctly | State `ACTIVE`/`BYPASS`, Threshold `-60.0 dB`, Attack `1.0 ms`, and Hold, Release and Range beyond them |
+| The compressor reads correctly | State `ACTIVE`/`BYPASS`, Threshold `-18.0 dB`, Ratio `2.00`, Attack `10 ms`, Release `120 ms`, Makeup `+0.0 dB`, Mix `100 %` — every default from the registry, each with its unit |
+| A ratio is a bare number | It is the one control here with no unit, and the frontend shows it as `2.00` rather than inventing one |
+| The rack offers both as real choices | `GATE` and `COMPRESSOR` in the slot list, no longer marked "(soon)"; only `EQ (soon)` remains |
+
+**Not driven by hand, for the fourth sub-phase running:** selecting an effect into
 a slot through the dropdown, and hearing it. The environment's synthetic input
 reaches the WebView only for the first event after a click in the same batch, and
 not reliably even then; the one sequence that worked in 8a has not reproduced
@@ -1167,17 +1211,19 @@ Measured in Phase 8a, stereo, on the finished mix — once per block no matter h
 many notes are held, which is the whole argument for putting a shaper here rather
 than in the voice (ADR-0033).
 
-| Rack | 8a, cool machine | 8b, same binary, later | 8c, later still |
-|---|---:|---:|---:|
-| Empty | 0.062 % | 0.081 % | 0.151 % |
-| Distortion, bypassed | 0.075 % | 0.098 % | 0.185 % |
-| Distortion, hard clip at 4x | 1.374 % | 2.880 % | 4.848 % |
-| Distortion, diode (`exp`) at 4x | 2.152 % | 3.098 % | 4.989 % |
-| Distortion, soft (`tanh`) at 4x | 2.666 % | 3.538 % | 5.863 % |
-| Delay, bypassed | — | 0.096 % | 0.156 % |
-| Delay, stereo with feedback | — | 0.270 % | 0.499 % |
-| Reverb, bypassed | — | — | 1.283 % |
-| Reverb, 8-line FDN | — | — | 1.359 % |
+| Rack | 8a, cool machine | 8b, same binary, later | 8c, later still | 8d, cool again |
+|---|---:|---:|---:|---:|
+| Empty | 0.062 % | 0.081 % | 0.151 % | 0.029 % |
+| Distortion, bypassed | 0.075 % | 0.098 % | 0.185 % | 0.048 % |
+| Distortion, hard clip at 4x | 1.374 % | 2.880 % | 4.848 % | 1.368 % |
+| Distortion, diode (`exp`) at 4x | 2.152 % | 3.098 % | 4.989 % | 1.516 % |
+| Distortion, soft (`tanh`) at 4x | 2.666 % | 3.538 % | 5.863 % | 1.631 % |
+| Delay, bypassed | — | 0.096 % | 0.156 % | 0.036 % |
+| Delay, stereo with feedback | — | 0.270 % | 0.499 % | 0.103 % |
+| Reverb, bypassed | — | — | 1.283 % | 0.337 % |
+| Reverb, 8-line FDN | — | — | 1.359 % | 0.369 % |
+| Gate, stereo-linked peak | — | — | — | 0.054 % |
+| Compressor, stereo-linked RMS | — | — | — | 0.137 % |
 
 The empty row is the honest baseline: it is the benchmark's own input loop, not
 the rack, which does nothing at all when no slot is filled. Against it, in the
@@ -1190,14 +1236,16 @@ active costs**, because the network keeps running so its tail can decay rather
 than freeze (ADR-0057). Removing an effect from the chain is the free option;
 bypassing it is a musical gesture, not a CPU one.
 
-**The three columns are the same code.** Each was measured later in the same
-working day on a laptop, and every row rises across them; two *idle* runs minutes
-apart still disagreed by 40 % on the distortion rows, and in one of them hard
-clipping measured *more* than `tanh`, which cannot be true. So read each column
-as ratios within itself and never compare a figure across columns. Phase 10 owns
-profiling, and the first thing it needs is a measurement environment that does
-not drift — the alternating `measurePair` harness exists for exactly this reason
-and these absolute rows do not use it.
+**The four columns are the same code**, and the fourth is the proof that the
+drift is the machine rather than Apollo: measured on a fresh cool laptop, 8d's
+distortion rows land back where 8a's were and the reverb measures a *third* of
+what it did in 8c — from the same binary. Two *idle* runs minutes apart had
+already disagreed by 40 % during 8c, and in one of them hard clipping measured
+more than `tanh`, which cannot be true. So read each column as ratios within
+itself and never compare a figure across columns. Phase 10 owns profiling, and
+the first thing it needs is a measurement environment that does not drift — the
+alternating `measurePair` harness exists for exactly this reason and these
+absolute rows do not use it.
 
 ### Visualisation capture
 
@@ -1284,35 +1332,31 @@ change that multiplies them is caught there (ADR-0049).
 
 ## 7. Blockers
 
-**None.** Phase 8d can begin.
+**None.** Phase 8e can begin.
 
 ---
 
 ## 8. Recommended next action
 
-Continue with **Phase 8d — the gate and the compressor**. Three effects are in
-the rack and all three are *fixed* functions of their input; the dynamics pair is
-the first whose gain depends on what the signal is currently doing.
+Continue with **Phase 8e — the parametric EQ**, the last effect in the rack.
 
-1. **A detector is a design decision, not a formula.** PRD §21 asks for
-   RMS detection to begin with. Where the detector sits — before or after the
-   gain stage — and whether its attack and release are one-pole or something
-   shaped decides how the compressor sounds far more than the ratio does, and
-   the choice should be recorded rather than absorbed.
-2. **Attack and release need measuring, not describing.** "10 ms attack" means
-   the gain reaches a stated fraction of its target in 10 ms, and which fraction
-   is a convention that has to be picked and stated. ROADMAP's "validate
-   attack/release behaviour" is a measurement of exactly that.
-3. **The gate is the easier half and should go first.** Threshold, attack, hold,
-   release and range, with hold being the part that stops a gate chattering on a
-   signal sitting at the threshold — which is the failure worth testing for.
-4. **Neither adds latency, and both should say so.** A lookahead limiter would;
-   an RMS detector reading what has already passed does not, and keeping it that
-   way is what stops the rack's latency from growing with every effect added.
-
-Also still open: whole-chain validation — arbitrary orderings across more than
-three effects, and aliasing measured through a whole chain rather than one stage
-— which is 8f.
+1. **Four bands, each with a type.** PRD §24 asks for frequency, gain, Q, filter
+   type and a per-band bypass, with bell, shelves and pass filters among the
+   types. That is five parameters times four bands, and the count is worth
+   deciding deliberately rather than discovering: the registry is a permanent
+   contract, and a band's type range must cover every type the EQ will ever
+   have (ADR-0054).
+2. **The filter already exists, and may not be the right one.** The TPT state
+   variable filter from Phase 5b gives lowpass, highpass, bandpass and notch
+   from shared state, but a *bell* needs a gain term the SVF does not currently
+   produce, and shelves need their own derivation. Whether to extend the SVF or
+   add a second form is the first decision of the phase.
+3. **Predictable gain behaviour is the stated requirement.** ROADMAP asks for it
+   in those words, and it means something measurable: a band at 0 dB must be
+   exactly transparent, and two bands that do not overlap must not interact.
+4. **It is the last effect, so 8f becomes reachable.** Whole-chain validation —
+   arbitrary orderings across all six, and aliasing measured through a chain
+   rather than one stage — needs the full set to be worth doing.
 
 A spectrum analyser remains the one unticked Visualization item, and both PRD and
 ROADMAP mark it optional. It is an FFT, a window function and a log frequency

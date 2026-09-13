@@ -114,6 +114,21 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     reverbWidth = state.getRawParameterValue ("fx_reverb_width");
     reverbMix = state.getRawParameterValue ("fx_reverb_mix");
 
+    gateBypass = state.getRawParameterValue ("fx_gate_bypass");
+    gateThreshold = state.getRawParameterValue ("fx_gate_threshold");
+    gateAttack = state.getRawParameterValue ("fx_gate_attack");
+    gateHold = state.getRawParameterValue ("fx_gate_hold");
+    gateRelease = state.getRawParameterValue ("fx_gate_release");
+    gateRange = state.getRawParameterValue ("fx_gate_range");
+
+    compressorBypass = state.getRawParameterValue ("fx_compressor_bypass");
+    compressorThreshold = state.getRawParameterValue ("fx_compressor_threshold");
+    compressorRatio = state.getRawParameterValue ("fx_compressor_ratio");
+    compressorAttack = state.getRawParameterValue ("fx_compressor_attack");
+    compressorRelease = state.getRawParameterValue ("fx_compressor_release");
+    compressorMakeup = state.getRawParameterValue ("fx_compressor_makeup");
+    compressorMix = state.getRawParameterValue ("fx_compressor_mix");
+
     jassert (distortionBypass != nullptr && distortionMode != nullptr
              && distortionDrive != nullptr && distortionTone != nullptr
              && distortionMix != nullptr && distortionOutput != nullptr);
@@ -127,6 +142,14 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
              && reverbDecay != nullptr && reverbDamping != nullptr
              && reverbPreDelay != nullptr && reverbWidth != nullptr
              && reverbMix != nullptr);
+
+    jassert (gateBypass != nullptr && gateThreshold != nullptr && gateAttack != nullptr
+             && gateHold != nullptr && gateRelease != nullptr && gateRange != nullptr);
+
+    jassert (compressorBypass != nullptr && compressorThreshold != nullptr
+             && compressorRatio != nullptr && compressorAttack != nullptr
+             && compressorRelease != nullptr && compressorMakeup != nullptr
+             && compressorMix != nullptr);
 }
 
 void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
@@ -523,6 +546,12 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
             case dsp::EffectType::reverb:
                 return readParameter (effectParameters.reverbBypass, 0.0f) >= 0.5f;
 
+            case dsp::EffectType::gate:
+                return readParameter (effectParameters.gateBypass, 0.0f) >= 0.5f;
+
+            case dsp::EffectType::compressor:
+                return readParameter (effectParameters.compressorBypass, 0.0f) >= 0.5f;
+
             default:
                 return false;
         }
@@ -593,6 +622,27 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     reverb.mix = readParameter (effectParameters.reverbMix, 0.0f);
 
     effects.reverb().setSettings (reverb);
+
+    dsp::NoiseGate::Settings gate;
+
+    gate.thresholdDb = readParameter (effectParameters.gateThreshold, -60.0f);
+    gate.attackMs = readParameter (effectParameters.gateAttack, 1.0f);
+    gate.holdMs = readParameter (effectParameters.gateHold, 50.0f);
+    gate.releaseMs = readParameter (effectParameters.gateRelease, 100.0f);
+    gate.rangeDb = readParameter (effectParameters.gateRange, -60.0f);
+
+    effects.gate().setSettings (gate);
+
+    dsp::Compressor::Settings compressor;
+
+    compressor.thresholdDb = readParameter (effectParameters.compressorThreshold, -18.0f);
+    compressor.ratio = readParameter (effectParameters.compressorRatio, 2.0f);
+    compressor.attackMs = readParameter (effectParameters.compressorAttack, 10.0f);
+    compressor.releaseMs = readParameter (effectParameters.compressorRelease, 120.0f);
+    compressor.makeupDb = readParameter (effectParameters.compressorMakeup, 0.0f);
+    compressor.mix = readParameter (effectParameters.compressorMix, 1.0f);
+
+    effects.compressor().setSettings (compressor);
 
     // Latency is a property of which effects are in the chain, so it moves only
     // when the user rearranges the rack. In the steady state this is a load and

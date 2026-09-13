@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 170> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 183> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1229,6 +1229,97 @@ inline constexpr std::array<ParameterDefinition, 170> parameterDefinitions { {
     { "fx_reverb_mix", "Reverb Mix",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Noise gate (Phase 8d) --------------------------------------------------
+    { "fx_gate_bypass", "Gate Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_gate_threshold", "Gate Threshold",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -80.0f, 0.0f, -60.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_gate_attack", "Gate Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.1f, 100.0f, 1.0f,
+      // Places 3 ms near the centre: a gate's attack lives at the fast end.
+      0.3155f, 0.0f,
+      true, false, true },
+
+    // The control that separates a gate from a tremolo: it holds the gate open
+    // after the signal falls back below the threshold, so a signal sitting at
+    // the line cannot strobe it.
+    { "fx_gate_hold", "Gate Hold",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 500.0f, 50.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "fx_gate_release", "Gate Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      1.0f, 2000.0f, 100.0f,
+      0.3327f, 0.0f,
+      true, false, true },
+
+    // How far down a shut gate pushes the signal. Not silence by default: a
+    // channel that vanishes draws attention to itself.
+    { "fx_gate_range", "Gate Range",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -80.0f, 0.0f, -60.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Compressor (Phase 8d) --------------------------------------------------
+    { "fx_compressor_bypass", "Compressor Bypass",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "fx_compressor_threshold", "Compressor Threshold",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -60.0f, 0.0f, -18.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    { "fx_compressor_ratio", "Compressor Ratio",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      1.0f, 20.0f, 2.0f,
+      // Places 4:1 near the centre, where most of the useful range sits.
+      0.5051f, 0.0f,
+      true, false, true },
+
+    { "fx_compressor_attack", "Compressor Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.1f, 200.0f, 10.0f,
+      0.2865f, 0.0f,
+      true, false, true },
+
+    { "fx_compressor_release", "Compressor Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      5.0f, 2000.0f, 120.0f,
+      0.3627f, 0.0f,
+      true, false, true },
+
+    // Deliberately not automatic: an automatic makeup gain guesses what the
+    // user wanted and is wrong the moment the programme changes.
+    { "fx_compressor_makeup", "Compressor Makeup",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -12.0f, 24.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, true },
+
+    // Below 1 this is parallel compression: the transients the compressor took
+    // away come back alongside the level it raised underneath them.
+    { "fx_compressor_mix", "Compressor Mix",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
       1.0f, 0.0f,
       true, false, true },
 

@@ -116,6 +116,7 @@ public:
         testDelayReachesTheAudioAndReportsItsTail();
         testSyncedDelayWorksWithNoTransport();
         testReverbReachesTheAudioAndReportsItsTail();
+        testDynamicsReachTheAudio();
         testTheWholeChainRunsTogether();
     }
 
@@ -412,6 +413,86 @@ private:
         expect (heard > 0.0005f,
                 "the room must still be answering long after the note was released, and peaked at "
                     + juce::String (heard, 6));
+    }
+
+    void testDynamicsReachTheAudio()
+    {
+        beginTest ("the compressor turns a loud note down, and the gate shuts a quiet one out");
+
+        const auto peakWith = [this] (float slotEffect, const juce::String& id, float value,
+                                      float noteVelocity)
+        {
+            apollo::ApolloAudioProcessor processor;
+
+            setPlain (processor, "fx_slot1", slotEffect);
+
+            if (id.isNotEmpty())
+                setPlain (processor, id, value);
+
+            processor.prepareToPlay (testSampleRate, blockSize);
+
+            juce::AudioBuffer<float> buffer (2, blockSize);
+            std::vector<float> rendered;
+
+            for (int block = 0; block < 12; ++block)
+            {
+                buffer.clear();
+
+                juce::MidiBuffer midi;
+
+                if (block == 0)
+                    midi.addEvent (juce::MidiMessage::noteOn (1, 57, noteVelocity), 0);
+
+                processor.processBlock (buffer, midi);
+
+                // Measured after the envelope's attack and the detector's
+                // settling, so what is compared is steady state.
+                if (block >= 8)
+                    rendered.push_back (buffer.getMagnitude (0, blockSize));
+            }
+
+            auto peak = 0.0f;
+
+            for (const auto value2 : rendered)
+                peak = std::max (peak, value2);
+
+            return peak;
+        };
+
+        // An empty rack, then the same note through a compressor with a low
+        // threshold and a high ratio: it must come out quieter.
+        const auto uncompressed = peakWith (0.0f, {}, 0.0f, 1.0f);
+        const auto compressed = peakWith (5.0f, "fx_compressor_threshold", -40.0f, 1.0f);
+
+        logMessage ("  peak " + juce::String (uncompressed, 4) + " uncompressed, "
+                    + juce::String (compressed, 4) + " through the compressor");
+
+        expect (compressed < uncompressed * 0.8f,
+                "a compressor 40 dB below the signal must take a visible amount off it");
+
+        // And a gate whose threshold sits above a quiet note must shut it out.
+        const auto quiet = peakWith (0.0f, {}, 0.0f, 0.15f);
+        const auto gated = peakWith (4.0f, "fx_gate_threshold", -12.0f, 0.15f);
+
+        logMessage ("  peak " + juce::String (quiet, 4) + " ungated, "
+                    + juce::String (gated, 4) + " through the gate");
+
+        expect (gated < quiet * 0.5f,
+                "a gate set above the signal must hold it down");
+
+        expect (processorLatencyFor (4.0f) == 0 && processorLatencyFor (5.0f) == 0,
+                "neither dynamics processor looks ahead, so neither adds latency");
+    }
+
+    /** @returns the latency a processor reports with @p slotEffect in slot 1. */
+    [[nodiscard]] int processorLatencyFor (float slotEffect)
+    {
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", slotEffect);
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        return processor.getLatencySamples();
     }
 
     void testTheWholeChainRunsTogether()
