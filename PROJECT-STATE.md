@@ -876,11 +876,14 @@ controller on the desk rather than the patch.
 | `Release` | Builds clean, no warnings |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
-**Verified by CI against Phase 4b code** (run 34160411849, all four jobs green):
+**Verified by CI against Phase 8e code** (run 34781646589, all four jobs green):
 Linux (GCC), macOS (Apple Clang), Windows (MSVC) and the Linux Clang sanitizer
-job all configure, build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`. The macOS
-job was confirmed to link the VST3 bundle and the standalone `.app` and to
-actually execute the suite, rather than passing by building nothing.
+job all configure, build and pass with `APOLLO_WARNINGS_AS_ERRORS=ON`.
+
+The same four jobs were green against Phase 4b code (run 34160411849), where the
+macOS job was additionally confirmed to link the VST3 bundle and the standalone
+`.app` and to actually execute the suite, rather than passing by building
+nothing.
 
 The first attempt (run 34159444471) failed on both Clang jobs, for two unrelated
 reasons, and neither reproduced on Windows or Linux/GCC:
