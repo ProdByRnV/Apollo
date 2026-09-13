@@ -64,7 +64,11 @@ void Equaliser::reset() noexcept
     for (auto& band : bands)
         band.reset();
 
-    level.setCurrentAndTargetValue (decibelsToGain (settings.levelDb));
+    // Every smoothed control placed on its target, which is what reset means
+    // across the whole rack (ADR-0060). This one already did; it is spelled with
+    // the same verb as the other five so that a reader can see at a glance that
+    // they agree.
+    level.settle();
 }
 
 void Equaliser::setSettings (const Settings& newSettings) noexcept

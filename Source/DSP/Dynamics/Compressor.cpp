@@ -59,6 +59,11 @@ void Compressor::reset() noexcept
 {
     detector.reset();
     ramp.reset();
+
+    // Every smoothed control placed on its target, which is what reset means
+    // across the whole rack (ADR-0060).
+    makeupGain.settle();
+    mix.settle();
 }
 
 float Compressor::getGainReductionDb() const noexcept

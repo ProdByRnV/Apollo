@@ -586,16 +586,18 @@ Implement Apollo's modular, reorderable effects architecture.
 - [x] Implement reordering. — six slot parameters naming what occupies each position; duplicates resolve to the first occurrence (8a)
 - [x] Implement state serialization. — the chain is parameters, so it saves and restores with everything else; covered in `Tests/Audio/EffectsIntegrationTests.cpp` (8a)
 - [x] Implement latency reporting where relevant. — summed over the chain, published to the host from the message thread when it changes (8a)
-- [x] Implement tail reporting where relevant. — the longest tail in the active chain, added to the envelope's release (8a)
-- [ ] Test arbitrary valid effect orderings. — the machinery is tested in 8a and ordering between two effects in 8b; the whole chain, with all six effects in it, is 8f
+- [x] Implement tail reporting where relevant. — every active effect's tail summed along the chain, added to the envelope's release. The longest until 8f measured a delay feeding a reverb still sounding at the moment the longest-in-the-chain rule declared it finished (ADR-0060) (8a, corrected in 8f)
+- [x] Test arbitrary valid effect orderings. — **every** one of the 720 orderings of all six effects, rendered in full rather than a representative handful, plus a chain rearranged on every block for 240 blocks; `Tests/DSP/EffectsChainTests.cpp` (8f)
 
 ## Exit Criteria
 
-- Every effect operates independently.
-- FX order can be changed safely.
-- Feedback effects remain stable.
-- Nonlinear effects pass aliasing validation.
-- FX state survives preset/project recall.
+- [x] **Every effect operates independently.** — switching any one of the six out of a full chain measurably changes the output, so none of them is being swallowed by the five around it (8f)
+- [x] **FX order can be changed safely.** — all 720 orderings render finite and bounded, the reported latency is the same for every one of them, and the chain rearranged on every block for 240 blocks stays bounded (8f)
+- [x] **Feedback effects remain stable.** — the delay alone over 30 s (8b), the reverb alone over a minute (8c), and a full rack at the top of every range — maximum feedback, a 20 s decay, 12 dB of makeup and 12 dB on every EQ band — decaying to exact silence over a minute (8f)
+- [x] **Nonlinear effects pass aliasing validation.** — 4x oversampling measured at 13 to 15 dB less fold-back than the base rate, and -100 dBc on a musical note (8a, `Docs/OVERSAMPLING.md` §2)
+- [x] **FX state survives preset/project recall.** — a full rack of six effects, in an order that is not the enum's and every one of them dialled away from its defaults, round-tripped through `getStateInformation`/`setStateInformation` and still sounding afterwards (8f)
+
+Phase 8 is complete.
 
 ---
 

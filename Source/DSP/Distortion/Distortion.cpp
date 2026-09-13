@@ -132,6 +132,13 @@ void Distortion::reset() noexcept
 
         channel.dryIndex = 0;
     }
+
+    // Every smoothed control placed on its target, which is what reset means
+    // across the whole rack (ADR-0060).
+    driveGain.settle();
+    compensation.settle();
+    mix.settle();
+    outputGain.settle();
 }
 
 void Distortion::setSettings (const Settings& newSettings) noexcept

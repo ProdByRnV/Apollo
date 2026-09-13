@@ -524,6 +524,79 @@ void benchmarkEffects()
         printRow (testCase.name, measurement, 0);
     }
 
+    // And the row nobody could measure until every effect existed: what a rack
+    // with all six of them in it actually costs. This is the figure that decides
+    // whether a full chain is a thing a user can have on several instances at
+    // once, and it is deliberately measured last, from the same settings the
+    // rows above used.
+    {
+        static dsp::EffectsRack rack;
+        rack.prepare (sampleRate, blockSize);
+
+        dsp::EffectsRack::Chain chain;
+
+        chain[0].effect = dsp::EffectType::gate;
+        chain[1].effect = dsp::EffectType::equaliser;
+        chain[2].effect = dsp::EffectType::distortion;
+        chain[3].effect = dsp::EffectType::compressor;
+        chain[4].effect = dsp::EffectType::delay;
+        chain[5].effect = dsp::EffectType::reverb;
+
+        rack.setChain (chain);
+
+        dsp::Distortion::Settings distortion;
+        distortion.mode = dsp::Distortion::Mode::soft;
+        distortion.driveDb = 18.0f;
+        distortion.mix = 1.0f;
+        rack.distortion().setSettings (distortion);
+
+        dsp::Delay::Settings delay;
+        delay.timeMs = 350.0f;
+        delay.feedback = 0.5f;
+        delay.dampingHz = 6000.0f;
+        delay.mix = 0.5f;
+        rack.delay().setSettings (delay);
+
+        dsp::Reverb::Settings reverb;
+        reverb.decaySeconds = 3.0f;
+        reverb.dampingHz = 6000.0f;
+        reverb.mix = 0.5f;
+        rack.reverb().setSettings (reverb);
+
+        dsp::NoiseGate::Settings gate;
+        gate.thresholdDb = -70.0f;
+        rack.gate().setSettings (gate);
+
+        dsp::Compressor::Settings compressor;
+        compressor.thresholdDb = -24.0f;
+        compressor.ratio = 4.0f;
+        rack.compressor().setSettings (compressor);
+
+        auto equaliser = dsp::Equaliser::defaultSettings();
+        equaliser.bands[1].gainDb = 6.0f;
+        equaliser.bands[4].gainDb = -6.0f;
+        rack.equaliser().setSettings (equaliser);
+
+        std::vector<float> left (static_cast<std::size_t> (blockSize), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (blockSize), 0.0f);
+        float* channels[] = { left.data(), right.data() };
+
+        const auto measurement = measure (secondsPerMeasurement, [&]
+        {
+            for (int i = 0; i < blockSize; ++i)
+            {
+                const auto sample = 0.5f * static_cast<float> (std::sin (0.05 * static_cast<double> (i)));
+
+                left[static_cast<std::size_t> (i)] = sample;
+                right[static_cast<std::size_t> (i)] = sample;
+            }
+
+            rack.process (channels, 2, blockSize);
+        });
+
+        printRow ("all six at once", measurement, 0);
+    }
+
     std::cout << "      (includes filling the input buffer, which the empty-rack row isolates)"
               << std::endl;
 }

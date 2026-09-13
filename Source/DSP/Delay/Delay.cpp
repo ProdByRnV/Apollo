@@ -103,9 +103,15 @@ void Delay::reset() noexcept
 
     // The time is not ramped from wherever it was: a reset is a transport jump
     // or a device change, and gliding to the current time from the last one
-    // would be an audible artefact of something the user did not do.
+    // would be an audible artefact of something the user did not do. The same
+    // argument applies to the other two, which were left mid-ramp until Phase 8f
+    // noticed that two identically configured racks did not render identically
+    // after a reset (ADR-0060).
     delaySamples.setCurrentAndTargetValue (
         static_cast<float> (getDelaySeconds() * preparedSampleRate));
+
+    feedbackGain.settle();
+    mix.settle();
 }
 
 void Delay::refreshTime() noexcept

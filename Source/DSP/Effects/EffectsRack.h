@@ -96,7 +96,14 @@ public:
     */
     [[nodiscard]] int getLatencySamples() const noexcept { return latencySamples; }
 
-    /** The longest tail any active effect in the chain has, in seconds.
+    /** How long the whole chain keeps sounding after its input stops, in
+        seconds: every active effect's tail, added up.
+
+        Added rather than maxed, because the effects are in series. A delay still
+        emitting repeats three seconds after the note is still *feeding* the
+        reverb behind it, which then takes its own decay to fall silent from
+        there — so the chain rings for longer than either effect does
+        (ADR-0060).
 
         Computed on demand rather than cached, and that is not an oversight: an
         effect's tail depends on its *settings* — a delay's time and feedback, a

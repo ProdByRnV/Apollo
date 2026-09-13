@@ -133,7 +133,20 @@ void EffectsRack::refreshLatency() noexcept
 
 double EffectsRack::getTailSeconds() const noexcept
 {
-    auto longest = 0.0;
+    // SUMMED ALONG THE CHAIN, NOT THE LONGEST IN IT. This was the longest until
+    // Phase 8f measured it, and the longest is right only while one effect in
+    // the rack has a tail at all. Put a delay in front of a reverb and the delay
+    // is still emitting repeats seconds after the note stopped — so the reverb
+    // is still being fed at that point, and takes its own decay to fall silent
+    // from there. The chain rings for the sum, and a render that stopped at the
+    // longest single figure would cut the end off (ADR-0060).
+    //
+    // It over-reports a chain whose effects are not all fed by each other — a
+    // reverb at a dry mix passes its input through and rings quietly beside it —
+    // and that is the right way to be wrong: the number decides how long an
+    // offline render keeps going after the last note, where too long costs a few
+    // seconds of silence at the end of a file and too short truncates the sound.
+    auto total = 0.0;
 
     for (const auto& slot : chain)
     {
@@ -148,11 +161,10 @@ double EffectsRack::getTailSeconds() const noexcept
         if (effect == nullptr)
             continue;
 
-        const auto tail = effect->getTailSeconds();
-        longest = tail > longest ? tail : longest;
+        total += effect->getTailSeconds();
     }
 
-    return longest;
+    return total;
 }
 
 void EffectsRack::process (float* const* channels, int numChannels, int numSamples) noexcept

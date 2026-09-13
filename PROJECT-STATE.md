@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 8 — Effects Rack, in progress; **8a through 8e complete** |
-| **Status** | **8e complete, and the rack is now full.** All six slots can hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged |
-| **Milestone** | M8 — Effects |
-| **Next step** | Phase 8f — whole-chain validation: arbitrary orderings of all six effects at once |
+| **Phase** | **Phase 8 — Effects Rack, complete** (8a through 8f) |
+| **Status** | **Phase 8 is done.** All six slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Milestone** | M8 — Effects, reached |
+| **Next step** | Phase 9 — presets, resources and state migration: the `.rnv` format (ADR-0053), a preset browser, factory content, and real wavetables in place of the four placeholder morphs |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -611,7 +611,9 @@ Everything below was configured, built and executed on this machine.
   *through* rather than around: the distortion pushes the signal through its
   compensation delay and does nothing else, so toggling bypass does not make the
   host re-plan its graph. Tail follows the active chain instead, because a
-  bypassed reverb is not ringing out.
+  bypassed reverb is not ringing out. (The tail was the longest figure in the
+  chain until 8f measured two ringing effects in series and found it should be
+  their sum — ADR-0060.)
 - **Latency reaches the host from the message thread.** The audio thread compares
   the rack's latency against what the host was last told — one relaxed load and
   one comparison per block — and only a chain change wakes an `AsyncUpdater` to
@@ -827,12 +829,83 @@ Everything below was configured, built and executed on this machine.
   reorderable bands — a cascade of minimum-phase filters commutes, so reordering
   would be a control that changes nothing (ADR-0059).
 
+### Whole-chain validation (Phase 8f)
+
+- **Every ordering, not a representative few.** Six effects arrange 720 ways, and
+  all 720 are rendered: each finite, each bounded, the loudest sample anywhere
+  0.6861 from a 0.5 input through a chain that distorts, compresses with makeup
+  and boosts an equaliser band. Rendering all of them costs a fraction of a
+  second and removes the question of whether the representative orderings were
+  the interesting ones.
+- **Latency is a property of the set, not the order**, asserted across all 720.
+  It cannot fail today — latency is summed and addition commutes — and it is
+  asserted anyway because the *host* depends on it: an ordering that changed the
+  reported latency would make delay compensation wrong every time somebody
+  rearranged the rack, and a future effect whose latency depended on what fed it
+  would break it silently.
+- **Every effect is audibly in the chain.** Switching any one of the six out of a
+  full rack changes the output measurably. That is Phase 8's "every effect
+  operates independently" as a measurement: six effects in series give plenty of
+  room for one to be quietly swallowed — a gate that never opens, settings that
+  never reach an effect, a slot resolved away — and none of those would fail any
+  test that looks at one effect alone.
+- **The chain is rearranged on every block for 240 blocks**, with effects leaving
+  the chain entirely and rejoining it, while audio flows. Automation can do this
+  at block rate and a preset load can rearrange all six slots at once.
+- **A full rack at the top of every range decays to exact silence.** Maximum
+  delay feedback, a 20 s reverb decay, 12 dB of compressor makeup, 12 dB on every
+  equaliser band and 6 dB of output trim, behind a hard clipper at full drive. It
+  peaks at 14.59 as the chain fills — which it is *supposed* to do, with that
+  much gain in it — turns around, and is at exact zero after a minute of silence.
+- **A full rack of six, in an order that is not the enum's and every effect
+  dialled away from its defaults, survives a preset round trip** and still sounds
+  afterwards. Phase 8's last exit criterion.
+- **A full rack costs 2.83 % of one core**, stereo. Against the 150 % the heaviest
+  patch costs at full polyphony, the effects are not where Apollo's CPU goes.
+
+**Two defects were found here that nothing testing one effect could have found**,
+and both are fixed (ADR-0060):
+
+- **A chain's tail was the longest in it, and should be the sum along it.** Right
+  for one tail-producing effect, which was the only case the rack's tests ever
+  built. Put a delay in front of a reverb and the delay is still emitting repeats
+  seconds later — so the reverb is still being *fed* at that point and takes its
+  own decay to fall silent from there. Measured: a delay reporting 5.095 s and a
+  reverb reporting 2.020 s were still audible at 5.095 s, the moment the old rule
+  declared the chain finished. The tail is what an offline render waits for after
+  the last note, so under-reporting it truncates a bounce.
+- **`reset` meant something slightly different in each effect.** Fifteen smoothed
+  controls live across the six, and only two of them — the delay's time and the
+  equaliser's trim — were placed on their targets by a reset; the other thirteen
+  were left wherever their ramp had reached. The delay's own code already carried
+  the argument for why that is wrong, in a comment on the one line that did it.
+  All six now settle every control they own.
+
+**Fixing the second broke three tests that had been passing because of it**, and
+all three are stronger now. Each put a fully wet delay or reverb in the chain and
+asserted a note sounded within a few blocks. A fully wet effect has no dry path,
+so there is nothing to hear until the first repeat or reflection arrives —
+120 ms, 500 ms and 40 ms respectively, far beyond what those tests rendered. They
+passed because `prepare` set the mix from the settings it had at the time, which
+were still the dry defaults, and the ramp towards wet leaked dry signal through
+the opening blocks. The audible consequence of the fix: a prepared plugin is now
+*at* its settings rather than gliding to them, so pressing play no longer swells
+into a wet effect the session was saved with.
+
+- **One interface defect, found by building a chain by hand** (§5a): a duplicated
+  slot lit up as though it were in the chain, when the engine has resolved
+  duplicates to first-occurrence-wins since 8a. The page now runs the same
+  resolution the engine does, and a duplicated slot says `duplicate` with its
+  number unlit.
+
+**Phase 8 is complete.** All five exit criteria are closed.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
-| 8 | **8a through 8e are done** — the rack, the distortion, the delay, the reverb, the gate, the compressor and the equaliser. Every effect the slot parameter can name now exists. Absent: whole-chain validation (8f) |
+| 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
@@ -909,7 +982,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,191,427 assertions, 0 failures**, across 31 test classes. The table below
+**2,267,817 assertions, 0 failures**, across 32 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -934,12 +1007,13 @@ subsystems they test.
 | Telemetry | Instrument telemetry | The modulator traces, the meter, the voice count and the wavetable displays, added in 7c. A modulator nothing traces is distinguishable from one sitting still; the trace is the most recent second across the ring's wrap; the meter takes a peak in the block it happened in and gives it up over about a second and a half; peak and RMS disagree about a single spike and agree about a constant tone, which is why there are two of them; a clip is still reported half a second after the samples that caused it and clears itself after the hold; an envelope's trace shows its rise, settles at the sustain level and falls on release, with the stage reported at each point; the two ends of a wavetable draw different waves, so the display is following the position rather than ignoring it; an unrouted LFO does not claim to be running and starts to when something routes it; and the frame that reaches the interface names every modulator exactly once and both oscillators by number rather than by array position |
 
 | DSP | Distortion | The curve is bounded, monotonic and centred, and every mode passes a quiet signal through unchanged — which is what lets the mode be switched without a jump; drive compensation holds a -6 dBFS sine within 4 dB across the whole 0 to 36 dB range on all three curves; a fully dry mix is the input delayed by **exactly** the reported latency, asserted sample for sample rather than approximately, because a dry path that has been through arithmetic is a bug; latency does not move with mode, drive, mix or bypass; oversampling removes 13 to 15 dB of fold-back against the same curves at the base rate, and a musical note at moderate drive stays under -60 dBc; absurd and denormal input produces finite output, and a very hot signal leaves bounded by the curve's own ceiling; and a reset leaves no tail in the filters or the delay line |
-| DSP | Effects rack | An empty rack is **bit-exactly** transparent and reports no latency or tail; an effect whose phase has not landed leaves its slot empty; the same effect in two slots runs once, in the earlier one; an effect sounds the same wherever in the chain it sits; latency counts what is in the chain whether bypassed or not, and drops only when the effect is removed; a bypassed effect delays the signal and does nothing else; and tail is reported for the active chain only |
+| DSP | Effects chain | What only means something with every effect in the rack at once. **All 720 orderings** of six effects render finite and bounded, and every one of them reports the same latency — so latency is a property of the set rather than the arrangement, which is what the host's delay compensation depends on; switching any one of the six out of a full chain measurably changes the output, so none is being swallowed by the five around it; **a chain's tail covers the whole chain ringing out**, measured by finding it still audible at the moment the old longest-in-the-chain rule declared it finished; a full rack at the top of every range — maximum feedback, a 20 s decay, 12 dB of makeup, 12 dB on every EQ band, behind a hard clipper at full drive — stays bounded, turns around and reaches exact silence after a minute; the chain rearranged on **every block** for 240 blocks, with effects leaving and rejoining it while audio flows, stays finite and bounded; and one effect named in all six slots runs once, in the first, sounding sample for sample like the same effect named once |
+| DSP | Effects rack | An empty rack is **bit-exactly** transparent and reports no latency or tail; an effect whose phase has not landed leaves its slot empty; the same effect in two slots runs once, in the earlier one; an effect sounds the same wherever in the chain it sits; latency counts what is in the chain whether bypassed or not, and drops only when the effect is removed; a bypassed effect delays the signal and does nothing else; and tail is reported for the active chain only, as the sum along it |
 | DSP | Delay | Where the repeat lands, in free time and in synced time — a quarter note at 120 BPM is 500 ms and nothing else, a slow whole note is clamped to the buffer rather than wrapping, a free delay ignores the tempo, and no tempo at all falls back to 120 rather than to silence; each repeat quieter than the last; **thirty seconds at maximum feedback with no input**, asserting the tail is quieter every second, never louder than what went in, and near silence at the end; a dry mix is the input sample for sample and the latency is zero; ping-pong puts the first repeat on the side the sound arrived on and the second on the other; damping keeps taking more top off each pass rather than settling after one; sweeping the time as fast as a control can move produces no discontinuity; a bypassed delay is fed silence so it cannot replay old audio when it comes back; reset leaves no tail; absurd and denormal input stays finite through the feedback path and still settles; and the reported tail covers at least one repeat and is bounded |
 | DSP | Reverb | The network's line lengths share no factors, in both modes, and a hall's shortest path is much longer than a room's; size scales the lines and mode changes which lines they are; a dry mix is the input sample for sample and the latency is zero; a burst is still sounding a second later; **a minute at the longest decay with no input** stays under the envelope RT60 describes, never exceeds what went in, and is gone by the end; the decay control measures as RT60, as a slope between two later times and in RMS rather than peak; the tail reaches **exactly zero** rather than grinding on as denormals; damping shortens the tail as well as darkening it; pre-delay is a real gap with nothing in it; width at zero puts the tail in the centre; a bypassed reverb goes on decaying and comes back silent rather than resuming; reset leaves nothing behind; absurd input stays finite and still settles; and the reported tail covers the decay and the pre-delay |
 | DSP | Dynamics | The compression curve is the ratio expressed in decibels, checked against the static formula and then against rendered audio — 4 dB over the threshold at 4:1 comes out 1 dB over, to within 0.07 dB; the gain ramp travels 1 - 1/e of the way in the time it is given, at three settings; the compressor as a whole is slower than that and the detector's share of the lag is measured rather than hidden; a signal 30 dB below the threshold passes through untouched and the compressor reports that it is doing nothing; makeup lifts the output by exactly what it says and a mix of zero is the input exactly; a gate opens fully on a loud signal and settles at its range on a quiet one; **hold** takes a gate that moved eleven times in two thirds of a second down to once; range means how far down, and the bottom of its travel is exact silence; one channel getting loud moves the other channel's gain too, which is what stereo linking is for; neither processor adds latency or a tail; and absurd input stays finite and settles to silence afterwards |
 | DSP | Equaliser | A fresh equaliser is **bit for bit** its input, and a band switched off or muted is the exact identity; a bell applies exactly the decibels on its dial at its own centre; **the curve the display draws is the curve the filter applies**, checked against rendered audio at fifteen frequencies for every shape; a table of reference settings produces exactly the decibels the frontend's own transcription produces, which is the contract between the two implementations of the cookbook; a wider bandwidth reaches further from the centre; order is instances, so a bell's gain applies that many times and a pass filter loses twelve decibels per octave per instance; a shelf reaches its full gain on its own side and nothing on the other; a notch removes its own frequency and leaves its neighbours alone; a band pass is unity at its centre whatever its width; the four shapes with no gain ignore the gain parameter; bands in series add in decibels; the output trim applies exactly the gain it names; **every design in the whole parameter space has both poles inside the unit circle**, at four sample rates; the same settings sound the same at every sample rate; a band coming back into circuit brings nothing with it; only a band that can ring reports a tail and that ring reaches **exactly zero** rather than grinding on as denormals; absurd input produces finite output; a band travels to a new setting over many blocks rather than arriving in one, measured on the logarithmic axis it actually travels along; sweeping a band across the spectrum keeps the output in range; and an equaliser declares and adds no latency |
-| Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; every value a slot can hold produces audio and reports the latency of the effect in it and nothing else, with only the empty slot empty and only the gate — whose default threshold sits above a default note — allowed to silence one; an equaliser band in the chain lifts a note with a shelf under it and takes it down when the shelf is inverted, reporting no latency either way; and a band's six settings plus the output trim survive the round trip a preset puts them through |
+| Audio | Effects rack in the processor | The parts that only exist once the rack is wired into a plugin: a new instance has an empty rack, reports zero latency and still sounds; putting the distortion in a slot changes what is heard, measurably and without running away with the level; the latency the rack adds reaches the host and does not change when a bypass is automated; a chain — slot, mode, drive, tone, mix — survives the save/restore a project or a preset puts it through and reports its latency again on prepare; every value a slot can hold produces audio and reports the latency of the effect in it and nothing else, with only the empty slot empty and only the gate — whose default threshold sits above a default note — allowed to silence one; an equaliser band in the chain lifts a note with a shelf under it and takes it down when the shelf is inverted, reporting no latency either way; a band's six settings plus the output trim survive the round trip a preset puts them through; and **a full rack of six, in an order that is not the enum's with every effect dialled away from its defaults, survives that round trip and still sounds afterwards**, reporting both its latency and a tail that covers the delay and the reverb together. The three fully wet tests here — a delay, a synced delay and a reverb — now render past the first repeat or reflection rather than measuring the mix ramp that used to leak dry signal past them (ADR-0060) |
 
 Passing under `Debug`, `RelWithDebInfo`, and `Release` with warnings as errors.
 
@@ -1231,6 +1305,50 @@ through `processBlock` with the equaliser in a slot: a 12 dB low shelf under the
 note lifts its peak from 0.0718 to 0.2845, inverting the shelf takes it to 0.0547,
 and the latency stays at zero throughout.
 
+### The full chain, 2026-09-14
+
+The first time a chain has been *built by hand* rather than set through
+parameters. 8a managed it once and the four phases after it could not; 8e solved
+the input problem (issue 15) and this is the first phase to use it for the thing
+those entries kept deferring.
+
+One addition to the technique recorded in 8e: a native `<select>` cannot be
+driven reliably with arrow keys under synthetic input — the click that opens the
+popup sometimes counts as a keystroke and sometimes does not, so a count of
+Downs lands on a different option each time. **Type-ahead is deterministic**:
+click the select, send the option's first letter as `WM_CHAR`, then Return.
+That is how the compressor got into slot 5 after three attempts with arrow keys
+put the equaliser, the reverb and the equaliser there again.
+
+| Checked | Result |
+|---|---|
+| The rack renders six empty slots | `1` to `6`, each reading `—`, with every slot number dim |
+| A slot can be filled from its own dropdown | Slot 1 set to `DISTORTION`; its number lit gold and the **Distortion panel's `OFF` chip disappeared** — the interface and the engine agreeing about the chain |
+| A full chain of all six, built by hand | `DISTORTION → DELAY → REVERB → GATE → COMPRESSOR → EQ`, every slot number lit |
+| Every effect panel agrees | Distortion, Delay, Reverb, Gate, Compressor and Equaliser all lost their `OFF` chips. Six effects, six live panels |
+| The equaliser's state survived from the previous session | Band 4's bell still at 1.60 kHz, drawn on the curve, after the restart between phases |
+
+One defect was found by driving it, and is fixed:
+
+- **A duplicated slot claimed to be in the chain.** Two of the arrow-key attempts
+  left the same effect in two slots. The rack resolves that the way it has since
+  8a — first occurrence wins, because running one effect object twice would feed
+  its own output back into its own state — but the *interface* lit both slot
+  numbers, because it only checked whether the named effect existed in this
+  build. That is precisely the thing `IMPLEMENTED_EFFECTS` exists to prevent, in
+  its own words: "lighting a slot that the rack is going to ignore would be the
+  interface telling the user something the instrument does not agree with." The
+  page now resolves the chain by the same algorithm the engine uses, and a
+  duplicated slot reads **`duplicate`** in orange with its number unlit. Verified
+  live: the marker appeared on slot 6, then moved to slot 5 when slot 5 became
+  the duplicate, then vanished when the chain held six distinct effects.
+
+**Not driven by hand:** audio through the chain, for the same reason as 8e — no
+virtual MIDI port is running on this machine, so there is no way to play a note
+into it. Everything the audible check would have shown is asserted through
+`processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp`, including a full
+rack of six restored from a preset and still sounding.
+
 ---
 
 ## 5b. CPU measurements
@@ -1369,6 +1487,7 @@ than in the voice (ADR-0033).
 | Equaliser, all bands transparent | — | — | — | — | 0.037 % |
 | Equaliser, 7 bands x1 | — | — | — | — | 0.399 % |
 | Equaliser, 7 bands x4 | — | — | — | — | 0.526 % |
+| **All six at once** | — | — | — | — | **2.831 %** |
 
 The empty row is the honest baseline: it is the benchmark's own input loop, not
 the rack, which does nothing at all when no slot is filled. Against it, in the
@@ -1380,6 +1499,13 @@ The reverb's two rows are the interesting pair: **bypassed costs almost what
 active costs**, because the network keeps running so its tail can decay rather
 than freeze (ADR-0057). Removing an effect from the chain is the free option;
 bypassing it is a musical gesture, not a CPU one.
+
+The last row is the one nobody could measure until every effect existed, and it
+is the headline of Phase 8: **a rack holding all six effects, audibly
+configured, costs 2.83 % of one core.** Against the 150 % the heaviest patch
+costs at full polyphony (issue 13), the effects are not where Apollo's CPU goes —
+which is worth knowing before Phase 10 starts optimising, because it says where
+not to look.
 
 The equaliser's three rows say two things. **A transparent equaliser is free** —
 0.037 % against an empty rack's 0.035 %, which is a transparent band being skipped
@@ -1482,7 +1608,8 @@ change that multiplies them is caught there (ADR-0049).
 | 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 | 15 | ~~Synthetic input does not reach the WebView reliably~~ | **Closed** | Four sub-phases in a row (8b-8d, §5a) recorded that the interface could be read but not driven, because injecting input at the desktop reaches whatever window is in front. Solved in 8e by posting the mouse messages directly to Apollo's `Chrome_RenderWidgetHostHWND` child and capturing with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the cursor nor the foreground. The driving process must call `SetProcessDPIAware` first, or it measures a 1920x1080 window as 1280x720 and captures only its corner. |
-| 16 | No MIDI source on this machine for chain tests | Low | 8e could drive the interface but could not play a note into a configured chain, because no virtual MIDI port was running. Each effect's audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead. Worth having a port available before 8f, whose whole subject is what a chain of six effects does to a note. |
+| 16 | No MIDI source on this machine for chain tests | Low | 8e and 8f could both drive the interface but neither could play a note into a configured chain, because no virtual MIDI port was running. Audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead, up to and including a full rack of six restored from a preset and still sounding. Worth having a port available before Phase 9, where a preset is supposed to be recognisable by ear. |
+| 17 | ~~A duplicated rack slot claimed to be in the chain~~ | **Fixed** | Found in 8f by building a chain by hand and landing the same effect in two slots. The engine has resolved duplicates to first-occurrence-wins since 8a; the interface lit both, because it only checked whether the named effect existed in this build. The page now runs the same resolution the engine does, and a duplicated slot reads `duplicate` with its number unlit. |
 
 ---
 

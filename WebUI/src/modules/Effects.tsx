@@ -67,34 +67,74 @@ export const RACK_PARAMETER_IDS: string[] = Array.from(
     (_, index) => `fx_slot${index + 1}`,
 );
 
-/** True while @p effect occupies one of the six slots.
+/** What the engine will actually run in each slot, in order, with 0 for empty.
 
-    Subscribed to as well as read, so a panel's OFF chip appears the moment the
-    effect is put into the chain and disappears the moment it is taken out. The
-    loop calls a hook per slot, which is allowed here and only here because the
+    The rack does not run the chain it is handed, it runs the chain it resolves:
+    an effect this build does not have leaves the slot empty, and so does a
+    *second* occurrence of an effect already placed earlier, because running one
+    effect object twice would feed its own output back into its own state
+    (ADR-0054, `EffectsRack::setChain`).
+
+    The page has to resolve it the same way and by the same algorithm rather than
+    an equivalent-looking one. A slot lit up that the engine is going to ignore is
+    the interface telling the user something the instrument does not agree with —
+    which is the reason `IMPLEMENTED_EFFECTS` exists, and applies just as much to
+    a duplicate. Found by driving the running rack in Phase 8f, where two slots
+    ended up naming the reverb and both claimed to be in the chain.
+
+    Subscribed to as well as read, so the answer changes the moment any slot
+    does. The loop calls a hook per slot, which is allowed here because the
     number of slots is a constant: every render subscribes to the same six ids
     in the same order.
 */
-function useInChain(effect: number): boolean {
-    let placed = false;
+function useResolvedChain(): number[] {
+    const requested: number[] = [];
 
     for (const id of RACK_PARAMETER_IDS) {
         useParameterValue(id);
-        placed = placed || Math.round(plainOf(id)) === effect;
+        requested.push(Math.round(plainOf(id)));
     }
 
-    return placed;
+    const resolved: number[] = [];
+
+    for (const effect of requested) {
+        const runnable = IMPLEMENTED_EFFECTS.includes(effect) && !resolved.includes(effect);
+        resolved.push(runnable ? effect : 0);
+    }
+
+    return resolved;
+}
+
+/** True while @p effect is one the engine will actually run.
+
+    A panel's OFF chip therefore disappears the moment the effect is put into the
+    chain and comes back the moment it is taken out — and does *not* disappear
+    because a second slot names an effect the rack is going to ignore.
+*/
+function useInChain(effect: number): boolean {
+    return useResolvedChain().includes(effect);
 }
 
 function Slot({ index }: { index: number }): JSX.Element {
     const id = `fx_slot${index}`;
 
-    useParameterValue(id);
-    const filled = IMPLEMENTED_EFFECTS.includes(Math.round(plainOf(id)));
+    const resolved = useResolvedChain();
+    const requested = Math.round(plainOf(id));
+
+    const filled = resolved[index - 1] !== 0;
+
+    // Named something real, and ignored anyway, because an earlier slot already
+    // has it. Said in a word rather than by being dim, because "this control is
+    // doing nothing" is exactly the kind of thing a user should not have to
+    // infer from brightness (CLAUDE.md §39).
+    const duplicate = !filled && IMPLEMENTED_EFFECTS.includes(requested);
 
     return (
         <div className="rack__slot" data-filled={filled ? 'true' : 'false'}>
-            <div className="rack__index">{index}</div>
+            <div className="rack__index">
+                {index}
+                {duplicate ? <span className="rack__note">duplicate</span> : null}
+            </div>
             <Select id={id} table={LABELS.fxSlot} ariaLabel={`FX slot ${index}`} />
         </div>
     );

@@ -17,6 +17,7 @@
 
 #include <juce_core/juce_core.h>
 
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -119,6 +120,7 @@ public:
         testSyncedDelayWorksWithNoTransport();
         testReverbReachesTheAudioAndReportsItsTail();
         testDynamicsReachTheAudio();
+        testAFullChainSurvivesStateRestore();
         testTheWholeChainRunsTogether();
     }
 
@@ -426,11 +428,19 @@ private:
                 "the reported tail must cover at least one repeat, and was "
                     + juce::String (tail, 3) + " s");
 
-        // One note, then silence: what is still sounding afterwards is the
-        // delay, because nothing else in the instrument can be.
-        const auto note = renderNote (processor, 4);
+        // A FULLY WET DELAY HAS NO DRY PATH, so its output is silence until the
+        // first repeat arrives 120 ms later — long after the four blocks this
+        // used to render. It passed anyway until Phase 8f, because `prepare` set
+        // the mix from the settings it had at the time (the dry default) and
+        // `reset` left it ramping towards wet, so the first blocks leaked some
+        // dry signal through. `reset` now settles its controls, so a prepared
+        // plugin is at its settings rather than gliding to them (ADR-0060), and
+        // this renders long enough to hear what it is actually asking about.
+        const auto note = renderNote (processor, 30);
 
-        expect (peakOf (note) > 0.05f, "the note itself must sound before its repeats can");
+        expect (peakOf (note) > 0.05f,
+                "a fully wet delay must produce its first repeat, and peaked at "
+                    + juce::String (peakOf (note), 5));
 
         juce::AudioBuffer<float> buffer (2, blockSize);
         juce::MidiBuffer midi;
@@ -479,9 +489,15 @@ private:
 
         processor.prepareToPlay (testSampleRate, blockSize);
 
-        const auto rendered = renderNote (processor, 8);
+        // A quarter note at the 120 BPM fallback is half a second, and the mix
+        // is fully wet, so there is nothing to hear until that has elapsed —
+        // which is the point of the test rather than an obstacle to it: if the
+        // fallback were not being applied, the repeat would never arrive at all.
+        const auto rendered = renderNote (processor, 110);
 
-        expect (peakOf (rendered) > 0.05f, "the instrument must still sound");
+        expect (peakOf (rendered) > 0.05f,
+                "the repeat must arrive half a second in, which is a quarter note at the "
+                "fallback tempo, and peaked at " + juce::String (peakOf (rendered), 5));
 
         for (const auto sample : rendered)
             expect (std::isfinite (sample), "and must not produce a NaN for want of a tempo");
@@ -512,8 +528,20 @@ private:
                 "the reported tail must cover the decay, and was "
                     + juce::String (processor.getTailLengthSeconds(), 3) + " s");
 
-        const auto note = renderNote (processor, 4);
-        expect (peakOf (note) > 0.05f, "the note itself must sound");
+        // Fully wet with 40 ms of pre-delay, so the room answers nothing at all
+        // for the first 40 ms and then builds. Forty blocks is a little over
+        // 200 ms, which is past the pre-delay and well into the build-up.
+        //
+        // The threshold is lower than the delay's for a reason worth stating: a
+        // fully wet reverb is *quieter* than the note that fed it, because the
+        // network scales its input and output to preserve energy and then
+        // spreads that energy across four seconds of decay. A dry note here
+        // peaks around 0.08 and the reverb of it around 0.04, which is the
+        // arithmetic working rather than the room being faint.
+        const auto note = renderNote (processor, 40);
+        expect (peakOf (note) > 0.02f,
+                "the room must have started answering, and peaked at "
+                    + juce::String (peakOf (note), 5));
 
         juce::AudioBuffer<float> buffer (2, blockSize);
         juce::MidiBuffer midi;
@@ -615,6 +643,111 @@ private:
         processor.prepareToPlay (testSampleRate, blockSize);
 
         return processor.getLatencySamples();
+    }
+
+    void testAFullChainSurvivesStateRestore()
+    {
+        beginTest ("a full rack of six effects, all dialled away from their defaults, survives a preset");
+
+        // Phase 8's last exit criterion — "FX state survives preset/project
+        // recall" — at full size. The individual effects each have a round-trip
+        // test of their own; what is new here is the whole rack at once, which
+        // is what a preset actually contains, and an ordering that is not the
+        // enum's so that a chain restored in the wrong order would be caught.
+        struct Setting { const char* id; float value; };
+
+        const std::array<Setting, 24> settings { {
+            // The chain, deliberately not in enum order.
+            { "fx_slot1", 4.0f },   // gate
+            { "fx_slot2", 6.0f },   // equaliser
+            { "fx_slot3", 1.0f },   // distortion
+            { "fx_slot4", 5.0f },   // compressor
+            { "fx_slot5", 2.0f },   // delay
+            { "fx_slot6", 3.0f },   // reverb
+
+            { "fx_gate_threshold", -44.0f },
+            { "fx_gate_hold", 120.0f },
+
+            { "fx_eq_band3_type", 4.0f },       // notch
+            { "fx_eq_band3_freq", 820.0f },
+            { "fx_eq_band3_bandwidth", 0.35f },
+            { "fx_eq_level", -2.5f },
+
+            { "fx_distortion_mode", 2.0f },     // diode
+            { "fx_distortion_drive", 15.0f },
+            { "fx_distortion_mix", 0.65f },
+
+            { "fx_compressor_ratio", 6.0f },
+            { "fx_compressor_attack", 4.0f },
+            { "fx_compressor_makeup", 5.0f },
+
+            { "fx_delay_time", 310.0f },
+            { "fx_delay_feedback", 0.55f },
+            { "fx_delay_pingpong", 1.0f },
+
+            { "fx_reverb_mode", 0.0f },         // room
+            { "fx_reverb_size", 0.8f },
+            { "fx_reverb_mix", 0.35f },
+        } };
+
+        juce::MemoryBlock state;
+
+        {
+            apollo::ApolloAudioProcessor processor;
+
+            for (const auto& setting : settings)
+                setPlain (processor, setting.id, setting.value);
+
+            processor.prepareToPlay (testSampleRate, blockSize);
+            processor.getStateInformation (state);
+        }
+
+        apollo::ApolloAudioProcessor restored;
+        restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+        restored.prepareToPlay (testSampleRate, blockSize);
+
+        const auto plainOf = [&restored] (const juce::String& id)
+        {
+            const auto* parameter = restored.getValueTreeState().getParameter (id);
+            return parameter != nullptr ? parameter->convertFrom0to1 (parameter->getValue()) : -1.0f;
+        };
+
+        for (const auto& setting : settings)
+        {
+            // A tolerance proportional to the value, because these span six
+            // orders of magnitude — a slot index and a delay time in
+            // milliseconds cannot share an absolute one.
+            const auto tolerance = std::max (0.001f, std::abs (setting.value) * 0.002f);
+
+            expectWithinAbsoluteError (plainOf (setting.id), setting.value, tolerance,
+                                       juce::String (setting.id) + " did not survive the round trip");
+        }
+
+        // And the restored chain sounds: a rack that came back as parameters but
+        // not as audio would pass every assertion above.
+        const auto rendered = renderNote (restored, 24);
+
+        auto peak = 0.0f;
+
+        for (const auto sample : rendered)
+        {
+            expect (std::isfinite (sample), "a restored full chain must not produce a NaN");
+            peak = std::max (peak, std::abs (sample));
+        }
+
+        expect (peak > 0.001f, "a restored full chain must still make a sound");
+
+        // The distortion is in slot 3, so the chain's latency is its round trip
+        // wherever it sits — and the host is told again on prepare.
+        expect (restored.getLatencySamples() > 0,
+                "a restored chain containing the distortion must report its latency");
+
+        // Tail is the envelope's release plus the whole chain's, and the chain
+        // now holds two effects that ring: the delay and the reverb. Their tails
+        // add, because the delay is still feeding the reverb (ADR-0060).
+        expect (restored.getTailLengthSeconds() > 1.0,
+                "a restored chain with a delay and a reverb in it must report a tail covering both, "
+                "and was " + juce::String (restored.getTailLengthSeconds(), 3) + " s");
     }
 
     void testTheWholeChainRunsTogether()

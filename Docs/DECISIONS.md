@@ -2293,3 +2293,85 @@ a cascade of minimum-phase filters commutes, so bands 3 and 5 sound the same
 whichever runs first. What the fixed numbering buys instead is a stable identity
 for automation and for the display: band 4 is band 4 in every preset ever
 written.
+
+---
+
+## ADR-0060 — A chain's tail is the sum along it, and `reset` settles every smoothed control
+
+**Phase 8f · Accepted**
+
+Both of these are defects that whole-chain validation found and that nothing
+testing one effect at a time could have. They are recorded together because they
+are the same kind of mistake: a rule that is obviously right for one effect and
+quietly wrong for six in series.
+
+### The tail is summed, not maxed
+
+`EffectsRack::getTailSeconds` reported the longest tail of any active effect in
+the chain. With one tail-producing effect in the rack that is exactly right, and
+it is the only case the rack's own tests ever built.
+
+Put a delay in front of a reverb and it is wrong. The delay is still emitting
+repeats seconds after the note stopped, so the reverb is still being *fed* at
+that point, and then takes its own decay to fall silent from there. Measured
+in `Tests/DSP/EffectsChainTests.cpp`: a delay reporting 5.095 s and a reverb
+reporting 2.020 s, in series, were still audible at 5.095 s — the moment the old
+rule declared the chain finished.
+
+The tail is what an offline render waits for after the last note. Under-reporting
+it truncates the end of a bounce, which is the one failure the number exists to
+prevent. So the chain's tail is now the sum of its active effects' tails.
+
+**This over-reports some chains, and that is the right way to be wrong.** Two
+effects in a rack are not always feeding each other in the sense the sum assumes
+— a reverb at a dry mix passes its input straight through and rings quietly
+alongside it, so the true ring-out is nearer the longer of the two than their
+sum. Modelling that would mean the rack knowing each effect's wet/dry balance and
+how its tail is routed, which is an interface no effect currently has and a
+complication for an answer whose two failure modes are not symmetric: too long
+costs a few seconds of silence at the end of a rendered file, and too short cuts
+the sound off.
+
+### `reset` settles every smoothed control
+
+`AudioEffect::reset` is documented as clearing transient state. Fifteen smoothed
+controls live across the rack's six effects, and before Phase 8f exactly two of
+them — the delay's time and the equaliser's output trim — were placed on their
+targets by a reset. The other thirteen were left wherever their ramp had reached.
+
+The delay's own code already carried the argument for why that is wrong, in a
+comment on the one line that did it: a reset is a transport jump, a device
+change or a preset load, and a control gliding across one of those is an artefact
+of something the user did not play. That argument is not specific to a delay
+time. `LinearSmoothedValue::settle` now spells it as one verb, and all six effects
+call it on every control they own.
+
+**How it was found, and what it had been hiding.** Two identically configured
+racks did not render identically after a reset, which is what
+`testOneEffectNamedSixTimesRunsOnce` tripped over. Fixing it then broke three
+processor tests that had been passing *because* of it: each put a fully wet
+delay or reverb in the chain and asserted that a note sounded within a few
+blocks. A fully wet effect has no dry path, so there is nothing to hear until the
+first repeat or the first reflection arrives — 120 ms, 500 ms and 40 ms
+respectively, all far beyond the few blocks those tests rendered. They passed
+because `prepare` set the mix from the settings it had at the time, which were
+still the dry defaults, and the ramp towards wet leaked dry signal through the
+opening blocks. Each of those tests now renders long enough to hear the thing it
+is actually asking about, which makes all three stronger than they were.
+
+**The consequence worth stating plainly:** a prepared plugin is now *at* its
+settings rather than gliding to them, so pressing play no longer produces a
+short swell into a wet effect that the session was saved with.
+
+### What whole-chain validation cost and what it returned
+
+720 orderings of six effects, rendered in full, cost a fraction of a second and
+removed the question of which orderings were the interesting ones. That sweep,
+plus a chain rearranged on every block for 240 blocks and a full rack at the top
+of every range decaying for a minute, is what Phase 8's "FX order can be changed
+safely" and "feedback effects remain stable" mean as measurements rather than
+claims.
+
+A full rack — all six effects, audibly configured, stereo — costs **2.83 % of one
+core**. Against the 150 % the heaviest patch costs at full polyphony, the effects
+are not where Apollo's CPU goes.

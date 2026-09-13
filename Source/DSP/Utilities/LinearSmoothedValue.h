@@ -54,6 +54,22 @@ public:
         countdown = 0;
     }
 
+    /** Ends any ramp in progress by placing the value on its target.
+
+        What `reset()` means for a smoothed control, and the reason it is spelled
+        as its own verb rather than as `setCurrentAndTargetValue (getTargetValue())`
+        at seven call sites. A reset is a transport jump, a device change or a
+        preset load — something the user did not play — and a control still
+        gliding across one of those is an artefact of the jump rather than of
+        anything musical. Phase 8f found that only two of the rack's fifteen
+        smoothed controls were doing this, so `reset()` meant something slightly
+        different in each effect (ADR-0060).
+    */
+    void settle() noexcept
+    {
+        setCurrentAndTargetValue (target);
+    }
+
     void setTargetValue (float newValue) noexcept
     {
         if (newValue == target)

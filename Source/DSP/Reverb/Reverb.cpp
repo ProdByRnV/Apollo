@@ -186,6 +186,12 @@ void Reverb::reset() noexcept
 
     for (auto& line : preDelay)
         line.reset();
+
+    // Every smoothed control placed on its target, which is what reset means
+    // across the whole rack (ADR-0060).
+    preDelaySamples.settle();
+    width.settle();
+    mix.settle();
 }
 
 void Reverb::refreshLengths() noexcept

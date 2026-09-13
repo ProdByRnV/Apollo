@@ -1365,3 +1365,14 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 .rack__slot[data-filled="true"] .rack__index {
     color: var(--accent);
 }
+
+/* A slot naming an effect an earlier slot already holds. The rack resolves it to
+   empty, so the interface says so in a word — not by dimming it, because "this
+   control is doing nothing" should not have to be read off a brightness
+   (CLAUDE.md §39). Orange rather than red: it is a caution, not a fault, and the
+   patch is perfectly valid (§24.1). */
+.rack__note {
+    margin-left: var(--s-1);
+    color: var(--caution);
+    letter-spacing: 0.08em;
+}
