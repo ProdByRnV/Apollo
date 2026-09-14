@@ -57,3 +57,47 @@ target_link_libraries(Apollo PRIVATE
     juce::juce_recommended_warning_flags)
 
 set_target_properties(Apollo PROPERTIES FOLDER "Apollo/Plugin")
+
+# ---------------------------------------------------------------------------
+# A runnable copy of the standalone in the project root.
+#
+# Requested by the developer, who launches the built application constantly and
+# should not have to walk down to
+# build*/Source/Plugin/Apollo_artefacts/<config>/Standalone/ to find it. The
+# copy lands beside the top-level markdown files and is ignored by git.
+#
+# ONE NAME, LAST BUILD WINS. Building Debug and then Release leaves the Release
+# build in the root, because "the one I just built" is what the shortcut is for.
+# A per-configuration name would put three binaries beside the documents and
+# make the developer choose between them, which is the errand this removes.
+#
+# An option rather than unconditional, defaulting on: a packaging or CI job has
+# no use for it, and turning it off there is better than teaching those jobs to
+# clean up after a convenience they never asked for.
+option(APOLLO_COPY_STANDALONE_TO_ROOT
+       "After building, copy the standalone application into the project root"
+       ON)
+
+if(APOLLO_COPY_STANDALONE_TO_ROOT AND TARGET Apollo_Standalone)
+    if(APPLE)
+        # The macOS standalone is Apollo.app, which is a directory. It is
+        # removed first because copy_directory merges into an existing tree
+        # rather than replacing it, which would leave a previous build's files
+        # inside the new bundle.
+        add_custom_command(TARGET Apollo_Standalone POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rm -rf
+                    "${CMAKE_SOURCE_DIR}/Apollo.app"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "$<TARGET_BUNDLE_DIR:Apollo_Standalone>"
+                    "${CMAKE_SOURCE_DIR}/Apollo.app"
+            COMMENT "Copying the standalone into the project root"
+            VERBATIM)
+    else()
+        add_custom_command(TARGET Apollo_Standalone POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:Apollo_Standalone>"
+                    "${CMAKE_SOURCE_DIR}/$<TARGET_FILE_NAME:Apollo_Standalone>"
+            COMMENT "Copying the standalone into the project root"
+            VERBATIM)
+    endif()
+endif()

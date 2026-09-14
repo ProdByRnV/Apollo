@@ -263,7 +263,14 @@ export function App(): JSX.Element {
                 <div>
                     <div className="wordmark">Apollo</div>
                 </div>
-                <span className="masthead__tag">wavetable synthesiser</span>
+                {/*
+                    The developer's handle rather than a description of the
+                    product, at their request: the masthead is the one place a
+                    plugin is looked at in every screenshot anyone takes of it,
+                    and "wavetable synthesiser" was telling people something the
+                    rest of the interface already makes obvious.
+                */}
+                <span className="masthead__tag">@ProdByRnV</span>
 
                 <div className="masthead__spacer" />
 

@@ -98,6 +98,24 @@ All options are ordinary CMake cache variables (`-DOPTION=ON`).
 | `APOLLO_ENABLE_WEBVIEW` | `ON` | Build the WebView editor. With it off, the plugin falls back to a generic parameter editor and no WebView dependency is required. |
 | `APOLLO_JUCE_SOURCE_DIR` | *(empty)* | Use an existing JUCE checkout instead of fetching. |
 | `APOLLO_ALLOW_UNPINNED_JUCE` | `OFF` | Permit a JUCE checkout that does not match the pinned commit. |
+| `APOLLO_COPY_STANDALONE_TO_ROOT` | `ON` | After building, copy the standalone application into the project root. |
+
+### The standalone in the project root
+
+Every build of the standalone leaves a runnable copy of it in the project root,
+beside `README.md` and the other top-level documents — `Apollo.exe` on Windows,
+`Apollo` on Linux, `Apollo.app` on macOS. It is there so the application can be
+launched without walking down to
+`build*/Source/Plugin/Apollo_artefacts/<config>/Standalone/`, and it is ignored
+by git.
+
+**One name, last build wins.** Building `Debug` and then `RelWithDebInfo` leaves
+the `RelWithDebInfo` build in the root, because "the one I just built" is what
+the shortcut is for. If you need to be certain which configuration is sitting
+there, rebuild the one you want.
+
+Turn it off with `-DAPOLLO_COPY_STANDALONE_TO_ROOT=OFF`, which is what a
+packaging or CI job should do: neither has any use for the copy.
 
 ### Sanitizer builds
 

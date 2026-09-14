@@ -7,6 +7,14 @@ _deps/
 CMakeUserPresets.json
 compile_commands.json
 
+# The standalone application, copied into the project root after every build so
+# it can be launched without walking down the build tree
+# (Source/Plugin/CMakeLists.txt). It is a build artefact that happens to live
+# beside the documents, and is never committed.
+/Apollo.exe
+/Apollo
+/Apollo.app/
+
 # Frontend -------------------------------------------------------------------
 node_modules/
 WebUI/dist/

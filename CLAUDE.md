@@ -955,6 +955,16 @@ This replaces the deep purple accent system this section previously specified.
 That was a written default rather than an intended one, and the developer
 directed the change after seeing it built (§42; ADR-0051).
 
+### Masthead
+
+The masthead carries the Apollo wordmark and, beside it, **`@ProdByRnV`** — the
+developer's handle, at their request and for promotional reasons. It replaced
+the descriptive tag "wavetable synthesiser" that sat there before: the masthead
+is the part of a plugin that appears in every screenshot anyone takes of it, and
+what the instrument *is* is already obvious from the rest of the interface.
+
+Treat this as brand identity rather than as copy to be reworded (§25).
+
 ## 24.2 Color Semantics
 
 ### Green
