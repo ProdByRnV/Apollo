@@ -72,6 +72,7 @@ juce::String describe (StateLoadResult result)
         case StateLoadResult::wrongProduct:       return "The state data was not created by Apollo.";
         case StateLoadResult::unsupportedVersion: return "The state data was saved by an incompatible version of Apollo.";
         case StateLoadResult::migrationFailed:    return "The state data could not be updated to the current format.";
+        case StateLoadResult::tooLarge:           return "The file is too large to be Apollo state.";
     }
 
     return "The state data could not be read.";
@@ -122,7 +123,13 @@ StateLoadResult readState (juce::AudioProcessorValueTreeState& apvts,
     if (xml == nullptr)
         return StateLoadResult::malformed;
 
-    if (! xml->hasTagName (params::stateTreeType))
+    return readStateXml (apvts, *xml);
+}
+
+StateLoadResult readStateXml (juce::AudioProcessorValueTreeState& apvts,
+                              const juce::XmlElement& xml)
+{
+    if (! xml.hasTagName (params::stateTreeType))
         return StateLoadResult::wrongProduct;
 
     // The version is read from the XML attribute rather than from the parsed
@@ -134,10 +141,10 @@ StateLoadResult readState (juce::AudioProcessorValueTreeState& apvts,
     // A document with no version at all is not assumed to be current: it is
     // either corrupt or predates versioning, and neither can be interpreted
     // safely.
-    if (! xml->hasAttribute (schemaVersionProperty))
+    if (! xml.hasAttribute (schemaVersionProperty))
         return StateLoadResult::unsupportedVersion;
 
-    const auto versionText = xml->getStringAttribute (schemaVersionProperty).trim();
+    const auto versionText = xml.getStringAttribute (schemaVersionProperty).trim();
 
     if (versionText.isEmpty() || ! versionText.containsOnly ("+-0123456789"))
         return StateLoadResult::malformed;
@@ -147,7 +154,7 @@ StateLoadResult readState (juce::AudioProcessorValueTreeState& apvts,
     if (schemaVersion < minimumSupportedSchemaVersion || schemaVersion > currentSchemaVersion)
         return StateLoadResult::unsupportedVersion;
 
-    auto incoming = juce::ValueTree::fromXml (*xml);
+    auto incoming = juce::ValueTree::fromXml (xml);
 
     if (! incoming.isValid())
         return StateLoadResult::malformed;

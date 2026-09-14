@@ -2375,3 +2375,73 @@ claims.
 A full rack — all six effects, audibly configured, stereo — costs **2.83 % of one
 core**. Against the 150 % the heaviest patch costs at full polyphony, the effects
 are not where Apollo's CPU goes.
+
+---
+
+## ADR-0061 — A preset carries the patch, not the controller
+
+**Phase 9a · Accepted**
+
+ADR-0053 fixed what a preset file *is*: one `.rnv`, one sound, the versioned
+state document as text plus name, author, category and comment. Building it
+raised a question that decision did not answer — whether "the state document"
+means all of it.
+
+It does not. Two parts of Apollo's state describe the machine in front of the
+user rather than the sound they made:
+
+- the learned MIDI mappings, which say that CC 21 on *this* desk moves the
+  filter cutoff;
+- the four expression parameters — the wheel's bend range and the three that
+  describe an MPE zone — which exist because a controller announced itself
+  (ADR-0045).
+
+A `.rnv` is made to be shared. Sending somebody a patch must not send them your
+keyboard's setup, and auditioning a patch must not silently rewire theirs. So
+both are **stripped when a preset is written and preserved when one is read**.
+This is CLAUDE.md §28's separation of preset state from the rest, made concrete
+at the only point where it is observable.
+
+**Preserved, not merely omitted.** Leaving them out of the file is half the job
+and the less important half. A document that does not mention a parameter is
+loaded as that parameter's *default* — that is how the loader has always treated
+absence, and it is what lets a version 1 document gain a second filter without
+saying anything about it (ADR-0032). So a preset that simply omitted the MPE
+zone would reset it, which is worse than carrying the author's. The reader
+captures the controller state before applying anything and puts it back
+afterwards.
+
+**The rule is the registry's, not a list kept in the preset layer.** The four
+expression parameters are already the only ones marked *not automatable*, and
+for exactly this reason: a pitch-bend range moving on an automation lane is a
+bug rather than a performance. `isExcludedFromPresets` reads that flag. A future
+parameter that describes the controller is excluded by saying so once, where the
+parameter is defined, rather than by remembering to add it here as well.
+
+**What this costs.** A preset cannot ship a recommended MPE configuration, and a
+sound designed around a 48-semitone note bend will be loaded by someone whose
+keyboard is set to 2. That is the right trade: the alternative is a preset that
+reconfigures hardware, and the failure mode of *not* applying a setting is a
+patch that plays a bit differently, where the failure mode of applying one is a
+controller that stops behaving the way its owner set it up.
+
+### One reader, reached two ways
+
+The other decision worth recording is what Phase 9a deliberately did *not*
+build. Everything that decides whether a document may be loaded — the product
+check, the schema version bounds, the migration path, and the guarantee that a
+rejection leaves the current sound untouched — already existed for host state.
+`readState` was split into the part that unwraps JUCE's binary blob and the part
+that validates a parsed document, and the preset reader calls the second half.
+
+The alternative is a preset reader that repeats those rules. It would work on
+the day it was written and drift afterwards, and the first symptom would be a
+document a host refuses that Apollo will nonetheless load off a disk — which is
+the failure a validated entry point exists to prevent. `Tests/State/
+PresetDocumentTests.cpp` offers the same malformed documents to both paths and
+asserts they are refused for the same reason, so the sharing is checked rather
+than assumed.
+
+**Given up:** a preset cannot carry state a host project does not, since the two
+are the same document. If something later needs to be preset-only, it will need
+its own element and its own argument, not a second format.

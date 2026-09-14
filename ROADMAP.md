@@ -56,6 +56,95 @@ Phase 12 → Release Candidate & Production Hardening
 
 The phases are sequential at the architectural level but may overlap during implementation. Dependencies should be respected even when work proceeds in parallel.
 
+
+## 2a. Sub-phase index
+
+Phases 0 to 3 were built as single units. From Phase 4 onwards each phase is
+split into sub-phases, and each sub-phase is finished — built, tested, driven
+against the running application, committed and green in CI — before the next one
+starts. The letters below are the ones used in commit messages, in
+`PROJECT-STATE.md` and in the `(4b)`-style annotations on the tasks in this file.
+
+The split for Phases 9 to 12 was made in one pass after Phase 8 closed, so that
+the shape of the remaining work is visible rather than being invented a phase at
+a time. It is a plan, not a contract: a sub-phase may be re-cut when the work in
+front of it is better understood, the way 8f was.
+
+### Done
+
+| | | |
+|---|---|---|
+| **0** | Specification & repository setup | ✅ |
+| **1** | Build system & application foundation | ✅ |
+| **2** | Parameter, state & UI binding infrastructure | ✅ |
+| **3** | Audio engine & voice architecture | ✅ |
+| **4** | **Wavetable oscillator system** | ✅ |
+| 4a | The wavetable oscillator — mipmapped, band-limited, interpolated | ✅ |
+| 4b | The source section — two oscillators, unison, sub, noise | ✅ |
+| 4c | Oversampling — 2x and 4x polyphase halfband, built ahead of its consumers | ✅ |
+| **5** | **Filters, envelopes & modulation** | ✅ |
+| 5a | The amplitude envelope — DAHDSR with curve tension | ✅ |
+| 5b | The filters — two state-variable filters, series or parallel | ✅ |
+| 5c | The LFO generator — seven shapes, audio rate | ✅ |
+| 5d | The modulation matrix — sixteen slots, fifteen sources, seventeen destinations | ✅ |
+| **6** | **MIDI, control & interaction** | ✅ |
+| 6a | MIDI Learn — any control, any CC, a bijection | ✅ |
+| 6b | Per-note expression and MPE | ✅ |
+| 6c | Controller profiles | ✅ |
+| **7** | **Web UI / UX system** | ✅ |
+| 7a | The visualisation transport and the output scope | ✅ |
+| 7b | The five per-source oscilloscopes | ✅ |
+| 7c | Modulator traces, metering, voice count, wavetable displays | ✅ |
+| 7d | The React and TypeScript migration | ✅ |
+| **8** | **Effects rack** | ✅ |
+| 8a | The rack, and the distortion in it | ✅ |
+| 8b | The delay | ✅ |
+| 8c | The reverb | ✅ |
+| 8d | The gate and the compressor | ✅ |
+| 8e | The parametric equaliser | ✅ |
+| 8f | Whole-chain validation | ✅ |
+
+### Left
+
+| | | |
+|---|---|---|
+| **9** | **Presets, resources & state migration** | ⬜ |
+| 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ⬜ |
+| 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ⬜ |
+| 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ⬜ |
+| 9d | Factory presets — content that demonstrates the instrument, and the init patch | ⬜ |
+| 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ⬜ |
+| **10** | **Performance, DSP validation & host compatibility** | ⬜ |
+| 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ⬜ |
+| 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ⬜ |
+| 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ⬜ |
+| 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
+| 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
+| **11** | **Cross-platform release engineering** | ⬜ |
+| 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |
+| 11b | macOS — release build, VST3, standalone, WebView backend, Retina, code signing and notarisation | ⬜ |
+| 11c | Linux — build feasibility for the chosen configuration, standalone, VST3 where supported, documented limitations | ⬜ |
+| 11d | CPU architectures — x86-64 and ARM64 where the toolchain allows | ⬜ |
+| **12** | **Release candidate & production hardening** | ⬜ |
+| 12a | Reliability — long-duration soak, repeated load and unload, preset changes, rapid automation, maximum polyphony, extreme modulation and feedback, repeated sample-rate changes, interface reload, malformed state | ⬜ |
+| 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review | ⬜ |
+| 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility | ⬜ |
+| 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
+| 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
+
+### Carried forward
+
+Items deferred out of a closed phase, each annotated in place on its own task:
+
+| From | Item | Lands in |
+|---|---|---|
+| 1 | Resource embedding and packaging | 9d, 9e |
+| 1 | VST3 loads in a representative host | 10e |
+| 2 | Thread-safety tests — an allocation and lock detector on the audio thread | 10a |
+| 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
+| 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
+| 7 | Optional spectrum analyser | optional in both PRD and this file; unscheduled |
+
 ---
 
 # Phase 0 — Specification & Repository Setup
@@ -609,8 +698,8 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 
 ## Tasks
 
-- [ ] Define preset file format. — the extension is **`.rnv`**, one preset per file, factory and user content alike (ADR-0053)
-- [ ] Define preset metadata. — name, author, category, comment, carried in the file beside the state document
+- [x] Define preset file format. — the extension is **`.rnv`**, one preset per file, factory and user content alike (ADR-0053); implemented in 9a as the versioned state document written as XML text, read back through the same validator host state goes through (9a)
+- [x] Define preset metadata. — name, author, category, comment, in a `<PRESET>` child of the state root, so it needs no schema bump and travels into the host project with the sound it names (9a)
 - [ ] Implement preset browser/indexing.
 - [ ] Implement preset loading.
 - [ ] Implement preset saving where required.
@@ -619,10 +708,10 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 - [ ] Implement resource validation.
 - [ ] Implement wavetable resource management.
 - [ ] Preload or prepare large DSP resources outside the audio callback.
-- [ ] Implement state versioning.
-- [ ] Implement state migration.
-- [ ] Test older state versions.
-- [ ] Test malformed/corrupt state.
+- [x] Implement state versioning. — built in Phase 2 and inherited by presets rather than reimplemented: a `.rnv` carries the same `schemaVersion` a project does (9a)
+- [x] Implement state migration. — likewise inherited. A version 1 preset migrates through the same code a version 1 project does, asserted end to end in `Tests/State/PresetDocumentTests.cpp` (9a)
+- [x] Test older state versions. — a version 1 preset, written as Apollo would have written it before Phase 5b indexed the filters, opens with its cutoff intact under the new name (9a)
+- [x] Test malformed/corrupt state. — empty, plain text, truncated, well-formed XML that is not Apollo, Apollo state with no version, a version from the future and a version that is not a number: each refused for its own reason, each leaving the loaded sound and its name untouched (9a)
 - [ ] Test missing resources.
 
 ## Exit Criteria

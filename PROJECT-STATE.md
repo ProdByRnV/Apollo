@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-14
+**Last verified:** 2026-09-15
 **Apollo version:** 0.1.0
 
 ---
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 8 — Effects Rack, complete** (8a through 8f) |
-| **Status** | **Phase 8 is done.** All six slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
-| **Milestone** | M8 — Effects, reached |
-| **Next step** | Phase 9 — presets, resources and state migration: the `.rnv` format (ADR-0053), a preset browser, factory content, and real wavetables in place of the four placeholder morphs |
+| **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a complete** |
+| **Status** | **Phase 8 is done, and 9a is the first sub-phase of Phase 9.** A `.rnv` preset is now written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061). Behind it, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Milestone** | M9 — Presets & resources |
+| **Next step** | Phase 9b — the library on disk: platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode (ROADMAP §2a) |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -900,13 +900,73 @@ into a wet effect the session was saved with.
 
 **Phase 8 is complete.** All five exit criteria are closed.
 
+### The preset document (Phase 9a)
+
+- **A `.rnv` is the state document Apollo already writes into a host project,
+  as text, plus four things a project does not need** — name, author, category
+  and comment (ADR-0053). One file, one sound. About 10.6 KB for a default
+  patch, and legible: it opens in a text editor, diffs against another preset,
+  and can be repaired by hand when something goes wrong.
+- **One reader, reached two ways.** `readState` was split into the part that
+  unwraps JUCE's binary blob and the part that validates a parsed document, and
+  the preset reader calls the second half. Everything that decides whether a
+  document may be loaded — the product check, the version bounds, the migration
+  path, the guarantee that a rejection leaves the current sound alone — is
+  therefore the same code for a project and for a file on disk. The tests offer
+  the same malformed documents to both paths and assert they are refused for the
+  *same reason*, so the sharing is checked rather than assumed (ADR-0061).
+- **A preset carries the patch, not the controller.** The learned MIDI mappings
+  and the four expression parameters describe the machine in front of the user
+  rather than the sound they made, so they are stripped when a preset is written
+  and preserved when one is read. Sending somebody a patch must not send them
+  your keyboard's setup, and auditioning one must not rewire theirs.
+- **Preserved, not merely omitted**, which is the half that is easy to get
+  wrong: a document that does not mention a parameter is loaded as that
+  parameter's *default*, so a preset that simply left the MPE zone out would
+  reset it. The reader captures the controller state before applying anything
+  and puts it back afterwards.
+- **The exclusion rule is the registry's own.** Those four are already the only
+  parameters marked *not automatable*, for exactly this reason, so
+  `isExcludedFromPresets` reads that flag rather than keeping a second list that
+  could fall out of step.
+- **The metadata is a child of the state tree, not a wrapper around it.** The
+  root stays the state tree, so one reader serves both paths; a document written
+  before metadata existed simply has no such child and needed no schema bump
+  (ADR-0043's argument, applied again); and because it lives in the tree, the
+  name of the loaded preset travels into the host project, which is what will
+  let a session reopen showing the sound it was on rather than "Init".
+- **Metadata can be read without loading the sound**, which is what an index is
+  built from: the browser will read a folder of these and must not change the
+  instrument to do it. Validated on the same terms a full read is — a file this
+  build could not load has nothing worth listing — but it stops before building
+  a tree of every parameter, which is most of the cost.
+- **Every field is bounded and every field is optional.** A name is free text
+  from a file on disk that ends up in a list the interface draws; a
+  megabyte-long one is not a name. Long fields are cut rather than refused,
+  because the length of a comment is not a reason to reject a sound, and the
+  bound is applied on the way out as well as in, so Apollo cannot write a file
+  it would read back differently.
+- **The failures are weighted the way host state's are.** The worst outcome is
+  not that a preset failed to load but that loading a bad one destroyed the
+  sound already there. Seven ways a document can be refused are each tested for
+  the right reason *and* for leaving three parameters, and the loaded preset's
+  name, exactly as they were.
+- **Something far too large to be a preset is refused on its size alone**, so
+  pointing Apollo at a video file costs a length check rather than an attempt to
+  build a DOM from it.
+
+**Not present in 9a, by design:** any file I/O at all. This layer converts
+between a document and text; the disk, the library paths, the scanning and the
+filesystem failure modes are 9b. There is correspondingly nothing here a user
+can see yet — the browser is 9c.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
-| 9 | Presets — the file format is now fixed as `.rnv` (ADR-0053), but nothing reads or writes one yet — wavetable resources, resource packaging |
+| 9 | **9a is done** — the `.rnv` document is written, read, validated, migrated and bounded, and knows what a preset must not carry (ADR-0061). Absent: the library on disk (9b), the browser (9c), factory content (9d) and real wavetable resources (9e) |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -982,7 +1042,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,267,817 assertions, 0 failures**, across 32 test classes. The table below
+**2,267,925 assertions, 0 failures**, across 33 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -994,6 +1054,7 @@ subsystems they test.
 | Foundation | Parameter identifier conventions | ID rules; every documented ID is well-formed |
 | Audio | Processor lifecycle | Prepare/release/reset, variable block sizes, sample rates, bus policy, silence and finiteness |
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
+| State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
 | UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene |
 | UI | Parameter bridge | Snapshot matches APVTS, commands reach APVTS, invalid commands change nothing, external changes propagate, coalescing, detach safety, metadata completeness |
@@ -1348,6 +1409,29 @@ virtual MIDI port is running on this machine, so there is no way to play a note
 into it. Everything the audible check would have shown is asserted through
 `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp`, including a full
 rack of six restored from a preset and still sounding.
+
+### The preset document, 2026-09-15
+
+**There is nothing user-facing in 9a**, and saying so is the honest record: this
+sub-phase is a document layer with no interface, no file dialogs and no file I/O
+at all. The browser is 9c. What the running application *can* show is that the
+refactor underneath it broke nothing — 9a split `readState` into the part that
+unwraps a host's binary blob and the part that validates a parsed document, and
+the standalone restores its own state through exactly that path on every launch.
+
+| Checked | Result |
+|---|---|
+| The standalone launches and renders | Yes, unchanged |
+| Every parameter still reaches the page | Footer reads **227 parameters bound · protocol v1**, and the "Unassigned" module does not appear |
+| Host state restores through the refactored reader | The equaliser's band 4 came back at **1.60 kHz / +10.9 dB**, drawn on the curve, from the session two phases ago |
+| The effects chain restored | Compressor and Equaliser both live, no `OFF` chips — the six-effect chain built by hand in 8f survived |
+| The controller state restored | Masthead reads **MIDI 1**: the learned CC mapping is still there, which is the part 9a now explicitly preserves across a *preset* load and must not have broken for a *project* load |
+
+That last row is the one worth having. The new code captures the MIDI mappings
+and the four expression parameters before applying a document and puts them back
+afterwards; the risk of getting it wrong is not that presets misbehave — there
+are none yet — but that ordinary project loading quietly loses a user's
+mappings. It does not.
 
 ---
 

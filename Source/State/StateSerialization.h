@@ -48,7 +48,8 @@ enum class StateLoadResult
     malformed,          ///< Not parseable as Apollo state.
     wrongProduct,       ///< Valid XML, but not Apollo's state.
     unsupportedVersion, ///< Newer than this build understands, or too old.
-    migrationFailed     ///< Recognised, but could not be brought up to date.
+    migrationFailed,    ///< Recognised, but could not be brought up to date.
+    tooLarge            ///< Bigger than any Apollo document, so not read at all.
 };
 
 /** @returns a short, non-sensitive description, safe to show a user.
@@ -73,6 +74,21 @@ void writeState (juce::AudioProcessorValueTreeState& apvts, juce::MemoryBlock& d
 [[nodiscard]] StateLoadResult readState (juce::AudioProcessorValueTreeState& apvts,
                                          const void* data,
                                          int sizeInBytes);
+
+/** Validates, migrates and applies a document that has already been parsed.
+
+    The half of `readState` that does not care where the XML came from, and the
+    reason it is exposed: host state arrives as JUCE's binary blob and a preset
+    arrives as text on disk, and the two must be held to exactly the same rules.
+    A separate preset reader would be a second implementation of the version
+    check, the product check and the migration path — and the first time they
+    drifted, a document a host would refuse could still be loaded from a file.
+
+    The current state is left untouched unless @p xml is recognised, supported
+    and successfully migrated.
+*/
+[[nodiscard]] StateLoadResult readStateXml (juce::AudioProcessorValueTreeState& apvts,
+                                            const juce::XmlElement& xml);
 
 /** Brings a state tree up to currentSchemaVersion in place.
 
