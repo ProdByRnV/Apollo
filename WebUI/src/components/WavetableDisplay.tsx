@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { WavetableFrame } from '../bridge/protocol';
+import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import { cssColour, decodePoints, fitCanvas, strokeSeries, strokeZeroLine } from '../canvas/draw';
 import { subscribeToWavetable } from '../state/telemetry';
 
@@ -60,12 +61,9 @@ export function WavetableDisplay({ oscillator }: WavetableDisplayProps): JSX.Ele
         return subscribeToWavetable(oscillator, onFrame);
     }, [oscillator, draw]);
 
-    useEffect(() => {
-        draw();
-
-        window.addEventListener('resize', draw);
-        return () => { window.removeEventListener('resize', draw); };
-    }, [draw]);
+    // Redrawn when the panel it sits in is resized, not only when the window
+    // is: every module now has a drag handle of its own.
+    useRedrawOnResize(rootRef, draw);
 
     return (
         <div ref={rootRef} className="wavetable" data-oscillator={oscillator}>

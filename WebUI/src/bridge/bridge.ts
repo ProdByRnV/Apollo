@@ -97,6 +97,16 @@ export function midiMappingClearAll(): void {
     send({ type: 'midiMappingClearAll', version: PROTOCOL_VERSION });
 }
 
+/** Asks the editor to fill the display, or to go back to the size before that.
+
+    The page cannot do this for itself: a WebView inside a plugin has no way to
+    resize the window hosting it, and the browser's own fullscreen would stretch
+    the page inside a window that had not moved.
+*/
+export function toggleFullscreen(): void {
+    send({ type: 'toggleFullscreen', version: PROTOCOL_VERSION });
+}
+
 export function requestControllerProfiles(): void {
     send({ type: 'requestControllerProfiles', version: PROTOCOL_VERSION });
 }

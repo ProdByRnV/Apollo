@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ScopeFrame } from '../bridge/protocol';
+import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import { cssColour, decodePoints, fitCanvas, strokeSeries, strokeZeroLine } from '../canvas/draw';
 import { subscribeToScope } from '../state/telemetry';
 
@@ -92,12 +93,9 @@ export function Scope({ source, label }: ScopeProps): JSX.Element {
 
     // Frames redraw the picture anyway, so this only matters for a scope that is
     // silent and therefore still.
-    useEffect(() => {
-        draw();
-
-        window.addEventListener('resize', draw);
-        return () => { window.removeEventListener('resize', draw); };
-    }, [draw]);
+    // Redrawn when the panel it sits in is resized, not only when the window
+    // is: every module now has a drag handle of its own.
+    useRedrawOnResize(rootRef, draw);
 
     return (
         <div ref={rootRef} className="scope" data-scope-source={source} data-silent={silent}>

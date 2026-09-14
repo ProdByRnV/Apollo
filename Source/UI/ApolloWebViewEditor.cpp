@@ -158,6 +158,12 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     setResizeLimits (900, 560, 3840, 2160);
     setSize (defaultEditorWidth, defaultEditorHeight);
 
+    // The page cannot do this for itself. A WebView inside a plugin has no way
+    // to resize the window it is hosted in, and the browser's own fullscreen
+    // would stretch the page inside a window that had not moved. So the page
+    // asks, and the editor is what answers.
+    bridge.onToggleFullscreen = [this] { toggleFullscreen(); };
+
     webView.goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
     pageReady = true;
 
@@ -194,6 +200,56 @@ void ApolloWebViewEditor::paint (juce::Graphics& g)
     // colour is the page's own --surface-base, so the moment before the
     // document paints is not a flash of a different dark.
     g.fillAll (juce::Colour (0xff0c0c12));
+}
+
+void ApolloWebViewEditor::toggleFullscreen()
+{
+    // MESSAGE THREAD, from the bridge.
+    //
+    // "Fullscreen" for a plugin editor means as large as the display it is on
+    // will allow, not an exclusive-fullscreen mode: the editor is a component
+    // inside somebody else's window, and taking over the screen is not
+    // something a plugin gets to do to a host. What it can do is ask to be the
+    // size of the display, which in the standalone fills it and in a host grows
+    // the plugin window as far as the host permits.
+    if (fullscreen)
+    {
+        // Back to whatever it was before, clamped in case the limits have
+        // changed since.
+        setSize (sizeBeforeFullscreen.getWidth(), sizeBeforeFullscreen.getHeight());
+        fullscreen = false;
+
+        return;
+    }
+
+    // The display this editor is actually on, rather than the primary one: a
+    // second monitor is exactly where somebody puts a synthesiser while they
+    // work on the track in the first.
+    const auto* display = juce::Desktop::getInstance().getDisplays()
+                              .getDisplayForRect (getScreenBounds());
+
+    if (display == nullptr)
+        return;
+
+    // The *user* bounds, which exclude the taskbar, dock and menu bar. Filling
+    // the whole display would put the bottom of the interface behind whatever
+    // the operating system keeps there.
+    //
+    // Rounded rather than truncated, and explicitly: these are floats because a
+    // display can report a fractional size under scaling, and letting the
+    // conversion happen silently is how an editor ends up one pixel short of the
+    // screen on one machine and not on another.
+    const auto area = display->userBounds;
+
+    const auto width = juce::roundToInt (area.getWidth());
+    const auto height = juce::roundToInt (area.getHeight());
+
+    sizeBeforeFullscreen = getLocalBounds();
+    fullscreen = true;
+
+    // setResizeLimits caps this, so a display larger than the maximum simply
+    // gets the maximum rather than being refused.
+    setSize (width, height);
 }
 
 void ApolloWebViewEditor::resized()

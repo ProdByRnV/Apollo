@@ -174,6 +174,13 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "toggleFullscreen")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::toggleFullscreen;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "applyControllerProfile")
     {
         BridgeCommand command;

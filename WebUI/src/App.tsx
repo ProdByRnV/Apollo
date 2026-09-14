@@ -23,6 +23,7 @@ import {
     requestMidiMappings,
     send,
     subscribe,
+    toggleFullscreen,
 } from './bridge/bridge';
 import { PROTOCOL_VERSION } from './bridge/protocol';
 import type { InboundMessage } from './bridge/protocol';
@@ -297,6 +298,26 @@ export function App(): JSX.Element {
                     onClick={midiMappingClearAll}
                 >
                     Clear all
+                </button>
+
+                {/*
+                    Fills the display the plugin is on, and pressing it again
+                    goes back to the size it was. The editor does the resizing —
+                    a WebView cannot resize the window hosting it — so this only
+                    asks.
+
+                    Not a toggle with two labels: the page is never told whether
+                    the editor is currently full size, and a button that claimed
+                    to know would be wrong the moment somebody dragged the
+                    window's own corner.
+                */}
+                <button
+                    className="masthead__button masthead__button--quiet"
+                    type="button"
+                    title="Fill the screen, or return to the previous size"
+                    onClick={toggleFullscreen}
+                >
+                    Fullscreen
                 </button>
 
                 <div className="readout">

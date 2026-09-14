@@ -355,6 +355,41 @@ body::before {
     flex-direction: column;
     min-width: 0;
     transition: border-color var(--t-slow) var(--ease);
+
+    /* EVERY PANEL IS RESIZEABLE, BY A HANDLE IN ITS CORNER.
+
+       `resize` is the browser's own, which means the handle behaves exactly the
+       way a drag handle is expected to and costs no JavaScript, no pointer
+       bookkeeping and no chance of a drag that gets stuck holding the pointer.
+
+       `overflow: auto` is not decoration: `resize` does nothing without it. It
+       also decides what a panel does when it is made smaller than its contents,
+       and scrolling is the right answer — the alternative is contents spilling
+       over the panel below.
+
+       DELIBERATELY NOT REMEMBERED. The size lives in an inline style the browser
+       writes, so it is gone when the page is reloaded and every session starts
+       from the designed layout. That is what the developer asked for, and it is
+       also the behaviour that cannot strand somebody in a layout they cannot
+       undo. */
+    resize: both;
+    overflow: auto;
+
+    /* Small enough to tuck a panel out of the way, large enough that its
+       heading and one row of controls are still legible. Without a floor, a
+       panel can be dragged to nothing and then not found again. */
+    min-height: 88px;
+}
+
+/* The resize grip the browser draws is a light triangle intended for a white
+   page, and on gunmetal it is a bright speck. Toned to the panel and lifted to
+   the accent on hover, like every other thing here that can be taken hold of. */
+.module::-webkit-resizer {
+    background: var(--line-strong);
+}
+
+.module:hover::-webkit-resizer {
+    background: var(--accent-dim);
 }
 
 .module:hover {
@@ -1351,6 +1386,12 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     flex: 1 1 116px;
 }
 
+/* Holds the height a power switch would take in an empty slot, so the six slots
+   stay the same size and the row does not jump as effects are chosen. */
+.rack__switch-space {
+    height: 26px;
+}
+
 .rack__index {
     font-family: var(--font-mono);
     font-size: 9px;
@@ -1375,4 +1416,64 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     margin-left: var(--s-1);
     color: var(--caution);
     letter-spacing: 0.08em;
+}
+
+/* ==========================================================================
+   CONTEXT MENU
+
+   Apollo's own, because a WebView cannot reach the operating system's and the
+   browser's default one is a page menu — "Reload", "Save image as" — which is
+   worse than nothing inside a plugin.
+
+   Positioned against the viewport rather than the control that opened it, so it
+   cannot be clipped by a panel that has been resized smaller than the menu.
+   ========================================================================== */
+
+.context-menu {
+    position: fixed;
+    z-index: 100;
+    min-width: 150px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    background: var(--surface-raised, var(--surface-panel));
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+
+    /* The one place on this page with a drop shadow. A menu is the only thing
+       that floats above the interface rather than sitting in it, and depth is
+       how that is said without a border heavy enough to look like a panel. */
+    box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+}
+
+.context-menu__item {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    text-align: left;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.context-menu__item:hover:not(:disabled),
+.context-menu__item:focus-visible {
+    background: var(--accent-dim);
+    color: var(--surface-base);
+    outline: none;
+}
+
+/* A knob already on its default has nothing to reset. Greyed rather than
+   hidden, so the menu does not change shape depending on where the control
+   happens to be (CLAUDE.md §39: the state is also in the label, which names the
+   value it would return to). */
+.context-menu__item:disabled {
+    color: var(--text-dim);
+    cursor: default;
 }

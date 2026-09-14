@@ -1110,7 +1110,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,268,050 assertions, 0 failures**, across 34 test classes. The table below
+**2,268,055 assertions, 0 failures**, across 34 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1522,6 +1522,55 @@ The last two rows are the ones worth having. A background thread owned by a
 plugin is the classic source of a shutdown hang, and a test suite that does real
 file I/O is the classic source of litter on a developer's disk; both were
 checked rather than assumed.
+
+### Reset menus, power switches, fullscreen and resizeable panels, 2026-09-15
+
+Four changes the developer asked for, all of them interface work, all driven by
+hand against the running standalone launched from the project root.
+
+| Checked | Result |
+|---|---|
+| The masthead reads the handle | **APOLLO  @ProdByRnV** |
+| The fullscreen button exists | `FULLSCREEN` in the masthead beside `MIDI LEARN` |
+| **Fullscreen fills the display** | Window went **1773x1182 → 1923x1122**, which is the display's user area plus the window's own chrome |
+| **And returns** | Pressing it again went back to **1773x1182 exactly**, the size it was before |
+| Every effect has a power switch on its panel | Distortion, Delay, Reverb, Gate, Compressor and Equaliser all read `ON`/`OFF` where they read `ACTIVE`/`BYPASS` before |
+| And one in the rack | Each filled slot carries the same switch under its dropdown; an empty slot keeps the space so the row does not jump |
+| **Right-click offers Reset** | A menu appears at the pointer reading **"Reset to 2.00"** — the value named, not just the word |
+| It knows when there is nothing to do | On a knob already at its default the item is greyed and says "Reset to -18.0 dB" |
+| **Choosing it resets the knob** | Ratio dragged to **4.01**, right-clicked, item chosen → back to **2.00** |
+| **Panels resize by a corner handle** | The Compressor panel dragged narrower and taller: its six knobs reflowed from one row to two, a scrollbar appeared, and the handle followed to the new corner |
+| Sizes are not remembered | By construction — the size is an inline style the browser writes, so a reload starts from the designed layout, which is what was asked for |
+| The build survives the copy being in use | Building with the root `Apollo.exe` running now prints a status line and succeeds, where it previously failed the build with a permission error |
+
+**Two real bugs in the menu, both found by driving it and both fixed:**
+
+- **The menu closed before a click could become a choice.** Its dismiss listener
+  is capture-phase, so it ran before the item's own handler and `stopPropagation`
+  on the item came too late. It now ignores pointer events that land inside
+  itself rather than trying to stop them.
+- **The knob swallowed the click.** The menu was rendered as a child of the knob,
+  so pressing an item first ran the knob's `pointerdown`, which starts a drag and
+  calls `setPointerCapture` — redirecting the pointer-up away from the menu. The
+  item highlighted under the cursor and could not be chosen. It is now rendered
+  through a portal into the document body, which also takes it out of every
+  `overflow` and stacking context on the way — including the panels, which became
+  scroll containers the moment they became resizeable.
+
+**Verified by keyboard, not by mouse.** Choosing the menu item was confirmed with
+Enter on the focused item — the keyboard support was added while diagnosing the
+above and is worth having on its own (CLAUDE.md §39). Synthetic *mouse* clicks on
+the menu could not be made to land reliably from this environment, which is a
+limitation of the test harness rather than an observation about the feature: the
+same injection method opens the menu, drags knobs, drags panel handles and
+presses the fullscreen button. **Worth a real right-click-and-click when the
+developer next has the application open.**
+
+**Canvases now redraw when their panel resizes**, not only when the window does.
+Each picture sizes its backing store to its element's box, and a panel with its
+own drag handle can change that box while the window stands still; the
+equaliser's curve is the one that shows it most, because it stretches to its
+module.
 
 ---
 

@@ -13,6 +13,7 @@
 
 import { useRef, useState } from 'react';
 
+import { ContextMenu } from './ContextMenu';
 import { formatPlain } from '../params/format';
 import { stepCount, toNormalized, toPlain } from '../params/mapping';
 import {
@@ -69,6 +70,9 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
     // page wrote the attribute directly and could not have this problem; this is
     // the shape of mistake a migration to a declarative tree invites.
     const [dragging, setDragging] = useState(false);
+
+    /** Where the right-click landed, or null when no menu is open. */
+    const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
 
     const chrome = useMidiChrome(id, definition?.name ?? id);
 
@@ -135,6 +139,32 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
         gesture(id, 'end');
     };
 
+    const defaultNormalized = toNormalized(definition, definition.default);
+
+    const resetToDefault = (): void => nudge(defaultNormalized);
+
+    // Right-click offers Reset. There were already two ways to do it — a
+    // double-click and Delete — but neither announces itself, and a control
+    // whose reset you have to be told about is a control most people never
+    // reset. The menu is where a user looks first.
+    const onContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
+        // The browser's own menu is a *page* menu — Reload, Save image as —
+        // which is worse than nothing inside a plugin.
+        event.preventDefault();
+        event.stopPropagation();
+
+        // A right-click during a drag would leave the knob captured and lit
+        // with a menu over it, so the drag is ended first.
+        if (dragging)
+        {
+            setDragging(false);
+            setHeld(id, false);
+            gesture(id, 'end');
+        }
+
+        setMenuAt({ x: event.clientX, y: event.clientY });
+    };
+
     // A stepped parameter moves one position per press; a continuous one moves
     // in hundredths, which is fine enough to be useful and coarse enough to
     // cross the range without holding the key down for a minute.
@@ -190,6 +220,7 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
             onPointerUp={release}
             onPointerCancel={release}
             onDoubleClick={() => nudge(toNormalized(definition, definition.default))}
+            onContextMenu={onContextMenu}
             onKeyDown={onKeyDown}
         >
             <svg className="knob__dial" viewBox="0 0 46 46" aria-hidden="true">
@@ -219,6 +250,25 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
             >
                 {chrome.badge}
             </span>
+
+            {menuAt !== null ? (
+                <ContextMenu
+                    x={menuAt.x}
+                    y={menuAt.y}
+                    items={[
+                        {
+                            label: `Reset to ${formatPlain (definition, definition.default)}`,
+                            onChoose: resetToDefault,
+                            // A knob already sitting on its default has nothing
+                            // to reset. Shown greyed rather than hidden, so the
+                            // menu does not change shape depending on where the
+                            // control happens to be.
+                            disabled: Math.abs (normalized - defaultNormalized) < 1.0e-6,
+                        },
+                    ]}
+                    onClose={() => setMenuAt (null)}
+                />
+            ) : null}
         </div>
     );
 }

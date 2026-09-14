@@ -44,7 +44,10 @@ export function Segmented({ id, label, table }: SegmentedProps): JSX.Element | n
             data-midi-id={id}
             data-midi={chrome.state}
         >
-            <div className="segmented__label">{label}</div>
+            {/* An empty label renders nothing rather than an empty line: the
+                rack's power switches sit under the slot's own number and do not
+                need a second caption. */}
+            {label ? <div className="segmented__label">{label}</div> : null}
 
             <div className="segmented__options" role="radiogroup" aria-label={definition.name}>
                 {Array.from({ length: steps }, (_, index) => (

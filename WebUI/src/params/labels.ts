@@ -13,6 +13,21 @@
 import type { ParameterDefinition } from '../bridge/protocol';
 import { stepCount } from './mapping';
 
+/** Every effect's power switch, in the order `fx_*_bypass` stores it.
+
+    Index 0 is *not bypassed*, so it reads ON; index 1 is bypassed, so it reads
+    OFF. One table shared by all six, because six effects answering the same
+    question with six copies of the same two words is six chances for one of
+    them to drift.
+
+    "OFF" rather than "BYPASS" at the developer's request. The engine still
+    bypasses rather than removing — a switched-off effect keeps its slot and its
+    latency, so toggling it does not make the host re-plan its graph (ADR-0054)
+    — but that is a fact about the signal path, and the control is a power
+    switch to the person using it.
+*/
+const fxPower = ['ON', 'OFF'] as const;
+
 export const LABELS: Record<string, readonly string[]> = {
     // 0..3, in the order WavetableLibrary builds them.
     osc1_wavetable: ['SIN→SAW', 'SIN→SQR', 'TRI→SAW', 'SAW→SQR'],
@@ -34,9 +49,9 @@ export const LABELS: Record<string, readonly string[]> = {
 
     // Matches dsp::Distortion::Mode.
     fx_distortion_mode: ['SOFT', 'HARD', 'DIODE'],
-    fx_distortion_bypass: ['ACTIVE', 'BYPASS'],
+    fx_distortion_bypass: fxPower,
 
-    fx_delay_bypass: ['ACTIVE', 'BYPASS'],
+    fx_delay_bypass: fxPower,
     fx_delay_sync: ['FREE', 'SYNC'],
     fx_delay_pingpong: ['STEREO', 'PING-PONG'],
 
@@ -47,10 +62,10 @@ export const LABELS: Record<string, readonly string[]> = {
 
     // Matches dsp::Reverb::Mode.
     fx_reverb_mode: ['ROOM', 'HALL'],
-    fx_reverb_bypass: ['ACTIVE', 'BYPASS'],
-    fx_gate_bypass: ['ACTIVE', 'BYPASS'],
-    fx_compressor_bypass: ['ACTIVE', 'BYPASS'],
-    fx_eq_bypass: ['ACTIVE', 'BYPASS'],
+    fx_reverb_bypass: fxPower,
+    fx_gate_bypass: fxPower,
+    fx_compressor_bypass: fxPower,
+    fx_eq_bypass: fxPower,
 
     // Matches dsp::EqualiserBand::Type. One table shared by all seven bands,
     // because the bands are identical — the module passes the same one to each.

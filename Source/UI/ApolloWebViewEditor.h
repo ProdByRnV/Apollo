@@ -46,6 +46,23 @@ public:
     void resized() override;
 
 private:
+    /** Grows the editor to fill the display it is on, or puts it back.
+
+        Called by the bridge when the page's fullscreen button is pressed. Not
+        an exclusive-fullscreen mode: a plugin editor is a component inside
+        somebody else's window, and taking over the screen is not something a
+        plugin does to a host.
+    */
+    void toggleFullscreen();
+
+    bool fullscreen = false;
+
+    /** The size to go back to. Captured on the way in rather than recomputed,
+        because the size before fullscreen is whatever the user had dragged the
+        window to and nothing else knows it.
+    */
+    juce::Rectangle<int> sizeBeforeFullscreen;
+
     /** Identifier of the event the page emits to send Apollo a message.
 
         Deliberately an event listener rather than Options::withNativeFunction.

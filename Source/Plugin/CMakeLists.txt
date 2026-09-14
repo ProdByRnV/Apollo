@@ -79,25 +79,27 @@ option(APOLLO_COPY_STANDALONE_TO_ROOT
        ON)
 
 if(APOLLO_COPY_STANDALONE_TO_ROOT AND TARGET Apollo_Standalone)
+    # Delegated to a script so that a copy which cannot happen — almost always
+    # because the developer has the root copy open while rebuilding — reports
+    # itself and lets the build succeed, rather than turning a good build into a
+    # failed one. See CMake/CopyStandaloneToRoot.cmake.
     if(APPLE)
-        # The macOS standalone is Apollo.app, which is a directory. It is
-        # removed first because copy_directory merges into an existing tree
-        # rather than replacing it, which would leave a previous build's files
-        # inside the new bundle.
-        add_custom_command(TARGET Apollo_Standalone POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E rm -rf
-                    "${CMAKE_SOURCE_DIR}/Apollo.app"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "$<TARGET_BUNDLE_DIR:Apollo_Standalone>"
-                    "${CMAKE_SOURCE_DIR}/Apollo.app"
-            COMMENT "Copying the standalone into the project root"
-            VERBATIM)
+        set(APOLLO_STANDALONE_SOURCE "$<TARGET_BUNDLE_DIR:Apollo_Standalone>")
+        set(APOLLO_STANDALONE_DESTINATION "${CMAKE_SOURCE_DIR}/Apollo.app")
+        set(APOLLO_STANDALONE_IS_BUNDLE TRUE)
     else()
-        add_custom_command(TARGET Apollo_Standalone POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "$<TARGET_FILE:Apollo_Standalone>"
-                    "${CMAKE_SOURCE_DIR}/$<TARGET_FILE_NAME:Apollo_Standalone>"
-            COMMENT "Copying the standalone into the project root"
-            VERBATIM)
+        set(APOLLO_STANDALONE_SOURCE "$<TARGET_FILE:Apollo_Standalone>")
+        set(APOLLO_STANDALONE_DESTINATION
+            "${CMAKE_SOURCE_DIR}/$<TARGET_FILE_NAME:Apollo_Standalone>")
+        set(APOLLO_STANDALONE_IS_BUNDLE FALSE)
     endif()
+
+    add_custom_command(TARGET Apollo_Standalone POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+                -D "APOLLO_STANDALONE_SOURCE=${APOLLO_STANDALONE_SOURCE}"
+                -D "APOLLO_STANDALONE_DESTINATION=${APOLLO_STANDALONE_DESTINATION}"
+                -D "APOLLO_STANDALONE_IS_BUNDLE=${APOLLO_STANDALONE_IS_BUNDLE}"
+                -P "${CMAKE_SOURCE_DIR}/CMake/CopyStandaloneToRoot.cmake"
+        COMMENT "Copying the standalone into the project root"
+        VERBATIM)
 endif()

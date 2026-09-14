@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ModulatorFrame } from '../bridge/protocol';
 import { ENVELOPE_STAGES } from '../params/labels';
+import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import { cssColour, decodePoints, fitCanvas, strokeSeries, strokeZeroLine } from '../canvas/draw';
 import { subscribeToModulator } from '../state/telemetry';
 
@@ -82,12 +83,9 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
         return subscribeToModulator(source, onFrame);
     }, [source, bipolar, draw]);
 
-    useEffect(() => {
-        draw();
-
-        window.addEventListener('resize', draw);
-        return () => { window.removeEventListener('resize', draw); };
-    }, [draw]);
+    // Redrawn when the panel it sits in is resized, not only when the window
+    // is: every module now has a drag handle of its own.
+    useRedrawOnResize(rootRef, draw);
 
     return (
         <div ref={rootRef} className="trace" data-trace-source={source} data-routed={routed}>

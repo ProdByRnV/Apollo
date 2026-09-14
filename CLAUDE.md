@@ -965,6 +965,34 @@ what the instrument *is* is already obvious from the rest of the interface.
 
 Treat this as brand identity rather than as copy to be reworded (§25).
 
+### 24.3 Window and panel sizing
+
+The main window has a **Fullscreen** button that grows the editor to fill the
+display it is on, and returns it to its previous size when pressed again. Not an
+exclusive-fullscreen mode: a plugin editor is a component inside somebody else's
+window, and taking over the screen is not something a plugin does to a host.
+
+**Every panel is resizeable by a drag handle in its corner.** A panel made
+smaller than its contents scrolls rather than spilling over its neighbour, and a
+floor stops one being dragged away to nothing.
+
+**Panel sizes are deliberately not remembered.** Reopening Apollo returns every
+panel to the designed layout. That is the developer's explicit instruction, and
+it is also the behaviour that cannot strand somebody in an arrangement they
+cannot undo.
+
+### 24.4 Resetting a control
+
+Every knob offers **Reset** on a right-click, naming the value it would return
+to. The two older routes — a double-click and Delete — still work and are still
+the fast ones; the menu exists because neither of them announces itself, and a
+reset most people never find is a reset most people never use.
+
+The menu is Apollo's own rather than the browser's, which would offer "Reload"
+and "Save image as" inside a plugin. It can be driven from the keyboard, and it
+is rendered outside the control that opened it so that pressing an item cannot
+be swallowed by that control's own pointer handling.
+
 ## 24.2 Color Semantics
 
 ### Green

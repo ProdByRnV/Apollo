@@ -101,6 +101,17 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::applyControllerProfile:
             return applyMidiCommand (command);
 
+        case BridgeCommandType::toggleFullscreen:
+            // The bridge knows nothing about windows and should not: it owns
+            // parameters. The editor registers what to do here, and if none has
+            // — a headless test, or an instance with no editor open — the
+            // command is accepted and does nothing rather than being an error,
+            // because "fill the display" is meaningless without a display.
+            if (onToggleFullscreen)
+                onToggleFullscreen();
+
+            return {};
+
         case BridgeCommandType::setParameter:
         case BridgeCommandType::gestureBegin:
         case BridgeCommandType::gestureEnd:
@@ -202,6 +213,7 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
         case BridgeCommandType::setParameter:
         case BridgeCommandType::gestureBegin:
         case BridgeCommandType::gestureEnd:
+        case BridgeCommandType::toggleFullscreen:
         case BridgeCommandType::none:
         default:
             jassertfalse;

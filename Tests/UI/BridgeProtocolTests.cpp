@@ -37,6 +37,7 @@ public:
         testNonObjectPayloads();
         testProtocolVersioning();
         testUnknownMessageType();
+        testFullscreenIsAccepted();
         testParameterIdValidation();
         testNumericValidation();
         testGestureStateValidation();
@@ -163,6 +164,28 @@ private:
 
         expect (parseMessage (R"({"type":7,"version":1})").error
                     == BridgeErrorCode::malformedMessage);
+    }
+
+    void testFullscreenIsAccepted()
+    {
+        beginTest ("A fullscreen request is accepted and carries nothing else");
+
+        // The one command that asks about the window rather than the
+        // instrument. It has no payload at all, which is the point: the page
+        // cannot be allowed to name a size, only to ask for the display's.
+        const auto result = parseMessage (R"({"type":"toggleFullscreen","version":1})");
+
+        expect (result.ok, "a well-formed fullscreen request must be accepted");
+        expect (result.command.type == BridgeCommandType::toggleFullscreen);
+        expect (result.command.parameterId.isEmpty(),
+                "it must not carry a parameter");
+        expect (result.command.profileId.isEmpty(),
+                "nor a profile");
+
+        // And it obeys the same version rule everything else does, rather than
+        // being a back door that skips it.
+        expect (! parseMessage (R"({"type":"toggleFullscreen","version":99})").ok,
+                "an unsupported protocol version must be refused here too");
     }
 
     void testParameterIdValidation()

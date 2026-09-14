@@ -33,6 +33,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { cssColour, fitCanvas } from '../canvas/draw';
+import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import {
     EQ_MAX_GAIN_DB,
     EQ_MAX_HZ,
@@ -361,10 +362,11 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
     // because that is what its parameter subscriptions are for.
     useEffect(draw);
 
-    useEffect(() => {
-        window.addEventListener('resize', draw);
-        return () => { window.removeEventListener('resize', draw); };
-    }, [draw]);
+    // Redrawn when the panel it sits in is resized, not only when the window
+    // is. The curve stretches to its module, so this is the picture that most
+    // needs it: a resized equaliser panel with a stale canvas would show the
+    // response at the wrong width.
+    useRedrawOnResize(rootRef, draw);
 
     return (
         <div ref={rootRef} className="eq-curve">

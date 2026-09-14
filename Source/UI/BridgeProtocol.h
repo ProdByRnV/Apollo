@@ -101,7 +101,18 @@ enum class BridgeCommandType
 
     // Controller profiles (Phase 6c).
     requestControllerProfiles, ///< Send the list of built-in profiles.
-    applyControllerProfile     ///< Fill the mapping table from one.
+    applyControllerProfile,    ///< Fill the mapping table from one.
+
+    /** Fill the display, or go back to the size before that.
+
+        The one command here that asks for something about the *window* rather
+        than about the instrument, and it has to be a command rather than
+        something the page does for itself: a WebView inside a plugin cannot
+        resize the window it is hosted in, and the browser's own fullscreen would
+        make the page fill a window that had not changed size. Only the editor
+        can ask, so the page asks the editor.
+    */
+    toggleFullscreen
 };
 
 /** A validated command.

@@ -610,6 +610,7 @@ to be applied and cannot describe one.
 |---|---|---|
 | `requestControllerProfiles` | — | Send the built-in profiles. |
 | `applyControllerProfile` | `profile`, optional `mode` | Fill the mapping table from one. `mode` is `"replace"` (the default) or `"merge"`; anything else is rejected. |
+| `toggleFullscreen` | *(none)* | Grow the editor to fill the display it is on, or return it to the size it was. The only command about the *window* rather than the instrument, and it carries no payload at all — the page asks for the display's size and cannot name one of its own. |
 
 The profile identifier is resolved against the built-in registry **during
 parsing**, so nothing past the protocol layer ever holds one that does not exist

@@ -115,6 +115,21 @@ function useInChain(effect: number): boolean {
     return useResolvedChain().includes(effect);
 }
 
+/** The bypass parameter belonging to each effect.
+
+    The rack's own power switches need this: a slot does not have a bypass of
+    its own, it shows the bypass of whatever is standing in it. Keyed by
+    `dsp::EffectType` so a slot's value looks the switch up directly.
+*/
+const BYPASS_PARAMETER: Record<number, string> = {
+    [EFFECT_DISTORTION]: 'fx_distortion_bypass',
+    [EFFECT_DELAY]: 'fx_delay_bypass',
+    [EFFECT_REVERB]: 'fx_reverb_bypass',
+    [EFFECT_GATE]: 'fx_gate_bypass',
+    [EFFECT_COMPRESSOR]: 'fx_compressor_bypass',
+    [EFFECT_EQUALISER]: 'fx_eq_bypass',
+};
+
 function Slot({ index }: { index: number }): JSX.Element {
     const id = `fx_slot${index}`;
 
@@ -136,6 +151,29 @@ function Slot({ index }: { index: number }): JSX.Element {
                 {duplicate ? <span className="rack__note">duplicate</span> : null}
             </div>
             <Select id={id} table={LABELS.fxSlot} ariaLabel={`FX slot ${index}`} />
+
+            {/*
+                The effect's own power switch, in the rack as well as on its
+                panel. The rack is where the chain is read, so it is where
+                switching one effect out of it belongs — walking down to a panel
+                to silence one link of a chain you are looking at is the errand
+                this removes.
+
+                Both places drive the same parameter, so they can never disagree:
+                this is the same control in two rooms, not two controls.
+            */}
+            {filled ? (
+                <Segmented
+                    id={BYPASS_PARAMETER[resolved[index - 1] ?? 0] ?? ''}
+                    label=""
+                    table={LABELS.fx_distortion_bypass}
+                />
+            ) : (
+                // An empty slot keeps the space rather than collapsing, so the
+                // six slots stay the same size and the row does not jump about
+                // as effects are chosen.
+                <div className="rack__switch-space" aria-hidden="true" />
+            )}
         </div>
     );
 }

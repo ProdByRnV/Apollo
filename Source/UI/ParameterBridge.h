@@ -76,6 +76,18 @@ public:
     */
     void setMidiControl (midi::MidiControlManager* controlToUse);
 
+    /** What to do when the page asks to fill the display.
+
+        A hook rather than something the bridge implements, because the bridge
+        owns parameters and knows nothing about windows. The editor sets this
+        when it attaches and clears it when it leaves; with nothing set, the
+        command is accepted and does nothing, which is the right answer for an
+        instance with no editor open.
+
+        MESSAGE THREAD.
+    */
+    std::function<void()> onToggleFullscreen;
+
     /** @returns the whole MIDI Learn state described for the frontend, with the
         status of the most recent assignment.
     */

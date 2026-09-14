@@ -198,4 +198,5 @@ export type OutboundMessage =
     | { type: 'midiMappingRemove'; version: number; id: string }
     | { type: 'midiMappingClearAll'; version: number }
     | { type: 'requestControllerProfiles'; version: number }
+    | { type: 'toggleFullscreen'; version: number }
     | { type: 'applyControllerProfile'; version: number; profile: string; mode: ProfileMode };
