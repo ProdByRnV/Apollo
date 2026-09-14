@@ -245,7 +245,9 @@ PresetSaveResult savePreset (const juce::File& directory,
                              const juce::String& text,
                              juce::File& destination)
 {
-    destination = {};
+    // Spelled out rather than braced: juce::File takes a String as well as a
+    // File, so `= {}` is ambiguous to GCC and Clang even though MSVC picks one.
+    destination = juce::File();
 
     const auto safe = toSafeFileName (presetName);
 
@@ -287,7 +289,7 @@ PresetSaveResult savePreset (const juce::File& directory,
 
 state::StateLoadResult readPresetFile (const juce::File& file, juce::String& destination)
 {
-    destination = {};
+    destination.clear();
 
     if (! file.existsAsFile())
         return state::StateLoadResult::emptyData;
