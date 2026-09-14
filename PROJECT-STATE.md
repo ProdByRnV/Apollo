@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a complete** |
-| **Status** | **Phase 8 is done, and 9a is the first sub-phase of Phase 9.** A `.rnv` preset is now written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061). Behind it, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a and 9b complete** |
+| **Status** | **Phase 8 is done; Phase 9 is two sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061) — and the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062). Behind them, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M9 — Presets & resources |
-| **Next step** | Phase 9b — the library on disk: platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode (ROADMAP §2a) |
+| **Next step** | Phase 9c — the browser in the interface: listing, categories, search, load, save, save-as, and the bridge commands behind them (ROADMAP §2a) |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -960,13 +960,81 @@ between a document and text; the disk, the library paths, the scanning and the
 filesystem failure modes are 9b. There is correspondingly nothing here a user
 can see yet — the browser is 9c.
 
+### The library on disk (Phase 9b)
+
+- **Two roots, both optional.** The user's library sits under the platform's own
+  per-user application-data location and the factory's under the shared one,
+  each in `Apollo/Presets`. Nothing in Apollo spells out `%APPDATA%`,
+  `~/Library/Application Support` or `~/.config` — JUCE's special-location
+  lookup knows those, and Apollo contributes the two folder names beneath
+  (CLAUDE.md §46, ADR-0062).
+- **Missing is reported separately from empty**, because only one of them
+  suggests something is wrong. A user who has never saved a preset has no user
+  folder, and every build until 9d has no factory folder; neither is an error.
+- **A bank is a folder**, so the index mirrors the tree rather than flattening
+  it, with the relative path normalised to forward slashes so a bank reads the
+  same whichever platform wrote it.
+- **What cannot be read is counted, not hidden.** A `.rnv` that is corrupt,
+  truncated, from a newer build or never a preset is counted, so the interface
+  can say "four files in this folder are not presets" rather than quietly
+  listing four fewer than are there. Files without the extension are ignored
+  rather than counted — a preset folder with a readme in it is a normal folder.
+- **Scanning happens on its own thread and is bounded three ways**: ten thousand
+  presets, eight levels of depth, and abandonment between files when the answer
+  is no longer wanted. The walk is iterative with an explicit depth per entry
+  rather than recursive, so a symbolic link pointing at one of its own parents
+  costs a bound rather than a stack. Hitting a bound sets `truncated`, so a
+  partial list can be shown as what it is.
+- **Nothing scans by itself.** Constructing the library touches no disk. Some
+  hosts instantiate a plugin dozens of times while building a menu, and walking
+  the user's preset folder on each would be work done for nobody; the editor asks
+  for a scan when it has somewhere to show the result (9c).
+- **A save is atomic or it does not happen.** The bytes go to a temporary file
+  beside the target and are moved into place only once complete. Losing the
+  preset *being* saved is an inconvenience the user can repeat in ten seconds;
+  losing the one that was already there is lost work, and the failure mode is
+  chosen to be the first. A finished save leaves no temporary files behind,
+  which is asserted rather than assumed.
+- **A preset name is not a filename.** Separators are stripped, the
+  parent-directory token cannot survive, Windows' reserved device names are
+  refused whatever follows the dot — `CON`, `con.rnv` and `Con.txt` are one
+  refusal — and the trailing dots and spaces Windows silently discards are
+  trimmed, which would otherwise make "Bell." and "Bell" the same file. A name
+  that leaves nothing usable is refused rather than turned into a file called
+  nothing, and the save checks where the path actually *resolved to* rather than
+  trusting the filters that produced it (CLAUDE.md §40).
+- **The library has an owner**: the processor, for the same reason it owns the
+  MIDI mappings — a preset load changes the sound, and it must work whether or
+  not an editor was ever opened.
+
+**A cross-component bug, found by its own test, and the one worth remembering:**
+a leading dot survived the first sanitiser. On Unix that makes a hidden file,
+and the scanner skips hidden files — so a preset called `..bell` would have
+saved successfully and then been invisible to the library that saved it. Neither
+component was wrong alone. It is the same class of defect 8f found in the tail
+rule and 8e found in the octave formatter: two things that are each correct and
+disagree at the seam.
+
+**These are the only tests in the suite that touch a disk**, and deliberately: a
+scanner tested against a mock filesystem is a scanner tested against the
+filesystem somebody imagined. Each builds a tree under the system temporary
+directory and removes it afterwards, and none touches the real preset locations
+— a test that wrote into the developer's own library would be a test that could
+lose their work.
+
+**Not present in 9b:** anything a user can see. The browser, the bridge commands
+behind it and the trigger that starts a scan are 9c. Also deliberately absent: a
+filesystem watcher, which would mean a per-platform watcher and a debounce
+policy for a library that changes when the user saves something — an event
+Apollo already knows about (ADR-0062).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
-| 9 | **9a is done** — the `.rnv` document is written, read, validated, migrated and bounded, and knows what a preset must not carry (ADR-0061). Absent: the library on disk (9b), the browser (9c), factory content (9d) and real wavetable resources (9e) |
+| 9 | **9a and 9b are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061), and the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062). Absent: the browser (9c), factory content (9d) and real wavetable resources (9e) |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -1042,7 +1110,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,267,925 assertions, 0 failures**, across 33 test classes. The table below
+**2,268,050 assertions, 0 failures**, across 34 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1054,6 +1122,7 @@ subsystems they test.
 | Foundation | Parameter identifier conventions | ID rules; every documented ID is well-formed |
 | Audio | Processor lifecycle | Prepare/release/reset, variable block sizes, sample rates, bus policy, silence and finiteness |
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
+| Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it |
 | State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
 | UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene |
@@ -1432,6 +1501,27 @@ and the four expression parameters before applying a document and puts them back
 afterwards; the risk of getting it wrong is not that presets misbehave — there
 are none yet — but that ordinary project loading quietly loses a user's
 mappings. It does not.
+
+### The library on disk, 2026-09-15
+
+Like 9a, there is nothing here a user can see — the browser is 9c. What 9b adds
+that a test cannot settle is where the library actually resolves to *on a real
+machine*, and whether the processor now holding a thread-owning member still
+starts, runs and shuts down.
+
+| Checked | Result |
+|---|---|
+| The locations resolve sensibly on this machine | User `C:\Users\…\AppData\Roaming\Apollo\Presets`, factory `C:\ProgramData\Apollo\Presets` — both from JUCE's special-location lookup, with only the two folder names Apollo's own |
+| The standalone still launches with the library in it | Yes: 227 parameters bound, 19 threads, window titled Apollo |
+| Host state still restores | MIDI 1 in the masthead and the interface unchanged — the processor gained a member that owns a thread, and nothing about startup moved |
+| **Nothing scans by itself** | After a full launch and shutdown, `AppData\Roaming\Apollo\Presets` **had not been created**. Constructing the library touches no disk, which is the claim ADR-0062 makes about hosts that instantiate a plugin dozens of times to build a menu |
+| The standalone shuts down cleanly | Closed on request, exit without a hang — the case that matters when a library is destroyed with a scan thread attached |
+| The tests leave nothing behind | The scratch tree under the system temporary directory is empty after a full run |
+
+The last two rows are the ones worth having. A background thread owned by a
+plugin is the classic source of a shutdown hang, and a test suite that does real
+file I/O is the classic source of litter on a developer's disk; both were
+checked rather than assumed.
 
 ---
 

@@ -2445,3 +2445,113 @@ than assumed.
 **Given up:** a preset cannot carry state a host project does not, since the two
 are the same document. If something later needs to be preset-only, it will need
 its own element and its own argument, not a second format.
+
+---
+
+## ADR-0062 — Where presets live, how they are found, and how a save cannot lose one
+
+**Phase 9b · Accepted**
+
+### Two roots, both optional
+
+The user's library is under the platform's own per-user application-data
+location and the factory's is under the shared one, each in `Apollo/Presets`.
+Nothing spells out `%APPDATA%`, `~/Library/Application Support` or `~/.config` —
+JUCE's special-location lookup is what knows those, and Apollo contributes only
+the two folder names beneath (CLAUDE.md §46).
+
+**Either may be absent, and neither absence is an error.** A user who has never
+saved a preset has no user folder; a build with no factory content has no
+factory folder, which is every build until Phase 9d. The index reports *missing*
+separately from *empty* because only one of them suggests something is wrong.
+
+**A bank is a folder**, as ADR-0053 chose, so the index mirrors the tree rather
+than flattening it. Nesting is preserved and the relative path is normalised to
+forward slashes, so a bank reads the same whichever platform wrote it.
+
+### Failures are counted, not hidden
+
+A `.rnv` that cannot be read — corrupt, truncated, from a newer build, or never
+a preset — is counted rather than skipped silently. "Four files in this folder
+are not presets" is something a user can act on. A library that is quietly four
+shorter than the folder is not, and the difference is the whole of CLAUDE.md
+§33 in one number.
+
+Files without the extension are ignored rather than counted: a preset folder
+with a readme in it is a normal preset folder.
+
+### Scanning is bounded, off the message thread, and abandonable
+
+Scanning opens and parses every file it finds, which on a few thousand presets
+is seconds rather than milliseconds, so `PresetLibrary` does it on a thread of
+its own and publishes a finished index.
+
+Three bounds, each for a case a real filesystem can present:
+
+- **Ten thousand presets.** A user's preset folder is whatever they point Apollo
+  at, and "scan until finished" is not a plan when that might be a network share
+  or a home directory.
+- **Eight levels of depth.** Banks nest, but not like this — and the bound also
+  ends the one case no amount of care avoids, a symbolic link pointing at one of
+  its own parents. The walk is iterative with an explicit depth per entry rather
+  than recursive, so a cycle costs a bound rather than a stack.
+- **Abandonment.** A scan whose answer is no longer wanted — the folders
+  changed, the plugin is closing — stops between files rather than finishing out
+  of politeness.
+
+Hitting a bound sets `truncated`, so the list can be shown as what it is: real,
+and not everything.
+
+**Nothing scans by itself.** Constructing the library touches no disk. Some
+hosts instantiate a plugin dozens of times while building a menu, and a walk of
+the user's preset folder on each would be work done for nobody. The editor asks
+for a scan when it has somewhere to show the result.
+
+### A save is atomic or it does not happen
+
+Every save goes to a temporary file beside the target and is moved into place
+only once it is complete. Writing straight into the destination means a crash, a
+full disk or a pulled cable leaves a truncated file where a working preset used
+to be.
+
+That is the trade worth naming: losing the preset *being* saved is an
+inconvenience the user can repeat in ten seconds, and losing the one that was
+already there is lost work. The failure mode is chosen deliberately to be the
+first.
+
+### A preset name is not a filename
+
+A name is free text somebody typed; a filename is a path component on three
+operating systems with three sets of opinions. The conversion strips separators,
+refuses the device names Windows still reserves — whatever follows the dot, so
+`CON`, `con.rnv` and `Con.txt` are one refusal — collapses the parent-directory
+token, and trims the trailing dots and spaces Windows silently discards, which
+would otherwise make "Bell." and "Bell" the same file and a rename look like a
+deletion.
+
+A name that leaves nothing usable is refused rather than turned into a file
+called nothing, and the save path checks where the result actually *resolved to*
+rather than trusting the filters that produced it (CLAUDE.md §40).
+
+**One of these was a bug found by its own test, and it is the interesting one:**
+a leading dot survived the first implementation. On Unix that makes a hidden
+file, and the scanner skips hidden files — so a preset called `..bell` would
+have saved successfully and then been invisible to the library that saved it.
+Neither component was wrong alone. That is the class of defect this project
+keeps finding at seams, and the reason the sanitiser and the scanner are tested
+against each other rather than only against themselves.
+
+### The tests do real file I/O, deliberately
+
+These are the only tests in the suite that touch a disk. A scanner tested
+against a mock filesystem is a scanner tested against the filesystem somebody
+imagined — and every bound above exists because a real one does something a mock
+would not. Each test builds a tree under the system temporary directory and
+removes it afterwards, and nothing touches the real preset locations: a test
+that wrote into the developer's own library would be a test that could lose
+their work.
+
+**Given up:** watching the folder for changes, which would mean a file-system
+watcher per platform and a debounce policy, for a library that changes when the
+user saves something — an event Apollo already knows about. A manual rescan
+covers the rest.

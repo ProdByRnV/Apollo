@@ -21,6 +21,7 @@
 #include "MIDI/MpeZone.h"
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
+#include "Resources/PresetLibrary.h"
 #include "State/StateSerialization.h"
 #include "Telemetry/TelemetryHub.h"
 
@@ -145,6 +146,22 @@ public:
     */
     [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
     [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
+
+    /** The presets on disk, and the thread that goes looking for them.
+
+        Owned by the processor for the same reason the MIDI mappings are: a
+        preset load changes the sound, which is the processor's business, and it
+        must work whether or not an editor was ever opened.
+
+        **No scan starts by itself.** Constructing this costs nothing and touches
+        no disk; scanning is what costs, and a plugin that walked the user's
+        preset folder every time a host instantiated it — which some hosts do
+        dozens of times while populating a menu — would be doing it for nothing.
+        The editor asks for a scan when it has somewhere to show the result
+        (Phase 9c).
+    */
+    [[nodiscard]] resources::PresetLibrary& getPresetLibrary() noexcept { return presetLibrary; }
+    [[nodiscard]] const resources::PresetLibrary& getPresetLibrary() const noexcept { return presetLibrary; }
 
     /** The visualisation taps.
 
@@ -494,6 +511,12 @@ private:
         holds parameter pointers into it and writes into its state tree.
     */
     midi::MidiControlManager midiControl;
+
+    /** Declared last, and therefore destroyed first: it owns a thread, and a
+        thread that is still scanning must be stopped before anything it might
+        touch on its way out has gone.
+    */
+    resources::PresetLibrary presetLibrary;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ApolloAudioProcessor)
 };

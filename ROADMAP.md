@@ -700,19 +700,19 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 
 - [x] Define preset file format. — the extension is **`.rnv`**, one preset per file, factory and user content alike (ADR-0053); implemented in 9a as the versioned state document written as XML text, read back through the same validator host state goes through (9a)
 - [x] Define preset metadata. — name, author, category, comment, in a `<PRESET>` child of the state root, so it needs no schema bump and travels into the host project with the sound it names (9a)
-- [ ] Implement preset browser/indexing.
-- [ ] Implement preset loading.
-- [ ] Implement preset saving where required.
+- [~] Implement preset browser/indexing. — **indexing** is done: both roots walked on a background thread, bounded in count and depth, abandonable, publishing a finished index of name, author, category and bank. The browser itself is 9c (9b)
+- [x] Implement preset loading. — a file is read with its size checked before it, validated by the same reader host state goes through, and a failure leaves the loaded sound alone (9a, 9b)
+- [x] Implement preset saving where required. — atomically: the bytes go to a temporary file beside the target and are moved into place once complete, so an interrupted save cannot destroy the preset that was already there (ADR-0062) (9b)
 - [ ] Implement factory presets.
-- [ ] Implement user preset locations using platform-appropriate paths.
-- [ ] Implement resource validation.
+- [x] Implement user preset locations using platform-appropriate paths. — JUCE's special-location lookup supplies the per-user and shared roots; Apollo names only the two folders beneath them, so nothing spells out a platform's path (ADR-0062) (9b)
+- [~] Implement resource validation. — done for presets: the extension is not evidence, every file is validated, and what cannot be read is counted rather than hidden. Wavetable resources are 9e (9b)
 - [ ] Implement wavetable resource management.
 - [ ] Preload or prepare large DSP resources outside the audio callback.
 - [x] Implement state versioning. — built in Phase 2 and inherited by presets rather than reimplemented: a `.rnv` carries the same `schemaVersion` a project does (9a)
 - [x] Implement state migration. — likewise inherited. A version 1 preset migrates through the same code a version 1 project does, asserted end to end in `Tests/State/PresetDocumentTests.cpp` (9a)
 - [x] Test older state versions. — a version 1 preset, written as Apollo would have written it before Phase 5b indexed the filters, opens with its cutoff intact under the new name (9a)
 - [x] Test malformed/corrupt state. — empty, plain text, truncated, well-formed XML that is not Apollo, Apollo state with no version, a version from the future and a version that is not a number: each refused for its own reason, each leaving the loaded sound and its name untouched (9a)
-- [ ] Test missing resources.
+- [~] Test missing resources. — done for presets: a missing folder, a missing file, an empty file, a folder wearing the extension, a file too large, and a tree deeper than the bound are each handled without a crash and reported as themselves. Missing wavetables are 9e (9b)
 
 ## Exit Criteria
 
