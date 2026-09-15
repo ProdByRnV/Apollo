@@ -17,6 +17,7 @@ target_sources(ApolloTests PRIVATE
     Engine/VoiceEngineTests.cpp
     Engine/SourceMixTests.cpp
     DSP/WavetableTests.cpp
+    DSP/FftTests.cpp
     DSP/UnisonTests.cpp
     DSP/EnvelopeTests.cpp
     DSP/FilterTests.cpp
@@ -43,6 +44,7 @@ target_sources(ApolloTests PRIVATE
     Parameters/ParameterRegistryTests.cpp
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp
+    Resources/WavetableResourceTests.cpp
     State/PresetDocumentTests.cpp
     State/StateSerializationTests.cpp
     UI/BridgeProtocolTests.cpp

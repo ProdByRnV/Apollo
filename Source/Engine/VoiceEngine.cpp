@@ -588,6 +588,16 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
     if (output == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
+    // A wavetable may have been replaced underneath the voices since the last
+    // block. They hold their table pointers until they are handed new ones, and
+    // a swap is not a parameter change — so this is what makes a loaded table
+    // actually play, and what bounds how long a retired one can still be in use
+    // (WavetableLibrary.h).
+    if (library.takeGenerationChange())
+        applySourceParameters();
+
+    library.beginBlock();
+
     // The engine is the origin of the signal, so it clears rather than adds.
     for (int channel = 0; channel < numChannels; ++channel)
     {

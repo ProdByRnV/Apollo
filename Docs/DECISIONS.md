@@ -2821,3 +2821,135 @@ mod wheel and aftertouch as sources, and every one of the six effects.
 **Given up:** a larger library. Ten is enough to show what the instrument does
 and small enough that every one of them can be listened to before it ships,
 which a hundred would not be.
+
+## ADR-0066 — Wavetables are spectra, and a slot can be replaced while it plays
+
+**Phase 9e · Accepted**
+
+Four things landed together because they are one thing: wavetables stopped
+being constants compiled into the oscillator and became **resources** — built
+from a description, validated, swappable, and replaceable by content Apollo did
+not write.
+
+### One road into the engine, and it goes through the spectrum
+
+A wavetable cannot be stored as the samples somebody drew, because the mipmap
+needs the same waveform at eleven bandwidths and there is no way to remove
+harmonics from a block of samples without knowing what they were. So everything
+becomes a spectrum first: a list of harmonics per frame.
+
+The built-in tables are *written* as spectra. A table from a file is *analysed*
+into one. From there the two are indistinguishable — the same builder, the same
+band-limiting, the same normalisation — which is what makes the anti-aliasing
+guarantee (Wavetable.h) hold for content nobody here has seen.
+
+**A harmonic is a cosine and a sine coefficient, not an amplitude.** Two
+waveforms with identical harmonic amplitudes and different phases are different
+waveforms. In isolation they sound the same, which is why it is tempting to drop
+the phase; they are not the same shape on a scope, they do not have the same
+peak, and they behave differently the moment anything nonlinear is downstream —
+which in Apollo is a distortion, a filter drive and a compressor. A table that
+came back phase-flattened would not be the table the user supplied.
+
+### Apollo has its own Fourier transform
+
+One thing needs one: turning a frame of samples into harmonics. JUCE's lives in
+`juce_dsp`, a module the engine does not otherwise link and which would be
+pulled into the plugin for a single call site. A radix-2 transform is sixty
+lines, and it keeps `apollo_core` free of JUCE, which is what lets the DSP be
+tested without a plugin host (CLAUDE.md §32).
+
+It is checked against the definition rather than against itself — a naive
+transform is four lines and obviously correct — on noise rather than on tones,
+because a sine is symmetric enough that a transform with a sign error in half
+its butterflies still reproduces it.
+
+### The four tables are real ones now
+
+The placeholders were linear morphs between two classic shapes, and the middle
+of such a table is not a waveform anybody wants: crossfading a sine against a
+saw gives a loud fundamental with a faint saw underneath, which is a sine with a
+buzz rather than a brighter tone. What replaced them:
+
+- **Sweep** — every frame a real saw, each carrying more harmonics than the
+  last, with the knee moving exponentially because pitch is exponential.
+- **Pulse** — a square whose width narrows to a twentieth. The shape that
+  cannot be reached by blending two others at all, because every frame is a
+  different waveform rather than a mixture of two.
+- **Formant** — a saw under a resonant peak that climbs from the second
+  harmonic to the fortieth, Gaussian on a log-frequency axis because that is
+  what a resonance is when plotted the way a musician hears it.
+- **Fold** — a sine driven into a wavefolder, defined in the time domain
+  because that is the only place a wavefolder means anything, and analysed into
+  its spectrum. It takes the same route into the engine a loaded file does.
+
+**This changes what an existing patch sounds like.** The parameter's range is
+unchanged, so nothing needs migrating and no saved project or preset becomes
+invalid — but table 2 is a different table than it was. Apollo is pre-1.0 and
+unreleased, which is the window in which that is cheap (ADR-0032).
+
+### The tables are built once for the whole process
+
+Rendering the four costs a couple of hundred milliseconds — measured, after the
+first version cost 539 ms and the standalone visibly waited for its own
+interface. A host that instantiates a plugin forty times while scanning its menu
+must not pay that forty times, in a constructor, where it is time somebody
+watches. They are immutable from the moment they exist, so every instance reads
+the same bytes with no synchronisation.
+
+Half of the original cost was also simply waste: a spectrum written as a formula
+rarely contains an exact zero, so the swept table's closed frames were summing
+harmonics at 1e-12 — values that cannot be represented in the float samples
+being written — over the whole frame. Harmonics below the resolution of the
+destination are now skipped, which is not an approximation.
+
+### Replacing a table underneath a sounding note
+
+Voices hold a plain pointer to a table and keep it until they are handed
+another. Three things make a swap safe, and all three are needed:
+
+**The pointer is exchanged atomically.** Each slot is an
+`atomic<const Wavetable*>`, so the audio thread reads a whole pointer or the
+previous one.
+
+**The audio thread is told to take the new one.** A wavetable being replaced is
+not a parameter change, so without this the engine would go on handing voices
+the old pointer until something unrelated moved — the table would sit in its
+slot, played by nobody. The library publishes a generation counter; the engine
+checks it at the top of every block and re-hands the pointers before rendering a
+sample. This was found by reasoning about the retirement rule below and
+discovering it rested on a per-block update that does not happen.
+
+**A replaced table is retired, not deleted.** It is freed only once the audio
+thread has begun two blocks since — one is not enough, because a swap can land
+in the middle of a block that has already read the old pointer. Counting blocks
+rather than taking a lock is what keeps the audio thread free of the loader
+entirely: it publishes a counter and waits for nothing.
+
+Ownership is the part that is easy to get subtly wrong, and the first attempt
+did: it pushed the *new* table onto the retired list, which made the next swap
+free a table that was still in use. Each slot now owns its loaded table
+outright, and a table reaches the retired list only once no slot names it any
+more — which reduces "is this safe to free" to a single question about blocks.
+
+### A file is untrusted, and a failure is an ordinary outcome
+
+The format is a WAV of single cycles end to end, 2048 samples each, 1 to 256 of
+them. There was no case for inventing a format: a private one would mean
+converting a library before Apollo could read any of it, and the reason to read
+files is that people already have them.
+
+A file can be missing, locked, enormous, silent, truncated mid-frame, a
+photograph with the wrong extension, or full of infinities. Each is refused by
+name, with a sentence that quotes no path. **None of them changes what the
+instrument is playing:** the slot keeps the built-in it had, which is the
+fallback, and the instrument never goes quiet because a file went away
+(CLAUDE.md §33). The size is checked before the file is opened, so pointing
+Apollo at a video costs a stat call.
+
+**Given up:** a way for the user to choose a file. The pipeline is complete and
+tested, but nothing in the interface opens it yet — that needs a native file
+chooser run by the backend, so that the *user* names the path and it never
+crosses the bridge (ADR-0063), and it is a feature rather than part of this one.
+Also given up: reading wavetables at frame sizes other than 2048, and reading
+the second channel of a stereo file, which is a recording rather than a table.

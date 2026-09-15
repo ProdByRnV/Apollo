@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "DSP/Oscillators/Wavetable.h"
+#include "DSP/Oscillators/WavetableBuilder.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Oscillators/WavetableOscillator.h"
 
@@ -163,9 +164,80 @@ public:
         testTableSelectionChangesTimbre();
         testInterpolationIsAccurate();
         testDegenerateInputIsSafe();
+        testTheLibraryIsBuiltOncePerProcess();
     }
 
 private:
+    /** The tables are built once per process, not once per instrument.
+
+        Rendering the four spectral tables is a couple of hundred milliseconds
+        of real work — measured, after the first version took half a second and
+        the standalone visibly waited for its own interface. A host that
+        instantiates a plugin forty times while scanning its menu must not pay
+        that forty times, so the built-ins are shared: immutable from the moment
+        they exist, and therefore safe for every instance to read.
+
+        This measures the *second* instrument, which is the one a host makes
+        thirty-nine more of. The bound is loose because it is about a
+        catastrophe — a return to per-instance building — rather than about the
+        speed of this machine.
+
+        The tables themselves are checked everywhere else in this file; what is
+        checked here is that sharing them did not hand out something empty.
+    */
+    void testTheLibraryIsBuiltOncePerProcess()
+    {
+        beginTest ("A second instrument costs nothing to give tables to");
+
+        // The first one may or may not be the process's first; the suite's own
+        // member library above almost certainly was. Either way this one is not.
+        const WavetableLibrary first;
+
+        const auto start = juce::Time::getHighResolutionTicks();
+
+        const WavetableLibrary second;
+
+        const auto seconds = juce::Time::highResolutionTicksToSeconds (
+            juce::Time::getHighResolutionTicks() - start);
+
+        logMessage ("  a further instrument got its tables in "
+                    + juce::String (seconds * 1000.0, 3) + " ms");
+
+        expect (seconds < 0.05,
+                "a second instrument took " + juce::String (seconds * 1000.0, 1)
+                    + " ms, which means the tables are being built again per instance");
+
+        // Shared, and the same bytes: two instruments must be reading one table
+        // rather than two copies of it.
+        for (int index = 0; index < WavetableLibrary::numTables; ++index)
+        {
+            expect (&first.getTable (index) == &second.getTable (index),
+                    "table " + juce::String (index) + " is not shared");
+
+            expect (! second.getTable (index).isEmpty(),
+                    "table " + juce::String (index) + " came out empty");
+        }
+
+        expect (&first.getSubTable() == &second.getSubTable(), "the sub table is not shared");
+
+        // And sharing must not have made them mutable through the back door: a
+        // table published into one instrument is that instrument's business.
+        auto replacement = std::make_unique<Wavetable>();
+        {
+            TableSpectrum spectrum { makeSilentSpectrum (4) };
+            spectrum[0][0].sine = 1.0;
+
+            buildWavetable (*replacement, spectrum);
+        }
+
+        WavetableLibrary third;
+
+        expect (third.publish (0, std::move (replacement)));
+        expect (third.isReplaced (0));
+        expect (! first.isReplaced (0), "publishing into one instrument moved another");
+        expect (&first.getTable (0) != &third.getTable (0));
+    }
+
     WavetableLibrary library;
 
     /** The mipmap is the anti-aliasing mechanism, so its selection rule is
@@ -425,31 +497,104 @@ private:
 
     void testTableSelectionChangesTimbre()
     {
-        beginTest ("Different tables produce different spectra");
+        beginTest ("Each table scans through the shapes it claims to");
 
-        const auto spectrumOf = [this] (int index)
-        {
-            return renderSpectrum (library.getTable (index), 440.0, 1.0f);
-        };
-
-        const auto sawEnd = spectrumOf (0);   // sine -> saw
-        const auto squareEnd = spectrumOf (1); // sine -> square
-
-        // A square has no even harmonics; a saw has them all. Compare the second
-        // harmonic, which is the clearest discriminator.
         const auto binOfHarmonic = [] (int harmonic)
         {
-            return static_cast<int> (std::round (440.0 * harmonic * static_cast<double> (fftSize)
-                                                 / testSampleRate));
+            return static_cast<std::size_t> (
+                std::round (440.0 * harmonic * static_cast<double> (fftSize) / testSampleRate));
         };
 
-        const auto sawSecond = sawEnd[static_cast<std::size_t> (binOfHarmonic (2))];
-        const auto squareSecond = squareEnd[static_cast<std::size_t> (binOfHarmonic (2))];
+        const auto harmonicOf = [&binOfHarmonic] (const std::vector<float>& spectrum, int harmonic)
+        {
+            return spectrum[binOfHarmonic (harmonic)];
+        };
 
-        expect (sawSecond > squareSecond + 20.0f,
-                "a saw should have far more second harmonic than a square: saw "
-                    + juce::String (sawSecond, 1) + " dBc, square "
-                    + juce::String (squareSecond, 1) + " dBc");
+        // SWEEP opens its bandwidth across the table. At the bottom it is
+        // essentially the fundamental alone; at the top it is a full saw.
+        const auto sweepClosed = renderSpectrum (library.getTable (0), 440.0, 0.0f);
+        const auto sweepOpen = renderSpectrum (library.getTable (0), 440.0, 1.0f);
+
+        expect (harmonicOf (sweepClosed, 4) < -60.0f,
+                "the closed end of Sweep should be near enough a sine: "
+                    + juce::String (harmonicOf (sweepClosed, 4), 1) + " dBc at the fourth");
+
+        expect (harmonicOf (sweepOpen, 4) > -30.0f,
+                "the open end should be a saw: "
+                    + juce::String (harmonicOf (sweepOpen, 4), 1) + " dBc at the fourth");
+
+        // PULSE is the one that cannot be written as a blend of two shapes, and
+        // this is why: at the bottom it is a square, which has *no even
+        // harmonics at all*, and at the top it is a narrow pulse, which has
+        // every harmonic. The second harmonic alone tells the two apart.
+        const auto square = renderSpectrum (library.getTable (1), 440.0, 0.0f);
+        const auto narrow = renderSpectrum (library.getTable (1), 440.0, 1.0f);
+
+        expect (harmonicOf (square, 2) < -50.0f,
+                "a square has no second harmonic: "
+                    + juce::String (harmonicOf (square, 2), 1) + " dBc");
+
+        expect (harmonicOf (narrow, 2) > harmonicOf (square, 2) + 40.0f,
+                "a narrow pulse has one: " + juce::String (harmonicOf (narrow, 2), 1)
+                    + " dBc against " + juce::String (harmonicOf (square, 2), 1));
+
+        // FORMANT carries a resonant peak that climbs as the table is scanned.
+        // Low in its travel the peak sits over the low harmonics, high in its
+        // travel it has moved above them — so the *ratio* between a high and a
+        // low harmonic has to rise, even though both are present throughout.
+        const auto formantLow = renderSpectrum (library.getTable (2), 440.0, 0.0f);
+        const auto formantHigh = renderSpectrum (library.getTable (2), 440.0, 1.0f);
+
+        const auto tiltLow = harmonicOf (formantLow, 16) - harmonicOf (formantLow, 2);
+        const auto tiltHigh = harmonicOf (formantHigh, 16) - harmonicOf (formantHigh, 2);
+
+        expect (tiltHigh > tiltLow + 12.0f,
+                "the formant peak should climb: tilt went from "
+                    + juce::String (tiltLow, 1) + " dB to " + juce::String (tiltHigh, 1) + " dB");
+
+        // FOLD is a sine at the bottom and a folded one at the top. It is the
+        // table built by drawing samples and analysing them, so this also
+        // exercises the route a loaded wavetable takes into the engine.
+        const auto unfolded = renderSpectrum (library.getTable (3), 440.0, 0.0f);
+        const auto folded = renderSpectrum (library.getTable (3), 440.0, 1.0f);
+
+        expect (harmonicOf (unfolded, 3) < -60.0f,
+                "an unfolded sine has no third harmonic: "
+                    + juce::String (harmonicOf (unfolded, 3), 1) + " dBc");
+
+        expect (harmonicOf (folded, 3) > -20.0f,
+                "a folded one is full of them: "
+                    + juce::String (harmonicOf (folded, 3), 1) + " dBc");
+
+        // And no two tables are the same sound at the top of their travel,
+        // which is the claim the parameter's four positions make.
+        const std::vector<std::vector<float>> ends {
+            sweepOpen, narrow, formantHigh, folded
+        };
+
+        for (std::size_t a = 0; a < ends.size(); ++a)
+        {
+            for (auto b = a + 1; b < ends.size(); ++b)
+            {
+                // Across the whole band the mip level keeps at this pitch, not
+                // just the first few harmonics. Sweep and Formant are both a
+                // saw down at the bottom of the spectrum — the formant peak has
+                // climbed to the fortieth harmonic by the top of its travel,
+                // which is exactly where they differ and nowhere near harmonic
+                // twelve. A comparison that stopped early called them identical
+                // and was measuring the wrong part of the sound.
+                auto difference = 0.0f;
+
+                for (int harmonic = 2; harmonic <= 48; ++harmonic)
+                    difference += std::abs (harmonicOf (ends[a], harmonic)
+                                            - harmonicOf (ends[b], harmonic));
+
+                expect (difference > 20.0f,
+                        "tables " + juce::String (static_cast<int> (a)) + " and "
+                            + juce::String (static_cast<int> (b))
+                            + " are too alike: " + juce::String (difference, 1) + " dB apart");
+            }
+        }
     }
 
     /** Interpolation error shows up as a noise floor under a pure tone, so the

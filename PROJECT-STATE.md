@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-15
+**Last verified:** 2026-09-16
 **Apollo version:** 0.1.0
 
 ---
@@ -17,7 +17,7 @@
 | | |
 |---|---|
 | **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a and 9b complete** |
-| **Status** | **Phase 8 is done; Phase 9 is four sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Status** | **Phases 8 and 9 are both done.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M9 — Presets & resources |
 | **Next step** | Phase 9c — the browser in the interface: listing, categories, search, load, save, save-as, and the bridge commands behind them (ROADMAP §2a) |
 
@@ -204,8 +204,11 @@ Everything below was configured, built and executed on this machine.
   implementation after measurement (ADR-0021).
 - Interpolation is 4-point cubic Hermite with wrapped neighbours, across samples,
   and linear across frames for scanning.
-- Four built-in morph tables of 16 frames: sine→saw, sine→square, triangle→saw,
-  saw→square. Placeholder factory content.
+- Four built-in tables of 16 frames — Sweep, Pulse, Formant and Fold — described
+  as spectra and rendered into their mipmaps by one builder that a table read
+  from a file goes through as well (9e, ADR-0066). They began as morphs between
+  classic shapes and were replaced once there was something to replace them
+  with.
 - Phase is wrapped into range **before** it is scaled to a table index, and
   non-finite phase is rejected — a fix for undefined behaviour that MSVC hid and
   only the Linux/Clang sanitizer job caught (ADR-0022).
@@ -1165,13 +1168,91 @@ made the tables lie about what each preset was *for*. The check that refuses
 them was written as a lint and turned out to be the most useful thing in the
 file.
 
+### Wavetables became resources (Phase 9e)
+
+The last of Phase 9, and the largest: wavetables stopped being constants
+compiled into the oscillator and became things that are described, validated,
+built, shared and replaced.
+
+- **One road into the engine, through the spectrum.** A table is a list of
+  harmonics per frame, and the mipmap is rendered from that. The four built-ins
+  are *written* as spectra; a table read from a file is *analysed* into one; and
+  from that point the engine cannot tell them apart. That is what extends the
+  anti-aliasing guarantee to content Apollo did not write, because a level that
+  keeps H harmonics is rendered by summing H harmonics rather than by filtering
+  something afterwards (ADR-0066).
+- **Phase is kept.** A harmonic is a cosine and a sine coefficient rather than
+  an amplitude. Two waveforms with identical harmonic amplitudes and different
+  phases are different waveforms — same sound in isolation, different shape,
+  different peak, and different behaviour through the distortion, the filter
+  drive and the compressor that sit downstream.
+- **Apollo has its own Fourier transform.** Sixty lines, because one thing needs
+  one and JUCE's lives in a module the engine does not otherwise link. It also
+  keeps `apollo_core` free of JUCE. Checked against the definition rather than
+  against itself, on noise rather than tones.
+- **The four placeholders are gone.** They were linear morphs between two
+  classic shapes, and the middle of such a table is a sine with a buzz rather
+  than a brighter tone. What replaced them:
+
+| Table | What it is |
+|---|---|
+| Sweep | Every frame a real saw, each carrying more harmonics than the last, the knee moving exponentially because pitch is |
+| Pulse | A square narrowing to a twentieth. The one shape that cannot be reached by blending two others at all |
+| Formant | A saw under a resonant peak climbing from the second harmonic to the fortieth, Gaussian on a log-frequency axis |
+| Fold | A sine driven into a wavefolder — defined in the time domain and analysed into its spectrum, so it takes the same route a loaded file does |
+
+  **This changes what an existing patch sounds like.** The parameter's range is
+  unchanged so nothing needs migrating and no project or preset is invalidated,
+  but table 2 is a different table than it was. Apollo is pre-1.0 and
+  unreleased, which is the window in which that is cheap (ADR-0032).
+
+- **Built once per process, not once per instrument.** Rendering the four costs
+  a couple of hundred milliseconds, and a host may make forty instruments while
+  scanning its menu. They are immutable, so every instance reads the same bytes.
+- **A slot can be replaced while a note sounds.** The pointer is exchanged
+  atomically; the audio thread is told there is something new to take; and the
+  replaced table is retired rather than freed, released only after the audio
+  thread has begun two blocks.
+- **A file is untrusted and a failure is ordinary.** The format is a WAV of
+  2048-sample cycles, 1 to 256 of them. Missing, too large, not audio, empty,
+  not a whole number of frames, silent and non-finite are each refused by name,
+  in a sentence that quotes no path, and **every one of them leaves the slot
+  playing Apollo's own table**. The size is checked before the file is opened.
+- **Loading is asynchronous**, on the same shape as the preset library: a worker
+  reads and builds, an async update delivers to the message thread, and the
+  message thread is the only place that touches the slots.
+
+**Three defects, all found by reasoning rather than by a test failing:**
+
+- **The first ownership scheme would have freed a table still in use.** It
+  pushed the *new* table onto the retired list, so the next swap freed something
+  a block could still be reading. Each slot now owns its loaded table outright,
+  and a table reaches the retired list only once no slot names it.
+- **A published table would never have played.** Voices keep their table pointer
+  until handed another, and the engine only hands them one when a parameter
+  changes — which a wavetable being replaced is not. The same staleness made the
+  two-block retirement rule unsound. The engine now checks a generation counter
+  at the top of every block.
+- **Building the tables took 539 ms.** Half of it was waste: a spectrum written
+  as a formula rarely contains an exact zero, so the swept table's closed frames
+  were summing harmonics at 1e-12 — below what a float sample can represent —
+  across the whole frame. Skipping harmonics below the destination's resolution
+  took it to 216 ms; sharing the tables across instruments took the second
+  instrument to nothing.
+
+**Not present in 9e: a way for the user to choose a wavetable file.** The
+pipeline is complete and tested, but nothing in the interface opens it. Doing so
+needs a native file chooser run by the backend so that the *user* names the path
+and it never crosses the bridge (ADR-0063), which is a feature rather than part
+of this one.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
-| 9 | **9a to 9d are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and ten factory sounds plus the init patch are compiled into the plugin, each one played a note by the suite to prove it makes one (ADR-0065). Absent: real wavetable resources (9e) |
+| 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); ten factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -1247,7 +1328,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,270,759 assertions, 0 failures**, across 35 test classes. The table below
+**2,271,531 assertions, 0 failures**, across 37 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1260,6 +1341,8 @@ subsystems they test.
 | Audio | Processor lifecycle | Prepare/release/reset, variable block sizes, sample rates, bus policy, silence and finiteness |
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
 | Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it. Phase 9c added what the browser asks against: a scan returns **factory first, then by bank, then by name**, numbers its entries from 1, and produces the same numbers for the same tree twice, which is the property an id depends on; an id resolves to exactly one preset, while 0, a negative and one past the end resolve to nothing; and **the file a name would be saved to is the file a save actually writes**, checked over four names including one Windows would silently rename, so a replace prompt cannot protect a different file from the one it overwrites |
+| DSP | Fourier transform | The transform every loaded wavetable's spectrum comes from, checked against the definition rather than against itself: a naive four-line transform is obviously correct, and the fast one must agree with it to within 1e-9 at four sizes, **on noise rather than on tones** — a sine is symmetric enough that a transform with a sign error in half its butterflies still reproduces it. A length it cannot do leaves the buffer untouched rather than mangled; a sine analyses as one sine coefficient and nothing else; a saw analyses as 1/k across sixteen harmonics; **two waveforms with the same harmonic amplitudes and different phases stay distinguishable**, which is what makes a loaded table the waveform the user supplied; and an arbitrary asymmetric shape survives being taken apart and summed back together, sample for sample |
+| Resources | Wavetable resources | A disk Apollo does not control, and a table being swapped underneath a sounding note. A well-formed WAV of 2048-sample cycles reads back as its frames, in order, with the first analysing as a sine and the last as something rich; **every way a file can fail is refused by name** — missing, not audio, stopping mid-frame, silent, and past the size bound — each leaving nothing behind and each described in a sentence containing nothing path-like; a table read, analysed and rebuilt correlates above 0.999 with the waveform that went in, per frame; a published table replaces what a slot plays and the built-in comes back exactly, while the other three slots do not move; an empty, null or out-of-range publish is refused rather than silencing an oscillator; **a replaced table is kept until two blocks have passed** and not one, and a publish announces itself to the audio thread exactly once; a load runs without the caller waiting and is delivered once, reporting a file name rather than a path; and **a file that is missing or is not audio leaves the slot playing the built-in**, with a loader destroyed mid-load returning cleanly |
 | Resources | Factory presets | The sounds Apollo ships with, and the test that makes storing them as data safe. **Every setting of every preset names a real parameter**, carries a finite value inside that parameter's range, sits on its step if it has one, is not set twice, and is not merely a restatement of the default — each failure naming the preset and the parameter; the library is named, categorised, commented and free of duplicate names, and its metadata survives the bounds the reader applies; **loading Init returns all 227 parameters to their registry defaults** from an instrument whose every parameter had been moved, which is what keeps the init patch from drifting; every preset renders into a document that begins `<?xml`, names the state root, is accepted by the ordinary reader and comes back carrying its own name, category and author; **every preset plays a held note through a real processor and has to make a sound** — finite, above -40 dBFS, and below the limit of the format; none of them carries the bend range or the MPE zone in its document, and loading all ten in turn leaves a user's controller settings where they were; and the built-ins reach the index marked factory, in the Factory bank, each with a unique key, each numbered, and each loadable through the route the bridge actually uses |
 | State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
@@ -1814,6 +1897,42 @@ that each one produces finite, audible, non-clipping audio for a held note, and
 that the parameters it claims to set are the parameters the instrument ends up
 with. Whether "Glass Bell" sounds like a bell is a judgement the developer
 should make with the application open.
+
+---
+
+### The four real wavetables, 2026-09-16
+
+Driven by hand against the running standalone. The loader has no interface yet,
+so what is verified here is the content and the engine around it; the file path
+is covered by the suite.
+
+| Checked | Result |
+|---|---|
+| The tables are named for what they are | The wavetable strip reads **SWEEP · PULSE · FORMANT · FOLD**, where it read `SIN→SAW · SIN→SQR · TRI→SAW · SAW→SQR` |
+| **Pulse is really pulse width** | Selected PULSE and swept Position to 56 %: the display drew a rectangular wave whose high portion is visibly narrower than its low one. Not a blend of two shapes — every frame is a different waveform |
+| **Fold is really a wavefolder** | Selected FOLD at 98 %: several reflections inside one cycle, which is what folding looks like and what nothing in the old placeholder set could produce |
+| And Fold is the one that proves the analyser | It is the table defined by drawing samples and taking their transform, so seeing it come out right is the load path working end to end |
+| The displays follow the position | The wave redraws continuously while Position is dragged, and the readout under it agrees with the knob |
+| Startup is not held up | Ready about nine seconds after launch, which is where it was before this sub-phase; the WebView accounts for nearly all of it |
+
+**A measured regression, caught and fixed before it shipped.** The first version
+of the spectral tables took **539 ms** to build, in the plugin's constructor. A
+host that instantiates forty instances while scanning its menu would have paid
+twenty seconds of that, and the standalone visibly waited for its own interface.
+Two changes: harmonics below what a float sample can represent are no longer
+summed (539 → 216 ms), and the built-ins are built once for the whole process
+and shared, since they are immutable (a second instrument now costs nothing).
+Both are asserted by the suite rather than left as a note.
+
+**Not a defect, worth recording:** the standalone restores its previous session's
+patch on launch, so a fresh window does not show the registry defaults. That is
+`juce::StandalonePluginHolder` doing what it is supposed to; pressing **Init**
+shows the defaults.
+
+**Not verified by ear.** No virtual MIDI port on this machine (§6, issue 16), so
+the four tables have been seen and measured but not heard. Their spectra are
+asserted at four positions each and their aliasing floors are in the suite, but
+whether Formant sounds like a vowel is a judgement for the developer.
 
 ---
 

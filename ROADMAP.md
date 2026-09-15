@@ -113,7 +113,7 @@ front of it is better understood, the way 8f was.
 | 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ⬜ |
 | 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ✅ |
 | 9d | Factory presets — content that demonstrates the instrument, and the init patch | ✅ |
-| 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ⬜ |
+| 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ✅ |
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ⬜ |
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ⬜ |
@@ -355,7 +355,7 @@ Implement Apollo's primary synthesis engine with high-quality, anti-aliased wave
 - [x] Implement continuous phase accumulation. (4a)
 - [x] Implement phase wrapping. — wrapped before scaling to an index, see ADR-0022 (4a)
 - [x] Implement frequency/tuning control. — note tracking, pitch bend, and coarse/fine on oscillator 2 (4a, 4b)
-- [x] Implement wavetable selection. — four built-in morph tables (4a)
+- [x] Implement wavetable selection. — four built-in tables, morphs between classic shapes until 9e replaced them with a swept saw, a narrowing pulse, a climbing formant and a wavefolder (4a, 9e)
 - [x] Implement wavetable-position/frame scanning. (4a)
 - [x] Implement high-quality interpolation. — 4-point cubic Hermite with wrapped neighbours (4a)
 - [x] Implement oscillator level/pan controls. — level and stereo balance, smoothed per sample (4b)
@@ -706,13 +706,13 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 - [x] Implement factory presets. — ten sounds compiled into the plugin rather than installed as files, stored as the parameters each one changes rather than as rendered documents, so a setting naming a parameter that does not exist is a test failure instead of a preset that quietly loses part of itself. Every one of them renders into an ordinary `.rnv`, loads through the ordinary reader, and is played a note by the suite to prove it makes a sound. The init patch is the empty case: it overrides nothing, so it *is* the registry's defaults (ADR-0065) (9d)
 - [x] Implement user preset locations using platform-appropriate paths. — JUCE's special-location lookup supplies the per-user and shared roots; Apollo names only the two folders beneath them, so nothing spells out a platform's path (ADR-0062) (9b)
 - [~] Implement resource validation. — done for presets: the extension is not evidence, every file is validated, and what cannot be read is counted rather than hidden. Wavetable resources are 9e (9b)
-- [ ] Implement wavetable resource management.
+- [x] Implement wavetable resource management. — tables are built from spectra rather than compiled in as constants, so the four built-ins and anything read from a file take one road into the engine; built once per process and shared, because they are immutable and a host makes forty instruments; and a slot can be replaced while a note sounds, with the pointer exchanged atomically, the audio thread told to take the new one, and the old one retired rather than freed (ADR-0066) (9e)
 - [ ] Preload or prepare large DSP resources outside the audio callback.
 - [x] Implement state versioning. — built in Phase 2 and inherited by presets rather than reimplemented: a `.rnv` carries the same `schemaVersion` a project does (9a)
 - [x] Implement state migration. — likewise inherited. A version 1 preset migrates through the same code a version 1 project does, asserted end to end in `Tests/State/PresetDocumentTests.cpp` (9a)
 - [x] Test older state versions. — a version 1 preset, written as Apollo would have written it before Phase 5b indexed the filters, opens with its cutoff intact under the new name (9a)
 - [x] Test malformed/corrupt state. — empty, plain text, truncated, well-formed XML that is not Apollo, Apollo state with no version, a version from the future and a version that is not a number: each refused for its own reason, each leaving the loaded sound and its name untouched (9a)
-- [~] Test missing resources. — done for presets: a missing folder, a missing file, an empty file, a folder wearing the extension, a file too large, and a tree deeper than the bound are each handled without a crash and reported as themselves. Missing wavetables are 9e (9b)
+- [x] Test missing resources. — for presets: a missing folder, a missing file, an empty file, a folder wearing the extension, a file too large, and a tree deeper than the bound are each handled without a crash and reported as themselves (9b). For wavetables: missing, too large, not audio, empty, not a whole number of frames, silent and non-finite are each refused by name, and every one of them leaves the instrument playing the table it already had (9e)
 
 ## Exit Criteria
 

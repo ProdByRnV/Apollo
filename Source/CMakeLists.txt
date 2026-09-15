@@ -32,6 +32,8 @@ add_library(apollo_core STATIC
     DSP/Oscillators/UnisonOscillator.h
     DSP/Oscillators/Wavetable.cpp
     DSP/Oscillators/Wavetable.h
+    DSP/Oscillators/WavetableBuilder.cpp
+    DSP/Oscillators/WavetableBuilder.h
     DSP/Oscillators/WavetableLibrary.cpp
     DSP/Oscillators/WavetableLibrary.h
     DSP/Oscillators/WavetableOscillator.cpp
@@ -74,6 +76,8 @@ add_library(apollo_core STATIC
     DSP/Oversampling/Oversampler.h
     DSP/Unison/UnisonLayout.cpp
     DSP/Unison/UnisonLayout.h
+    DSP/Utilities/Fft.cpp
+    DSP/Utilities/Fft.h
     DSP/Utilities/LinearSmoothedValue.h
     Engine/SourceSettings.h
     Engine/Voice.cpp
@@ -142,6 +146,10 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableFile.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableFile.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableLoader.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableLoader.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/PresetLibrary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/PresetLibrary.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/PresetDocument.cpp"

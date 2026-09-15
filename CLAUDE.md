@@ -542,6 +542,48 @@ Possible approaches include:
 
 Choose the technique based on measured quality and CPU cost rather than blindly applying one algorithm.
 
+## 12.3 A Table Is Described, Not Compiled In
+
+A wavetable is stored as **a spectrum per frame** — a list of harmonics, each a
+cosine and a sine coefficient — and rendered into its band-limited mipmap from
+that (ADR-0066). This is not an implementation detail: the mipmap needs the same
+waveform at eleven bandwidths, and harmonics cannot be removed from a block of
+samples without knowing what they were.
+
+Apollo's own four tables are written as spectra. A table read from a file is
+analysed into one. **From that point the engine cannot tell them apart**, which
+is what extends the anti-aliasing guarantee to content Apollo did not write.
+
+Phase is kept. Two waveforms with the same harmonic amplitudes and different
+phases are different waveforms, and a table that came back phase-flattened would
+not be the one the user supplied.
+
+The built-in tables are built **once per process** and shared. They are
+immutable, and a host may instantiate the plugin dozens of times while building
+a menu; rebuilding them each time would put hundreds of milliseconds into a
+constructor somebody is waiting on.
+
+## 12.4 Replacing A Table While It Plays
+
+A wavetable slot can be replaced without stopping the instrument. Three things
+make that safe and all three are required:
+
+- the slot pointer is **exchanged atomically**;
+- the audio thread is **told there is something new to take**, because a
+  wavetable being replaced is not a parameter change and the voices would
+  otherwise go on playing the old pointer until something unrelated moved;
+- a replaced table is **retired rather than freed**, and released only once the
+  audio thread has begun two blocks since.
+
+Loading is asynchronous. Reading a file, transforming every frame and rendering
+eleven mip levels of each takes tens of milliseconds, which may not happen on
+the audio thread and must not block the message thread either.
+
+**A failure leaves the instrument playing.** A wavetable file that is missing,
+unreadable, silent, the wrong shape or not audio at all is refused by name, and
+the slot keeps Apollo's own table. The instrument never goes quiet because a
+file went away (§30, §33).
+
 ---
 
 # 13. Filters

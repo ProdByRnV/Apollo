@@ -30,8 +30,12 @@ const fxPower = ['ON', 'OFF'] as const;
 
 export const LABELS: Record<string, readonly string[]> = {
     // 0..3, in the order WavetableLibrary builds them.
-    osc1_wavetable: ['SIN→SAW', 'SIN→SQR', 'TRI→SAW', 'SAW→SQR'],
-    osc2_wavetable: ['SIN→SAW', 'SIN→SQR', 'TRI→SAW', 'SAW→SQR'],
+    //
+    // These name the four real tables that replaced the morphs between classic
+    // shapes: a saw whose bandwidth opens, a square whose width narrows, a saw
+    // under a climbing resonant peak, and a sine driven into a wavefolder.
+    osc1_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
+    osc2_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
 
     sub_octave: ['-2', '-1'],
 
