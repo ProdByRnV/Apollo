@@ -49,6 +49,8 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::unknownParameter:           return "UNKNOWN_PARAMETER";
         case BridgeErrorCode::invalidParameterValue:      return "INVALID_PARAMETER_VALUE";
         case BridgeErrorCode::invalidGestureState:        return "INVALID_GESTURE_STATE";
+        case BridgeErrorCode::unknownPreset:              return "UNKNOWN_PRESET";
+        case BridgeErrorCode::invalidPresetName:          return "INVALID_PRESET_NAME";
     }
 
     return "MALFORMED_MESSAGE";
@@ -66,6 +68,8 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::unknownParameter:           return "The requested parameter does not exist.";
         case BridgeErrorCode::invalidParameterValue:      return "Parameter value was outside the permitted range.";
         case BridgeErrorCode::invalidGestureState:        return "The gesture state is not recognised.";
+        case BridgeErrorCode::unknownPreset:              return "That preset is no longer in the library.";
+        case BridgeErrorCode::invalidPresetName:          return "That is not a usable preset name.";
     }
 
     return "The message could not be read.";
@@ -178,6 +182,129 @@ BridgeParseResult parseMessage (const juce::String& json)
     {
         BridgeCommand command;
         command.type = BridgeCommandType::toggleFullscreen;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "requestPresets")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestPresets;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "rescanPresets")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::rescanPresets;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "loadPreset")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::loadPreset;
+
+        if (! object->hasProperty ("preset"))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto presetValue = object->getProperty ("preset");
+
+        if (! isNumber (presetValue))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto id = static_cast<double> (presetValue);
+
+        // Checked as a double before it is narrowed, because JSON has one
+        // numeric type and `1e30` is a perfectly well-formed way to say
+        // something that is not an index. Narrowing first would make that
+        // implementation-defined rather than refused.
+        if (! std::isfinite (id) || id < 1.0 || id > static_cast<double> (resources::maximumPresets))
+            return BridgeParseResult::failure (BridgeErrorCode::unknownPreset);
+
+        command.presetId = static_cast<int> (id);
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "savePreset")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::savePreset;
+
+        /** Reads one free-text field, bounded.
+
+            Bounded *here*, at the edge, rather than trusted and trimmed later.
+            These strings come from text fields, travel into a file, and come
+            back out into a list the interface draws; `presets::sanitise` will
+            trim them again on the way to disk, but a message carrying a name
+            longer than a name may be is a defect in the page and is answered as
+            one rather than quietly cut down to size.
+        */
+        const auto readText = [&object] (const char* property,
+                                         int maximumLength,
+                                         juce::String& outText) -> BridgeErrorCode
+        {
+            if (! object->hasProperty (property))
+                return BridgeErrorCode::none;
+
+            const auto value = object->getProperty (property);
+
+            if (! value.isString())
+                return BridgeErrorCode::malformedMessage;
+
+            const auto text = value.toString();
+
+            // Characters rather than bytes, because that is the unit the bound
+            // is expressed in and a name of accented characters is not half a
+            // name.
+            if (text.length() > maximumLength)
+                return BridgeErrorCode::invalidPresetName;
+
+            outText = text;
+            return BridgeErrorCode::none;
+        };
+
+        if (! object->hasProperty ("name"))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidPresetName);
+
+        if (const auto error = readText ("name", presets::maximumNameLength,
+                                         command.presetMetadata.name);
+            error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        // Empty after trimming is not a name. Refused here so that nothing
+        // downstream has to decide what an unnamed preset should be called.
+        if (command.presetMetadata.name.trim().isEmpty())
+            return BridgeParseResult::failure (BridgeErrorCode::invalidPresetName);
+
+        if (const auto error = readText ("author", presets::maximumNameLength,
+                                         command.presetMetadata.author);
+            error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        if (const auto error = readText ("category", presets::maximumNameLength,
+                                         command.presetMetadata.category);
+            error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        if (const auto error = readText ("comment", presets::maximumCommentLength,
+                                         command.presetMetadata.comment);
+            error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        if (const auto error = readText ("bank", presets::maximumNameLength, command.presetBank);
+            error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        if (object->hasProperty ("overwrite"))
+        {
+            const auto overwriteValue = object->getProperty ("overwrite");
+
+            if (! overwriteValue.isBool())
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+            command.overwriteExisting = static_cast<bool> (overwriteValue);
+        }
+
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -666,6 +793,68 @@ juce::String makeControllerProfilesMessage()
     object->setProperty (typeProperty, "controllerProfiles");
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("profiles", entries);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makePresetIndexMessage (const resources::PresetIndex& index, bool scanning)
+{
+    juce::Array<juce::var> entries;
+
+    for (const auto& preset : index.entries)
+    {
+        auto* entry = new juce::DynamicObject();
+
+        entry->setProperty (idProperty, preset.id);
+        entry->setProperty ("name", preset.name);
+        entry->setProperty ("author", preset.author);
+        entry->setProperty ("category", preset.category);
+        entry->setProperty ("bank", preset.bank);
+        entry->setProperty ("factory", preset.factory);
+
+        // `preset.file` is deliberately not here. The page has no use for it
+        // and every reason not to be given it: a path in the document is a path
+        // in a screenshot, and a page that knew one might one day be tempted to
+        // send it back (UI_BINDINGS.md §13).
+
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "presetIndex");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("presets", entries);
+    object->setProperty ("unreadable", index.unreadable);
+    object->setProperty ("truncated", index.truncated);
+    object->setProperty ("userMissing", index.userDirectoryMissing);
+    object->setProperty ("factoryMissing", index.factoryDirectoryMissing);
+    object->setProperty ("scanning", scanning);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makePresetStatusMessage (const juce::String& token,
+                                      const juce::String& message,
+                                      const presets::Metadata& metadata,
+                                      int loadedId)
+{
+    // Sanitised on the way out as well as on the way in. The metadata here has
+    // usually just come off a disk Apollo does not control, and the bound that
+    // keeps a hostile file from putting a megabyte-long "name" into the
+    // interface is only a bound if it is applied on the path that reaches the
+    // interface.
+    const auto clean = presets::sanitise (metadata);
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "presetStatus");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("status", token);
+    object->setProperty ("statusMessage", message);
+    object->setProperty ("name", clean.name);
+    object->setProperty ("author", clean.author);
+    object->setProperty ("category", clean.category);
+    object->setProperty ("comment", clean.comment);
+    object->setProperty ("loaded", loadedId);
 
     return juce::JSON::toString (juce::var (object));
 }

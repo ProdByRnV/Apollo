@@ -793,6 +793,96 @@ the same as silence.
 
 ---
 
+### 10.6 Presets (Phase 9c)
+
+The browser is the first part of the interface that reaches a filesystem, and it
+reaches it from the least trusted place in the product (§14). So the same
+principle the MIDI commands follow is applied harder: **the page names a number
+the backend published, and cannot express a path at all** (ADR-0063).
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `requestPresets` | — | Send the index as it stands. Does not scan. |
+| `rescanPresets` | — | Look at the disk again. Answered at once with what is known now, and again when the scan finishes. |
+| `loadPreset` | `preset` | Load the preset with that index id. A number, validated as an integer in `[1, maximumPresets]` during parsing; anything else is `UNKNOWN_PRESET`. |
+| `savePreset` | `name`, optional `author`, `category`, `comment`, `bank`, `overwrite` | Write the current sound into the **user** library. There is no field that chooses a destination. |
+
+`name` is required and must be non-empty after trimming. Every text field is
+bounded during parsing — `maximumNameLength` for the first four, and
+`maximumCommentLength` for the comment — and an oversized one is refused as
+`INVALID_PRESET_NAME` rather than truncated. `bank` becomes one safe path
+segment by the same sanitiser a preset name goes through (ADR-0062).
+
+**`overwrite` absent means no.** A save that would replace a preset already
+there is refused, writes nothing, and comes back with status `ALREADY_EXISTS`.
+The page renders that as its replace prompt; only a second, explicit save with
+`overwrite: true` goes through. A save is the one action in Apollo that can
+destroy somebody else's work.
+
+#### `presetIndex`
+
+```json
+{
+  "type": "presetIndex",
+  "version": 1,
+  "presets": [
+    { "id": 1, "name": "Glass Bell", "author": "RnV",
+      "category": "Keys", "bank": "Mine", "factory": false }
+  ],
+  "unreadable": 2,
+  "truncated": false,
+  "userMissing": false,
+  "factoryMissing": true,
+  "scanning": false
+}
+```
+
+**No paths, anywhere in this message.** An entry carries what a browser draws
+and nothing that could be turned back into a location on disk (§13). `id` is
+valid only against the index it arrived in: the next scan renumbers, and an id
+from an older one is answered `UNKNOWN_PRESET` rather than resolved to whatever
+inherited the number. The index is sorted before it is numbered — factory first,
+then by bank, then by name — so two scans of an unchanged library agree.
+
+`unreadable` counts files carrying the extension that could not be read as
+presets, and travels with the list rather than going to a log nobody opens
+(CLAUDE.md §33). `truncated` means the scan hit its own bounds; what is listed
+is still valid. `scanning` lets the browser say the list is still filling rather
+than appearing to be complete and wrong.
+
+#### `presetStatus`
+
+```json
+{
+  "type": "presetStatus",
+  "version": 1,
+  "status": "LOADED",
+  "statusMessage": "Loaded Glass Bell.",
+  "name": "Glass Bell",
+  "author": "RnV",
+  "category": "Keys",
+  "comment": "",
+  "loaded": 1
+}
+```
+
+Two things at once, and deliberately: what the instrument is currently called,
+and what just happened to it. Every event that changes one can change the other.
+`status` is a stable token the page may branch on — `LOADED`, `SAVED`,
+`ALREADY_EXISTS`, `LOAD_FAILED`, `SAVE_FAILED`, `CURRENT`, `STATE_RELOADED` —
+and `statusMessage` is its displayable form, naming no path (§13). An empty
+`statusMessage` means "this is the current state, not news".
+
+`loaded` is the index id of the preset currently in front of the user, or 0 for
+a sound that did not come from the library. It is **derived from the file each
+time** rather than remembered as a number, because a scan renumbers the index.
+A finished scan therefore pushes `presetStatus` alongside `presetIndex`: after a
+save the id does not become knowable until the scan that assigns it completes.
+
+Searching and filtering happen entirely on the page. They narrow a list it
+already holds, and nothing typed into the search box is ever sent.
+
+---
 ## 11. Modulation Visualization
 
 Base parameter values and modulation should remain conceptually separate:
@@ -1049,6 +1139,18 @@ APVTS State
 The frontend must not independently reconstruct the complete synthesizer state.
 
 Preset loading produces authoritative native state changes, which then propagate to the UI.
+
+**A preset load is a state load** (Phase 9c). Loading one replaces the whole
+tree, exactly as a host project load does, and is followed by the same work:
+the live MIDI mapping table is rebuilt from what actually arrived, and the
+reload counter is bumped so an attached editor resynchronises wholesale instead
+of inferring a preset load from a burst of individual changes. Both paths call
+`ApolloAudioProcessor::notifyStateReplaced` rather than each doing it for
+itself.
+
+The bridge marks its own loads, so a reload it did not cause is recognisable as
+the host opening a project — at which point it forgets which preset was loaded,
+because the sound in front of the user is now the project's (§10.6).
 
 ---
 

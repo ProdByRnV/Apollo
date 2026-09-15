@@ -15,6 +15,7 @@
 
 #include "UI/BridgeProtocol.h"
 
+using namespace apollo;
 using namespace apollo::ui;
 
 namespace
@@ -38,6 +39,12 @@ public:
         testProtocolVersioning();
         testUnknownMessageType();
         testFullscreenIsAccepted();
+        testPresetRequestsAreAccepted();
+        testLoadPresetNamesANumberAndNothingElse();
+        testSavePresetValidatesItsMetadata();
+        testPresetMetadataIsBounded();
+        testPresetMessagesCarryNoPaths();
+        testPresetStatusBoundsWhatItRepeats();
         testParameterIdValidation();
         testNumericValidation();
         testGestureStateValidation();
@@ -288,6 +295,252 @@ private:
                 "unknown extra properties must be tolerated");
     }
 
+    /** The preset commands, which are the only ones that reach a filesystem.
+
+        Everything here is about what the page may *express*. It may name a
+        number the backend published and a name a user typed; it may not name a
+        path, a root, or anything that resolves to one. The check that a valid
+        id still cannot escape the library lives with the library itself; this
+        checks that nothing else gets past the parser at all.
+    */
+    void testPresetRequestsAreAccepted()
+    {
+        beginTest ("The preset requests that carry nothing are accepted");
+
+        const auto list = parseMessage (R"({"type":"requestPresets","version":1})");
+        expect (list.ok, "valid requestPresets must be accepted");
+        expect (list.command.type == BridgeCommandType::requestPresets);
+
+        const auto rescan = parseMessage (R"({"type":"rescanPresets","version":1})");
+        expect (rescan.ok, "valid rescanPresets must be accepted");
+        expect (rescan.command.type == BridgeCommandType::rescanPresets);
+
+        // The version rule applies here as everywhere else.
+        expect (! parseMessage (R"({"type":"requestPresets","version":2})").ok);
+        expect (! parseMessage (R"({"type":"rescanPresets","version":2})").ok);
+    }
+
+    void testLoadPresetNamesANumberAndNothingElse()
+    {
+        beginTest ("A preset is loaded by id, and only by an id that could exist");
+
+        const auto result = parseMessage (R"({"type":"loadPreset","version":1,"preset":7})");
+
+        expect (result.ok, "a well-formed loadPreset must be accepted");
+        expect (result.command.type == BridgeCommandType::loadPreset);
+        expectEquals (result.command.presetId, 7);
+
+        // A path is not a preset id, and nothing about the message shape lets
+        // one be smuggled in as one.
+        expect (! parseMessage (
+                    R"({"type":"loadPreset","version":1,"preset":"C:/Windows/system.ini"})").ok,
+                reject ("a string where the id belongs"));
+
+        expect (! parseMessage (R"({"type":"loadPreset","version":1})").ok,
+                reject ("loadPreset with no id at all"));
+
+        // Zero is "no preset" by construction, and a negative id is not an id.
+        expect (! parseMessage (R"({"type":"loadPreset","version":1,"preset":0})").ok,
+                reject ("preset 0"));
+        expect (! parseMessage (R"({"type":"loadPreset","version":1,"preset":-1})").ok,
+                reject ("a negative id"));
+
+        // JSON has one numeric type, so "1e30" is a well-formed way of saying
+        // something that is not an index. Refused rather than narrowed, which
+        // would be implementation-defined.
+        expect (! parseMessage (R"({"type":"loadPreset","version":1,"preset":1e30})").ok,
+                reject ("an id beyond any library"));
+
+        expect (! parseMessage (
+                    R"({"type":"loadPreset","version":1,"preset":99999999})").ok,
+                reject ("an id past the scan bound"));
+    }
+
+    void testSavePresetValidatesItsMetadata()
+    {
+        beginTest ("A save carries a usable name and bounded metadata");
+
+        const auto result = parseMessage (
+            R"({"type":"savePreset","version":1,"name":"Glass Bell","author":"RnV",)"
+            R"("category":"Keys","comment":"soft","bank":"Mine","overwrite":true})");
+
+        expect (result.ok, "a well-formed savePreset must be accepted");
+        expect (result.command.type == BridgeCommandType::savePreset);
+        expectEquals (result.command.presetMetadata.name, juce::String ("Glass Bell"));
+        expectEquals (result.command.presetMetadata.author, juce::String ("RnV"));
+        expectEquals (result.command.presetMetadata.category, juce::String ("Keys"));
+        expectEquals (result.command.presetMetadata.comment, juce::String ("soft"));
+        expectEquals (result.command.presetBank, juce::String ("Mine"));
+        expect (result.command.overwriteExisting);
+
+        // Everything but the name is optional: a preset with no author and no
+        // category is still a sound.
+        const auto bare = parseMessage (R"({"type":"savePreset","version":1,"name":"Bare"})");
+
+        expect (bare.ok, "a save with only a name must be accepted");
+        expect (bare.command.presetMetadata.author.isEmpty());
+        expect (bare.command.presetBank.isEmpty());
+
+        // ABSENT MEANS NO. A save that would destroy what is already there has
+        // to say so, and a message that says nothing must not be read as
+        // permission.
+        expect (! bare.command.overwriteExisting,
+                "an absent overwrite flag must default to refusing");
+
+        expect (! parseMessage (R"({"type":"savePreset","version":1})").ok,
+                reject ("a save with no name"));
+
+        expect (! parseMessage (R"({"type":"savePreset","version":1,"name":"   "})").ok,
+                reject ("a name that is nothing but spaces"));
+
+        expect (! parseMessage (R"({"type":"savePreset","version":1,"name":""})").ok,
+                reject ("an empty name"));
+
+        expect (! parseMessage (R"({"type":"savePreset","version":1,"name":42})").ok,
+                reject ("a number where the name belongs"));
+
+        expect (! parseMessage (
+                    R"({"type":"savePreset","version":1,"name":"A","overwrite":"yes"})").ok,
+                reject ("a string where the overwrite flag belongs"));
+    }
+
+    void testPresetMetadataIsBounded()
+    {
+        beginTest ("Oversized preset metadata is refused rather than truncated");
+
+        const auto withName = [] (const juce::String& presetName)
+        {
+            auto* object = new juce::DynamicObject();
+            object->setProperty ("type", "savePreset");
+            object->setProperty ("version", 1);
+            object->setProperty ("name", presetName);
+
+            return juce::JSON::toString (juce::var (object));
+        };
+
+        // At the bound, not over it: the longest legal name must still work,
+        // or the bound is one character tighter than it claims to be.
+        const auto atLimit = juce::String::repeatedString ("n", presets::maximumNameLength);
+        expect (parseMessage (withName (atLimit)).ok,
+                "a name of exactly the maximum length must be accepted");
+
+        const auto overLimit = juce::String::repeatedString ("n", presets::maximumNameLength + 1);
+        const auto refused = parseMessage (withName (overLimit));
+
+        expect (! refused.ok, reject ("a name one character too long"));
+        expect (refused.error == BridgeErrorCode::invalidPresetName,
+                "an oversized name is a name problem, not a parse failure");
+
+        // Every field is bounded, not just the name, and a comment has its own
+        // larger allowance because a comment is a sentence rather than a label.
+        auto* object = new juce::DynamicObject();
+        object->setProperty ("type", "savePreset");
+        object->setProperty ("version", 1);
+        object->setProperty ("name", "Fine");
+        object->setProperty ("comment",
+                             juce::String::repeatedString ("c", presets::maximumCommentLength + 1));
+
+        expect (! parseMessage (juce::JSON::toString (juce::var (object))).ok,
+                reject ("an oversized comment"));
+
+        // And the whole-message bound still applies on top, so a hostile
+        // payload cannot force unbounded parsing before any of this runs.
+        expect (! parseMessage (withName (juce::String::repeatedString ("n", maxMessageBytes))).ok,
+                reject ("a message past the size limit"));
+    }
+
+    void testPresetMessagesCarryNoPaths()
+    {
+        beginTest ("Nothing the backend sends about presets contains a path");
+
+        resources::PresetIndex index;
+
+        resources::PresetEntry entry;
+        entry.id = 1;
+        entry.file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                         .getChildFile ("Secret Folder")
+                         .getChildFile ("Bell.rnv");
+        entry.name = "Bell";
+        entry.author = "RnV";
+        entry.category = "Keys";
+        entry.bank = "Mine";
+        entry.factory = false;
+
+        index.entries.push_back (entry);
+        index.unreadable = 3;
+
+        const auto message = makePresetIndexMessage (index, /* scanning */ false);
+
+        expect (message.contains ("Bell"), "the name is what the browser draws");
+        expect (! message.contains ("Secret Folder"),
+                "a path must never reach the page (UI_BINDINGS.md §13)");
+        expect (! message.contains (".rnv"),
+                "not even the filename: the page asks by id");
+
+        juce::var parsed;
+        expect (juce::JSON::parse (message, parsed).wasOk());
+
+        auto* object = parsed.getDynamicObject();
+        expect (object != nullptr);
+
+        if (object == nullptr)
+            return;
+
+        expectEquals (static_cast<int> (object->getProperty ("unreadable")), 3,
+                      "what could not be read travels with the list, not to a log");
+
+        const auto* entries = object->getProperty ("presets").getArray();
+        expect (entries != nullptr);
+
+        if (entries == nullptr)
+            return;
+
+        expectEquals (entries->size(), 1);
+
+        auto* fields = entries->getFirst().getDynamicObject();
+        expect (fields != nullptr);
+
+        if (fields == nullptr)
+            return;
+
+        for (const auto* required : { "id", "name", "author", "category", "bank", "factory" })
+            expect (fields->hasProperty (required),
+                    juce::String ("a preset entry is missing '") + required + "'");
+
+        expect (! fields->hasProperty ("file") && ! fields->hasProperty ("path"),
+                "an entry must not carry a location of any kind");
+    }
+
+    void testPresetStatusBoundsWhatItRepeats()
+    {
+        beginTest ("A preset status bounds metadata that came off a disk");
+
+        // The name here is what a hostile or corrupt `.rnv` could contain. It
+        // is bounded on the way *out* as well as on the way in, because a bound
+        // applied only on the inbound path is not a bound on the path that
+        // reaches the interface.
+        presets::Metadata metadata;
+        metadata.name = juce::String::repeatedString ("x", presets::maximumNameLength * 4);
+
+        const auto message = makePresetStatusMessage ("LOADED", "Loaded it.", metadata, 4);
+
+        juce::var parsed;
+        expect (juce::JSON::parse (message, parsed).wasOk());
+
+        auto* object = parsed.getDynamicObject();
+        expect (object != nullptr);
+
+        if (object == nullptr)
+            return;
+
+        expectEquals (object->getProperty ("name").toString().length(),
+                      presets::maximumNameLength,
+                      "an oversized name must be cut to the bound before it is sent");
+
+        expectEquals (static_cast<int> (object->getProperty ("loaded")), 4);
+        expectEquals (object->getProperty ("status").toString(), juce::String ("LOADED"));
+    }
+
     void testOutboundMessagesAreWellFormed()
     {
         beginTest ("Outbound messages are valid JSON carrying the protocol version");
@@ -332,7 +585,9 @@ private:
                                  BridgeErrorCode::unsupportedProtocolVersion,
                                  BridgeErrorCode::unknownParameter,
                                  BridgeErrorCode::invalidParameterValue,
-                                 BridgeErrorCode::invalidGestureState })
+                                 BridgeErrorCode::invalidGestureState,
+                                 BridgeErrorCode::unknownPreset,
+                                 BridgeErrorCode::invalidPresetName })
         {
             const auto text = describe (code);
 

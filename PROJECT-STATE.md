@@ -17,7 +17,7 @@
 | | |
 |---|---|
 | **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a and 9b complete** |
-| **Status** | **Phase 8 is done; Phase 9 is two sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061) — and the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062). Behind them, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Status** | **Phase 8 is done; Phase 9 is three sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063). Behind them, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M9 — Presets & resources |
 | **Next step** | Phase 9c — the browser in the interface: listing, categories, search, load, save, save-as, and the bridge commands behind them (ROADMAP §2a) |
 
@@ -1028,13 +1028,82 @@ filesystem watcher, which would mean a per-platform watcher and a debounce
 policy for a library that changes when the user saves something — an event
 Apollo already knows about (ADR-0062).
 
+### The browser in the interface (Phase 9c)
+
+The panel at the top of the workspace, above the signal path, because a preset
+is what you pick before there is a signal. It lists what the last scan found,
+searches, filters, loads and saves — and it is the first part of Apollo's
+interface that reaches a filesystem, which is what shaped every decision in it.
+
+- **The page names a number, never a path.** A scan sorts what it found —
+  factory first, then by bank, then by name, with the filename breaking ties —
+  and numbers it from 1. `loadPreset` carries that number; the bridge resolves
+  it against the index it published itself; an id that is not in it reaches no
+  file at all. **There is no message in the protocol that can express a path**
+  (ADR-0063). Nothing travels outward either: a listed entry carries a name, an
+  author, a category, a bank and an origin, and no location of any kind.
+- **Sorted before it is numbered**, because directory iteration order is
+  whatever the filesystem feels like and two scans of an unchanged library need
+  not agree. Without that, an id would mean a different sound depending on which
+  scan produced it, and the list would reshuffle every time anything was saved.
+- **A save is a name, not a destination.** There is no field that chooses where
+  to write: saving goes to the user library, and the bank becomes one safe path
+  segment through the same sanitiser a preset name goes through (9b). The
+  factory root is not somewhere Apollo offers to write.
+- **Absent means no.** A save over a preset that exists is refused, writes
+  nothing, and comes back `ALREADY_EXISTS`; the page renders that refusal as its
+  replace prompt, and only an explicit second save goes through. The check and
+  the write ask the same function which file a name means, so a confirmation
+  cannot end up protecting a different file from the one it overwrites.
+- **The browser decides nothing.** The highlight moves when the engine says the
+  sound changed, not when the row is clicked; the save form closes when the save
+  is confirmed, not when the button is pressed. Both can be refused.
+- **Searching and filtering never reach the engine.** They narrow a list the page
+  already holds — a round trip per keystroke would be a round trip to compute
+  something a microsecond of filtering answers. The search matches name, author,
+  category and bank, because all four are things somebody half-remembers about a
+  sound they are looking for.
+- **Which preset is loaded is derived, not remembered.** The bridge keeps the
+  *file* and turns it into an id by looking it up in the current index, because a
+  scan renumbers. Nothing sends the file anywhere.
+- **A preset load is a state load.** It replaces the whole tree exactly as a host
+  project load does, so both paths now call one method on the processor, which
+  rebuilds the MIDI table from what arrived and bumps the reload counter. The
+  bridge marks its own loads, so a reload it did not cause is recognised as the
+  host opening a project — at which point it forgets which preset was loaded.
+- **What the scan could not read is shown under the list**, in words, beside the
+  count: "2 files could not be read as a preset". A library quietly two shorter
+  than the folder is not something a user can act on (CLAUDE.md §33).
+- **The empty list says which empty it is.** Not scanned yet, no presets at all,
+  no folders at all, or nothing matching the search — four situations that want
+  four sentences, where a single "No presets" would be wrong three times in four.
+
+**Two defects found by driving it, both in the seam rather than in a component:**
+
+- **The row the user had just saved was not the row the browser highlighted.**
+  Saving writes a file, which makes the index stale by definition, so the status
+  sent back alongside the save could only say "loaded: 0" — the id does not
+  become knowable until the scan that assigns it finishes. A finished scan now
+  pushes the status alongside the index.
+- **"Loaded Glass Bell." survived about a fifth of a second.** A preset load
+  bumps the reload counter, the editor answers that by resending the whole state
+  snapshot, and the page announced the parameter count on every snapshot —
+  wiping the message the user had just been given. That line is a *connection*
+  message and is now said once.
+
+**Not present in 9c:** deleting or renaming a preset from the browser. Both are
+file operations a file manager already does, and neither is worth a command that
+destroys a file on the word of a WebView until there is a reason better than
+symmetry. The search text and the filters are not remembered across sessions,
+for the same reason panel sizes are not (CLAUDE.md §24.3).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
-| 9 | **9a and 9b are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061), and the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062). Absent: the browser (9c), factory content (9d) and real wavetable resources (9e) |
+| 9 | **9a, 9b and 9c are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063). Absent: factory content (9d) and real wavetable resources (9e) |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -1110,7 +1179,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,268,055 assertions, 0 failures**, across 34 test classes. The table below
+**2,268,198 assertions, 0 failures**, across 34 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1122,11 +1191,11 @@ subsystems they test.
 | Foundation | Parameter identifier conventions | ID rules; every documented ID is well-formed |
 | Audio | Processor lifecycle | Prepare/release/reset, variable block sizes, sample rates, bus policy, silence and finiteness |
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
-| Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it |
+| Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it. Phase 9c added what the browser asks against: a scan returns **factory first, then by bank, then by name**, numbers its entries from 1, and produces the same numbers for the same tree twice, which is the property an id depends on; an id resolves to exactly one preset, while 0, a negative and one past the end resolve to nothing; and **the file a name would be saved to is the file a save actually writes**, checked over four names including one Windows would silently rename, so a replace prompt cannot protect a different file from the one it overwrites |
 | State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
-| UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene |
-| UI | Parameter bridge | Snapshot matches APVTS, commands reach APVTS, invalid commands change nothing, external changes propagate, coalescing, detach safety, metadata completeness |
+| UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene. Phase 9c added the preset commands, which are the only ones that can reach a filesystem: a preset is named by an index number and **a string where the id belongs is refused**, as are zero, a negative, `1e30` and anything past the scan bound; a save must carry a name that is not empty and not only spaces, every metadata field is refused one character past its bound rather than truncated, and **an absent overwrite flag defaults to refusing**; the index message carries a name but no path, no filename and no field that could hold one; and a status message bounds a metadata name that came off a disk on the way *out* as well as on the way in |
+| UI | Parameter bridge | Snapshot matches APVTS, commands reach APVTS, invalid commands change nothing, external changes propagate, coalescing, detach safety, metadata completeness. Phase 9c added the preset seam, driven against a real library in a temporary folder because every interesting failure is between components rather than inside one: a sound saved through the bridge appears in the index and loads back to the value it was saved at; **a save over an existing preset is refused and the file on disk is byte-for-byte what it was**, until an explicit replacement actually replaces it; eight hostile names — `..\..\evil`, `C:/Windows/evil`, `/etc/evil`, `sub/dir/evil`, `CON`, `..`, `.` — produce nothing outside the user folder, asserted by counting what exists beside it; an id the index does not contain is answered `UNKNOWN_PRESET` and opens no file; a host project load clears the browser's claim that a preset is playing; and a bridge with no library attached answers the preset commands with an error rather than a list that never fills |
 | Engine | Voice engine | Pitch accuracy against four reference notes, velocity scaling, release to silence, polyphony, allocation order, deterministic stealing, click-free steal, sustain, pitch bend, voice reuse, extreme input, gain staging across five voicings |
 | Audio | MIDI rendering | Sample-accurate event placement, **identical output across nine block sizes**, sustain via CC 64, pitch wheel, all-notes-off, master gain scaling |
 | MIDI | MIDI mapping model | Address and range validation, reserved controllers, value scaling including inversion and clamping, the bijection and every replacement case, channel-specific beating omni in both learning orders, removal, capacity, and the publication ring — including a producer that outruns it |
@@ -1557,20 +1626,97 @@ hand against the running standalone launched from the project root.
   `overflow` and stacking context on the way — including the panels, which became
   scroll containers the moment they became resizeable.
 
-**Verified by keyboard, not by mouse.** Choosing the menu item was confirmed with
-Enter on the focused item — the keyboard support was added while diagnosing the
-above and is worth having on its own (CLAUDE.md §39). Synthetic *mouse* clicks on
-the menu could not be made to land reliably from this environment, which is a
-limitation of the test harness rather than an observation about the feature: the
-same injection method opens the menu, drags knobs, drags panel handles and
-presses the fullscreen button. **Worth a real right-click-and-click when the
-developer next has the application open.**
+**Verified by keyboard, not by mouse — and that was the wrong conclusion.** This
+paragraph originally recorded that synthetic mouse clicks on the menu "could not
+be made to land reliably from this environment" and put it down to the test
+harness. It was a real defect: the menu could not be chosen with a mouse by
+anybody, and the portal described above did not fix it. See **The reset menu
+could not be used with a mouse** below, where it is diagnosed and closed.
 
 **Canvases now redraw when their panel resizes**, not only when the window does.
 Each picture sizes its backing store to its element's box, and a panel with its
 own drag handle can change that box while the window stands still; the
 equaliser's curve is the one that shows it most, because it stretches to its
 module.
+
+---
+
+### The preset browser, 2026-09-15
+
+Driven by hand against the running standalone, launched from the project root,
+with the developer's real preset library empty at the start and removed again at
+the end — nothing here was left behind in it.
+
+| Checked | Result |
+|---|---|
+| The panel is there, above the signal path | **PRESETS** at the top of the workspace, with search, two filter menus, `SAVE…` and `RESCAN` |
+| An empty library says which empty it is | "No preset folders yet. Saving a preset creates one." — not "No presets", which would be true and useless |
+| **The save form fills in from the loaded sound** | Name, Author, Category, Bank and Comment, prefilled after a preset is loaded and blank before |
+| A save with no name cannot be sent | The SAVE button is greyed until the name has something in it |
+| **A save reaches the disk** | `%APPDATA%\Apollo\Presets\Mine\Glass Bell.rnv`, 9,268 bytes — **the bank became a folder**, as ADR-0053 says a bank is |
+| And the instrument becomes it | Masthead read **Glass Bell**, footer read "Saved Glass Bell.", and the form closed on the confirmation rather than on the press |
+| **A load restores the sound** | Relaunched, clicked the row: Oscillator 1's wavetable went back to `SIN→SQR` from the default `SIN→SAW`, the row turned gold, the masthead read Glass Bell and the footer "Loaded Glass Bell." |
+| **A save over an existing preset is refused** | "A preset called Glass Bell is already there." with a red **REPLACE IT** beside it and the plain SAVE gone |
+| And an authorised replacement replaces | The file's timestamp moved; the sound in it was the new one |
+| Search matches more than the name | Typing `mineaaa` — a *bank* — narrowed two presets to **1 of 2** |
+| The category menu filters | Set to `Keys`: the preset whose category is `Keysaaa` dropped out, leaving **1 of 2** |
+| **Files that are not presets are counted, not hidden** | Two junk `.rnv` files dropped into the folder, then RESCAN: "**2 files could not be read as a preset**" in orange beside "1 of 2 presets", with the real presets still listed |
+| The panel resizes like every other | Same corner handle, same rule; the list scrolls inside it rather than the panel growing to four hundred rows |
+
+**Two defects found by driving it, both fixed and both at a seam:**
+
+- **The row the user had just saved was not the row the browser highlighted.**
+  Saving writes a file, so the index is stale by definition and the status sent
+  back with the save could only say "loaded: 0". A finished scan now pushes the
+  status alongside the index.
+- **"Loaded Glass Bell." lasted about a fifth of a second.** A preset load bumps
+  the reload counter, the editor answers by resending the whole state snapshot,
+  and the page announced its parameter count on every snapshot. That line is a
+  *connection* message and is now said once.
+
+### The reset menu could not be used with a mouse, 2026-09-15
+
+**This corrects the entry above it.** The previous sub-phase recorded that
+synthetic mouse clicks on the reset menu "could not be made to land" and called
+it a limitation of the test harness. It was not. It was a real defect, and the
+menu could not be chosen with a mouse by anybody.
+
+Two things were wrong, and one of them was mine:
+
+- **The harness was sending clicks in the wrong coordinate space.** Screenshots
+  are of the top-level window; the WebView is a child inset by the title bar and
+  border, and a click has to be in *its* client space. Every click was landing
+  forty pixels above where it was aimed, which reads as "clicks do not work"
+  rather than as an offset. Fixing that made every other control clickable —
+  and the menu still was not, which is what turned a suspected harness problem
+  into a bug report.
+- **A React portal moves the DOM node; it does not move the component.** Events
+  still propagate along the *React* tree, so a pointer-down on a menu item went
+  on to the control that rendered it — and on a knob that means
+  `onPointerDown`, which calls `setPointerCapture`. The knob then owned the
+  pointer, the release was delivered to the knob instead of the menu, and no
+  click was ever generated. The menu now stops pointer propagation at its own
+  root, and commits on pointer-up as well as on click, which is what every menu
+  in every operating system does anyway.
+
+This is the same bug the previous sub-phase believed it had fixed by moving the
+menu into `document.body`. That change was made on a wrong model of what a
+portal does, it changed where the menu was drawn and nothing about where its
+events went, and it looked fixed because the only route that was ever tested
+afterwards was the keyboard.
+
+| Checked | Result |
+|---|---|
+| **A real right-click, then a real click, resets the knob** | Oscillator 1 Detune dragged to **36 %**, right-clicked, item clicked → **20 %**, and the menu closed |
+| Escape still dismisses | Menu gone, value untouched |
+| A click elsewhere still dismisses | Menu gone, value untouched, and the click did not choose anything |
+| The keyboard still works | Enter on the focused item resets, as before |
+
+**The lesson, and it is the third time this project has met it:** a component
+that is correct on its own can be wrong at the seam with the one that contains
+it. It is also a lesson about evidence — "the harness cannot do this" is a claim
+that needs testing before it is written down, because once written down it stops
+anybody looking.
 
 ---
 

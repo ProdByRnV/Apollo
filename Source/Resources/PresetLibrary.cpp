@@ -3,6 +3,8 @@
 #include "ApolloVersion.h"
 #include "Parameters/ParameterLayout.h"
 
+#include <algorithm>
+
 namespace apollo::resources
 {
 
@@ -240,6 +242,27 @@ juce::String describe (PresetSaveResult result)
     return "The preset could not be written.";
 }
 
+juce::File presetFileFor (const juce::File& directory, const juce::String& presetName)
+{
+    const auto safe = toSafeFileName (presetName);
+
+    // Spelled out rather than braced, for the reason `savePreset` records
+    // below: juce::File takes a String as well as a File, so a braced empty
+    // initialiser is ambiguous to GCC and Clang even where MSVC picks one.
+    if (safe.isEmpty())
+        return juce::File();
+
+    const auto target = directory.getChildFile (safe + presets::fileExtension);
+
+    // Checked after the path is built rather than before, because the check
+    // that matters is where it *resolved to*, not what it looked like. A name
+    // that escaped every filter above would still be caught here.
+    if (! target.isAChildOf (directory))
+        return juce::File();
+
+    return target;
+}
+
 PresetSaveResult savePreset (const juce::File& directory,
                              const juce::String& presetName,
                              const juce::String& text,
@@ -249,17 +272,14 @@ PresetSaveResult savePreset (const juce::File& directory,
     // File, so `= {}` is ambiguous to GCC and Clang even though MSVC picks one.
     destination = juce::File();
 
-    const auto safe = toSafeFileName (presetName);
-
-    if (safe.isEmpty())
+    if (toSafeFileName (presetName).isEmpty())
         return PresetSaveResult::invalidName;
 
-    const auto target = directory.getChildFile (safe + presets::fileExtension);
+    const auto target = presetFileFor (directory, presetName);
 
-    // Checked after the path is built rather than before, because the check
-    // that matters is where it *resolved to*, not what it looked like. A name
-    // that escaped every filter above would still be caught here.
-    if (! target.isAChildOf (directory))
+    // An empty result here means the path resolved outside the folder it was
+    // for, the name having already been established as usable.
+    if (target == juce::File())
         return PresetSaveResult::outsideLibrary;
 
     if (! directory.exists() && ! directory.createDirectory().wasOk())
@@ -331,7 +351,54 @@ PresetIndex scanPresets (const PresetLocations& locations, const std::function<b
     if (! index.userDirectoryMissing)
         scanRoot (locations.userDirectory, /* factory */ false, index, shouldAbort);
 
+    // SORTED BEFORE IT IS NUMBERED, because directory iteration order is
+    // whatever the filesystem feels like and two scans of an unchanged folder
+    // may not agree. A browser built on that would reshuffle its own list every
+    // time anything was saved, and an id would mean a different sound depending
+    // on which scan produced it.
+    //
+    // Factory before user keeps the rule scanRoot's ordering already stated:
+    // where the two libraries share a name, the user's own work is the one
+    // further down, which is where somebody looks for it.
+    std::sort (index.entries.begin(), index.entries.end(),
+               [] (const PresetEntry& a, const PresetEntry& b)
+               {
+                   if (a.factory != b.factory)
+                       return a.factory;
+
+                   if (const auto bank = a.bank.compareIgnoreCase (b.bank); bank != 0)
+                       return bank < 0;
+
+                   if (const auto name = a.name.compareIgnoreCase (b.name); name != 0)
+                       return name < 0;
+
+                   // Two presets can legitimately present the same name in the
+                   // same bank — the metadata name is free text, and nothing
+                   // stops two files carrying it. Falling back to the filename
+                   // keeps the order total, so the sort is deterministic rather
+                   // than merely usually stable.
+                   return a.file.getFileName().compareIgnoreCase (b.file.getFileName()) < 0;
+               });
+
+    auto nextId = 1;
+
+    for (auto& entry : index.entries)
+        entry.id = nextId++;
+
     return index;
+}
+
+const PresetEntry* findPreset (const PresetIndex& index, int id)
+{
+    // Zero is "no preset" by construction and is not searched for, so a page
+    // that has not chosen anything cannot accidentally match the first entry.
+    if (id <= 0)
+        return nullptr;
+
+    const auto found = std::find_if (index.entries.begin(), index.entries.end(),
+                                     [id] (const PresetEntry& entry) { return entry.id == id; });
+
+    return found != index.entries.end() ? &*found : nullptr;
 }
 
 //==============================================================================

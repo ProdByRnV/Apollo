@@ -21,6 +21,7 @@ import {
     requestControllerProfiles,
     requestMetadata,
     requestMidiMappings,
+    requestPresets,
     send,
     subscribe,
     toggleFullscreen,
@@ -40,6 +41,7 @@ import {
 import { Envelopes, Lfos } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
+import { Presets } from './modules/Presets';
 import { Noise, Oscillator, SubOscillator } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
@@ -55,14 +57,19 @@ import {
     setDefinitions,
     useMetadataVersion,
 } from './state/parameters';
+import { applyPresetIndex, applyPresetStatus, usePresets } from './state/presets';
 import { deliverInstrumentFrame, deliverScopeFrames } from './state/telemetry';
 
 export function App(): JSX.Element {
     const workspaceRef = useRef<HTMLElement>(null);
 
+    /** True once the first state snapshot has arrived. */
+    const boundRef = useRef(false);
+
     const midi = useMidi();
     const assigned = useAssignedRoutings();
     const metadataVersion = useMetadataVersion();
+    const presets = usePresets();
 
     /** The last thing the engine said, kept so a transient MIDI prompt can be
         shown over it and then cleared without losing it. */
@@ -90,11 +97,25 @@ export function App(): JSX.Element {
                 // already exist before this page has ever been opened.
                 requestMidiMappings();
                 requestControllerProfiles();
+
+                // And for the library, which was scanned when the editor
+                // attached and so may already be waiting.
+                requestPresets();
                 break;
 
             case 'stateSnapshot':
                 applySnapshot(message.parameters);
-                setStatus(`${definitionCount()} parameters bound · protocol v${message.version}`);
+
+                // ONLY THE FIRST ONE SAYS SO. This line is a connection
+                // message, and a snapshot also arrives whenever state is
+                // replaced wholesale — which is exactly when the user has just
+                // been told something more useful. Announcing the parameter
+                // count again there wiped "Loaded Glass Bell." off the status
+                // line a fraction of a second after it appeared.
+                if (!boundRef.current) {
+                    boundRef.current = true;
+                    setStatus(`${definitionCount()} parameters bound · protocol v${message.version}`);
+                }
                 break;
 
             case 'parameterChanged':
@@ -127,6 +148,20 @@ export function App(): JSX.Element {
 
             case 'controllerProfiles':
                 applyProfiles(message.profiles);
+                break;
+
+            case 'presetIndex':
+                applyPresetIndex(message);
+                break;
+
+            case 'presetStatus':
+                applyPresetStatus(message);
+
+                // Only the events worth interrupting the status line for. A
+                // load, a save and a refusal are all things the user just asked
+                // for and is owed an answer about; the current name arriving at
+                // startup, or after a project load, is not news.
+                if (message.statusMessage) setStatus(message.statusMessage);
                 break;
 
             case 'error':
@@ -273,6 +308,19 @@ export function App(): JSX.Element {
                 */}
                 <span className="masthead__tag">@ProdByRnV</span>
 
+                {/*
+                    What is loaded, where a plugin normally says it. Absent
+                    rather than "Init" when the sound has no name: a patch that
+                    was never a preset has not been given one, and inventing one
+                    would make the masthead claim something the library does not
+                    contain.
+                */}
+                {presets.name ? (
+                    <span className="masthead__preset" title="The preset currently loaded">
+                        {presets.name}
+                    </span>
+                ) : null}
+
                 <div className="masthead__spacer" />
 
                 {/*
@@ -336,6 +384,12 @@ export function App(): JSX.Element {
             <main className="workspace" ref={workspaceRef}>
                 {ready ? (
                     <>
+                        {/*
+                            Above the signal path rather than in it, because a
+                            preset is what you choose before there is a signal.
+                        */}
+                        <div className="rank rank--wide"><Presets /></div>
+
                         <div className="rank rank--pair">
                             <Oscillator index={1} />
                             <Oscillator index={2} />

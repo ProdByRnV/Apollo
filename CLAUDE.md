@@ -990,8 +990,14 @@ reset most people never find is a reset most people never use.
 
 The menu is Apollo's own rather than the browser's, which would offer "Reload"
 and "Save image as" inside a plugin. It can be driven from the keyboard, and it
-is rendered outside the control that opened it so that pressing an item cannot
-be swallowed by that control's own pointer handling.
+commits on pointer-up the way every menu in every operating system does.
+
+**It stops pointer events at its own root**, so that pressing an item cannot be
+swallowed by the pointer handling of the control that opened it. That is the
+part that makes it usable with a mouse, and it is not the same thing as
+rendering it elsewhere in the document — a React portal moves the node and
+leaves the component where it was, so events go on travelling to the control
+regardless (ADR-0064).
 
 ## 24.2 Color Semantics
 
@@ -1200,6 +1206,30 @@ Example:
 The exact format may change during development.
 
 Backward compatibility and migration should be considered before changing serialized structures.
+
+## 29.2 The Browser
+
+Presets are chosen from a panel at the top of the interface, above the signal
+path — a preset is what you pick before there is a signal. It lists what the
+last scan found, searches by name, author, category or bank, narrows by category
+and by bank, loads on a click, and saves the current sound under a name.
+
+**The page names a number, never a path.** The backend numbers the presets it
+found and the browser asks for a number; there is no message in the bridge
+protocol that can express a filename, a folder, or anything that resolves to one
+(§40; ADR-0063). Nothing sent to the page contains a location either.
+
+**The browser decides nothing.** The highlight moves when the engine says the
+sound changed, not when the row is clicked, and the save form closes when the
+save is confirmed, not when the button is pressed. Both can be refused.
+
+**A save never silently replaces a preset.** Saving over one that exists is
+refused and reported; only an explicit second attempt goes through. Saving
+always goes to the user library — the factory library is not a destination
+Apollo offers.
+
+Searching and filtering never reach the engine: they narrow a list the page
+already has.
 
 ---
 

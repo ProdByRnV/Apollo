@@ -1477,3 +1477,278 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     color: var(--text-dim);
     cursor: default;
 }
+
+/* ==========================================================================
+   PRESET BROWSER
+
+   A list, three filters and a save form, in a module like every other panel —
+   so it resizes by the same corner handle, scrolls by the same rule, and does
+   not need a window of its own. The one thing it does differently is that its
+   list scrolls inside the panel rather than the panel scrolling: a library of
+   four hundred sounds inside a panel that grew to four hundred rows would push
+   the whole instrument off the bottom of the window.
+   ========================================================================== */
+
+/* `.module__body` is a wrapping row of controls with `align-items: flex-start`,
+   which is right for six knobs and wrong for this: in a column that makes every
+   child shrink to its own content, so the list came out as wide as the longest
+   preset name and the Save button wrapped into a second column. Both are
+   overridden here rather than by not using `.module__body`, because the padding
+   and the gap are worth keeping. */
+.presets {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--s-2);
+    min-width: 0;
+}
+
+.presets__filters {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+}
+
+.presets__search,
+.presets__filter,
+.presets__field input {
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    color: var(--text-bright);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 5px 8px;
+    min-width: 0;
+}
+
+.presets__search {
+    flex: 1 1 180px;
+}
+
+.presets__filter {
+    flex: 0 1 auto;
+    cursor: pointer;
+}
+
+.presets__search:focus,
+.presets__filter:focus,
+.presets__field input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+/* The list scrolls inside the panel rather than the panel growing to hold it.
+   A library of four hundred sounds in a panel four hundred rows tall would push
+   the whole instrument off the bottom of the window, so the list is bounded and
+   scrolls, and the panel keeps the size the layout gave it.
+
+   The bound is a fraction of the window rather than a pixel count, so a tall
+   display shows more presets and a short one is not filled by the browser
+   alone. The floor stops it collapsing to nothing in a panel dragged small. */
+.presets__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--display-ground);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    padding: var(--s-1);
+    overflow-y: auto;
+    min-height: 96px;
+    max-height: 40vh;
+    scrollbar-width: thin;
+}
+
+.presets__row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--s-3);
+    width: 100%;
+    text-align: left;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    border-radius: var(--r-xs);
+    padding: 5px var(--s-2);
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    color: var(--text);
+}
+
+.presets__row:hover {
+    background: var(--surface-hover);
+    color: var(--text-bright);
+}
+
+.presets__row:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* The sound that is actually playing. Gold because that is Apollo's one
+   interaction colour, and bolder as well as brighter so the row is still the
+   obvious one in a screenshot with no colour in it (§24.2). */
+.presets__row[data-loaded="true"] {
+    background: var(--accent-glow);
+    color: var(--accent-bright);
+}
+
+.presets__row[data-loaded="true"] .presets__name {
+    font-weight: 600;
+}
+
+.presets__name,
+.presets__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.presets__meta {
+    color: var(--text-dim);
+    font-size: var(--t-label);
+}
+
+.presets__meta--author {
+    font-family: var(--font-mono);
+}
+
+/* Factory or user, in a word. The colour is a second signal rather than the
+   only one (§24.2, §39). */
+.presets__origin {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+}
+
+.presets__empty {
+    padding: var(--s-4);
+    text-align: center;
+    color: var(--text-dim);
+    font-size: var(--t-body);
+}
+
+.presets__footnote {
+    display: flex;
+    gap: var(--s-4);
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text-dim);
+}
+
+.presets__warning {
+    color: var(--caution);
+}
+
+.presets__save {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    padding-top: var(--s-2);
+    border-top: 1px solid var(--line-faint);
+}
+
+.presets__fields {
+    display: flex;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+}
+
+.presets__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    flex: 1 1 140px;
+    min-width: 0;
+}
+
+.presets__field--wide {
+    flex-basis: 100%;
+}
+
+.presets__field span {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.presets__save-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+}
+
+.presets__action {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+}
+
+.presets__action:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-bright);
+}
+
+.presets__action:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* A save with no name is refused by the engine anyway. Disabling the button
+   says so before the round trip rather than after it. */
+.presets__action:disabled {
+    color: var(--text-dim);
+    cursor: default;
+}
+
+.presets__action--quiet {
+    color: var(--text-dim);
+}
+
+/* Replacing a preset destroys one. Red, and beside the sentence saying which
+   one, because this is the only button in Apollo that loses work (§24.2). */
+.presets__action--danger {
+    color: var(--surface-void);
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+.presets__action--danger:hover:not(:disabled) {
+    background: var(--danger);
+    color: var(--surface-void);
+    filter: brightness(1.1);
+}
+
+/* The loaded preset's name in the masthead, where a plugin normally says it. */
+.masthead__preset {
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    color: var(--accent-bright);
+    padding-left: var(--s-3);
+    border-left: 1px solid var(--line);
+    margin-left: var(--s-1);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -17,6 +17,7 @@
 #include "Audio/ApolloAudioProcessor.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "Parameters/ParameterLayout.h"
+#include "Resources/PresetLibrary.h"
 #include "UI/ParameterBridge.h"
 
 using namespace apollo;
@@ -88,6 +89,12 @@ public:
         testDetachedHandlerIsSafe();
         testMarkAllParametersDirty();
         testMetadataDescribesTheRegistry();
+        testPresetCommandsNeedALibrary();
+        testSaveThenLoadRoundTripsThroughTheBrowser();
+        testSaveWillNotSilentlyReplaceAPreset();
+        testAPresetNameCannotLeaveTheLibrary();
+        testAStalePresetIdReachesNothing();
+        testAHostReloadForgetsTheBrowsersPreset();
     }
 
 private:
@@ -307,6 +314,339 @@ private:
         expectEquals (recorder.countOfType ("parameterChanged"),
                       static_cast<int> (params::parameterCount()),
                       "every parameter must be reported exactly once");
+    }
+
+    //==========================================================================
+    // Presets (Phase 9c).
+    //
+    // These drive the bridge against a real library in a temporary folder,
+    // because the interesting failures are all failures of the seam: an id that
+    // no longer resolves, a save that would replace somebody's work, a name
+    // that tries to leave the folder it was given. None of them can be seen in
+    // the protocol layer alone, and none of them can be seen in the library
+    // alone either.
+
+    /** A preset library in a folder that is deleted afterwards. */
+    struct TemporaryLibrary
+    {
+        juce::File root { juce::File::createTempFile ("ApolloPresetBridge") };
+        resources::PresetLibrary library;
+
+        TemporaryLibrary()
+        {
+            root.deleteFile();
+            root.createDirectory();
+
+            resources::PresetLocations locations;
+            locations.userDirectory = root.getChildFile ("User");
+            locations.factoryDirectory = root.getChildFile ("Factory");
+
+            locations.userDirectory.createDirectory();
+
+            library.setLocations (locations);
+        }
+
+        ~TemporaryLibrary()
+        {
+            library.waitForScan();
+            root.deleteRecursively();
+        }
+
+        /** Scans and delivers, standing in for the message loop the test runner
+            does not have. */
+        void scan()
+        {
+            library.rescan();
+            library.waitForScan();
+            library.flushPendingNotification();
+        }
+
+        [[nodiscard]] juce::File userFile (const juce::String& presetName) const
+        {
+            return library.getLocations().userDirectory.getChildFile (presetName + ".rnv");
+        }
+    };
+
+    /** @returns the value of one field of the last message of @p type. */
+    static juce::String fieldOf (const juce::String& message, const juce::String& field)
+    {
+        juce::var parsed;
+
+        if (! juce::JSON::parse (message, parsed).wasOk())
+            return {};
+
+        auto* object = parsed.getDynamicObject();
+
+        return object != nullptr ? object->getProperty (field).toString() : juce::String();
+    }
+
+    void testPresetCommandsNeedALibrary()
+    {
+        beginTest ("Without a library the preset commands are refused, not ignored");
+
+        ApolloAudioProcessor processor;
+        ui::ParameterBridge bridge (processor.getValueTreeState());
+
+        // A page whose browser cannot work must be told so. The failure mode
+        // being guarded against is a list that silently never fills, which is
+        // indistinguishable from an empty library (UI_BINDINGS.md §13).
+        const auto reply = bridge.handleMessage (R"({"type":"requestPresets","version":1})");
+
+        expectEquals (fieldOf (reply, "type"), juce::String ("error"));
+    }
+
+    void testSaveThenLoadRoundTripsThroughTheBrowser()
+    {
+        beginTest ("A sound saved through the bridge is listed, and loads back");
+
+        TemporaryLibrary temporary;
+
+        ApolloAudioProcessor processor;
+        auto& apvts = processor.getValueTreeState();
+
+        ui::ParameterBridge bridge (apvts);
+
+        OutboundRecorder recorder;
+        bridge.setOutboundHandler (recorder.handler());
+        bridge.setPresetLibrary (&temporary.library);
+
+        temporary.library.waitForScan();
+
+        auto* cutoff = apvts.getParameter ("filter1_cutoff");
+        expect (cutoff != nullptr);
+
+        if (cutoff == nullptr)
+            return;
+
+        // A value to recognise the sound by on the way back.
+        cutoff->setValueNotifyingHost (0.31f);
+
+        const auto saved = bridge.handleMessage (
+            R"({"type":"savePreset","version":1,"name":"Glass Bell","author":"RnV",)"
+            R"("category":"Keys"})");
+
+        expectEquals (fieldOf (saved, "status"), juce::String ("SAVED"));
+        expect (temporary.userFile ("Glass Bell").existsAsFile(),
+                "the save must have produced a file with the sanitised name");
+
+        // Saving is also becoming: the instrument is now that preset, and the
+        // name travels in the state tree so a host project reopens showing it.
+        expectEquals (fieldOf (saved, "name"), juce::String ("Glass Bell"));
+
+        temporary.scan();
+
+        const auto listed = bridge.handleMessage (R"({"type":"requestPresets","version":1})");
+
+        juce::var parsed;
+        expect (juce::JSON::parse (listed, parsed).wasOk());
+
+        auto* object = parsed.getDynamicObject();
+        expect (object != nullptr);
+
+        if (object == nullptr)
+            return;
+
+        const auto* entries = object->getProperty ("presets").getArray();
+        expect (entries != nullptr, "the index must carry an array");
+
+        if (entries == nullptr || entries->isEmpty())
+        {
+            expect (false, "the saved preset must appear in the index");
+            return;
+        }
+
+        auto* first = entries->getFirst().getDynamicObject();
+        expect (first != nullptr);
+
+        if (first == nullptr)
+            return;
+
+        expectEquals (first->getProperty ("name").toString(), juce::String ("Glass Bell"));
+        expectEquals (first->getProperty ("author").toString(), juce::String ("RnV"));
+        expect (! static_cast<bool> (first->getProperty ("factory")),
+                "a preset in the user root is not factory content");
+
+        const auto id = static_cast<int> (first->getProperty ("id"));
+        expect (id > 0, "every listed preset must carry an id the page can ask for");
+
+        // Move the sound somewhere else, then ask for the preset back.
+        cutoff->setValueNotifyingHost (0.88f);
+
+        const auto loaded = bridge.handleMessage (
+            juce::String (R"({"type":"loadPreset","version":1,"preset":)") + juce::String (id)
+                + "}");
+
+        expectEquals (fieldOf (loaded, "status"), juce::String ("LOADED"));
+        expectWithinAbsoluteError (cutoff->getValue(), 0.31f, 1.0e-4f,
+                                   "loading the preset must restore the sound it saved");
+
+        expectEquals (fieldOf (loaded, "loaded"), juce::String (id),
+                      "the browser is told which row is now playing");
+
+        bridge.setPresetLibrary (nullptr);
+    }
+
+    void testSaveWillNotSilentlyReplaceAPreset()
+    {
+        beginTest ("A save over an existing preset is refused until it is asked for");
+
+        TemporaryLibrary temporary;
+
+        ApolloAudioProcessor processor;
+        auto& apvts = processor.getValueTreeState();
+
+        ui::ParameterBridge bridge (apvts);
+        bridge.setPresetLibrary (&temporary.library);
+        temporary.library.waitForScan();
+
+        auto* cutoff = apvts.getParameter ("filter1_cutoff");
+        expect (cutoff != nullptr);
+
+        if (cutoff == nullptr)
+            return;
+
+        cutoff->setValueNotifyingHost (0.2f);
+
+        expectEquals (fieldOf (bridge.handleMessage (
+                          R"({"type":"savePreset","version":1,"name":"Bell"})"), "status"),
+                      juce::String ("SAVED"));
+
+        const auto original = temporary.userFile ("Bell").loadFileAsString();
+
+        // The second save names the same preset with a different sound behind
+        // it. It must not happen, and the file must be untouched afterwards —
+        // "refused" and "refused but wrote anyway" look identical from the
+        // status line alone.
+        cutoff->setValueNotifyingHost (0.9f);
+
+        const auto refused = bridge.handleMessage (
+            R"({"type":"savePreset","version":1,"name":"Bell"})");
+
+        expectEquals (fieldOf (refused, "status"), juce::String ("ALREADY_EXISTS"));
+        expectEquals (temporary.userFile ("Bell").loadFileAsString(), original,
+                      "a refused save must leave the preset that was there alone");
+
+        // Asked for in as many words, it goes ahead.
+        const auto replaced = bridge.handleMessage (
+            R"({"type":"savePreset","version":1,"name":"Bell","overwrite":true})");
+
+        expectEquals (fieldOf (replaced, "status"), juce::String ("SAVED"));
+        expect (temporary.userFile ("Bell").loadFileAsString() != original,
+                "an authorised replacement must actually replace it");
+
+        bridge.setPresetLibrary (nullptr);
+    }
+
+    void testAPresetNameCannotLeaveTheLibrary()
+    {
+        beginTest ("A save cannot be talked into writing outside the user library");
+
+        TemporaryLibrary temporary;
+
+        ApolloAudioProcessor processor;
+        ui::ParameterBridge bridge (processor.getValueTreeState());
+
+        bridge.setPresetLibrary (&temporary.library);
+        temporary.library.waitForScan();
+
+        // Every one of these is a name a user could type and a name an attacker
+        // would try. None may produce a file outside the user root — and the
+        // ones that survive sanitising must land inside it, not be quietly
+        // dropped.
+        for (const auto* hostile : { R"(..\\..\\evil)",
+                                     "../../evil",
+                                     "C:/Windows/evil",
+                                     "/etc/evil",
+                                     "sub/dir/evil",
+                                     "CON",
+                                     "..",
+                                     "." })
+        {
+            auto* object = new juce::DynamicObject();
+            object->setProperty ("type", "savePreset");
+            object->setProperty ("version", 1);
+            object->setProperty ("name", hostile);
+            object->setProperty ("overwrite", true);
+
+            const auto reply = bridge.handleMessage (
+                juce::JSON::toString (juce::var (object)));
+
+            const auto status = fieldOf (reply, "status");
+            const auto type = fieldOf (reply, "type");
+
+            expect (type == "error" || status == "SAVED" || status == "SAVE_FAILED",
+                    juce::String ("unexpected outcome for ") + hostile);
+        }
+
+        // The whole test in one line: whatever those names did, nothing was
+        // written anywhere but inside the user folder.
+        const auto outside = temporary.root.getNumberOfChildFiles (
+            juce::File::findFilesAndDirectories);
+
+        expectEquals (outside, 1, "nothing may be created beside the user folder");
+
+        for (const auto& item : juce::RangedDirectoryIterator (
+                 temporary.root, /* recursive */ true, "*",
+                 juce::File::findFilesAndDirectories))
+            expect (item.getFile().isAChildOf (temporary.root),
+                    "every file created must be inside the library");
+
+        bridge.setPresetLibrary (nullptr);
+    }
+
+    void testAStalePresetIdReachesNothing()
+    {
+        beginTest ("An id the index does not contain reaches no file at all");
+
+        TemporaryLibrary temporary;
+
+        ApolloAudioProcessor processor;
+        ui::ParameterBridge bridge (processor.getValueTreeState());
+
+        bridge.setPresetLibrary (&temporary.library);
+        temporary.library.waitForScan();
+
+        // The library is empty, so no id is valid. This is also what a page
+        // holding a list from before a preset was deleted would send.
+        const auto reply = bridge.handleMessage (
+            R"({"type":"loadPreset","version":1,"preset":5})");
+
+        expectEquals (fieldOf (reply, "type"), juce::String ("error"));
+        expectEquals (fieldOf (reply, "code"), juce::String ("UNKNOWN_PRESET"));
+
+        bridge.setPresetLibrary (nullptr);
+    }
+
+    void testAHostReloadForgetsTheBrowsersPreset()
+    {
+        beginTest ("A project load stops the browser claiming the old preset is playing");
+
+        TemporaryLibrary temporary;
+
+        ApolloAudioProcessor processor;
+        ui::ParameterBridge bridge (processor.getValueTreeState());
+
+        bridge.setPresetLibrary (&temporary.library);
+        temporary.library.waitForScan();
+
+        expectEquals (fieldOf (bridge.handleMessage (
+                          R"({"type":"savePreset","version":1,"name":"Bell"})"), "status"),
+                      juce::String ("SAVED"));
+
+        temporary.scan();
+
+        const auto afterSave = bridge.createPresetStatus ("CURRENT", {});
+        expect (fieldOf (afterSave, "loaded") != "0",
+                "the saved preset is the sound in front of the user");
+
+        // A reload the bridge did not cause came from the host: the sound is now
+        // the project's, whatever the browser last loaded.
+        const auto afterReload = bridge.handleStateReload();
+
+        expectEquals (fieldOf (afterReload, "loaded"), juce::String ("0"),
+                      "a host project load must clear the browser highlight");
+
+        bridge.setPresetLibrary (nullptr);
     }
 
     void testMetadataDescribesTheRegistry()

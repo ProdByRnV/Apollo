@@ -107,6 +107,44 @@ export function toggleFullscreen(): void {
     send({ type: 'toggleFullscreen', version: PROTOCOL_VERSION });
 }
 
+/** Asks for the library as the last scan left it. Answered at once. */
+export function requestPresets(): void {
+    send({ type: 'requestPresets', version: PROTOCOL_VERSION });
+}
+
+/** Asks for the disk to be looked at again.
+
+    Answered at once with what is known now, and again later with what the scan
+    found. Scanning opens and parses every file in the library, so it happens on
+    a thread of its own and the page is pushed the result rather than waiting.
+*/
+export function rescanPresets(): void {
+    send({ type: 'rescanPresets', version: PROTOCOL_VERSION });
+}
+
+/** Loads a preset by the id the index gave it.
+
+    An id and never a path: the page only ever names something the backend
+    itself listed, so there is no message here that can reach an arbitrary file.
+*/
+export function loadPreset(preset: number): void {
+    send({ type: 'loadPreset', version: PROTOCOL_VERSION, preset });
+}
+
+export interface PresetSaveRequest {
+    name: string;
+    author: string;
+    category: string;
+    comment: string;
+    bank: string;
+    /** True only once the user has been asked about replacing what is there. */
+    overwrite: boolean;
+}
+
+export function savePreset(request: PresetSaveRequest): void {
+    send({ type: 'savePreset', version: PROTOCOL_VERSION, ...request });
+}
+
 export function requestControllerProfiles(): void {
     send({ type: 'requestControllerProfiles', version: PROTOCOL_VERSION });
 }

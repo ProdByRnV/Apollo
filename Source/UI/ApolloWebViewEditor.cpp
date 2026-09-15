@@ -152,6 +152,16 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // mapping state rather than waiting to be asked.
     bridge.setMidiControl (&processor.getMidiControl());
 
+    // Attaching the library also starts the first scan, so the browser has
+    // something in it by the time anyone opens it. A scan finishes on its own
+    // schedule and pushes the finished index through the bridge.
+    bridge.setPresetLibrary (&processor.getPresetLibrary());
+
+    // Loading a preset replaces the whole state tree, which is the processor's
+    // event to handle rather than the bridge's: the bridge owns parameters and
+    // knows nothing about the MIDI table hanging off the same tree.
+    bridge.onStateReplaced = [this] { processor.notifyStateReplaced(); };
+
     lastSeenStateReload = processor.getStateReloadCounter();
 
     setResizable (true, true);
@@ -191,6 +201,11 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     // The bridge's own destructor would do this; doing it here keeps the two
     // detachments together, where the order between them is visible.
     bridge.setMidiControl (nullptr);
+
+    // The library outlives the editor too, and a scan that finishes after this
+    // editor has gone must not call into it.
+    bridge.setPresetLibrary (nullptr);
+    bridge.onStateReplaced = {};
 }
 
 void ApolloWebViewEditor::paint (juce::Graphics& g)
@@ -274,6 +289,11 @@ void ApolloWebViewEditor::timerCallback()
     // MIDI mappings travel inside the same document as the parameters, so a
     // project load replaces them too and the page's copy is just as stale.
     sendToWebView (bridge.createMidiMappings());
+
+    // And so does the preset name, which lives in the same tree so that an
+    // instrument reopens showing the sound it was on rather than "Init". The
+    // bridge works out whether this reload was its own doing.
+    sendToWebView (bridge.handleStateReload());
 }
 
 std::optional<juce::WebBrowserComponent::Resource>

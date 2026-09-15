@@ -111,7 +111,7 @@ front of it is better understood, the way 8f was.
 | **9** | **Presets, resources & state migration** | ⬜ |
 | 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ⬜ |
 | 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ⬜ |
-| 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ⬜ |
+| 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ✅ |
 | 9d | Factory presets — content that demonstrates the instrument, and the init patch | ⬜ |
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ⬜ |
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
@@ -700,7 +700,7 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 
 - [x] Define preset file format. — the extension is **`.rnv`**, one preset per file, factory and user content alike (ADR-0053); implemented in 9a as the versioned state document written as XML text, read back through the same validator host state goes through (9a)
 - [x] Define preset metadata. — name, author, category, comment, in a `<PRESET>` child of the state root, so it needs no schema bump and travels into the host project with the sound it names (9a)
-- [~] Implement preset browser/indexing. — **indexing** is done: both roots walked on a background thread, bounded in count and depth, abandonable, publishing a finished index of name, author, category and bank. The browser itself is 9c (9b)
+- [x] Implement preset browser/indexing. — both roots are walked on a background thread, bounded in count and depth, abandonable, and the finished index is sorted, numbered and published to a browser that lists, searches and filters it. The page asks for a preset by the number the backend gave it and can express no path at all (ADR-0063) (9b, 9c)
 - [x] Implement preset loading. — a file is read with its size checked before it, validated by the same reader host state goes through, and a failure leaves the loaded sound alone (9a, 9b)
 - [x] Implement preset saving where required. — atomically: the bytes go to a temporary file beside the target and are moved into place once complete, so an interrupted save cannot destroy the preset that was already there (ADR-0062) (9b)
 - [ ] Implement factory presets.

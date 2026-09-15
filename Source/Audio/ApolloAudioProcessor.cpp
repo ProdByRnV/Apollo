@@ -1170,17 +1170,24 @@ void ApolloAudioProcessor::setStateInformation (const void* data, int sizeInByte
     lastStateLoadResult.store (result, std::memory_order_relaxed);
 
     if (result == state::StateLoadResult::ok)
-    {
-        // The document replaced the whole state tree, MIDI mappings included, so
-        // the live table is rebuilt from what actually arrived rather than left
-        // pointing at the previous project's controller assignments.
-        midiControl.restoreFromState();
+        notifyStateReplaced();
+}
 
-        // Every parameter may have moved at once. Bumping the counter lets an
-        // attached editor resynchronise wholesale instead of inferring a preset
-        // load from a burst of individual changes.
-        stateReloadCounter.fetch_add (1, std::memory_order_relaxed);
-    }
+void ApolloAudioProcessor::notifyStateReplaced()
+{
+    // The document replaced the whole state tree, MIDI mappings included, so
+    // the live table is rebuilt from what actually arrived rather than left
+    // pointing at the previous project's controller assignments.
+    //
+    // A preset deliberately carries no mappings, and the preset reader puts the
+    // existing ones back into the tree before this runs — so rebuilding from
+    // the tree is right on both paths, and is what keeps them one path.
+    midiControl.restoreFromState();
+
+    // Every parameter may have moved at once. Bumping the counter lets an
+    // attached editor resynchronise wholesale instead of inferring a preset
+    // load from a burst of individual changes.
+    stateReloadCounter.fetch_add (1, std::memory_order_relaxed);
 }
 
 } // namespace apollo

@@ -2555,3 +2555,171 @@ their work.
 watcher per platform and a debounce policy, for a library that changes when the
 user saves something — an event Apollo already knows about. A manual rescan
 covers the rest.
+
+## ADR-0063 — The browser names a number, never a path
+
+**Phase 9c · Accepted**
+
+The preset browser is the first part of Apollo's interface that reaches a
+filesystem, and it reaches it from the least trusted place in the product. The
+WebView is an untrusted input boundary (UI_BINDINGS.md §14); a browser is by
+definition a list of files. The whole design of this sub-phase is the answer to
+one question: how does a page ask for a file without ever being able to name
+one?
+
+### The index numbers what it found, and the page asks by number
+
+Every entry a scan produces carries an `id`, assigned by the backend, starting
+at 1. `loadPreset` carries that number and nothing else. The bridge resolves it
+against the index it published itself, and an id that is not in that index
+reaches no file at all — it is answered `UNKNOWN_PRESET` and nothing is opened.
+
+The consequence is worth stating plainly: **there is no message in the protocol
+that can express a path.** Not a relative one, not one that escapes, not one
+that resolves somewhere clever. A hostile page can ask for preset 7, and preset
+7 is whatever the backend already decided preset 7 was.
+
+Nothing travels the other way either. `presetIndex` carries a name, an author,
+a category, a bank and an origin — everything a browser draws — and no location
+of any kind. A path in the document is a path in every screenshot anyone takes
+of the plugin, and a page that knew one might one day send it back.
+
+**An id is valid only against the index it came in.** The next scan renumbers,
+and a page holding a stale one is told the preset is gone rather than handed a
+different sound. That is why the index is now **sorted before it is numbered** —
+factory first, then by bank, then by name, with the filename breaking the
+remaining ties. Directory iteration order is whatever the filesystem feels like,
+and a browser built on it would reshuffle itself every time anything was saved.
+
+### Saving is a name and a bank, not a destination
+
+`savePreset` carries free text and a flag. It has no field that chooses where to
+write, because there is only one place Apollo writes: the user root. The bank is
+turned into one safe path segment by the same sanitiser a preset name goes
+through, and the result is checked for where it *resolved to* rather than for
+what it looked like.
+
+**Absent means no.** The `overwrite` flag defaults to refusing, so a save that
+would replace an existing preset comes back `ALREADY_EXISTS` and writes nothing.
+The page renders that refusal as the replace prompt, and only a second, explicit
+save goes through. A save is the one action in Apollo that can destroy somebody
+else's work, and the default answer to a question nobody asked is "don't".
+
+The check and the write agree about which file they mean because both ask
+`presetFileFor`. A confirmation prompt that consulted a different answer from
+the writer would protect one file and overwrite another — which is the same
+class of seam defect ADR-0062 recorded finding in the sanitiser.
+
+### The browser decides nothing
+
+Choosing a row sends an id and waits. The highlight moves when the engine says
+the sound changed, not when the click happens; the save form closes when the
+engine confirms the save, not when the button is pressed. This is the rule the
+rest of the interface already follows for parameter values (UI_BINDINGS.md §1,
+§6), and it matters more here than anywhere else: both actions can be refused,
+and a browser that moved its own highlight optimistically would end up showing a
+sound that is not playing.
+
+Searching and filtering are the exception, and deliberately so. They narrow a
+list the page already holds, and a round trip per keystroke would be a round
+trip to compute something a microsecond of filtering answers. Nothing typed into
+the search box is ever sent.
+
+### Which preset is loaded is derived, not remembered
+
+The bridge keeps the *file* the current sound came from, and turns it into an id
+on the way out by looking it up in the current index. Keeping the number instead
+would mean holding a value that a rescan silently redefines.
+
+This is also what fixed the first defect this sub-phase found by being driven:
+saving a preset writes a file, which makes the index stale by definition, so the
+status sent alongside the save could only ever say "loaded: 0" — the row the
+user had just created was not the row the browser highlighted. A finished scan
+now pushes the status alongside the index, because the id only becomes knowable
+when the scan that assigns it finishes.
+
+### A preset load is a state load
+
+Loading a preset replaces the whole state tree, which is exactly what a host
+project load does, and therefore has to be followed by exactly the same work:
+the live MIDI mapping table rebuilt from the tree that actually arrived, and the
+reload counter bumped so an attached editor resynchronises wholesale. Both paths
+now call `ApolloAudioProcessor::notifyStateReplaced` rather than each doing it
+for itself — a preset load that quietly skipped half of that would leave the
+instrument subtly out of step with its own state.
+
+The bridge marks its own loads, so a reload it did *not* cause is recognisable
+as the host opening a project. It forgets the loaded file at that point, which
+is what stops the browser claiming that a preset is playing when the project has
+replaced it.
+
+**Given up:** deleting and renaming presets from the browser. Both are file
+operations the user's own file manager already does, and neither is worth a
+command that destroys a file on the word of a WebView until there is a reason
+better than symmetry. Also given up: remembering the search text and filters
+across sessions, for the same reason panel sizes are not remembered (§24.3) —
+reopening Apollo should show the whole library rather than whatever somebody was
+looking for last week.
+
+## ADR-0064 — A portal moves the node, not the component
+
+**Phase 9c · Accepted · Corrects a claim made in Phase 9b's UI work**
+
+Apollo's context menu is rendered through a React portal, and the reason
+recorded for that was wrong in a way that hid a real bug for a whole sub-phase.
+
+### What was believed
+
+Rendered where it sits in the tree, the menu is a child of the control that
+opened it — so pressing a menu item first runs that control's `onPointerDown`,
+which on a knob calls `setPointerCapture` and redirects the release away from
+the menu. The item highlights under the cursor and cannot be chosen.
+
+That diagnosis was correct. **The fix was not.** Moving the menu into
+`document.body` with `createPortal` changed where the menu was *drawn* and
+nothing at all about where its events *went*: a React portal relocates the DOM
+node while leaving the component exactly where it is in the React tree, and
+React's synthetic events propagate along the React tree. The pointer-down still
+reached the knob, the knob still took the pointer, and the menu still could not
+be chosen with a mouse.
+
+It looked fixed because the only route tested afterwards was the keyboard —
+which works, because a keyboard press produces a `click` on the focused button
+with no pointer involved at all.
+
+### What is true
+
+**The menu stops pointer propagation at its own root.** `pointerdown`,
+`pointermove`, `pointerup` and `click` are stopped on the menu container, so no
+synthetic event from inside the menu reaches the control that rendered it. This
+is the fix; everything else here is secondary.
+
+**The portal is still worth having**, for the reason it was not originally
+given: it takes the menu out of every `overflow` and stacking context between it
+and the page, which matters because the panels became scroll containers the
+moment they became resizeable. It is rendered into the React root rather than
+the document body, so it stays inside the container React listens on.
+
+**A menu commits on pointer-up as well as on click.** Press, drag down the
+items, release on the one you want is how every menu in every operating system
+behaves, and a menu that only commits on `click` cannot be used that way. A
+guard makes sure that whichever of the two arrives first is the only one that
+acts.
+
+### The part worth keeping
+
+Two lessons, and the second is the expensive one.
+
+**A component that is correct in isolation can be wrong at its seam with the
+component that contains it.** This is now the fourth time this project has found
+a defect there — the octave formatter in 8e, the tail rule in 8f, the
+leading-dot-and-hidden-file interaction in 9b, and this. It is the class of bug
+the test suite is least able to find, because both halves pass their own tests.
+
+**"The harness cannot do this" is a claim that needs testing before it is
+written down.** It was written into PROJECT-STATE as a limitation of the test
+environment, and once written down it stopped anybody looking. When the harness
+was later fixed — it was sending clicks in the top-level window's coordinates
+rather than the WebView's, so every click landed forty pixels high — every other
+control became clickable and the menu did not, which is what turned a supposed
+harness problem back into a bug report.

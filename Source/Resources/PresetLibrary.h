@@ -71,6 +71,22 @@ struct PresetLocations
 /** One preset found on disk. */
 struct PresetEntry
 {
+    /** What the interface calls this preset when it asks for it.
+
+        THE INTERFACE NEVER NAMES A PATH, and that is the whole reason this
+        field exists. A browser that asked to load `C:/.../Bell.rnv` would be a
+        WebView handing the native side a filename, which is precisely what a
+        bridge must not accept (CLAUDE.md §40). Instead the backend numbers what
+        it found, the page asks for a number, and the number is resolved against
+        the index the backend itself built. The worst a confused or hostile page
+        can express is a preset that is not there.
+
+        Assigned by the scan and starting at 1, so 0 is always "no preset". An
+        id survives nothing: the next scan renumbers, and a page holding a stale
+        one is told the preset is gone rather than handed a different sound.
+    */
+    int id = 0;
+
     juce::File file;
 
     /** What to call it: the metadata name if the file has one, otherwise the
@@ -147,6 +163,14 @@ inline constexpr int maximumScanDepth = 8;
 [[nodiscard]] PresetIndex scanPresets (const PresetLocations& locations,
                                        const std::function<bool()>& shouldAbort = {});
 
+/** @returns the entry with @p id, or nullptr if the index has no such preset.
+
+    The lookup that turns a number from the interface back into a file, and the
+    only place in Apollo where a message from the WebView is allowed to select
+    one.
+*/
+[[nodiscard]] const PresetEntry* findPreset (const PresetIndex& index, int id);
+
 /** @returns a filename, without extension, that is safe on every platform.
 
     A preset name is free text a user typed; a filename is not. This strips path
@@ -159,6 +183,19 @@ inline constexpr int maximumScanDepth = 8;
              treat as a refusal rather than as a filename.
 */
 [[nodiscard]] juce::String toSafeFileName (const juce::String& presetName);
+
+/** @returns the file a preset called @p presetName would occupy in @p directory.
+
+    One definition of "the file this name means", so that asking whether a save
+    would replace something and performing the save cannot disagree about which
+    file they are talking about. That disagreement is how a confirmation prompt
+    ends up protecting a different file from the one it overwrites.
+
+    @returns an invalid `juce::File` if nothing usable is left of the name, or
+             if the result would sit outside @p directory.
+*/
+[[nodiscard]] juce::File presetFileFor (const juce::File& directory,
+                                        const juce::String& presetName);
 
 /** Why a save did not happen. */
 enum class PresetSaveResult

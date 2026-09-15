@@ -22,6 +22,8 @@
 
 #include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
+#include "Resources/PresetLibrary.h"
+#include "State/PresetDocument.h"
 #include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
@@ -62,7 +64,21 @@ enum class BridgeErrorCode
     unsupportedProtocolVersion,
     unknownParameter,
     invalidParameterValue,
-    invalidGestureState
+    invalidGestureState,
+
+    /** The page named a preset the current index does not contain.
+
+        Its own category rather than `unknownParameter`, because it is the one
+        error here a user can cause without anything being wrong: a preset
+        deleted or renamed in a file manager while the browser was open is still
+        listed on a page that has not been told yet.
+    */
+    unknownPreset,
+
+    /** Nothing usable was left of a preset name, or a metadata field was longer
+        than a metadata field may be.
+    */
+    invalidPresetName
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -112,7 +128,17 @@ enum class BridgeCommandType
         make the page fill a window that had not changed size. Only the editor
         can ask, so the page asks the editor.
     */
-    toggleFullscreen
+    toggleFullscreen,
+
+    // Presets (Phase 9c). Like the MIDI commands, each one names an intent
+    // rather than an operation on the filesystem: the page can ask for the
+    // library, ask for a preset it has been shown, and ask for the current
+    // sound to be saved under a name. It cannot express a path, and there is no
+    // command here that deletes anything.
+    requestPresets, ///< Send the index as it stands, without scanning.
+    rescanPresets,  ///< Look at the disk again; the result arrives when it does.
+    loadPreset,     ///< Load one preset named by its index id.
+    savePreset      ///< Write the current sound into the user library.
 };
 
 /** A validated command.
@@ -137,6 +163,37 @@ struct BridgeCommand
         rather than merge into them.
     */
     bool replaceExisting = true;
+
+    /** Which preset to load, as an id from the index the backend published.
+
+        Never a path, and never anything the page invented: the id is resolved
+        against the live index, and one that is not in it is refused.
+    */
+    int presetId = 0;
+
+    /** What a saved preset should say about itself.
+
+        Free text from a text field, trimmed and bounded before it gets here, so
+        nothing downstream has to defend against a name a megabyte long.
+    */
+    presets::Metadata presetMetadata;
+
+    /** The bank to save into, or empty for the top of the user library.
+
+        A bank is a folder (ADR-0053), so this is turned into one safe path
+        segment before anything opens it — it can name a folder, but it cannot
+        name a route out of the library.
+    */
+    juce::String presetBank;
+
+    /** True when the page has already asked the user about replacing a preset
+        that is there.
+
+        Absent means no, and that asymmetry is the point: a save that would
+        destroy somebody else's sound has to be asked for in as many words,
+        and the default answer to a question nobody asked is "don't".
+    */
+    bool overwriteExisting = false;
 };
 
 /** The outcome of parsing one inbound message. */
@@ -212,6 +269,45 @@ struct BridgeParseResult
     is running.
 */
 [[nodiscard]] juce::String makeControllerProfilesMessage();
+
+/** `{"type":"presetIndex", ...}`
+
+    The library as the browser draws it: every preset the last scan could read,
+    each with the id the page uses to ask for it, plus what the scan could *not*
+    read. The failures travel with the list rather than being logged somewhere
+    the user will never look — "three files in this folder are not presets" is
+    something they can act on (CLAUDE.md §33).
+
+    No paths. The interface is shown a name, an author, a category and a bank,
+    which is everything a browser needs and nothing that could be turned back
+    into a filesystem location (UI_BINDINGS.md §13).
+
+    @param scanning  true while a scan is running, so the browser can say the
+                     list is still filling rather than appearing to be complete
+                     and wrong.
+*/
+[[nodiscard]] juce::String makePresetIndexMessage (const resources::PresetIndex& index,
+                                                   bool scanning);
+
+/** `{"type":"presetStatus", ...}`
+
+    Two things at once, and deliberately: what the instrument is currently
+    called, and what just happened to it. They belong together because every
+    event that changes one is capable of changing the other — a load renames the
+    sound, a save renames it, and a refusal leaves both exactly as they were,
+    which is itself worth saying.
+
+    @param token    a stable token the page may branch on, e.g. "ALREADY_EXISTS".
+    @param message  its displayable form, naming no path (UI_BINDINGS.md §13).
+    @param metadata what the loaded sound now says about itself.
+    @param loadedId the index id of the preset currently loaded, or 0 if the
+                    sound did not come from the library — a modified patch, or
+                    one restored from a host project.
+*/
+[[nodiscard]] juce::String makePresetStatusMessage (const juce::String& token,
+                                                    const juce::String& message,
+                                                    const presets::Metadata& metadata,
+                                                    int loadedId);
 
 /** `{"type":"scopeFrames", ...}`
 

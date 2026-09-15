@@ -122,9 +122,148 @@ public:
         testReadingAMissingFileIsNotACrash();
         testDeepTreesAreBounded();
         testAsyncScanDeliversOnTheMessageThread();
+        testTheIndexIsOrderedAndNumbered();
+        testFindingAPresetById();
+        testTheFileANameMeansIsOneAnswer();
     }
 
 private:
+    /** Phase 9c: the index is what the browser asks against, so its order and
+        its numbering are part of the contract rather than an implementation
+        detail of the directory iterator.
+    */
+    void testTheIndexIsOrderedAndNumbered()
+    {
+        beginTest ("A scan returns a stable order and an id for every preset");
+
+        ScratchTree tree { "numbering" };
+
+        const auto user = tree.folder ("User");
+        const auto factory = tree.folder ("Factory");
+
+        // Deliberately written in an order that is neither alphabetical nor the
+        // order they must come back in.
+        tree.write ("User/zither.rnv", documentNamed ("Zither"));
+        tree.write ("User/Keys/acorn.rnv", documentNamed ("Acorn"));
+        tree.write ("User/apple.rnv", documentNamed ("Apple"));
+        tree.write ("Factory/bell.rnv", documentNamed ("Bell"));
+
+        resources::PresetLocations locations;
+        locations.userDirectory = user;
+        locations.factoryDirectory = factory;
+
+        const auto index = resources::scanPresets (locations);
+
+        expectEquals (static_cast<int> (index.entries.size()), 4);
+
+        if (index.entries.size() != 4)
+            return;
+
+        // Factory first, then by bank, then by name. The top of a root sorts
+        // before its folders because an empty bank sorts before any name.
+        expectEquals (index.entries[0].name, juce::String ("Bell"));
+        expect (index.entries[0].factory, "factory content comes first");
+
+        expectEquals (index.entries[1].name, juce::String ("Apple"));
+        expectEquals (index.entries[2].name, juce::String ("Zither"));
+
+        expectEquals (index.entries[3].name, juce::String ("Acorn"));
+        expectEquals (index.entries[3].bank, juce::String ("Keys"),
+                      "a preset in a folder is in a bank, and banks sort after the root");
+
+        // Numbered from 1, so that 0 can mean "no preset" without colliding
+        // with a real one, and consecutively, so an id is a position.
+        for (auto i = 0; i < 4; ++i)
+            expectEquals (index.entries[static_cast<size_t> (i)].id, i + 1);
+
+        // And the same tree scanned again produces the same numbers, which is
+        // the property the browser depends on: an id the page is holding must
+        // not come to mean a different sound because something was rescanned.
+        const auto again = resources::scanPresets (locations);
+
+        expectEquals (static_cast<int> (again.entries.size()), 4);
+
+        if (again.entries.size() != 4)
+            return;
+
+        for (size_t i = 0; i < again.entries.size(); ++i)
+        {
+            expectEquals (again.entries[i].id, index.entries[i].id);
+            expectEquals (again.entries[i].name, index.entries[i].name);
+        }
+    }
+
+    void testFindingAPresetById()
+    {
+        beginTest ("An id resolves to exactly one preset, or to nothing");
+
+        ScratchTree tree { "lookup" };
+
+        const auto user = tree.folder ("User");
+        tree.write ("User/bell.rnv", documentNamed ("Bell"));
+
+        resources::PresetLocations locations;
+        locations.userDirectory = user;
+        locations.factoryDirectory = tree.getRoot().getChildFile ("Nothing");
+
+        const auto index = resources::scanPresets (locations);
+
+        expectEquals (static_cast<int> (index.entries.size()), 1);
+
+        if (index.entries.empty())
+            return;
+
+        const auto* found = resources::findPreset (index, index.entries[0].id);
+
+        expect (found != nullptr, "a published id must resolve");
+
+        if (found != nullptr)
+            expectEquals (found->name, juce::String ("Bell"));
+
+        // The three answers that must be nothing. Zero especially: it is what an
+        // interface sends when it has not chosen anything, and matching the
+        // first entry would make "nothing selected" load a sound.
+        expect (resources::findPreset (index, 0) == nullptr, "0 is never a preset");
+        expect (resources::findPreset (index, -1) == nullptr, "nor is a negative id");
+        expect (resources::findPreset (index, 9999) == nullptr,
+                "nor is an id past the end of the index");
+    }
+
+    /** The file a name means, asked once. */
+    void testTheFileANameMeansIsOneAnswer()
+    {
+        beginTest ("Asking where a preset would go agrees with saving it there");
+
+        ScratchTree tree { "targets" };
+
+        const auto user = tree.folder ("User");
+
+        // The property that matters: whatever `presetFileFor` says a name maps
+        // to is where `savePreset` actually writes it. A confirmation prompt
+        // that consulted a different answer would protect one file and
+        // overwrite another.
+        for (const auto* presetName : { "Bell", "Glass Bell", "Bell 2", "Bell." })
+        {
+            const auto predicted = resources::presetFileFor (user, presetName);
+
+            juce::File written;
+
+            expect (resources::savePreset (user, presetName, documentNamed (presetName), written)
+                        == resources::PresetSaveResult::ok,
+                    juce::String ("saving should have worked for ") + presetName);
+
+            expectEquals (written.getFullPathName(), predicted.getFullPathName(),
+                          juce::String ("the predicted and actual file differ for ") + presetName);
+        }
+
+        // A name with nothing usable in it has no file, and says so rather than
+        // returning a plausible-looking path into the folder.
+        expect (resources::presetFileFor (user, "  ") == juce::File(),
+                "an unusable name must not resolve to a file");
+        expect (resources::presetFileFor (user, "CON") == juce::File(),
+                "nor must a reserved device name");
+    }
+
     void testDefaultLocationsArePlatformOwned()
     {
         beginTest ("the default locations come from the platform, not from a hard-coded path");

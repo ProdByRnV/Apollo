@@ -138,6 +138,21 @@ public:
         return stateReloadCounter.load (std::memory_order_relaxed);
     }
 
+    /** Tells the processor that the state tree has been replaced by something
+        other than the host.
+
+        Loading a preset through the interface replaces exactly what a host
+        state load replaces, and therefore has to be followed by exactly the
+        same work: the live MIDI mapping table is rebuilt from the tree that
+        actually arrived, and the reload counter is bumped so an attached editor
+        resynchronises wholesale. Both paths call this rather than each doing it
+        for itself, because a preset load that quietly skipped one of them would
+        leave the instrument subtly out of step with its own state.
+
+        MESSAGE THREAD.
+    */
+    void notifyStateReplaced();
+
     /** MIDI Learn: controller-to-parameter mappings and the learn state machine.
 
         Owned by the processor rather than by the editor, because a mapping must

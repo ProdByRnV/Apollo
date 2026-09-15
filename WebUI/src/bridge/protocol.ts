@@ -160,6 +160,53 @@ export interface ControllerProfilesMessage {
     profiles: ControllerProfileEntry[];
 }
 
+/** One preset as the browser lists it.
+
+    No path, and that is not an oversight: the backend numbers what it found and
+    the page asks for a number, so there is nothing here that could be turned
+    back into a location on disk (UI_BINDINGS.md §13).
+*/
+export interface PresetEntry {
+    /** What to send back to load it. Valid only against the index it came in. */
+    id: number;
+    name: string;
+    author: string;
+    category: string;
+    /** The folder it sits in, relative to its root, or "" at the top. */
+    bank: string;
+    factory: boolean;
+}
+
+export interface PresetIndexMessage {
+    type: 'presetIndex';
+    version: number;
+    presets: PresetEntry[];
+    /** Files carrying the extension that could not be read as presets. */
+    unreadable: number;
+    /** True when the scan stopped early; what is listed is still valid. */
+    truncated: boolean;
+    userMissing: boolean;
+    factoryMissing: boolean;
+    /** True while a scan is running, so the list can say it is still filling. */
+    scanning: boolean;
+}
+
+export interface PresetStatusMessage {
+    type: 'presetStatus';
+    version: number;
+    /** "LOADED", "SAVED", "ALREADY_EXISTS", "LOAD_FAILED", "SAVE_FAILED",
+        "STATE_RELOADED" — branched on, so they are part of the contract. */
+    status: string;
+    statusMessage: string;
+    name: string;
+    author: string;
+    category: string;
+    comment: string;
+    /** The id of the preset currently loaded, or 0 for a sound that did not
+        come from the library. */
+    loaded: number;
+}
+
 export interface ErrorMessage {
     type: 'error';
     version: number;
@@ -175,6 +222,8 @@ export type InboundMessage =
     | InstrumentFrameMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
+    | PresetIndexMessage
+    | PresetStatusMessage
     | ErrorMessage;
 
 //==============================================================================
@@ -199,4 +248,19 @@ export type OutboundMessage =
     | { type: 'midiMappingClearAll'; version: number }
     | { type: 'requestControllerProfiles'; version: number }
     | { type: 'toggleFullscreen'; version: number }
-    | { type: 'applyControllerProfile'; version: number; profile: string; mode: ProfileMode };
+    | { type: 'applyControllerProfile'; version: number; profile: string; mode: ProfileMode }
+    | { type: 'requestPresets'; version: number }
+    | { type: 'rescanPresets'; version: number }
+    | { type: 'loadPreset'; version: number; preset: number }
+    | {
+          type: 'savePreset';
+          version: number;
+          name: string;
+          author: string;
+          category: string;
+          comment: string;
+          bank: string;
+          /** Absent means no. A save that would destroy a preset already there
+              has to be asked for in as many words. */
+          overwrite: boolean;
+      };

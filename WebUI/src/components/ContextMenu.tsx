@@ -42,6 +42,23 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
     const ref = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState({ left: x, top: y });
 
+    /** True once something has been chosen, so nothing can be chosen twice.
+
+        The item commits on pointer-up and on click, because only one of the two
+        can be relied on to arrive (see the button below). A guard is cheaper
+        than working out which one it will be.
+    */
+    const chosen = useRef(false);
+
+    const choose = (item: ContextMenuItem): void => {
+        if (chosen.current || item.disabled === true) return;
+
+        chosen.current = true;
+
+        onClose();
+        item.onChoose();
+    };
+
     // Measured after the browser has laid the menu out, because its size depends
     // on the longest label and is not known before then.
     useLayoutEffect(() => {
@@ -150,6 +167,27 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
             className="context-menu"
             role="menu"
             style={{ left: `${position.left}px`, top: `${position.top}px` }}
+
+            /* THE EVENTS STOP HERE, AND THIS IS THE FIX THAT MATTERS.
+
+               A React portal moves the DOM node; it does not move the
+               component. Events still propagate along the *React* tree, so a
+               pointer-down on a menu item went on to the control that rendered
+               the menu — and on a knob that means `onPointerDown`, which calls
+               `setPointerCapture`. The knob then owned the pointer, the release
+               was delivered to the knob instead of the menu, no click was ever
+               generated, and the item could not be chosen with a mouse at all.
+
+               It could still be chosen from the keyboard, which is how this
+               survived being "fixed" once already: moving the node to the
+               document body changed where it was drawn and nothing about where
+               its events went. */
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.preventDefault()}
         >
             {items.map((item) => (
                 <button
@@ -158,15 +196,58 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
                     role="menuitem"
                     className="context-menu__item"
                     disabled={item.disabled === true}
-                    onClick={() => {
-                        onClose();
-                        item.onChoose();
-                    }}
+
+                    /* COMMITTED ON POINTER-UP, NOT ON CLICK, and this is the
+                       difference between a menu that works with a mouse and one
+                       that does not.
+
+                       A `click` is the browser's own conclusion drawn from a
+                       press and a release on the same element, and inside this
+                       WebView it was not being drawn for this menu: the item
+                       took the press, took the release, and no click arrived.
+                       The menu could be driven from the keyboard and not from
+                       the pointer, which is the one combination nobody tests
+                       and everybody uses.
+
+                       Pointer-up is also simply what a menu does. Press on a
+                       menu, drag down the items, release on the one you want —
+                       that is how every menu in every operating system behaves,
+                       and committing on release is what makes it work.
+
+                       `onClick` stays for the keyboard, where there is no
+                       pointer at all: Enter and Space on a focused button
+                       produce a click and nothing else. Whichever arrives
+                       first closes the menu, and the guard makes sure the
+                       second cannot act on a menu that is already gone. */
+                    onPointerUp={(event) => { event.preventDefault(); choose(item); }}
+                    onClick={() => choose(item)}
                 >
                     {item.label}
                 </button>
             ))}
         </div>,
-        document.body,
+        menuContainer(),
     );
+}
+
+/** Where a menu is rendered.
+
+    NOT `document.body`, and the difference is the whole reason clicking a menu
+    item did nothing. React delegates events by listening on its own root
+    container; a portal into a node outside that container leaves the item
+    receiving the pointer but never delivering a `click` to React, so the menu
+    highlighted under the cursor, refused to be chosen, and could only be driven
+    from the keyboard — which is exactly what it did.
+
+    The React root is a node the menu can still escape into: it is the
+    application frame, so rendering here is still outside the control that
+    opened the menu — no `setPointerCapture` to swallow the press — and outside
+    every panel's `overflow`, which is what made them clip a child menu once the
+    panels became scroll containers.
+
+    Falls back to the body if the frame is somehow missing, which is a page that
+    has bigger problems than a menu.
+*/
+function menuContainer(): HTMLElement {
+    return document.getElementById('root') ?? document.body;
 }

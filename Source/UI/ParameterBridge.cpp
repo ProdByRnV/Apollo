@@ -1,6 +1,8 @@
 #include "UI/ParameterBridge.h"
 
 #include "Parameters/ParameterLayout.h"
+#include "Resources/PresetLibrary.h"
+#include "State/PresetDocument.h"
 
 namespace apollo::ui
 {
@@ -22,6 +24,7 @@ ParameterBridge::~ParameterBridge()
     // the bridge, and a change handler that survives its object would be called
     // on a destroyed one.
     setMidiControl (nullptr);
+    setPresetLibrary (nullptr);
 
     // Removed explicitly rather than left to teardown order: APVTS outlives the
     // bridge, and a listener that survives its object is a use-after-free that
@@ -57,6 +60,45 @@ void ParameterBridge::setMidiControl (midi::MidiControlManager* controlToUse)
             if (outboundHandler)
                 outboundHandler (createMidiMappings());
         });
+    }
+}
+
+void ParameterBridge::setPresetLibrary (resources::PresetLibrary* libraryToUse)
+{
+    // The previous library's handler is released first, for the same reason the
+    // MIDI manager's is: the library outlives the bridge, and a callback left
+    // pointing at a destroyed one is a use-after-free on the next scan.
+    if (presetLibrary != nullptr)
+        presetLibrary->onIndexUpdated = {};
+
+    presetLibrary = libraryToUse;
+
+    if (presetLibrary != nullptr)
+    {
+        // A scan finishes on its own schedule, with nothing sent from the page,
+        // so the new index is pushed rather than waited for. The page asked for
+        // a scan; what it gets back later is the answer.
+        presetLibrary->onIndexUpdated = [this]
+        {
+            if (! outboundHandler)
+                return;
+
+            outboundHandler (createPresetIndex());
+
+            // AND THE STATUS AFTER IT, because which preset is loaded is
+            // expressed as an id *into that index*, and the id was not knowable
+            // until the scan finished. Saving a preset is the case that shows
+            // it: the file is written, the index is stale by definition, and
+            // the status sent alongside the save could only say 0. Sending the
+            // status again here is what turns the row the user just created
+            // into the row the browser highlights.
+            outboundHandler (createPresetStatus ("CURRENT", {}));
+        };
+
+        // Started here rather than left to the first request, so that opening
+        // the editor is what costs the scan and the browser has something in it
+        // by the time anybody looks. Asynchronous: this returns immediately.
+        presetLibrary->rescan();
     }
 }
 
@@ -100,6 +142,12 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::midiMappingClearAll:
         case BridgeCommandType::applyControllerProfile:
             return applyMidiCommand (command);
+
+        case BridgeCommandType::requestPresets:
+        case BridgeCommandType::rescanPresets:
+        case BridgeCommandType::loadPreset:
+        case BridgeCommandType::savePreset:
+            return applyPresetCommand (command);
 
         case BridgeCommandType::toggleFullscreen:
             // The bridge knows nothing about windows and should not: it owns
@@ -214,6 +262,10 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
         case BridgeCommandType::gestureBegin:
         case BridgeCommandType::gestureEnd:
         case BridgeCommandType::toggleFullscreen:
+        case BridgeCommandType::requestPresets:
+        case BridgeCommandType::rescanPresets:
+        case BridgeCommandType::loadPreset:
+        case BridgeCommandType::savePreset:
         case BridgeCommandType::none:
         default:
             jassertfalse;
@@ -250,6 +302,210 @@ juce::String ParameterBridge::describeProfileResult (const juce::String& profile
         text += " " + juce::String (result.rejected) + " could not be assigned.";
 
     return text;
+}
+
+//==============================================================================
+// Presets.
+
+int ParameterBridge::idOfLoadedPreset() const
+{
+    if (presetLibrary == nullptr || loadedPresetFile == juce::File())
+        return 0;
+
+    const auto index = presetLibrary->getIndex();
+
+    for (const auto& entry : index.entries)
+        if (entry.file == loadedPresetFile)
+            return entry.id;
+
+    // Loaded from a file the library no longer lists: deleted, moved, or saved
+    // somewhere outside the two roots. The sound is still correct; it is simply
+    // no longer a row in the browser, and 0 is the honest answer.
+    return 0;
+}
+
+juce::String ParameterBridge::createPresetIndex() const
+{
+    if (presetLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    return makePresetIndexMessage (presetLibrary->getIndex(), presetLibrary->isScanning());
+}
+
+juce::String ParameterBridge::createPresetStatus (const juce::String& statusToken,
+                                                  const juce::String& statusMessage) const
+{
+    return makePresetStatusMessage (statusToken,
+                                    statusMessage,
+                                    presets::getMetadata (apvts),
+                                    idOfLoadedPreset());
+}
+
+juce::String ParameterBridge::handleStateReload()
+{
+    if (! std::exchange (reloadWasSelfInitiated, false))
+        // Spelled out rather than braced: juce::File takes a String as well as
+        // a File, so a braced empty initialiser is ambiguous to GCC and Clang.
+        loadedPresetFile = juce::File();
+
+    return createPresetStatus ("STATE_RELOADED", {});
+}
+
+juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
+{
+    // Answered rather than ignored, exactly as the MIDI commands are: a page
+    // whose browser cannot work must be told, not left with a list that never
+    // fills (UI_BINDINGS.md §13).
+    if (presetLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    switch (command.type)
+    {
+        case BridgeCommandType::requestPresets:
+            // Two messages, because the browser needs two facts and one reply
+            // carries one of them. The list is the reply; what the current
+            // sound is called is pushed alongside it, so a page opened onto an
+            // instrument that already has a preset loaded shows its name rather
+            // than waiting for something to change.
+            if (outboundHandler)
+                outboundHandler (createPresetStatus ("CURRENT", {}));
+
+            return createPresetIndex();
+
+        case BridgeCommandType::rescanPresets:
+            presetLibrary->rescan();
+
+            // Replies immediately with what is known now, `scanning` true. The
+            // finished index arrives later through onIndexUpdated. A browser
+            // that waited for the scan instead would go blank every time
+            // anything was saved.
+            return createPresetIndex();
+
+        case BridgeCommandType::loadPreset:
+        {
+            const auto index = presetLibrary->getIndex();
+            const auto* entry = resources::findPreset (index, command.presetId);
+
+            // The whole safety argument for numbering presets is this line: a
+            // command naming something the backend did not publish reaches no
+            // file at all.
+            if (entry == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownPreset);
+
+            juce::String text;
+
+            if (const auto opened = resources::readPresetFile (entry->file, text);
+                opened != state::StateLoadResult::ok)
+                return createPresetStatus ("LOAD_FAILED",
+                                           "Could not read that preset: "
+                                               + state::describe (opened));
+
+            if (const auto applied = presets::read (apvts, text);
+                applied != state::StateLoadResult::ok)
+                // The current sound is untouched, because presets::read applies
+                // nothing unless every check passes. So this says what did not
+                // happen rather than what was lost (CLAUDE.md §33).
+                return createPresetStatus ("LOAD_FAILED",
+                                           "That preset could not be loaded: "
+                                               + state::describe (applied));
+
+            loadedPresetFile = entry->file;
+            reloadWasSelfInitiated = true;
+
+            // The document replaced the whole tree. The processor rebuilds what
+            // hangs off it and tells anything watching, which is the same work a
+            // host state load does.
+            if (onStateReplaced)
+                onStateReplaced();
+
+            // Every parameter may have moved at once, and a page inferring that
+            // from individual echoes would be repainting for a second.
+            markAllParametersDirty();
+
+            return createPresetStatus ("LOADED", "Loaded " + entry->name + ".");
+        }
+
+        case BridgeCommandType::savePreset:
+        {
+            const auto locations = presetLibrary->getLocations();
+            auto directory = locations.userDirectory;
+
+            // SAVING ONLY EVER GOES TO THE USER ROOT, which is why there is no
+            // command that chooses a destination: a preset is saved into the
+            // library belonging to whoever is saving it, and the factory root
+            // is not somewhere Apollo offers to write.
+            if (command.presetBank.isNotEmpty())
+            {
+                const auto bank = resources::toSafeFileName (command.presetBank);
+
+                if (bank.isEmpty())
+                    return makeErrorMessage (BridgeErrorCode::invalidPresetName);
+
+                // One level, and one that cannot be a route anywhere:
+                // toSafeFileName has already turned every separator into a
+                // space, so this names a folder inside the library or nothing.
+                directory = directory.getChildFile (bank);
+
+                if (! directory.isAChildOf (locations.userDirectory))
+                    return makeErrorMessage (BridgeErrorCode::invalidPresetName);
+            }
+
+            const auto target = resources::presetFileFor (directory, command.presetMetadata.name);
+
+            if (target == juce::File())
+                return makeErrorMessage (BridgeErrorCode::invalidPresetName);
+
+            // ASKED BEFORE ANYTHING IS DESTROYED. The page has to say in as
+            // many words that it means to replace what is there, and the
+            // default answer to a question nobody asked is no.
+            if (target.existsAsFile() && ! command.overwriteExisting)
+                return createPresetStatus ("ALREADY_EXISTS",
+                                           "A preset called " + command.presetMetadata.name
+                                               + " is already there.");
+
+            const auto text = presets::write (apvts, command.presetMetadata);
+
+            juce::File written;
+
+            if (const auto result = resources::savePreset (directory,
+                                                           command.presetMetadata.name,
+                                                           text,
+                                                           written);
+                result != resources::PresetSaveResult::ok)
+                return createPresetStatus ("SAVE_FAILED",
+                                           "Could not save: " + resources::describe (result));
+
+            // Saving a preset is also becoming it: the sound in front of the
+            // user is now that preset, and the browser should say so rather
+            // than still showing whatever it was called before.
+            presets::setMetadata (apvts, command.presetMetadata);
+            loadedPresetFile = written;
+
+            // The library has changed on disk, so the index is stale the moment
+            // this returns. The rescan result arrives through onIndexUpdated.
+            presetLibrary->rescan();
+
+            return createPresetStatus ("SAVED", "Saved " + command.presetMetadata.name + ".");
+        }
+
+        case BridgeCommandType::requestState:
+        case BridgeCommandType::requestMetadata:
+        case BridgeCommandType::setParameter:
+        case BridgeCommandType::gestureBegin:
+        case BridgeCommandType::gestureEnd:
+        case BridgeCommandType::requestMidiMappings:
+        case BridgeCommandType::midiLearnBegin:
+        case BridgeCommandType::midiLearnCancel:
+        case BridgeCommandType::midiMappingRemove:
+        case BridgeCommandType::midiMappingClearAll:
+        case BridgeCommandType::requestControllerProfiles:
+        case BridgeCommandType::applyControllerProfile:
+        case BridgeCommandType::toggleFullscreen:
+        case BridgeCommandType::none:
+        default:
+            jassertfalse;
+            return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+    }
 }
 
 juce::String ParameterBridge::createMidiMappings() const
