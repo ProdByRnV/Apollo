@@ -2723,3 +2723,101 @@ was later fixed — it was sending clicks in the top-level window's coordinates
 rather than the WebView's, so every click landed forty pixels high — every other
 control became clickable and the menu did not, which is what turned a supposed
 harness problem back into a bug report.
+
+## ADR-0065 — Factory presets are compiled-in data, not shipped files
+
+**Phase 9d · Accepted**
+
+Apollo ships ten sounds. They are not files.
+
+### Why not files
+
+A factory library made of `.rnv` files has to reach the user's disk, and there
+are only two ways to do that. An installer can write into the shared
+application-data folder — which needs administrator rights, which a plugin
+should not need, and which leaves Linux and the portable case with nothing. Or
+the plugin can copy them out on first run — which means content that can be
+deleted, half-deleted, or edited into something that no longer loads, and a
+first-run write from a process that may be a plugin instantiated forty times
+while a host builds a menu.
+
+Compiled-in content is always present, cannot be lost, and costs no permissions.
+ADR-0062 left the shared factory folder in place and it still works; this is
+what fills the library when nothing has put anything there.
+
+### What is stored is not the document
+
+Each preset is a name, a category, a sentence, and **a list of the parameters it
+changes**. Everything it does not mention sits at the registry's default.
+
+Storing rendered documents instead would have been less code and worse in three
+ways.
+
+**It would be unreviewable.** A diff would show four hundred lines of XML with
+one number different, rather than "this preset moved the filter to 400 Hz".
+
+**It would rot silently.** A checked-in document naming a parameter that no
+longer exists is a preset that quietly loses part of itself, and nothing would
+say so. A table is checked against the registry by a test: an unknown id, a
+value outside the range, a value off a discrete parameter's step, and a
+parameter set twice in one preset are each a test failure that names the preset
+and the parameter.
+
+**It would freeze the defaults.** A preset that does not mention the reverb
+should get whatever the reverb's default is today. That is what "this preset is
+about its filter" means, and it is only true if the absent parameters are
+genuinely absent.
+
+There is a fourth benefit that was not the reason but has been the most useful:
+the test also refuses a setting that merely restates the default. Twenty-two of
+them were written in the first draft — `filter1_type` set to low pass in eight
+presets, where low pass is already the default — and removing them made each
+table say what its preset actually does.
+
+### The document is still a document
+
+`render` produces exactly the `.rnv` text a save would have produced: every
+parameter present at its plain value, stamped by the same function a host save
+and a preset save use, with the metadata in the same child. Loading one goes
+through the same validator as a file off a stranger's disk. **Nothing about a
+preset's origin changes its format or the path it takes into the instrument** —
+only where the bytes came from, which is what CLAUDE.md §29.1 asks for.
+
+That stamping is now one function rather than three copies. It was already
+duplicated between the host writer and the preset writer; a third copy for the
+factory content would have been the one that eventually stopped matching.
+
+### The init patch is the empty case
+
+`Init` overrides nothing. It therefore *is* the registry's defaults, expressed
+the same way every other preset is, and there is no separate "reset everything"
+path that could drift from what a fresh instance sounds like. A test loads it
+into an instrument whose every parameter has been moved and checks that all two
+hundred and twenty-three come back.
+
+The four parameters that describe somebody's controller are excluded from it, as
+they are from every preset (ADR-0061): Init is a patch, and a patch does not
+know about anybody's MPE zone.
+
+The interface gives Init a button of its own beside the browser's Rescan. It is
+also a row in the list, but a list is something you have to be looking at, and
+the sound everybody wants at the start of a session should not have to be found
+among two hundred others.
+
+### What "demonstrates the instrument" had to mean
+
+It had to be testable, or it was a claim rather than a property. So: **every
+preset renders, loads, and makes a sound.** Each is played a held note for two
+seconds through a real processor, and its output must be finite, must peak above
+−40 dBFS, and must stay below the limit of the format. A factory library where
+one preset is inaudible ships broken, and a table of plausible numbers nobody
+has played is exactly the thing most likely to contain one.
+
+Between them the ten cover both oscillators, the sub, the noise generator, all
+four wavetables, three of the four filter types and both filters in series, the
+amplitude and modulation envelopes, two LFO shapes, velocity, key tracking, the
+mod wheel and aftertouch as sources, and every one of the six effects.
+
+**Given up:** a larger library. Ten is enough to show what the instrument does
+and small enough that every one of them can be listened to before it ships,
+which a hundred would not be.

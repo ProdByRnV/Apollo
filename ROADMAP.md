@@ -112,7 +112,7 @@ front of it is better understood, the way 8f was.
 | 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ⬜ |
 | 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ⬜ |
 | 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ✅ |
-| 9d | Factory presets — content that demonstrates the instrument, and the init patch | ⬜ |
+| 9d | Factory presets — content that demonstrates the instrument, and the init patch | ✅ |
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ⬜ |
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ⬜ |
@@ -703,7 +703,7 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 - [x] Implement preset browser/indexing. — both roots are walked on a background thread, bounded in count and depth, abandonable, and the finished index is sorted, numbered and published to a browser that lists, searches and filters it. The page asks for a preset by the number the backend gave it and can express no path at all (ADR-0063) (9b, 9c)
 - [x] Implement preset loading. — a file is read with its size checked before it, validated by the same reader host state goes through, and a failure leaves the loaded sound alone (9a, 9b)
 - [x] Implement preset saving where required. — atomically: the bytes go to a temporary file beside the target and are moved into place once complete, so an interrupted save cannot destroy the preset that was already there (ADR-0062) (9b)
-- [ ] Implement factory presets.
+- [x] Implement factory presets. — ten sounds compiled into the plugin rather than installed as files, stored as the parameters each one changes rather than as rendered documents, so a setting naming a parameter that does not exist is a test failure instead of a preset that quietly loses part of itself. Every one of them renders into an ordinary `.rnv`, loads through the ordinary reader, and is played a note by the suite to prove it makes a sound. The init patch is the empty case: it overrides nothing, so it *is* the registry's defaults (ADR-0065) (9d)
 - [x] Implement user preset locations using platform-appropriate paths. — JUCE's special-location lookup supplies the per-user and shared roots; Apollo names only the two folders beneath them, so nothing spells out a platform's path (ADR-0062) (9b)
 - [~] Implement resource validation. — done for presets: the extension is not evidence, every file is validated, and what cannot be read is counted rather than hidden. Wavetable resources are 9e (9b)
 - [ ] Implement wavetable resource management.

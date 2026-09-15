@@ -112,15 +112,12 @@ void restoreController (juce::AudioProcessorValueTreeState& apvts,
     return sanitise (metadata);
 }
 
-/** Writes @p metadata into @p state, creating the `<PRESET>` child if needed.
+} // namespace
 
-    One implementation for the two callers that need it — saving to a file and
-    renaming the live sound — because a preset whose file said one thing and
-    whose instrument said another would be the kind of disagreement nobody
-    notices until they have lost work.
-*/
-void attach (juce::ValueTree& state, const Metadata& clean)
+void attachMetadata (juce::ValueTree& state, const Metadata& metadata)
 {
+    const auto clean = sanitise (metadata);
+
     auto tree = state.getChildWithName (juce::Identifier (presetTreeType));
 
     if (! tree.isValid())
@@ -134,8 +131,6 @@ void attach (juce::ValueTree& state, const Metadata& clean)
     tree.setProperty (categoryProperty, clean.category, nullptr);
     tree.setProperty (commentProperty, clean.comment, nullptr);
 }
-
-} // namespace
 
 bool isExcludedFromPresets (std::string_view parameterId)
 {
@@ -170,11 +165,9 @@ Metadata getMetadata (juce::AudioProcessorValueTreeState& apvts)
 
 void setMetadata (juce::AudioProcessorValueTreeState& apvts, const Metadata& metadata)
 {
-    const auto clean = sanitise (metadata);
-
     auto state = apvts.copyState();
 
-    attach (state, clean);
+    attachMetadata (state, metadata);
 
     // `copyState` hands back a deep copy, so the edits above touched nothing the
     // instrument is using. Putting it back is what makes them real — and it is
@@ -184,20 +177,15 @@ void setMetadata (juce::AudioProcessorValueTreeState& apvts, const Metadata& met
 
 juce::String write (juce::AudioProcessorValueTreeState& apvts, const Metadata& metadata)
 {
-    const auto clean = sanitise (metadata);
-
     auto state = apvts.copyState();
 
-    // Stamped exactly as a host save is (`state::writeState`), because a preset
+    // Stamped exactly as a host save is, by the same function, because a preset
     // is the same document: it carries a schema version so an older build knows
     // to refuse it, and a product so anything else wearing the extension is
     // recognisable as not ours.
-    state.setProperty (state::schemaVersionProperty, state::currentSchemaVersion, nullptr);
-    state.setProperty (state::productProperty, params::toJuceString (productName), nullptr);
-    state.setProperty (state::productVersionProperty,
-                       params::toJuceString (versionString), nullptr);
+    state::stamp (state);
 
-    attach (state, clean);
+    attachMetadata (state, metadata);
 
     // The controller comes out before the document goes to disk. A shared
     // preset that carried the author's MIDI mappings and MPE zone would

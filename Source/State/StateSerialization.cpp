@@ -78,15 +78,20 @@ juce::String describe (StateLoadResult result)
     return "The state data could not be read.";
 }
 
-void writeState (juce::AudioProcessorValueTreeState& apvts, juce::MemoryBlock& destination)
+void stamp (juce::ValueTree& state)
 {
-    auto state = apvts.copyState();
-
     // Stamped every time rather than assumed: a document without a version is
     // indistinguishable from one written by a future build that dropped it.
     state.setProperty (schemaVersionProperty, currentSchemaVersion, nullptr);
     state.setProperty (productProperty, params::toJuceString (productName), nullptr);
     state.setProperty (productVersionProperty, params::toJuceString (versionString), nullptr);
+}
+
+void writeState (juce::AudioProcessorValueTreeState& apvts, juce::MemoryBlock& destination)
+{
+    auto state = apvts.copyState();
+
+    stamp (state);
 
     if (const auto xml = state.createXml())
         juce::AudioProcessor::copyXmlToBinary (*xml, destination);

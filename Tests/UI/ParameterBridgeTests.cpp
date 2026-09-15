@@ -449,24 +449,26 @@ private:
         const auto* entries = object->getProperty ("presets").getArray();
         expect (entries != nullptr, "the index must carry an array");
 
-        if (entries == nullptr || entries->isEmpty())
-        {
-            expect (false, "the saved preset must appear in the index");
+        // Found by name rather than by position: the index also carries the
+        // compiled-in factory content, which sorts before anything the user has
+        // saved (ADR-0065).
+        juce::DynamicObject* savedEntry = nullptr;
+
+        for (const auto& value : *entries)
+            if (auto* fields = value.getDynamicObject())
+                if (fields->getProperty ("name").toString() == "Glass Bell")
+                    savedEntry = fields;
+
+        expect (savedEntry != nullptr, "the saved preset must appear in the index");
+
+        if (savedEntry == nullptr)
             return;
-        }
 
-        auto* first = entries->getFirst().getDynamicObject();
-        expect (first != nullptr);
-
-        if (first == nullptr)
-            return;
-
-        expectEquals (first->getProperty ("name").toString(), juce::String ("Glass Bell"));
-        expectEquals (first->getProperty ("author").toString(), juce::String ("RnV"));
-        expect (! static_cast<bool> (first->getProperty ("factory")),
+        expectEquals (savedEntry->getProperty ("author").toString(), juce::String ("RnV"));
+        expect (! static_cast<bool> (savedEntry->getProperty ("factory")),
                 "a preset in the user root is not factory content");
 
-        const auto id = static_cast<int> (first->getProperty ("id"));
+        const auto id = static_cast<int> (savedEntry->getProperty ("id"));
         expect (id > 0, "every listed preset must carry an id the page can ask for");
 
         // Move the sound somewhere else, then ask for the preset back.
@@ -606,10 +608,12 @@ private:
         bridge.setPresetLibrary (&temporary.library);
         temporary.library.waitForScan();
 
-        // The library is empty, so no id is valid. This is also what a page
-        // holding a list from before a preset was deleted would send.
+        // Past the end of an index that holds only the factory content, which
+        // is what a page holding a list from before a preset was deleted would
+        // send. The id is still inside the range the protocol accepts, so this
+        // is the library refusing it rather than the parser.
         const auto reply = bridge.handleMessage (
-            R"({"type":"loadPreset","version":1,"preset":5})");
+            R"({"type":"loadPreset","version":1,"preset":9000})");
 
         expectEquals (fieldOf (reply, "type"), juce::String ("error"));
         expectEquals (fieldOf (reply, "code"), juce::String ("UNKNOWN_PRESET"));

@@ -71,6 +71,12 @@ export function Presets(): JSX.Element {
     const categories = distinctValues(presets.entries, 'category');
     const banks = distinctValues(presets.entries, 'bank');
 
+    // Looked up in the unfiltered list rather than the visible one: the Init
+    // button must go on working while a search is narrowing the rows away.
+    const initId = presets.entries.find(
+        (entry) => entry.factory && entry.name === 'Init',
+    )?.id ?? 0;
+
     const update = (field: keyof Draft, value: string): void => {
         setDraft((current) => ({ ...current, [field]: value }));
     };
@@ -114,14 +120,37 @@ export function Presets(): JSX.Element {
             title="Presets"
             bodyClassName="presets"
             head={
-                <button
-                    className="masthead__button masthead__button--quiet"
-                    type="button"
-                    title="Look at the preset folders again"
-                    onClick={rescanPresets}
-                >
-                    {presets.scanning ? 'Scanning…' : 'Rescan'}
-                </button>
+                <>
+                    {/*
+                        Init is the first row of the list as well, but a list is
+                        something you have to be looking at: once there are two
+                        hundred presets and a search in the box, the one everybody
+                        wants at the start of a sound should not have to be found.
+
+                        It loads the built-in by its ordinary index id, so there
+                        is no command here that the browser does not already
+                        have — and if the factory content is somehow not in the
+                        index, the button is absent rather than inert.
+                    */}
+                    <button
+                        className="masthead__button masthead__button--quiet"
+                        type="button"
+                        hidden={initId === 0}
+                        title="Return every control to its default"
+                        onClick={() => loadPreset(initId)}
+                    >
+                        Init
+                    </button>
+
+                    <button
+                        className="masthead__button masthead__button--quiet"
+                        type="button"
+                        title="Look at the preset folders again"
+                        onClick={rescanPresets}
+                    >
+                        {presets.scanning ? 'Scanning…' : 'Rescan'}
+                    </button>
+                </>
             }
         >
             <div className="presets__filters">

@@ -309,13 +309,13 @@ juce::String ParameterBridge::describeProfileResult (const juce::String& profile
 
 int ParameterBridge::idOfLoadedPreset() const
 {
-    if (presetLibrary == nullptr || loadedPresetFile == juce::File())
+    if (presetLibrary == nullptr || loadedPresetKey.isEmpty())
         return 0;
 
     const auto index = presetLibrary->getIndex();
 
     for (const auto& entry : index.entries)
-        if (entry.file == loadedPresetFile)
+        if (entry.key() == loadedPresetKey)
             return entry.id;
 
     // Loaded from a file the library no longer lists: deleted, moved, or saved
@@ -344,9 +344,7 @@ juce::String ParameterBridge::createPresetStatus (const juce::String& statusToke
 juce::String ParameterBridge::handleStateReload()
 {
     if (! std::exchange (reloadWasSelfInitiated, false))
-        // Spelled out rather than braced: juce::File takes a String as well as
-        // a File, so a braced empty initialiser is ambiguous to GCC and Clang.
-        loadedPresetFile = juce::File();
+        loadedPresetKey.clear();
 
     return createPresetStatus ("STATE_RELOADED", {});
 }
@@ -394,7 +392,11 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
 
             juce::String text;
 
-            if (const auto opened = resources::readPresetFile (entry->file, text);
+            // One call for both kinds. A built-in is rendered from the table, a
+            // user preset is read off the disk, and from here down the two are
+            // indistinguishable: the same validator, the same migration, and
+            // the same guarantee that a refusal leaves the sound alone.
+            if (const auto opened = resources::readPreset (*entry, text);
                 opened != state::StateLoadResult::ok)
                 return createPresetStatus ("LOAD_FAILED",
                                            "Could not read that preset: "
@@ -409,7 +411,7 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
                                            "That preset could not be loaded: "
                                                + state::describe (applied));
 
-            loadedPresetFile = entry->file;
+            loadedPresetKey = entry->key();
             reloadWasSelfInitiated = true;
 
             // The document replaced the whole tree. The processor rebuilds what
@@ -479,7 +481,7 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
             // user is now that preset, and the browser should say so rather
             // than still showing whatever it was called before.
             presets::setMetadata (apvts, command.presetMetadata);
-            loadedPresetFile = written;
+            loadedPresetKey = resources::presetKeyForFile (written);
 
             // The library has changed on disk, so the index is stale the moment
             // this returns. The rescan result arrives through onIndexUpdated.

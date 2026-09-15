@@ -203,14 +203,18 @@ private:
     /** Borrowed, not owned, and null when there is no preset library. */
     resources::PresetLibrary* presetLibrary = nullptr;
 
-    /** The file the current sound was loaded from or saved to, if any.
+    /** What the current sound was loaded from or saved to, if anything.
+
+        A key rather than a file, because a preset need not be one: the factory
+        content is compiled in and has no path (ADR-0065). Empty for a sound
+        that did not come from the library at all.
 
         NEVER LEAVES THIS CLASS. It exists so that the browser can show which
         row is the sound currently loaded, and it does that by being turned into
-        an index id on the way out. The page is told a number; the path stays
-        here (UI_BINDINGS.md §13).
+        an index id on the way out. The page is told a number; the key, which
+        contains a path for a user preset, stays here (UI_BINDINGS.md §13).
     */
-    juce::File loadedPresetFile;
+    juce::String loadedPresetKey;
 
     /** True between this bridge loading a preset and the reload being observed.
 

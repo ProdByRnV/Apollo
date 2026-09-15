@@ -17,6 +17,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Audio/ApolloAudioProcessor.h"
+#include "Resources/FactoryPresets.h"
 #include "Resources/PresetLibrary.h"
 #include "State/PresetDocument.h"
 
@@ -716,7 +717,14 @@ private:
         // The index is published by the scan thread and readable immediately;
         // the *callback* is the part that waits for the message thread, which is
         // why it is dispatched separately.
-        expectEquals (static_cast<int> (library.getIndex().entries.size()), 2);
+        //
+        // The library publishes the two files *and* the compiled-in factory
+        // content, which is what a browser is shown (ADR-0065). The free
+        // `scanPresets` is the one that answers only about a disk, and the
+        // tests above use it for exactly that reason.
+        const auto expected = 2 + static_cast<int> (resources::factoryPresets().size());
+
+        expectEquals (static_cast<int> (library.getIndex().entries.size()), expected);
 
         auto delivered = false;
         library.onIndexUpdated = [&delivered] { delivered = true; };
@@ -732,7 +740,7 @@ private:
         library.flushPendingNotification();
 
         expect (delivered, "a finished scan must reach onIndexUpdated");
-        expectEquals (static_cast<int> (library.getIndex().entries.size()), 2);
+        expectEquals (static_cast<int> (library.getIndex().entries.size()), expected);
 
         // And a library destroyed while a scan is running must not take the
         // process with it — the case that matters when a plugin window closes.

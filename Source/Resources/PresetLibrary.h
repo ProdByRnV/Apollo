@@ -87,6 +87,16 @@ struct PresetEntry
     */
     int id = 0;
 
+    /** Which built-in preset this is, or -1 for one that came off a disk.
+
+        Factory content is compiled in rather than installed (ADR-0065), so the
+        entries that describe it have no file. Everything else about them is
+        ordinary: they carry a name, an author, a category and a bank, they are
+        numbered by the same scan, and they are loaded through the same reader.
+    */
+    int builtIn = -1;
+
+    /** The file this came from, or an invalid file for a built-in. */
     juce::File file;
 
     /** What to call it: the metadata name if the file has one, otherwise the
@@ -106,7 +116,27 @@ struct PresetEntry
     bool factory = false;
 
     [[nodiscard]] bool operator== (const PresetEntry&) const = default;
+
+    /** @returns a string that identifies this preset and never leaves Apollo.
+
+        The bridge remembers which preset is loaded so the browser can highlight
+        it, and it has to remember something that survives a rescan — an id does
+        not, because a scan renumbers. A path does, and so does a built-in's
+        name, but the two must not collide: a user with a file called
+        `Init.rnv` is not using the built-in Init.
+
+        Never sent to the page, which is told a number (ADR-0063).
+    */
+    [[nodiscard]] juce::String key() const;
 };
+
+/** @returns the key a preset saved to @p file would carry.
+
+    Exists so that saving a preset can remember what it just wrote without
+    building a `PresetEntry` for it, and so that the one string that says "this
+    is a file rather than a built-in" is written once.
+*/
+[[nodiscard]] juce::String presetKeyForFile (const juce::File& file);
 
 /** What a scan found, including what it could not read.
 
@@ -162,6 +192,25 @@ inline constexpr int maximumScanDepth = 8;
 */
 [[nodiscard]] PresetIndex scanPresets (const PresetLocations& locations,
                                        const std::function<bool()>& shouldAbort = {});
+
+/** Adds the compiled-in factory content to @p index, then re-orders and
+    re-numbers it.
+
+    Kept out of `scanPresets` so that scanning stays a question about a disk and
+    can be tested as one. The library calls both, in this order, because what
+    the browser shows is the two together.
+*/
+void addBuiltInPresets (PresetIndex& index);
+
+/** Reads @p entry, from its file or from the compiled-in table.
+
+    The one place that knows a preset can come from somewhere other than a file.
+    Everything downstream — validation, migration, the guarantee that a refusal
+    leaves the current sound alone — is identical either way, because both
+    produce the same thing: the text of a `.rnv` document (CLAUDE.md §29.1).
+*/
+[[nodiscard]] state::StateLoadResult readPreset (const PresetEntry& entry,
+                                                 juce::String& destination);
 
 /** @returns the entry with @p id, or nullptr if the index has no such preset.
 

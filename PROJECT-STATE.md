@@ -17,7 +17,7 @@
 | | |
 |---|---|
 | **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a and 9b complete** |
-| **Status** | **Phase 8 is done; Phase 9 is three sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063). Behind them, all six rack slots hold all six effects hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Status** | **Phase 8 is done; Phase 9 is four sub-phases in.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M9 — Presets & resources |
 | **Next step** | Phase 9c — the browser in the interface: listing, categories, search, load, save, save-as, and the bridge commands behind them (ROADMAP §2a) |
 
@@ -1097,13 +1097,81 @@ destroys a file on the word of a WebView until there is a reason better than
 symmetry. The search text and the filters are not remembered across sessions,
 for the same reason panel sizes are not (CLAUDE.md §24.3).
 
+### The sounds it ships with (Phase 9d)
+
+Ten factory presets and the init patch. The browser had nothing in it until now
+unless the user had saved something themselves; it opens with a library.
+
+- **They are compiled in, not installed.** A factory library made of files needs
+  an installer with administrator rights, or a first-run copy that can be
+  deleted and half-deleted. Built-in content is always present, cannot be lost,
+  and costs no permissions (ADR-0065). The shared factory folder ADR-0062 added
+  still works for anything an installer does place there.
+- **A preset is stored as the parameters it changes**, not as a rendered
+  document. Everything it does not mention sits at the registry's default. That
+  keeps each one reviewable — a diff says "this preset moved the filter to
+  400 Hz" rather than four hundred lines of XML with one number different — and
+  it stops the library freezing today's defaults into itself.
+- **A mistake in the table is a test failure, not a broken preset.** Every
+  setting is checked against the registry for a real parameter id, a finite
+  value inside the range, a value on a discrete parameter's own step, and no
+  parameter set twice in one preset. A checked-in document naming a parameter
+  that no longer exists would have lost part of itself in silence.
+- **It is still an ordinary preset.** `render` produces exactly the `.rnv` text
+  a save would have, stamped by the same function, with the metadata in the same
+  child, and it is loaded through the same validator as a file from a stranger.
+  Origin changes where the bytes come from and nothing else (CLAUDE.md §29.1).
+- **The init patch is the empty case.** Init overrides nothing, so it *is* the
+  registry's defaults, and there is no separate "reset everything" path that
+  could drift from a fresh instance. A test moves all 227 parameters, loads
+  Init, and checks that every one of them comes back. The browser gives it a
+  button beside Rescan as well as a row in the list.
+- **A preset carries no controller**, so none of the ten touches the bend range
+  or the MPE zone — asserted both ways: the strings are not in the document at
+  all, and a user's settings survive loading every preset in turn (ADR-0061).
+- **Document stamping is now one function.** The schema version, the product and
+  the product version were already written in two places; the factory renderer
+  would have been a third. `state::stamp` is what all three call.
+
+**What "demonstrates the instrument" means here, because it had to be testable:**
+every preset is played a held note through a real processor and has to make a
+sound — finite, above −40 dBFS, and below the limit of the format. A factory
+library where one preset is inaudible ships broken, and a table of plausible
+numbers nobody has played is the single most likely thing to contain one.
+
+Between them the ten cover both oscillators, the sub, the noise generator, all
+four wavetables, three of the four filter types and both filters in series, the
+amplitude and modulation envelopes, sine and saw LFOs, velocity, key tracking,
+the mod wheel and aftertouch as modulation sources, and every one of the six
+effects.
+
+| Preset | Category | What it shows |
+|---|---|---|
+| Init | Basics | The registry's defaults, and nothing else |
+| Sub Weight | Bass | The sub oscillator, a compressor and an EQ high pass |
+| Rasp Bass | Bass | Gate, diode distortion, compressor and EQ — the whole rack in order |
+| Hollow Saw Lead | Lead | Seven-voice unison, envelope 2 on the filter, mod wheel on the wave |
+| Wide Stab | Lead | Fourteen voices across two oscillators, both filters in series |
+| Slow Bloom | Pad | A 1.2 s attack, an LFO on the wavetable, key tracking |
+| Glass Bell | Keys | Two sines a nineteenth apart, the upper one dying first |
+| Square Keys | Keys | Aftertouch on the wavetable, two EQ bells |
+| Wire Pluck | Pluck | A short envelope pair into a syncopated ping-pong delay |
+| Dust Sweep | FX | The noise generator through a resonant band pass, swept by an LFO |
+
+**Twenty-two lines the test deleted.** The first draft of the table restated the
+default twenty-two times — `filter1_type` set to low pass in eight presets, where
+low pass is already the default, and so on. None of them was wrong; all of them
+made the tables lie about what each preset was *for*. The check that refuses
+them was written as a lint and turned out to be the most useful thing in the
+file.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
-| 9 | **9a, 9b and 9c are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063). Absent: factory content (9d) and real wavetable resources (9e) |
+| 9 | **9a to 9d are done** — the `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and ten factory sounds plus the init patch are compiled into the plugin, each one played a note by the suite to prove it makes one (ADR-0065). Absent: real wavetable resources (9e) |
 | 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -1179,7 +1247,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,268,198 assertions, 0 failures**, across 34 test classes. The table below
+**2,270,759 assertions, 0 failures**, across 35 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1192,6 +1260,7 @@ subsystems they test.
 | Audio | Processor lifecycle | Prepare/release/reset, variable block sizes, sample rates, bus policy, silence and finiteness |
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
 | Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it. Phase 9c added what the browser asks against: a scan returns **factory first, then by bank, then by name**, numbers its entries from 1, and produces the same numbers for the same tree twice, which is the property an id depends on; an id resolves to exactly one preset, while 0, a negative and one past the end resolve to nothing; and **the file a name would be saved to is the file a save actually writes**, checked over four names including one Windows would silently rename, so a replace prompt cannot protect a different file from the one it overwrites |
+| Resources | Factory presets | The sounds Apollo ships with, and the test that makes storing them as data safe. **Every setting of every preset names a real parameter**, carries a finite value inside that parameter's range, sits on its step if it has one, is not set twice, and is not merely a restatement of the default — each failure naming the preset and the parameter; the library is named, categorised, commented and free of duplicate names, and its metadata survives the bounds the reader applies; **loading Init returns all 227 parameters to their registry defaults** from an instrument whose every parameter had been moved, which is what keeps the init patch from drifting; every preset renders into a document that begins `<?xml`, names the state root, is accepted by the ordinary reader and comes back carrying its own name, category and author; **every preset plays a held note through a real processor and has to make a sound** — finite, above -40 dBFS, and below the limit of the format; none of them carries the bend range or the MPE zone in its document, and loading all ten in turn leaves a user's controller settings where they were; and the built-ins reach the index marked factory, in the Factory bank, each with a unique key, each numbered, and each loadable through the route the bridge actually uses |
 | State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
 | State | State serialization | Round trip, schema stamping, empty/malformed/foreign/unsupported rejection, **state preservation on rejection**, migration boundaries, every parameter round-tripped, reload counter |
 | UI | UI bridge protocol | Malformed JSON, non-object payloads, versioning, unknown types, ID validation, NaN/Inf/out-of-range, gesture states, size limit, error hygiene. Phase 9c added the preset commands, which are the only ones that can reach a filesystem: a preset is named by an index number and **a string where the id belongs is refused**, as are zero, a negative, `1e30` and anything past the scan bound; a save must carry a name that is not empty and not only spaces, every metadata field is refused one character past its bound rather than truncated, and **an absent overwrite flag defaults to refusing**; the index message carries a name but no path, no filename and no field that could hold one; and a status message bounds a metadata name that came off a disk on the way *out* as well as on the way in |
@@ -1717,6 +1786,34 @@ that is correct on its own can be wrong at the seam with the one that contains
 it. It is also a lesson about evidence — "the harness cannot do this" is a claim
 that needs testing before it is written down, because once written down it stops
 anybody looking.
+
+---
+
+### The factory library, 2026-09-15
+
+Driven by hand against the running standalone, with the developer's own preset
+folder **absent** — which is the state a new user is in, and the state in which
+the browser had nothing in it before this sub-phase.
+
+| Checked | Result |
+|---|---|
+| **The browser opens with a library** | Ten rows, with no user preset folder on the machine at all |
+| Each is described | Categories read Basics, Bass, Lead, Pad, Keys, Pluck, FX; the author on every row is **ProdByRnV**; the bank is **Factory** |
+| Origin is said in a word | Every row ends `factory`, which survives a screenshot with no colour in it |
+| The count is right | "10 presets" |
+| **Loading one changes the instrument** | Slow Bloom: oscillator 1 went to `TRI→SAW` at **40 %**, oscillator 2 came on at **60 %** and stopped reading OFF, and the wavetable displays redrew to the morphed shapes |
+| **Its modulation is live** | The masthead read **MOD 3/16** with the lamp green, and Osc 1 Position's arc turned green — the LFO routed to it, shown on the control it moves |
+| The browser agrees with the engine | The Slow Bloom row went gold, the masthead read **Slow Bloom**, the footer read "Loaded Slow Bloom." |
+| **The Init button works** | Pressed it: MOD back to **0/16**, oscillator 2 back to OFF, both wavetables back to `SIN→SAW` at 0 %, Init highlighted, "Loaded Init." |
+| Init is a row as well as a button | Listed under Basics, loadable like any other |
+
+**Not verified by ear.** Nobody has listened to these ten sounds through
+speakers — there is no virtual MIDI port on this machine (§6, issue 16), so the
+notes in the test suite are rendered rather than played. What *is* verified is
+that each one produces finite, audible, non-clipping audio for a held note, and
+that the parameters it claims to set are the parameters the instrument ends up
+with. Whether "Glass Bell" sounds like a bell is a judgement the developer
+should make with the application open.
 
 ---
 

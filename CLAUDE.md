@@ -1231,6 +1231,33 @@ Apollo offers.
 Searching and filtering never reach the engine: they narrow a list the page
 already has.
 
+## 29.3 Factory Content
+
+Apollo ships sounds, and they are **compiled into the plugin rather than
+installed as files** (ADR-0065). A factory library on disk needs an installer
+with administrator rights or a first-run copy that can be deleted; built-in
+content is always present, cannot be lost, and costs no permissions. The shared
+factory folder still works for anything an installer does place there.
+
+**A built-in preset is stored as the parameters it changes**, not as a rendered
+document. Everything it does not mention sits at the registry's default, which
+keeps each one reviewable, keeps it from freezing today's defaults, and makes a
+setting that names a parameter which does not exist a test failure rather than a
+preset that quietly loses part of itself.
+
+It is still an ordinary preset: it renders to the same `.rnv` text a save would
+produce and loads through the same validator as a file from a stranger. Origin
+changes where the bytes come from and nothing else (§29.1).
+
+**The init patch is the empty case.** It overrides nothing, so it *is* the
+registry's defaults, and there is no separate "reset everything" path that could
+drift from what a fresh instance sounds like. The browser gives it a button of
+its own as well as a row.
+
+Factory content must be demonstrable rather than merely present: every preset is
+played a note by the test suite and has to make a sound — finite, audible, and
+not at the limit of the format.
+
 ---
 
 # 30. Resource Management

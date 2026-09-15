@@ -90,6 +90,20 @@ void writeState (juce::AudioProcessorValueTreeState& apvts, juce::MemoryBlock& d
 [[nodiscard]] StateLoadResult readStateXml (juce::AudioProcessorValueTreeState& apvts,
                                             const juce::XmlElement& xml);
 
+/** Stamps @p state with the schema version, the product and the product version.
+
+    The three properties that make a document identifiable as Apollo's and
+    readable by the right reader. Every path that produces a document calls this
+    — a host save, a preset save, and the factory content rendered at runtime —
+    because three copies of "what a document is stamped with" is three chances
+    for one of them to stop matching (ADR-0065).
+
+    Applied every time rather than only when absent: a document without a
+    version is indistinguishable from one written by a future build that
+    dropped it.
+*/
+void stamp (juce::ValueTree& state);
+
 /** Brings a state tree up to currentSchemaVersion in place.
 
     Exposed for testing so each migration step can be exercised directly against

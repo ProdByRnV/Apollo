@@ -36,6 +36,18 @@ inline constexpr const char* parameterTreeType = "PARAM";
 /** Property holding a saved parameter's identifier. */
 inline constexpr const char* parameterIdProperty = "id";
 
+/** Property holding a saved parameter's value, in plain units.
+
+    JUCE's own name for it, and part of the same serialized-state contract as
+    the two above: APVTS writes and reads this property, so a document Apollo
+    builds by hand — the factory content, which has no instrument to copy a
+    state from — has to spell it exactly this way or the values it carries are
+    silently ignored and every parameter comes back at its default.
+
+    The value is **denormalised**: the hertz, the milliseconds, the decibels.
+*/
+inline constexpr const char* parameterValueProperty = "value";
+
 /** VST3 parameter version hint.
 
     VST3 derives a parameter's identity from a hash that includes this hint. It

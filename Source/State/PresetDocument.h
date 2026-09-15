@@ -129,6 +129,18 @@ struct Metadata
 */
 [[nodiscard]] Metadata sanitise (const Metadata& metadata);
 
+/** Writes @p metadata into @p state, creating the `<PRESET>` child if needed.
+
+    One implementation for every caller that needs it — saving to a file,
+    renaming the live sound, and rendering the built-in factory content — because
+    a preset whose file said one thing and whose instrument said another would be
+    the kind of disagreement nobody notices until they have lost work.
+
+    The metadata is sanitised on the way in, so a document Apollo writes can
+    never contain a field it would refuse to read back.
+*/
+void attachMetadata (juce::ValueTree& state, const Metadata& metadata);
+
 /** Reads the metadata currently attached to the live state, or an empty set. */
 [[nodiscard]] Metadata getMetadata (juce::AudioProcessorValueTreeState& apvts);
 

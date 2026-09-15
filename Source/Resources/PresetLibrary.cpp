@@ -2,6 +2,7 @@
 
 #include "ApolloVersion.h"
 #include "Parameters/ParameterLayout.h"
+#include "Resources/FactoryPresets.h"
 
 #include <algorithm>
 
@@ -158,7 +159,58 @@ void scanRoot (const juce::File& root,
     }
 }
 
+/** Puts an index into the order the browser shows and numbers it.
+
+    SORTED BEFORE IT IS NUMBERED, because directory iteration order is whatever
+    the filesystem feels like and two scans of an unchanged folder may not
+    agree. A browser built on that would reshuffle its own list every time
+    anything was saved, and an id would mean a different sound depending on
+    which scan produced it.
+
+    Factory before user keeps the rule scanRoot's ordering already stated: where
+    the two libraries share a name, the user's own work is the one further down,
+    which is where somebody looks for it.
+*/
+void finalise (PresetIndex& index)
+{
+    std::sort (index.entries.begin(), index.entries.end(),
+               [] (const PresetEntry& a, const PresetEntry& b)
+               {
+                   if (a.factory != b.factory)
+                       return a.factory;
+
+                   if (const auto bank = a.bank.compareIgnoreCase (b.bank); bank != 0)
+                       return bank < 0;
+
+                   if (const auto name = a.name.compareIgnoreCase (b.name); name != 0)
+                       return name < 0;
+
+                   // Two presets can legitimately present the same name in the
+                   // same bank — the metadata name is free text, and nothing
+                   // stops two files carrying it. Falling back to the key keeps
+                   // the order total, so the sort is deterministic rather than
+                   // merely usually stable.
+                   return a.key().compareIgnoreCase (b.key()) < 0;
+               });
+
+    auto nextId = 1;
+
+    for (auto& entry : index.entries)
+        entry.id = nextId++;
+}
+
 } // namespace
+
+juce::String presetKeyForFile (const juce::File& file)
+{
+    return "file:" + file.getFullPathName();
+}
+
+juce::String PresetEntry::key() const
+{
+    return builtIn >= 0 ? "builtin:" + juce::String (builtIn)
+                        : presetKeyForFile (file);
+}
 
 PresetLocations defaultPresetLocations()
 {
@@ -351,41 +403,54 @@ PresetIndex scanPresets (const PresetLocations& locations, const std::function<b
     if (! index.userDirectoryMissing)
         scanRoot (locations.userDirectory, /* factory */ false, index, shouldAbort);
 
-    // SORTED BEFORE IT IS NUMBERED, because directory iteration order is
-    // whatever the filesystem feels like and two scans of an unchanged folder
-    // may not agree. A browser built on that would reshuffle its own list every
-    // time anything was saved, and an id would mean a different sound depending
-    // on which scan produced it.
-    //
-    // Factory before user keeps the rule scanRoot's ordering already stated:
-    // where the two libraries share a name, the user's own work is the one
-    // further down, which is where somebody looks for it.
-    std::sort (index.entries.begin(), index.entries.end(),
-               [] (const PresetEntry& a, const PresetEntry& b)
-               {
-                   if (a.factory != b.factory)
-                       return a.factory;
-
-                   if (const auto bank = a.bank.compareIgnoreCase (b.bank); bank != 0)
-                       return bank < 0;
-
-                   if (const auto name = a.name.compareIgnoreCase (b.name); name != 0)
-                       return name < 0;
-
-                   // Two presets can legitimately present the same name in the
-                   // same bank — the metadata name is free text, and nothing
-                   // stops two files carrying it. Falling back to the filename
-                   // keeps the order total, so the sort is deterministic rather
-                   // than merely usually stable.
-                   return a.file.getFileName().compareIgnoreCase (b.file.getFileName()) < 0;
-               });
-
-    auto nextId = 1;
-
-    for (auto& entry : index.entries)
-        entry.id = nextId++;
+    finalise (index);
 
     return index;
+}
+
+void addBuiltInPresets (PresetIndex& index)
+{
+    const auto builtIn = factoryPresets();
+
+    for (size_t i = 0; i < builtIn.size(); ++i)
+    {
+        const auto metadata = metadataOf (builtIn[i]);
+
+        PresetEntry entry;
+
+        entry.builtIn = static_cast<int> (i);
+        entry.name = metadata.name;
+        entry.author = metadata.author;
+        entry.category = metadata.category;
+        entry.bank = params::toJuceString (factoryBank);
+        entry.factory = true;
+
+        index.entries.push_back (std::move (entry));
+    }
+
+    // Re-ordered and re-numbered with the built-ins among them, so an id still
+    // means a position in one list rather than a position in whichever half of
+    // it the preset happened to come from.
+    finalise (index);
+}
+
+state::StateLoadResult readPreset (const PresetEntry& entry, juce::String& destination)
+{
+    if (entry.builtIn < 0)
+        return readPresetFile (entry.file, destination);
+
+    const auto builtIn = factoryPresets();
+
+    // An index built by this library cannot name a preset outside the table,
+    // but the entry is a value somebody could have constructed, and a bounds
+    // check is cheaper than trusting that nobody ever will.
+    if (static_cast<size_t> (entry.builtIn) >= builtIn.size())
+        return state::StateLoadResult::malformed;
+
+    destination = render (builtIn[static_cast<size_t> (entry.builtIn)]);
+
+    return destination.isNotEmpty() ? state::StateLoadResult::ok
+                                    : state::StateLoadResult::malformed;
 }
 
 const PresetEntry* findPreset (const PresetIndex& index, int id)
@@ -514,6 +579,12 @@ void PresetLibrary::run()
 
     if (threadShouldExit())
         return;
+
+    // The factory content is added after the disk has been walked rather than
+    // before, so that a scan which was abandoned halfway does not publish an
+    // index that is all factory and no user. It costs no I/O: the built-ins are
+    // compiled in, and this only copies their metadata (ADR-0065).
+    addBuiltInPresets (scanned);
 
     publish (std::move (scanned));
 }
