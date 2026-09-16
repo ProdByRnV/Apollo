@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-16
+**Last verified:** 2026-09-17
 **Apollo version:** 0.1.0
 
 ---
@@ -17,7 +17,7 @@
 | | |
 |---|---|
 | **Phase** | Phase 9 — Presets, Resources & State Migration, in progress; **9a and 9b complete** |
-| **Status** | **Phases 8 and 9 are both done.** A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Status** | **Phases 8 and 9 are done, and Phase 10 is one sub-phase in.** The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M9 — Presets & resources |
 | **Next step** | Phase 9c — the browser in the interface: listing, categories, search, load, save, save-as, and the bridge commands behind them (ROADMAP §2a) |
 
@@ -1253,7 +1253,8 @@ of this one.
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); ten factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
-| 10–12 | DSP validation, profiling, host testing, packaging, release hardening |
+| 10 | **10a is done** — the assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067). Absent: golden regression renders (10b), profiling (10c), the optimisation it identifies (10d), and host compatibility (10e), which needs real DAWs |
+| 11–12 | Packaging, cross-platform release engineering, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
@@ -1328,7 +1329,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,271,531 assertions, 0 failures**, across 37 test classes. The table below
+**2,272,934 assertions, 0 failures**, across 38 test classes. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -1342,6 +1343,7 @@ subsystems they test.
 | Parameters | Parameter registry | Uniqueness, conventions, ranges, defaults, APVTS agreement, normalisation round trip, discrete steps |
 | Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it. Phase 9c added what the browser asks against: a scan returns **factory first, then by bank, then by name**, numbers its entries from 1, and produces the same numbers for the same tree twice, which is the property an id depends on; an id resolves to exactly one preset, while 0, a negative and one past the end resolve to nothing; and **the file a name would be saved to is the file a save actually writes**, checked over four names including one Windows would silently rename, so a replace prompt cannot protect a different file from the one it overwrites |
 | DSP | Fourier transform | The transform every loaded wavetable's spectrum comes from, checked against the definition rather than against itself: a naive four-line transform is obviously correct, and the fast one must agree with it to within 1e-9 at four sizes, **on noise rather than on tones** — a sine is symmetric enough that a transform with a sign error in half its butterflies still reproduces it. A length it cannot do leaves the buffer untouched rather than mangled; a sine analyses as one sine coefficient and nothing else; a saw analyses as 1/k across sixteen harmonics; **two waveforms with the same harmonic amplitudes and different phases stay distinguishable**, which is what makes a loaded table the waveform the user supplied; and an arbitrary asymmetric shape survives being taken apart and summed back together, sample for sample |
+| Validation | Instrument validation | The assembled instrument rather than its parts, and the only tests in the suite that play notes and measure the audio (ADR-0067). **Tuning** through the whole pitch path — the note number, the sub oscillator's transposition and the oscillator — at every third note from 24 to 96 and at four sample rates, resolved by parabolic interpolation so the answer is in cents rather than in bins; **THD+N** on the sub oscillator, the only source whose output is meant to be a sine; **exact silence at rest**, with every source at full level, because a synthesiser with no note has nothing to produce and a floor of any size would be a bug; **DC offset** with all four sources running, which is what would catch the pulse table if it stopped dropping its DC term; **inharmonic content** found by scanning every bin that is not near a harmonic rather than by checking frequencies somebody predicted; **the step response**, as a cutoff swept across its whole range between two blocks, where a jump larger than the steady-state one would mean the coefficient change was audible; **exact silence after a release** through a chain with two feedback effects, which is denormal behaviour measured by its consequence; **every registered parameter** driven to both ends and the middle of its range with a note held, staying finite and bounded; and **a minute of the worst patch the controls allow**, measured per ten-second window, because what matters is that nothing compounds rather than how loud 88 dB of requested gain turns out to be |
 | Resources | Wavetable resources | A disk Apollo does not control, and a table being swapped underneath a sounding note. A well-formed WAV of 2048-sample cycles reads back as its frames, in order, with the first analysing as a sine and the last as something rich; **every way a file can fail is refused by name** — missing, not audio, stopping mid-frame, silent, and past the size bound — each leaving nothing behind and each described in a sentence containing nothing path-like; a table read, analysed and rebuilt correlates above 0.999 with the waveform that went in, per frame; a published table replaces what a slot plays and the built-in comes back exactly, while the other three slots do not move; an empty, null or out-of-range publish is refused rather than silencing an oscillator; **a replaced table is kept until two blocks have passed** and not one, and a publish announces itself to the audio thread exactly once; a load runs without the caller waiting and is delivered once, reporting a file name rather than a path; and **a file that is missing or is not audio leaves the slot playing the built-in**, with a loader destroyed mid-load returning cleanly |
 | Resources | Factory presets | The sounds Apollo ships with, and the test that makes storing them as data safe. **Every setting of every preset names a real parameter**, carries a finite value inside that parameter's range, sits on its step if it has one, is not set twice, and is not merely a restatement of the default — each failure naming the preset and the parameter; the library is named, categorised, commented and free of duplicate names, and its metadata survives the bounds the reader applies; **loading Init returns all 227 parameters to their registry defaults** from an instrument whose every parameter had been moved, which is what keeps the init patch from drifting; every preset renders into a document that begins `<?xml`, names the state root, is accepted by the ordinary reader and comes back carrying its own name, category and author; **every preset plays a held note through a real processor and has to make a sound** — finite, above -40 dBFS, and below the limit of the format; none of them carries the bend range or the MPE zone in its document, and loading all ten in turn leaves a user's controller settings where they were; and the built-ins reach the index marked factory, in the Factory bank, each with a unique key, each numbered, and each loadable through the route the bridge actually uses |
 | State | Preset document | What a `.rnv` is and what it refuses to be. A preset round-trips the sound *and* its metadata; the file is XML text that begins `<?xml`, names the state root and shows its schema version without a parser, because ADR-0053 chose text as a property rather than a preference; metadata reads out of a document without touching any instrument, which is what an index is built from; a preset with no metadata is valid and common; an absurdly long field is cut rather than trusted or refused, on the way out as well as in; quotes, angle brackets, newlines and accented text survive a round trip; **seven ways a document can be refused each leave three parameters and the loaded preset's name exactly as they were**, and each refusal says something that does not quote the document back; **the preset reader and the host reader refuse the same documents for the same reasons**, which is what keeps them one implementation; a version 1 preset migrates and keeps both its cutoff and its name; something far too large is refused on its size alone, through both the load path and the index path; the loaded preset's name travels into a host project and comes back; **a preset carries no MIDI mappings and none of the four expression parameters**, and loading one leaves this user's mappings live and their MPE zone and bend range where they set them (ADR-0061) |
@@ -2171,6 +2173,57 @@ decimal places — so the rounding made the text *longer* — and pretty-prints 
 array element on its own indented line. Points now travel as integer thousandths
 on one line. Both figures are asserted as budgets and logged by the tests, so a
 change that multiplies them is caught there (ADR-0049).
+
+---
+
+## 5c. Instrument validation measurements
+
+Phase 10a. Everything above measures a *component*; this measures the assembled
+instrument — a MIDI note in, audio out, through the voice engine, the filters,
+the amplifier and the rack. A synthesiser can be built entirely from correct
+parts and still be out of tune, offset from zero, noisy at rest, or capable of
+emitting an infinity (ADR-0067).
+
+Produced by `ApolloTests --category Validation`, at 48 kHz in 512-sample blocks
+unless stated. These are **measurements**: the figure is recorded here and the
+test bounds it where a regression would matter, not where today's build sits.
+
+| Measured | Result |
+|---|---|
+| **Tuning**, every third note from 24 to 96 | Worst error **0.744 cents**, at note 27. Bounded at 1 cent |
+| Tuning across sample rates | A3 within a cent at 44.1, 48, 88.2 and 96 kHz |
+| **THD+N** of the sub oscillator at A3 | **0.0013 %** (−97.6 dB). Bounded at 0.1 % |
+| **Noise floor at rest** | **Exactly zero**, with every source at full level and with no note |
+| **DC offset**, all four sources at once | **−112.7 dBFS**. Bounded at −60 dBFS |
+| **Inharmonic content**, 7-voice unison saw at 1760 Hz | **−121.9 dBc**. Bounded at −60 dBc |
+| **Step response**: cutoff swept 20 kHz → 20 Hz between two blocks | Largest sample-to-sample step **0.00009**, against **0.00192** in steady state — the change is quieter than the sound |
+| **Silence after release**, chain with delay and reverb | Exact zero **8.41 s** after note-off, against a predicted ~10 s |
+| **Every parameter** at both ends and the middle, note held | All finite, all bounded |
+| **Worst patch the controls allow**, one minute | Peak per ten seconds: **61.0, 61.5, 60.2, 60.6, 60.2, 60.2 dBFS** — flat, so nothing compounds |
+
+**Why the hostile patch is loud and why that is not the measurement.** It asks
+for roughly 88 dB of deliberate gain — seven EQ bells at +18, the EQ trim at
++18, 24 dB of makeup and the master at its +6 — on top of four sources at full
+into a 36 dB distortion. The number it produces is the instrument obeying. What
+had to be proven is that maximum delay feedback, a twenty-second reverb and two
+resonant filters in one chain do not **compound**, and the flat window trace is
+that proof.
+
+**Two mistakes made and corrected while writing this, both in the tests rather
+than in Apollo:**
+
+- The first hostile-patch assertion bounded the absolute peak, which is a
+  statement about the range of the gain controls rather than about stability.
+- The first silence test gave a half-second delay at 0.6 feedback thirty seconds
+  to reach the 1e-18 flush point, which takes eighty-one repeats — forty
+  seconds. It reported a defect that did not exist. The settings are now chosen
+  by that arithmetic, and the arithmetic is written down beside them.
+
+**Known item, deliberately not addressed:** four DSP test files still have their
+own spectrum helpers, which predate the shared analysis toolkit. They measure
+different things with thresholds tuned against their own analysis, so converting
+them would be churn in passing tests for no functional gain (CLAUDE.md §41). New
+measurement work uses `Tests/Analysis/SignalAnalysis.h`.
 
 ---
 

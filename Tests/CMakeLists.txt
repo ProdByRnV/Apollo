@@ -45,6 +45,9 @@ target_sources(ApolloTests PRIVATE
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp
     Resources/WavetableResourceTests.cpp
+    Analysis/SignalAnalysis.cpp
+    Analysis/SignalAnalysis.h
+    Validation/InstrumentValidationTests.cpp
     State/PresetDocumentTests.cpp
     State/StateSerializationTests.cpp
     UI/BridgeProtocolTests.cpp

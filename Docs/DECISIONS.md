@@ -2953,3 +2953,103 @@ chooser run by the backend, so that the *user* names the path and it never
 crosses the bridge (ADR-0063), and it is a feature rather than part of this one.
 Also given up: reading wavetables at frame sizes other than 2048, and reading
 the second channel of a stereo file, which is a recording rather than a table.
+
+## ADR-0067 — Validation measures the instrument, not the modules
+
+**Phase 10a · Accepted**
+
+Every test written before this one measures a component: the filter's corner is
+where it was asked for, the oversampler's halfband rejects its stopband, the
+wavetable's aliasing floor at each octave, the compressor's curve against the
+static formula. That work is necessary and none of it answers the question
+Phase 10 exists to ask.
+
+**A synthesiser can be built entirely from correct parts and still be wrong.**
+It can be out of tune, because tuning is the product of a note number, a
+transposition, a mipmap choice and a phase increment, and no one of those owns
+it. It can sit off zero, because a DC offset is contributed by whichever source
+has one and nothing downstream is looking. It can hiss at rest, because rest is
+a state no module has an opinion about. It can emit an infinity, because the
+value that does it came from a combination no module was tested with.
+
+So the validation suite plays notes and measures the audio that comes out.
+
+### What it measures, and why those
+
+**Tuning**, every third note from 24 to 96 and at four sample rates, through the
+sub oscillator — which sounds an octave below the note played, so the
+measurement covers the note number, the transposition and the oscillator rather
+than the oscillator alone.
+
+**Distortion**, on the sub oscillator and only there. THD is meaningless for a
+saw: a saw is all harmonics by design, and measuring its distortion measures the
+waveform rather than the instrument. The sub is the one source whose output is
+supposed to be a sine, which makes it the only place in Apollo where the figure
+means anything.
+
+**Silence at rest**, asserted as *exact* zero rather than as something quiet.
+There is no analogue circuit here to hiss; a synthesiser with no note sounding
+has nothing to produce, and a floor of any size would be a bug rather than a
+property.
+
+**DC offset**, with every source running at once — the case where an offset in
+any one of them shows. The pulse wavetable is the interesting one: its Fourier
+series carries a DC term proportional to duty cycle, and the table drops it
+deliberately (ADR-0066). This is the test that would notice if it stopped.
+
+**Inharmonic content**, by scanning every bin that is not near a harmonic rather
+than by checking named frequencies. An alias can land anywhere; a test that
+looks only where one is expected finds only the ones somebody predicted.
+
+**The step response**, in the form it takes in an instrument with no audio
+input: a control moved across its whole range between two blocks. Closing a
+filter can only reduce the rate of change of a signal, so a sample-to-sample
+jump *larger* than the steady-state one means the coefficient change itself was
+audible. That is what smoothing is for (CLAUDE.md §36) and what this would
+notice losing.
+
+**Exact silence after a release**, through a chain with two feedback effects in
+it — the arrangement that keeps a tiny value alive. Denormals are measured by
+their consequence rather than by their bit pattern.
+
+**Robustness**, by driving every registered parameter to both ends and the
+middle of its range with a note held, and by rendering a minute of the worst
+patch the controls allow.
+
+### Numbers, not verdicts
+
+Several of these are measurements rather than pass/fail questions, and they are
+logged as well as bounded. A bound is set where a regression would matter rather
+than where today's build happens to sit — a threshold pinned to the current
+figure turns any improvement into a failure and teaches people to widen bounds
+rather than investigate them.
+
+### Two things this cost, both of them mine
+
+**The first hostile-patch assertion measured the wrong property.** It bounded
+the absolute peak, and a patch with seven EQ bells at +18 dB, an +18 dB trim,
+24 dB of makeup and a +6 dB master is *asking* for about 88 dB of gain — the
+number it produced was the instrument obeying. What matters is that nothing
+**compounds**: maximum delay feedback, a twenty-second reverb and two resonant
+filters are the ingredients of a runaway. Measuring the peak per ten-second
+window answers that, and the answer was flat — 61.0, 61.5, 60.2, 60.6, 60.2,
+60.2 dBFS across a minute.
+
+**The first silence test reported a defect that was an arithmetic mistake in the
+test.** It used the default half-second delay at 0.6 feedback and gave it thirty
+seconds; reaching the 1e-18 flush point takes eighty-one repeats, which at half
+a second each is forty. The delay was behaving exactly as designed. The settings
+are now chosen by that arithmetic and the arithmetic is written down, so the
+window is justified rather than picked until it passed.
+
+Both are the same lesson in different clothes: **a measurement you have not
+reasoned about is a number you will misread**, and the temptation on seeing a
+red test is to adjust the bound rather than to work out what the right bound is.
+
+### The duplication this does not remove
+
+Four DSP test files have their own spectrum helpers. They measure different
+things with thresholds tuned against their own analysis, and rewriting passing
+tests for no functional gain is what CLAUDE.md §41 warns against — so they stay,
+and the new toolkit is what new measurement work uses. The duplication is real
+and is recorded as a known item rather than pretended away.

@@ -115,7 +115,7 @@ front of it is better understood, the way 8f was.
 | 9d | Factory presets — content that demonstrates the instrument, and the init patch | ✅ |
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ✅ |
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
-| 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ⬜ |
+| 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ✅ |
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ⬜ |
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ⬜ |
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
@@ -732,16 +732,16 @@ Perform rigorous engineering validation before release hardening.
 
 ## DSP validation
 
-- [ ] Frequency-response testing.
-- [ ] Oscillator pitch-accuracy testing.
-- [ ] Aliasing measurements.
-- [ ] THD/THD+N measurements where relevant.
-- [ ] Noise-floor measurements.
+- [x] Frequency-response testing. — per module since Phase 5 (filter corners, EQ curves, halfband stopbands); Phase 10a adds the assembled instrument's, measured through a whole voice rather than through a component (10a)
+- [x] Oscillator pitch-accuracy testing. — every third note from 24 to 96 measured against equal temperament through the whole pitch path, and the same note at four sample rates. Worst error under a cent (10a)
+- [x] Aliasing measurements. — per oscillator since Phase 4; 10a measures the assembled voice, scanning every bin that is not a harmonic rather than checking named frequencies (10a)
+- [x] THD/THD+N measurements where relevant. — on the sub oscillator, the one source whose output is meant to be a sine and therefore the only one where the figure means anything (10a)
+- [x] Noise-floor measurements. — an instrument at rest produces **exact** silence, with every source at full level and after a release, rather than merely something quiet (10a)
 - [ ] Impulse/step-response tests.
-- [ ] Numerical stability tests.
+- [x] Numerical stability tests. — a minute of the worst patch the controls allow, measured per ten-second window to prove nothing compounds (10a)
 - [ ] Regression audio renders.
 - [ ] Denormal testing.
-- [ ] NaN/Inf protection tests.
+- [x] NaN/Inf protection tests. — every registered parameter driven to both ends and the middle of its range with a note held; output stays finite and bounded (10a)
 
 ## Performance
 
