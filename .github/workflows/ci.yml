@@ -101,7 +101,14 @@ jobs:
         run: cmake --build build --config RelWithDebInfo --target Apollo_All --parallel ${{ matrix.parallel }}
 
       - name: Test
-        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+        run: ctest --test-dir build -C RelWithDebInfo -L unit --output-on-failure
+
+      # The regression renders, verbosely, so their per-case measurements appear
+      # in the log of a run that passed. ctest prints a passing test's output
+      # only when asked, and this is the one place the cross-platform spread of
+      # those figures can be read (Tests/CMakeLists.txt).
+      - name: Regression report
+        run: ctest --test-dir build -C RelWithDebInfo -R apollo.regression -V
 
   sanitizers:
     name: Sanitizers (Linux, Clang)
@@ -149,4 +156,4 @@ jobs:
           # resources of its own (wavetables, voice pools) in Phase 3+.
           ASAN_OPTIONS: detect_leaks=0
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
-        run: ctest --test-dir build-san --output-on-failure
+        run: ctest --test-dir build-san -L unit --output-on-failure

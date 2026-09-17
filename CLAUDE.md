@@ -1551,6 +1551,56 @@ Optimize only after identifying measurable bottlenecks.
 
 Do not sacrifice audio correctness for premature micro-optimization.
 
+## 35.1 The Measurement Environment
+
+**A performance number nobody can reproduce is worse than no number**, because
+somebody will eventually optimise against the noise. Apollo measured the same
+binary's reverb at 1.36 % and then at 0.37 %, and in one run hard clipping came
+out more expensive than `tanh`, which cannot be true. Phase 10c fixed the
+harness before trusting anything it said (ADR-0069).
+
+What a measurement here must do:
+
+- **Report what it is worth.** Every row carries the spread of its own passes,
+  and the headline is the median rather than the best. A single figure hides
+  whether 2.8 means 2.8 ± 0.1 or 2.8 ± 1.2.
+- **Normalise against a fixed reference.** A kernel of unchanging arithmetic is
+  timed at the start of every run, and figures are reported raw *and* corrected
+  to a machine on which that kernel takes 3.5 ms. The corrected column is the
+  one that compares between runs, phases and machines.
+- **Pin the measuring thread**, and not to core 0, which on Windows services
+  device interrupts.
+- **Say when it should not be believed.** If something else was using the
+  machine for more than five per cent of the time the reference was timed, the
+  report says so at the top rather than quietly printing numbers.
+
+None of this makes a laptop a measurement instrument. It makes one that tells
+you when it is not being one, and that is the honest version.
+
+## 35.2 Averages Are The Wrong Statistic For Audio
+
+A synthesiser that averages thirty per cent of its callback deadline and spends
+one block at three hundred does not sound like one using thirty per cent. It
+sounds like a click. **The deadline is per callback and so is the failure.**
+
+So the cost of a patch is measured as a distribution over hundreds of individual
+callbacks — median, 99th, 99.9th and worst, against the time the block actually
+has — and not as an average over a long render. Notes must arrive *during* the
+trace rather than being held from the start, because the expensive blocks are
+the ones where something happens: a voice allocated, a voice stolen, an envelope
+changing stage.
+
+**Worst cases must be measured together, not one at a time.** Measuring the
+heaviest patch, then a full effects rack, then the modulation matrix, says
+nothing about the patch a user actually builds, which is all three at once.
+
+## 35.3 Report Neither Rather Than The Convenient One
+
+When a measurement contradicts something the project has already recorded, and
+the harness cannot say which is wrong, **it reports neither and records the
+discrepancy**. Publishing the number that happens to suit is how a document
+stops being worth reading.
+
 ---
 
 # 36. Parameter Smoothing

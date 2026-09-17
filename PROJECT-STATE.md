@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 10 — Performance, DSP Validation & Host Compatibility, in progress; **10a and 10b complete** |
-| **Status** | **Phases 8 and 9 are done, and Phase 10 is two sub-phases in.** Apollo is now measured *and* pinned. 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Phase** | Phase 10 — Performance, DSP Validation & Host Compatibility, in progress; **10a, 10b and 10c complete** |
+| **Status** | **Phases 8 and 9 are done, and Phase 10 is three sub-phases in.** Apollo is now measured, pinned, and profiled on a harness that reports how much it should be believed. 10c replaced a benchmark whose figures moved forty per cent between idle runs with one that pins its thread, normalises against a fixed reference kernel, reports the spread of every row, and says at the top when the machine was too busy to be measured on (ADR-0069) — and then measured what nothing had measured before: the **worst-case callback** rather than an average, and the worst patch the controls can build with everything running at once, which misses its deadline one block in a hundred (§5b, issue 13). 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M10 — Performance, validation & host compatibility |
-| **Next step** | Phase 10c — performance profiling: CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. It needs a measurement environment that does not drift (§5b), which is the part that is not yet solved (ROADMAP §2a) |
+| **Next step** | Phase 10d — optimisation of what 10c identified. The target is now stated precisely rather than as a suspicion: the worst patch the controls can build misses its callback deadline one block in a hundred at full polyphony (issue 13), and the cost is 1088 interpolating oscillators rather than anything in the effects rack, which costs 2.8 % of a core in total. Two measurement questions are carried with it (issues 6 and 18) (ROADMAP §2a) |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -1950,6 +1950,13 @@ not a pass or a fail, so it is recorded here rather than asserted in the suite
 48 kHz, 512-sample blocks. Figures are **per cent of one core's real time**;
 lower is better, and 100 % means the render exactly keeps up with playback.
 
+> **The sections up to "The measurement environment" were taken before Phase
+> 10c, on a harness that drifted.** They are kept because they are the record of
+> what was known when each phase closed, and because the prose around them
+> explains decisions that were made on their basis. Read them within a column
+> and never across one. **The 10c sections at the end of §5b supersede them**,
+> and are the figures to compare anything future against.
+
 ### Voice engine
 
 Re-measured in Phase 5d. These figures include the DAHDSR envelope and the filter
@@ -2157,6 +2164,173 @@ negative at thirty-two. Alternating puts both under the same drift. The figures
 above are therefore not comparable with 7b's, and the difference is method rather
 than code (`measurePair`, Tests/Performance/Benchmarks.cpp).
 
+### The measurement environment (Phase 10c)
+
+Everything above this line was measured before Phase 10c and everything below it
+after, and the two are not comparable. That is the point of the phase (ADR-0069).
+
+The old figures drifted: the same binary measured the reverb at 1.36 % and then
+at 0.37 %, two idle runs minutes apart disagreed by forty per cent, and in one of
+them hard clipping came out more expensive than `tanh`, which cannot be true.
+The table had grown a column per phase and a paragraph asking the reader to
+remember that only ratios within a column mean anything.
+
+What the report does now:
+
+- **A reference kernel** — a fixed amount of arithmetic, unchanged for the life
+  of the project — is timed at the start of every run. Every figure is reported
+  raw *and* normalised to a machine on which that kernel takes 3.5 ms. The
+  normalised column is the one to compare between runs and between phases.
+- **The measuring thread is pinned**, and not to core 0, which on Windows
+  services device interrupts.
+- **Every row carries its own spread**, and the headline is the median of five
+  passes rather than the best of three.
+- **The run says whether to believe itself.** If something else was using the
+  machine for more than five per cent of the time the reference was timed, the
+  report says so at the top in those words.
+
+None of this makes a laptop a measurement instrument. It makes one that says
+when it is not being one.
+
+**This run:** reference unit **3.682 ms** (0.950x the reference machine),
+typical contention **5.4 %**, worst burst 22.1 % off the fastest. That is just
+over the five per cent gate, so this run is flagged unsettled and its absolute
+figures carry that caveat. Rows still reproduced to within **3.5 %** between two
+consecutive reports.
+
+### Voice engine (Phase 10c)
+
+Normalised figures. The default patch is oscillator 1 alone, which is what
+Apollo loads with; the heaviest is both oscillators at 16-voice unison plus the
+sub and the noise generator — 34 oscillators per voice, 1088 of them at 32
+voices.
+
+| Voices | Default | Heaviest | Default, 4 routings |
+|---:|---:|---:|---:|
+| 1 | 0.28 % | 5.50 % | 0.57 % |
+| 8 | 2.28 % | 43.46 % | 4.89 % |
+| 32 | **9.84 %** | **174.7 %** | **16.89 %** |
+
+Cost is close to linear in voices in all three columns — 0.29 %, 5.2 % and
+0.53 % per voice — so polyphony scales predictably and the per-voice figure is
+the one that matters.
+
+**The heaviest patch still cannot run at full polyphony**, at 175 % of one core.
+That is inherent arithmetic rather than a defect; ADR-0029 chose to publish the
+limit rather than lower the ceilings, and it is issue 13.
+
+### Effects rack (Phase 10c)
+
+Normalised, stereo, on the finished mix — once per block however many notes are
+held.
+
+| Rack | Cost |
+|---|---:|
+| Empty | 0.035 % |
+| Distortion, soft (`tanh`) at 4x | 2.000 % |
+| Distortion, diode (`exp`) at 4x | 1.778 % |
+| Distortion, hard clip at 4x | 1.666 % |
+| Delay, stereo with feedback | 0.139 % |
+| Reverb, 8-line FDN | 0.476 % |
+| Reverb, **bypassed** | 0.424 % |
+| Gate, stereo-linked peak | 0.068 % |
+| Compressor, stereo-linked RMS | 0.155 % |
+| Equaliser, all bands transparent | 0.034 % |
+| Equaliser, 7 bands x1 | 0.357 % |
+| Equaliser, 7 bands x4 | 0.533 % |
+| **All six at once** | **2.773 %** |
+
+With the harness fixed, two things in this table are now readable that were not.
+**Hard clipping is cheaper than `tanh`, which is cheaper than `exp`** — the order
+arithmetic says it should be, and the order the drifting harness once reported
+backwards. And **a bypassed reverb costs almost what an active one costs**,
+because the network keeps running so its tail can decay rather than freeze
+(ADR-0057): removing an effect is the free option, bypassing it is a musical
+gesture.
+
+A full rack of all six, audibly configured, costs **2.8 % of one core** — against
+175 % for the heaviest patch at full polyphony. The effects are not where
+Apollo's CPU goes, which is worth knowing before 10d starts optimising.
+
+### Worst-case callback (Phase 10c)
+
+**The measurement this project did not have.** Every figure above is an average
+over thousands of blocks, and an average is the wrong statistic for real-time
+audio: a synthesiser that averages thirty per cent of its deadline and spends one
+block at three hundred does not sound like one using thirty per cent, it sounds
+like a click. The deadline is per callback and so is the failure.
+
+Each row is 938 consecutive callbacks through the whole processor, timed
+individually, as a percentage of the 10.67 ms a 512-sample block at 48 kHz has
+to be filled in. Notes arrive *during* the trace, because the expensive blocks
+are the ones where something happens — a voice allocated, a voice stolen, an
+envelope changing stage.
+
+| Patch | Median | p99 | p99.9 | Worst |
+|---|---:|---:|---:|---:|
+| Default, 8 held | 2.84 % | 3.21 % | 4.08 % | 4.19 % |
+| Default, 32 held | 4.67 % | 5.82 % | 6.11 % | 6.49 % |
+| Default + full rack, 32 held | 6.75 % | 7.28 % | 7.58 % | 7.72 % |
+| Heaviest, 8 held | 41.39 % | 44.02 % | 44.73 % | 44.90 % |
+| **Everything at once, 32 held + stealing** | **90.37 %** | **102.15 %** | **107.89 %** | **111.66 %** |
+
+The first four rows are the good news and they are the ordinary cases: the worst
+single callback is within a fifth of the median, so Apollo's cost is steady
+rather than spiky. Nothing in the engine produces an occasional expensive block.
+
+The last row is **the worst patch Apollo's own controls can build**, and nothing
+before 10c had measured the combination — every earlier figure measured the
+heaviest patch, or a full rack, or the modulation matrix, one at a time. A user
+builds them together. It misses the deadline one callback in a hundred, and that
+is issue 13 stated in the terms that actually matter.
+
+### First use (Phase 10c)
+
+What somebody waits for, and what a session pays to hold.
+
+| | |
+|---|---:|
+| Constructing the first instrument in a process | 4.17 ms |
+| Constructing a second | 0.93 ms |
+| `prepareToPlay` at 48 kHz, 512 samples | 0.16 ms |
+| Rendering all ten factory presets to documents | 5.15 ms |
+| Loading all ten factory presets into an instrument | 13.28 ms |
+| The process before any instrument exists | 14.30 MB |
+| The first prepared instance adds | 4.71 MB |
+| The second adds | 2.60 MB |
+| Each of the next sixteen adds | 2.57 MB |
+
+**An instrument costs about 2.6 MB**, so a project holding twenty of them costs
+around 50 MB — which is not a number anybody needs to worry about. The first
+costs roughly 2 MB and 3 ms more than the rest, being the one that sets up
+whatever the process shares.
+
+**Open question, deliberately not resolved here.** ADR-0066 says rendering the
+four built-in wavetables takes a couple of hundred milliseconds, and that is the
+whole argument for building them once per process. Timing the first
+`WavetableLibrary` construction in a process — the call that builds them —
+returns 0.01 ms, in Debug as well as optimised, which cannot be the cost of 16
+frames of 1024 harmonics across 11 mip levels for four tables. Either the ADR's
+figure is stale or the measurement is not reaching the work. **This harness
+cannot say which, so it reports neither**; the first-versus-later instrument rows
+above are measured without any claim about what the difference consists of.
+Carried to 10d.
+
+### Visualisation capture (Phase 10c)
+
+Measured alternately, so both sides sit under the same drift.
+
+| Voices | Render alone | Render + everything | Capture adds |
+|---:|---:|---:|---:|
+| 1 | 0.274 % | 0.339 % | 0.062 % |
+| 8 | 2.207 % | 2.394 % | 0.178 % |
+| 32 | 10.212 % | 10.755 % | 0.516 % |
+
+Still well under one per cent of a core at full polyphony, so PRD §30.1's
+requirement — that scopes for every source must not materially reduce polyphony —
+continues to hold. An instance whose editor is closed pays none of it (ADR-0048).
+
+
 ### Interface traffic
 
 Not a CPU measurement, but measured for the same reason and found the same way —
@@ -2300,17 +2474,18 @@ of asserting nothing.
 | 3 | ~~Standalone has not been launched against an audio device~~ | **Closed** | Verified 2026-09-08. Windows Audio, Speakers (Realtek) at 48 kHz / 480 samples, output channels 1+2. A MIDI note sent to a virtual port drove Apollo's output to a measured session peak of **0.1829**, against 0.0000 before and after — read from the Windows audio-session meter, not inferred. |
 | 4 | Linux CI job failed twice, both causes fixed and confirmed | Resolved | Kept as a record rather than deleted, because both fixes are load-bearing and neither is obvious from the code. **(a) GTK include paths.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. **(b) Runner memory exhaustion.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. Both fixes are confirmed by the green run recorded in §4. |
 | 5 | Symbol visibility still unresolved | Low | ADR-0009 deferred the decision to Phase 1. Plugin targets now exist, so it can be closed. |
-| 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Phase 10. |
+| 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Carried into Phase 10 and **still open after 10c**: the obvious mechanism, replacing global `operator new`, would miss `juce::HeapBlock`, which calls `malloc` directly and is what every audio buffer in JUCE is built on — so a detector built that way would report "no allocations" while not watching the allocations most likely to happen. Needs a platform allocator hook rather than a language one. |
 | 7 | ARM64 unverified | Low | No ARM64 runner in the matrix. Phase 11. |
 | 8 | `ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md` | Trivial | Not renamed silently; other documents cross-reference it. |
 | 9 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
 | 10 | ~~`filter_*` parameters are un-indexed while the PRD specifies two filters~~ | **Closed** | Resolved in Phase 5b. They became `filter1_*`, joined by `filter2_*` and `filter_routing`, through a schema version 1 to 2 migration rather than a bare rename — the first real use of the migration path built in Phase 2 (ADR-0032). Done while Apollo is pre-1.0, which is the only window in which it is cheap. |
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
-| 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c, not inferred: 2 x 16-voice unison plus sub and noise costs **150 % of one core at 32 voices** and 82 % at 16 (§5b). The default patch is unaffected at 4.86 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in Phase 10, which owns profiling. ADR-0029 records why the ceilings were published rather than lowered. |
+| 13 | The heaviest patch cannot sustain full polyphony in real time | Medium | Measured in Phase 4c and re-measured properly in 10c: 2 x 16-voice unison plus sub and noise costs **175 % of one core at 32 voices** and 87 % at 16 (§5b). The default patch is unaffected at 9.8 %. **10c restated it in the terms that matter**: the worst patch the controls can build, at full polyphony with a full rack and the modulation matrix running, misses its callback deadline one block in a hundred — p99 102 %, worst 112 %. This is inherent arithmetic — 1088 interpolating oscillators — rather than a defect, so the fix is SIMD and interpolation work in 10d. ADR-0029 records why the ceilings were published rather than lowered. |
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 | 15 | ~~Synthetic input does not reach the WebView reliably~~ | **Closed** | Four sub-phases in a row (8b-8d, §5a) recorded that the interface could be read but not driven, because injecting input at the desktop reaches whatever window is in front. Solved in 8e by posting the mouse messages directly to Apollo's `Chrome_RenderWidgetHostHWND` child and capturing with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the cursor nor the foreground. The driving process must call `SetProcessDPIAware` first, or it measures a 1920x1080 window as 1280x720 and captures only its corner. |
 | 16 | No MIDI source on this machine for chain tests | Low | 8e and 8f could both drive the interface but neither could play a note into a configured chain, because no virtual MIDI port was running. Audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead, up to and including a full rack of six restored from a preset and still sounding. Worth having a port available before Phase 9, where a preset is supposed to be recognisable by ear. |
+| 18 | The wavetable build cost cannot be observed where ADR-0066 says it happens | Medium | Found in 10c. ADR-0066 states that rendering the four built-in wavetables takes a couple of hundred milliseconds, which is the entire argument for building them once per process and sharing them. Timing the first `WavetableLibrary` construction in a process — the call that runs the shared builder — returns **0.01 ms**, in Debug as well as optimised, which cannot be the cost of 16 frames of 1024 harmonics across 11 mip levels for four tables. Either the recorded figure is stale or the measurement is not reaching the work. The benchmark reports **neither** rather than picking the convenient one (§5b). 10d. |
 | 17 | ~~A duplicated rack slot claimed to be in the chain~~ | **Fixed** | Found in 8f by building a chain by hand and landing the same effect in two slots. The engine has resolved duplicates to first-occurrence-wins since 8a; the interface lit both, because it only checked whether the named effect existed in this build. The page now runs the same resolution the engine does, and a duplicated slot reads `duplicate` with its number unlit. |
 
 ---

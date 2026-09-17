@@ -9,14 +9,20 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <string>
 #include <vector>
 
+#include "Audio/ApolloAudioProcessor.h"
 #include "DSP/Effects/EffectsRack.h"
 #include "DSP/LFO/Lfo.h"
+#include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Oversampling/Oversampler.h"
 #include "Engine/VoiceEngine.h"
+#include "Performance/Machine.h"
+#include "Resources/FactoryPresets.h"
+#include "State/PresetDocument.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
 #include "UI/TelemetryBridge.h"
@@ -38,49 +44,97 @@ constexpr int blockSize = 512;
 */
 constexpr double secondsPerMeasurement = 4.0;
 
+/** Somewhere a rendered document length can go that the optimiser cannot see
+    through, so that timing the render does not time an empty loop.
+*/
+volatile int documentSink = 0;
+
+/** How fast this machine is against the reference machine.
+
+    Set once by `run()` from `assessMachine()`, which measures it carefully over
+    several seconds. Above one means quicker than the reference machine, so a raw
+    percentage measured here is optimistic and the normalised column divides it
+    back.
+
+    ONE SPEED FOR THE WHOLE REPORT, AND THAT WAS A CORRECTION. Taking a fresh
+    reading either side of every row looks obviously better — a report is ninety
+    seconds of solid work and a laptop really is slower at the end of it — and
+    measurement says otherwise. Two runs compared row by row differed by 3.5 %
+    when raw and **10.8 % when corrected that way**: a row is the median of five
+    four-second passes and is already steady, while a tenth-of-a-second reference
+    reading is not, so dividing one by the other injected more noise than the
+    drift it removed. Between those two runs the machine's speed differed by
+    1.5 %, so there was almost nothing to correct and everything to add.
+
+    Normalisation is for comparing between runs and between machines, which is a
+    property of a whole report rather than of a row. It is applied as one
+    carefully measured factor, and the within-report thermal drift it cannot
+    reach is left as a known limit rather than papered over with a noisier fix.
+*/
+double machineSpeed = 1.0;
+
 /** @returns the fraction of real time a render took.
 
     This is the number that matters for audio. 0.05 means the work took five
     per cent of the time it represents, so roughly twenty such loads would
     saturate one core. It is independent of block size and sample rate, unlike
     a raw duration, which is why it is reported instead of milliseconds.
+
+    `normalisedFraction` is the same figure corrected to the reference machine's
+    speed, and it is the one to compare against a figure from another run or
+    another phase. `spread` is how far the passes disagreed, so a reader can see
+    what the figure is worth without being told in prose (Machine.h).
 */
 struct Measurement
 {
     double realtimeFraction = 0.0;
+    double normalisedFraction = 0.0;
     double secondsRendered = 0.0;
+    double spread = 0.0;
 };
+
+/** How many passes every measurement takes.
+
+    Five rather than three, because the reported figure is now a median and a
+    spread rather than a minimum. Three passes can tell you the best of three;
+    they cannot tell you whether the machine was steady.
+*/
+constexpr int passes = 5;
 
 /** Renders @p seconds of audio through @p render and times it.
 
-    The result is the best of several passes rather than the mean. A slower pass
-    means the operating system took the core away, which says nothing about
-    Apollo; the fastest pass is the closest available estimate of the work the
-    code actually does.
+    The headline is the **median** pass, not the best one. The best of several
+    passes was the right answer while the only question was "what does this code
+    cost when nothing interrupts it"; it is the wrong one for a report that also
+    has to say how much the machine moved, because the minimum of a drifting
+    series hides the drift by construction.
 */
 template <typename RenderBlock>
 [[nodiscard]] Measurement measure (double seconds, RenderBlock&& render)
 {
     const auto blocks = static_cast<int> (seconds * sampleRate / static_cast<double> (blockSize));
 
-    auto best = std::numeric_limits<double>::max();
+    std::vector<double> timings;
+    timings.reserve (passes);
 
-    for (int pass = 0; pass < 3; ++pass)
+    for (int pass = 0; pass < passes; ++pass)
     {
         const auto start = std::chrono::steady_clock::now();
 
         for (int i = 0; i < blocks; ++i)
             render();
 
-        const auto finish = std::chrono::steady_clock::now();
-        const std::chrono::duration<double> elapsed = finish - start;
+        const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
 
-        best = std::min (best, elapsed.count());
+        timings.push_back (elapsed.count());
     }
 
     const auto rendered = static_cast<double> (blocks * blockSize) / sampleRate;
+    const auto statistics = statisticsOf (std::move (timings));
 
-    return { best / rendered, rendered };
+    const auto fraction = statistics.median / rendered;
+
+    return { fraction, fraction / machineSpeed, rendered, statistics.spread };
 }
 
 /** Measures two renderers *alternately* and returns the best of each.
@@ -103,9 +157,6 @@ template <typename FirstBlock, typename SecondBlock>
     const auto blocks = static_cast<int> (seconds * sampleRate / static_cast<double> (blockSize));
     const auto rendered = static_cast<double> (blocks * blockSize) / sampleRate;
 
-    auto bestFirst = std::numeric_limits<double>::max();
-    auto bestSecond = std::numeric_limits<double>::max();
-
     const auto time = [blocks] (auto&& render)
     {
         const auto start = std::chrono::steady_clock::now();
@@ -117,14 +168,24 @@ template <typename FirstBlock, typename SecondBlock>
         return elapsed.count();
     };
 
-    for (int pass = 0; pass < 3; ++pass)
+    std::vector<double> firstTimings;
+    std::vector<double> secondTimings;
+
+    for (int pass = 0; pass < passes; ++pass)
     {
-        bestFirst = std::min (bestFirst, time (first));
-        bestSecond = std::min (bestSecond, time (second));
+        firstTimings.push_back (time (first));
+        secondTimings.push_back (time (second));
     }
 
-    return { Measurement { bestFirst / rendered, rendered },
-             Measurement { bestSecond / rendered, rendered } };
+    const auto describe = [rendered] (std::vector<double> timings)
+    {
+        const auto statistics = statisticsOf (std::move (timings));
+        const auto fraction = statistics.median / rendered;
+
+        return Measurement { fraction, fraction / machineSpeed, rendered, statistics.spread };
+    };
+
+    return { describe (std::move (firstTimings)), describe (std::move (secondTimings)) };
 }
 
 void printHeading (const char* title)
@@ -138,9 +199,12 @@ void printHeading (const char* title)
 void printRow (const std::string& label, const Measurement& measurement, int voices)
 {
     const auto percent = measurement.realtimeFraction * 100.0;
+    const auto normalised = measurement.normalisedFraction * 100.0;
 
     std::cout << "  " << std::left << std::setw (34) << label
-              << std::right << std::setw (8) << std::fixed << std::setprecision (3) << percent << " %";
+              << std::right << std::setw (8) << std::fixed << std::setprecision (3) << percent << " %"
+              << std::setw (9) << normalised << " norm"
+              << std::setw (7) << std::setprecision (1) << (measurement.spread * 100.0) << "% sp";
 
     if (voices > 0)
         std::cout << std::setw (10) << std::setprecision (4) << (percent / static_cast<double> (voices))
@@ -727,13 +791,466 @@ void benchmarkTelemetry()
     }
 }
 
+//==============================================================================
+// What a host actually feels: one callback at a time.
+//
+// Every figure above this point is an average over thousands of blocks, and an
+// average is the wrong statistic for real-time audio. A synthesiser that
+// averages thirty per cent of its deadline and spends one block at three
+// hundred does not sound like a synthesiser using thirty per cent; it sounds
+// like a click. The deadline is per callback and so is the failure.
+
+/** Sets a parameter by its plain value, the way a control or a host would. */
+void setPlain (ApolloAudioProcessor& processor, const char* id, float plain)
+{
+    if (auto* parameter = processor.getValueTreeState().getParameter (id))
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (plain));
+}
+
+/** Everything sounding, through the plugin rather than through the engine. */
+void applyHeaviestPatch (ApolloAudioProcessor& processor)
+{
+    setPlain (processor, "osc1_level", 1.0f);
+    setPlain (processor, "osc1_unison", 16.0f);
+    setPlain (processor, "osc1_detune", 0.4f);
+    setPlain (processor, "osc1_spread", 1.0f);
+
+    setPlain (processor, "osc2_level", 1.0f);
+    setPlain (processor, "osc2_unison", 16.0f);
+    setPlain (processor, "osc2_detune", 0.4f);
+    setPlain (processor, "osc2_spread", 1.0f);
+
+    setPlain (processor, "sub_level", 1.0f);
+    setPlain (processor, "noise_level", 1.0f);
+
+    setPlain (processor, "env1_sustain", 1.0f);
+}
+
+/** The four routings the modulation table above measures. */
+void applyModulation (ApolloAudioProcessor& processor)
+{
+    setPlain (processor, "mod01_source", 2.0f);    // envelope 2
+    setPlain (processor, "mod01_destination", 12.0f);  // filter 1 cutoff
+    setPlain (processor, "mod01_depth", 0.8f);
+
+    setPlain (processor, "mod02_source", 5.0f);    // LFO 1
+    setPlain (processor, "mod02_destination", 1.0f);   // all pitch — a vibrato
+    setPlain (processor, "mod02_depth", 0.15f);
+
+    setPlain (processor, "mod03_source", 9.0f);    // velocity
+    setPlain (processor, "mod03_destination", 16.0f);  // amplitude
+    setPlain (processor, "mod03_depth", 0.5f);
+
+    setPlain (processor, "mod04_source", 6.0f);    // LFO 2
+    setPlain (processor, "mod04_destination", 4.0f);   // oscillator 1 position
+    setPlain (processor, "mod04_depth", 0.6f);
+}
+
+/** All six effects in the rack, each audibly doing something. */
+void applyFullRack (ApolloAudioProcessor& processor)
+{
+    setPlain (processor, "fx_slot1", 1.0f);        // distortion
+    setPlain (processor, "fx_distortion_drive", 18.0f);
+    setPlain (processor, "fx_distortion_mix", 0.6f);
+
+    setPlain (processor, "fx_slot2", 2.0f);        // delay
+    setPlain (processor, "fx_delay_mix", 0.4f);
+    setPlain (processor, "fx_delay_feedback", 0.5f);
+
+    setPlain (processor, "fx_slot3", 3.0f);        // reverb
+    setPlain (processor, "fx_reverb_mix", 0.35f);
+
+    setPlain (processor, "fx_slot4", 4.0f);        // gate
+    setPlain (processor, "fx_gate_threshold", -60.0f);
+
+    setPlain (processor, "fx_slot5", 5.0f);        // compressor
+    setPlain (processor, "fx_compressor_threshold", -18.0f);
+    setPlain (processor, "fx_compressor_makeup", 6.0f);
+
+    setPlain (processor, "fx_slot6", 6.0f);        // equaliser
+    setPlain (processor, "fx_eq_band3_gain", 6.0f);
+    setPlain (processor, "fx_eq_band6_gain", -4.0f);
+}
+
+/** The duration of every individual callback, in order. */
+struct CallbackTrace
+{
+    std::vector<double> seconds;
+    int worstBlock = -1;
+};
+
+/** Renders @p blocks callbacks through a real processor, timing each one.
+
+    Notes arrive during the render rather than before it. That is the point: the
+    expensive blocks in a synthesiser are the ones where something *happens* — a
+    voice is allocated, a voice is stolen, an envelope changes stage, an
+    oscillator crosses into a different mipmap level — and a trace taken with
+    every note already held would miss all of them.
+*/
+[[nodiscard]] CallbackTrace traceCallbacks (ApolloAudioProcessor& processor,
+                                            int blocks,
+                                            int notes,
+                                            bool provokeStealing = false)
+{
+    juce::AudioBuffer<float> buffer (2, blockSize);
+
+    CallbackTrace trace;
+    trace.seconds.reserve (static_cast<std::size_t> (blocks));
+
+    auto worst = 0.0;
+
+    for (int block = 0; block < blocks; ++block)
+    {
+        juce::MidiBuffer midi;
+
+        // One note per block until @p notes are down, each a **different**
+        // pitch. Distinct matters: a note-on for a pitch that is already
+        // sounding retriggers that voice rather than allocating another, so
+        // cycling a short set of pitches would quietly measure a fraction of
+        // the polyphony the row claims.
+        if (block < notes)
+        {
+            midi.addEvent (juce::MidiMessage::noteOn (1, 36 + block, 0.9f), 0);
+        }
+        else if (provokeStealing && block % 16 == 0)
+        {
+            // Only where the row asks for it, and only from **outside** the
+            // held set, so the engine must take a sounding voice away rather
+            // than retrigger one.
+            //
+            // THIS IS OPTIONAL FOR A REASON. The first version did it on every
+            // row, cycling twenty-four extra pitches — which meant the row
+            // labelled "8 notes" had thirty-two voices sounding within a few
+            // hundred blocks, and measured exactly what the "32 notes" row
+            // did. The two came out at 4.24 % and 4.22 % and looked like a
+            // discovery about polyphony being free.
+            midi.addEvent (juce::MidiMessage::noteOn (
+                               1, 36 + engine::VoiceEngine::maxPolyphony + ((block / 16) % 8), 0.9f),
+                           0);
+        }
+
+        buffer.clear();
+
+        const auto start = std::chrono::steady_clock::now();
+        processor.processBlock (buffer, midi);
+        const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
+
+        trace.seconds.push_back (elapsed.count());
+
+        if (elapsed.count() > worst)
+        {
+            worst = elapsed.count();
+            trace.worstBlock = block;
+        }
+    }
+
+    return trace;
+}
+
+/** @returns the value @p fraction of the way through a sorted copy of @p values. */
+[[nodiscard]] double percentileOf (std::vector<double> values, double fraction)
+{
+    if (values.empty())
+        return 0.0;
+
+    std::sort (values.begin(), values.end());
+
+    const auto index = static_cast<std::size_t> (fraction * static_cast<double> (values.size() - 1));
+
+    return values[std::min (index, values.size() - 1)];
+}
+
+void printCallbackRow (const std::string& label, const CallbackTrace& trace)
+{
+    // The deadline: a 512-sample block at 48 kHz has 10.67 ms to be filled.
+    const auto deadline = static_cast<double> (blockSize) / sampleRate;
+
+    const auto asPercent = [deadline] (double seconds) { return seconds / deadline * 100.0; };
+
+    std::cout << "  " << std::left << std::setw (30) << label << std::right << std::fixed
+              << std::setw (9) << std::setprecision (2) << asPercent (percentileOf (trace.seconds, 0.5)) << " %"
+              << std::setw (9) << asPercent (percentileOf (trace.seconds, 0.99)) << " %"
+              << std::setw (9) << asPercent (percentileOf (trace.seconds, 0.999)) << " %"
+              << std::setw (9) << asPercent (*std::max_element (trace.seconds.begin(), trace.seconds.end())) << " %"
+              << std::setw (8) << trace.worstBlock
+              << std::endl;
+}
+
+void benchmarkCallbacks()
+{
+    printHeading ("Worst-case callback, through the whole processor (% of one block's deadline)");
+
+    std::cout << "  " << std::left << std::setw (30) << "patch" << std::right
+              << std::setw (11) << "median" << std::setw (11) << "p99"
+              << std::setw (11) << "p99.9" << std::setw (11) << "worst"
+              << std::setw (8) << "block" << std::endl;
+
+    // Ten seconds of audio per row, which is 938 callbacks — enough that a
+    // 99.9th percentile means something rather than being the second-worst
+    // sample of a handful.
+    constexpr int blocks = 938;
+
+    {
+        ApolloAudioProcessor processor;
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("default patch, 8 held", traceCallbacks (processor, blocks, 8));
+        processor.releaseResources();
+    }
+
+    {
+        ApolloAudioProcessor processor;
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("default patch, 32 held", traceCallbacks (processor, blocks, 32));
+        processor.releaseResources();
+    }
+
+    {
+        ApolloAudioProcessor processor;
+        applyFullRack (processor);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("default + full rack, 32 held", traceCallbacks (processor, blocks, 32));
+        processor.releaseResources();
+    }
+
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("heaviest patch, 8 held", traceCallbacks (processor, blocks, 8));
+        processor.releaseResources();
+    }
+
+    // The real worst case, and the one nothing before Phase 10c measured: every
+    // source at full unison, the modulation matrix working, all six effects in
+    // the rack, at full polyphony. Each of those has been measured on its own;
+    // a user builds them together.
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        applyModulation (processor);
+        applyFullRack (processor);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("everything at once, 32 held", traceCallbacks (processor, blocks, 32, true));
+        processor.releaseResources();
+    }
+
+    std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
+                 "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
+              << std::endl;
+}
+
+//==============================================================================
+// Loading, which happens on somebody's message thread while they wait.
+
+//==============================================================================
+// First use: what somebody waits for, and what a session pays to hold.
+//
+// THIS SECTION MUST RUN BEFORE ANY OTHER, and that is not a stylistic
+// preference. Apollo's four built-in wavetables are built once per process and
+// shared by every instance after the first (ADR-0066), so "how long does a
+// processor take to construct" has two different answers and which one you get
+// depends entirely on whether anything constructed one earlier in the same run.
+//
+// The first version of this section ran last. It reported construction at
+// 2.90 ms and each later instance costing *more* memory than the first, and
+// then printed a note explaining that the first instance carries the shared
+// library — which the numbers plainly contradicted, because by then six other
+// benchmarks had already built it. The measurement was fine; the story attached
+// to it was about a process that no longer existed by the time it ran.
+
+void benchmarkFirstUse()
+{
+    printHeading ("First use: construction, loading and memory");
+
+    const auto milliseconds = [] (auto&& work)
+    {
+        const auto start = std::chrono::steady_clock::now();
+        work();
+        const std::chrono::duration<double, std::milli> elapsed
+            = std::chrono::steady_clock::now() - start;
+
+        return elapsed.count();
+    };
+
+    const auto printMilliseconds = [] (const std::string& label, double value)
+    {
+        std::cout << "  " << std::left << std::setw (46) << label
+                  << std::right << std::setw (9) << std::fixed << std::setprecision (2)
+                  << value << " ms" << std::endl;
+    };
+
+    const auto printMegabytes = [] (const std::string& label, double value)
+    {
+        std::cout << "  " << std::left << std::setw (46) << label
+                  << std::right << std::setw (9) << std::fixed << std::setprecision (2)
+                  << value << " MB" << std::endl;
+    };
+
+    const auto megabytes = [] (std::size_t bytes)
+    {
+        return static_cast<double> (bytes) / (1024.0 * 1024.0);
+    };
+
+    const auto emptyProcess = footprintBytes();
+
+    // NOT MEASURED HERE: the cost of building the four shared wavetables.
+    //
+    // ADR-0066 says rendering them takes a couple of hundred milliseconds, which
+    // is the entire argument for building them once per process. Timing the
+    // first `WavetableLibrary` in a process — the construction that calls the
+    // shared builder — returns 0.01 ms in RelWithDebInfo and the same in Debug,
+    // which cannot be the cost of 16 frames of 1024 harmonics across 11 mip
+    // levels for four tables.
+    //
+    // One of the two is wrong and this harness cannot say which, so it reports
+    // neither. What it does report is unambiguous: what the first instrument in
+    // a process costs against every later one. PROJECT-STATE records the
+    // discrepancy as an open question rather than resolving it by picking the
+    // number that suits.
+
+    //==========================================================================
+    // The very first instrument in this process. Nothing above has touched the
+    // engine, so this one pays for the wavetable library and the report can say
+    // so truthfully.
+
+    double firstConstruction = 0.0;
+    double laterConstruction = 0.0;
+
+    std::size_t afterFirst = 0;
+    std::size_t afterSecond = 0;
+    std::size_t afterMany = 0;
+
+    constexpr int many = 16;
+
+    {
+        std::unique_ptr<ApolloAudioProcessor> first;
+        firstConstruction = milliseconds ([&] { first = std::make_unique<ApolloAudioProcessor>(); });
+
+        first->prepareToPlay (sampleRate, blockSize);
+        afterFirst = footprintBytes();
+
+        std::unique_ptr<ApolloAudioProcessor> second;
+        laterConstruction = milliseconds ([&] { second = std::make_unique<ApolloAudioProcessor>(); });
+
+        second->prepareToPlay (sampleRate, blockSize);
+        afterSecond = footprintBytes();
+
+        printMilliseconds ("Constructing the first instrument in the process", firstConstruction);
+        printMilliseconds ("Constructing a second instrument", laterConstruction);
+
+        printMilliseconds ("prepareToPlay at 48 kHz, 512 samples",
+                           milliseconds ([&] { second->prepareToPlay (sampleRate, blockSize); }));
+
+        //======================================================================
+        // Presets, on the thread whose interface is waiting.
+
+        auto& apvts = second->getValueTreeState();
+        const auto& library = resources::factoryPresets();
+
+        printMilliseconds ("Rendering all ten factory presets to documents",
+                           milliseconds ([&]
+                           {
+                               for (const auto& preset : library)
+                                   documentSink = resources::render (preset).length();
+                           }));
+
+        printMilliseconds ("Loading all ten factory presets into an instrument",
+                           milliseconds ([&]
+                           {
+                               for (const auto& preset : library)
+                                   (void) presets::read (apvts, resources::render (preset));
+                           }));
+
+        //======================================================================
+        // What a session holding a rack of instruments pays.
+
+        if (emptyProcess > 0)
+        {
+            std::vector<std::unique_ptr<ApolloAudioProcessor>> rest;
+            rest.reserve (many);
+
+            for (int i = 0; i < many; ++i)
+            {
+                rest.push_back (std::make_unique<ApolloAudioProcessor>());
+                rest.back()->prepareToPlay (sampleRate, blockSize);
+            }
+
+            afterMany = footprintBytes();
+        }
+    }
+
+    std::cout << std::endl;
+
+    if (emptyProcess == 0)
+    {
+        std::cout << "  Memory is not reported on this platform." << std::endl;
+        return;
+    }
+
+    printMegabytes ("The process before any instrument exists", megabytes (emptyProcess));
+
+    if (afterFirst > emptyProcess)
+        printMegabytes ("The first prepared instance adds", megabytes (afterFirst - emptyProcess));
+
+    if (afterSecond > afterFirst)
+        printMegabytes ("The second adds", megabytes (afterSecond - afterFirst));
+
+    if (afterMany > afterSecond)
+        printMegabytes ("Each of the next sixteen adds",
+                        megabytes (afterMany - afterSecond) / static_cast<double> (many));
+
+    std::cout << "\n  The first instance carries the built-in wavetable library and every later\n"
+                 "  one shares it (ADR-0066), so the gap between the first two rows is what\n"
+                 "  that library costs and the last row is what an instrument costs.\n"
+              << std::endl;
+}
+
+//==============================================================================
+
 void run()
 {
     std::cout << "\n==========================================================\n"
               << "Apollo CPU measurements\n"
               << "  sample rate " << sampleRate << " Hz, block size " << blockSize << "\n"
-              << "  figures are per cent of real time; lower is better\n"
               << "==========================================================" << std::endl;
+
+    // Before anything is timed: pin the thread, raise the priority, warm the
+    // caches, and then find out whether this machine is in a fit state to be
+    // measured on at all (Machine.h).
+    prepareMachine();
+
+    const auto stability = assessMachine();
+
+    machineSpeed = stability.speed;
+
+    std::cout << "\nMachine\n-------\n"
+              << "  reference unit                  "
+              << std::fixed << std::setprecision (3) << (stability.referenceSeconds * 1000.0)
+              << " ms  (nominal " << (nominalReferenceSeconds * 1000.0) << " ms)\n"
+              << "  speed against the reference     " << std::setprecision (3) << stability.speed << " x\n"
+              << "  typical contention              " << std::setprecision (1)
+              << (stability.typicalSlowdown * 100.0) << " %"
+              << "   (worst burst " << (stability.spread * 100.0) << " % off the fastest)"
+              << std::endl;
+
+    if (! stability.settled)
+        std::cout << "\n  *** THIS MACHINE IS NOT STEADY. ***\n"
+                     "  Something else was using this machine for more than five per cent of the\n"
+                     "  time the reference was being timed, so the absolute figures below are a\n"
+                     "  story about the machine as much as about Apollo. Ratios between rows\n"
+                     "  measured alternately still hold.\n"
+                     "  Close what else is running, let the machine cool, and measure again.\n"
+                  << std::endl;
+
+    std::cout << "\n  Columns: % of real time as measured here; 'norm' the same corrected to the\n"
+                 "  reference machine, which is the one to compare between runs; 'sp' how far\n"
+                 "  the passes of that row disagreed.\n"
+              << std::endl;
+
+    // First, and the ordering is load-bearing: this is the only section whose
+    // figures are about the first instrument in a process, and any benchmark
+    // running before it would have built the shared wavetable library already.
+    benchmarkFirstUse();
 
     benchmarkPolyphony();
     benchmarkModulation();
@@ -741,6 +1258,7 @@ void run()
     benchmarkOversampling();
     benchmarkEffects();
     benchmarkTelemetry();
+    benchmarkCallbacks();
 
     std::cout << "\nMeasured on this machine, in this configuration. These numbers are\n"
                  "not portable and are not asserted on: see Tests/Performance/Benchmarks.h.\n"

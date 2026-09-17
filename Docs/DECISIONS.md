@@ -3170,3 +3170,137 @@ Both were observations rather than goals, and both are now checked:
   MSVC's default floating-point mode as much as of Apollo, and it is exactly the
   kind of thing that does not carry to another compiler — which is why none of
   the design depends on it.
+
+
+## ADR-0069 — A benchmark that reports how much it should be believed
+
+**Phase 10c · Accepted**
+
+Phase 10c's listed task is to measure CPU, memory, loading and the worst case.
+Its actual task is the one written beside it in the roadmap: *needs a
+measurement environment that does not drift*. Without that, the rest is data
+entry.
+
+### What was wrong
+
+PROJECT-STATE §5b had been carrying the evidence for two phases. The same
+binary measured the reverb at 1.36 % and then at 0.37 %. Two *idle* runs minutes
+apart disagreed by forty per cent. In one of them hard clipping measured more
+expensive than `tanh`, which cannot be true. The table had grown a column per
+phase and a paragraph of prose explaining that only ratios within a column mean
+anything, and readers were asked to remember that.
+
+A number nobody can reproduce is worse than no number, because somebody will
+eventually optimise against it.
+
+### What actually drifts
+
+- **The clock.** A cool laptop boosts and a warm one throttles; the ratio
+  between them is the forty per cent. Nothing in user space can stop this.
+- **Which core the work lands on.** Performance cores and efficiency cores are
+  not the same processor, and a migrating thread changes speed by more than any
+  change to Apollo would.
+- **Everything else on the machine.** Unfixable, but its signature is a *slow*
+  outlier rather than a fast one.
+
+### What was built
+
+Each of those is answered by the thing that can actually answer it, rather than
+by hoping.
+
+**A reference kernel, timed beside every run.** A fixed amount of arithmetic,
+unchanged for the life of the project, whose duration is what the machine's
+current speed *is*. Every figure is reported twice: raw, as measured here, and
+normalised to the speed the reference ran at on a settled development machine.
+The normalised column is the one that compares between runs and between phases,
+which no figure in §5b previously could.
+
+The chain is deliberately dependent rather than vectorisable, because a filter's
+difference equation is too, and a kernel measuring peak throughput would
+normalise against a quantity a synthesiser is not limited by. It is an
+approximation: memory speed and core clock do not throttle together, so a
+memory-bound workload corrected by a partly compute-bound reference is not
+perfectly corrected. It is a far better approximation than assuming the machine
+did not move.
+
+**The measuring thread is pinned**, and deliberately not to core 0, which on
+Windows services device interrupts and is therefore the one core guaranteed to
+have somebody else's work on it.
+
+**Every row reports its own spread** — how far its passes disagreed — and the
+headline is the median rather than the best. Best-of-N was right while the
+question was "what does this cost uninterrupted"; it is wrong for a report that
+also has to say how steady the machine was, because the minimum of a drifting
+series hides the drift by construction.
+
+**And the run says whether to believe it.** Before anything else, the reference
+is timed repeatedly; if it moved more than five per cent, the report says so at
+the top, in those words, instead of quietly printing numbers.
+
+That last part is the honest centre of this. **None of this makes a laptop a
+measurement instrument.** It makes one that tells you when it is not being one.
+
+### The gate had to be built twice
+
+The first version timed single three-millisecond units and pronounced the
+machine steady at 3.9 % while rows in the same report swung 26 %. Of course it
+did: three milliseconds is short enough to slip between two interruptions and a
+four-second render is not. A gate that cannot see the interference the rows are
+subject to says yes to everything. The reference is now timed in bursts of about
+a third of a second — the order of a real measurement pass.
+
+### What is now measured that was not
+
+**The worst-case callback.** Every figure in §5b is an average over thousands of
+blocks, and an average is the wrong statistic for real-time audio: a synthesiser
+that averages thirty per cent of its deadline and spends one block at three
+hundred does not sound like one using thirty per cent, it sounds like a click.
+The deadline is per callback and so is the failure. Each patch is now traced
+block by block through the whole processor, and reported as median, 99th,
+99.9th and worst against the 10.67 ms a 512-sample block at 48 kHz has to be
+filled in.
+
+**Notes arrive during the trace** rather than being held from the start, because
+the expensive blocks are the ones where something happens — a voice allocated, a
+voice stolen, an envelope changing stage.
+
+**The worst case as a user can actually build it.** Every previous figure
+measured one thing in isolation: the heaviest patch, or a full rack, or the
+modulation matrix. A user builds them together, and nothing had ever measured
+that.
+
+**First use.** Construction, `prepareToPlay`, rendering and loading the factory
+library, and the process's memory before any instrument exists, after one, after
+two and after eighteen.
+
+### And that section had to be built twice as well
+
+It first ran last in the report, where it measured construction at 2.90 ms and
+found each later instance costing *more* memory than the first — then printed a
+note explaining that the first instance carries the shared wavetable library,
+which its own numbers plainly contradicted. Six other benchmarks had already
+built that library by the time it ran. The measurement was correct; the story
+attached to it was about a process that no longer existed. It now runs first,
+and the ordering is load-bearing rather than cosmetic.
+
+The worst-case callback section made the same mistake in a different costume.
+Its first version provoked voice stealing on every row by cycling twenty-four
+extra pitches, so the row labelled "8 notes" had thirty-two voices sounding
+within a few hundred blocks and measured exactly what the "32 notes" row did —
+4.24 % against 4.22 %, which looked like a discovery that polyphony is free.
+Stealing is now something a row asks for.
+
+Three sections, three versions that produced believable numbers meaning
+something other than their labels. That is the same lesson ADR-0067 recorded and
+it did not become less true for having been written down: **a measurement you
+have not reasoned about is a number you will misread**, and the more
+sophisticated the harness, the more convincing the wrong number looks.
+
+### Making the regression figures visible in CI
+
+Unrelated in subject and identical in kind. The regression suite prints how far
+each render sat from its reference on that platform — the whole cross-platform
+evidence for whether its tolerances are set sensibly — and `ctest` shows a
+passing test's output to nobody. The figure existed and was unreadable. The
+renders now also run as a separately labelled `ctest` entry that CI invokes
+verbosely, so a green run publishes its numbers instead of only a red one.

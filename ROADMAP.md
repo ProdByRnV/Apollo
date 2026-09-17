@@ -117,7 +117,7 @@ front of it is better understood, the way 8f was.
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ✅ |
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ✅ |
-| 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ⬜ |
+| 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ✅ |
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
 | **11** | **Cross-platform release engineering** | ⬜ |
@@ -745,15 +745,15 @@ Perform rigorous engineering validation before release hardening.
 
 ## Performance
 
-- [ ] Measure CPU per voice.
-- [ ] Measure CPU at multiple polyphony levels.
-- [ ] Measure oversampling cost.
-- [ ] Measure FX rack cost.
-- [ ] Measure worst-case audio callback duration.
-- [ ] Measure memory usage.
-- [ ] Profile UI rendering separately.
-- [ ] Profile resource loading.
-- [ ] Identify worst-case combinations rather than relying on average CPU.
+- [x] Measure CPU per voice. — 0.29 % of a core per voice on the default patch, 5.2 % on the heaviest, 0.53 % with four modulation routings (10c)
+- [x] Measure CPU at multiple polyphony levels. — 1, 2, 4, 8, 16 and 32 voices; close to linear in all three patches (10c)
+- [x] Measure oversampling cost. — per channel, including a real drive stage, at bypass, 2x and 4x (4c, re-measured 10c)
+- [x] Measure FX rack cost. — every effect alone and all six at once, at 2.8 % of one core (10c)
+- [x] Measure worst-case audio callback duration. — 938 callbacks timed individually per patch, as median, p99, p99.9 and worst against the block deadline, with notes arriving *during* the trace. The worst patch the controls can build misses the deadline one block in a hundred (10c, issue 13)
+- [x] Measure memory usage. — 2.6 MB per instrument, 4.7 MB for the first in a process (10c)
+- [x] Profile UI rendering separately. — capture adds 0.52 % of a core at full polyphony, frame building 0.05 % at 30 Hz on the message thread (7c, re-measured 10c)
+- [x] Profile resource loading. — construction, prepare, and rendering and loading the whole factory library (10c)
+- [x] Identify worst-case combinations rather than relying on average CPU. — the heaviest patch *with* the modulation matrix *with* a full rack at full polyphony, which nothing before 10c had measured together (10c)
 
 ## Host compatibility
 

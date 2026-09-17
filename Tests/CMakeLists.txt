@@ -32,6 +32,8 @@ target_sources(ApolloTests PRIVATE
     DSP/EffectsRackTests.cpp
     DSP/OversamplingTests.cpp
     Performance/Benchmarks.cpp
+    Performance/Machine.cpp
+    Performance/Machine.h
     DSP/NoiseTests.cpp
     Audio/EffectsIntegrationTests.cpp
     Audio/MidiRenderingTests.cpp
@@ -122,3 +124,20 @@ add_test(NAME apollo.unit COMMAND ApolloTests)
 set_tests_properties(apollo.unit PROPERTIES
     TIMEOUT 1800
     LABELS "unit")
+
+# The regression renders again, on their own, so that their measurements reach
+# the log of a run that PASSED.
+#
+# ctest shows a test's output only when it fails, which is right for a suite of
+# two million assertions and wrong for the handful of lines that say how far
+# each render sat from its reference on this platform. That figure is the whole
+# cross-platform evidence for whether the tolerances are set sensibly, and it is
+# worthless if it is only visible when something is already broken.
+#
+# Labelled separately so the ordinary run does not pick it up: CI runs the suite
+# with `-L unit` and names this one explicitly with `-V`.
+add_test(NAME apollo.regression COMMAND ApolloTests --category Regression)
+
+set_tests_properties(apollo.regression PROPERTIES
+    TIMEOUT 900
+    LABELS "report")
