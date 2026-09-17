@@ -31,6 +31,8 @@ in [DECISIONS.md](DECISIONS.md) rather than mixing frameworks.
 Tests/
 ├── CMakeLists.txt
 ├── TestMain.cpp          # runner: argument handling, reporting, exit status
+├── Analysis/             # measurement equipment, not tests (spectra, THD, DC)
+├── Regression/           # golden renders and the harness that compares them (§7)
 └── Foundation/           # build system, conventions, project invariants
 ```
 
@@ -56,6 +58,8 @@ ApolloTests                    run everything
 ApolloTests --category <name>  run one category
 ApolloTests --list             list categories and tests, run nothing
 ApolloTests --seed <n>         fix the random seed (default 0)
+ApolloTests --benchmark        run the CPU measurements, run no tests
+ApolloTests --goldens          re-render the regression references (see §7)
 ApolloTests --help
 ```
 
@@ -122,3 +126,52 @@ block size, has not tested the real-time contract.
 
 Allocation checking, denormal and NaN/Inf propagation tests, and spectral
 validation arrive with the DSP they cover (roadmap Phases 3–5 and 10).
+
+---
+
+## 7. Regression renders
+
+`Tests/Regression/` asks a question no other test asks: **is it still the same
+sound?** It renders fifteen cases — ten of them the factory presets — and
+compares each against a reference checked in beside it (ADR-0068).
+
+A reference is not a wave file. Identical source does not produce identical
+floats across MSVC, Apple Clang and GCC, so a bit-exact golden would report three
+of the four CI platforms as broken; and a changed WAV in a diff tells a reviewer
+nothing. What is stored is a description of the audio: peak, RMS, mid and side
+level through sixteen slices of time, and energy in thirty-two logarithmic bands.
+Fine enough to catch a real change, loose enough to survive a compiler.
+
+### When a regression test fails
+
+A failure means a render moved. It does not by itself mean something is broken.
+
+1. **If the change was not intended**, this is the only test that was watching
+   for it. Find out what moved the sound. The failure message names each
+   measurement, its reference value and its new one, so a change in the bands is
+   a timbre, a change in the later segments is an envelope or a tail, and a
+   change in side alone is the stereo image.
+2. **If the change was intended** — a new wavetable, a reshaped envelope, a
+   different default — regenerate the references in the same commit:
+
+   ```sh
+   ApolloTests --goldens > Tests/Regression/GoldenRenders.cpp
+   ```
+
+   The diff then records what the change did to the sound, which is the point of
+   keeping the references under version control at all.
+
+Nothing regenerates them automatically, and nothing should: a harness that
+rewrote its own references when they stopped matching would be an elaborate way
+of asserting nothing.
+
+### Adding a case
+
+Add a `RenderCase` to `Tests/Regression/RenderCases.cpp` — a starting patch, the
+parameters it moves, a note sequence, a sample rate, a block size and a length —
+then regenerate. A case that names a parameter which is not registered, or a
+value the parameter would not accept, fails as itself rather than as a mismatched
+fingerprint.
+
+Keep cases short. The suite renders every one of them twice over, and the
+sanitized CI job pays several times what this machine does for each sample.

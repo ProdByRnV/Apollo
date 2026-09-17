@@ -3053,3 +3053,120 @@ things with thresholds tuned against their own analysis, and rewriting passing
 tests for no functional gain is what CLAUDE.md §41 warns against — so they stay,
 and the new toolkit is what new measurement work uses. The duplication is real
 and is recorded as a known item rather than pretended away.
+
+
+## ADR-0068 — A golden render is a description, not a file
+
+**Phase 10b · Accepted**
+
+Phase 10b's task is "regression audio renders": render the instrument, keep the
+result, and fail the build when it changes. The obvious implementation is to
+check in the samples and compare them exactly. Apollo does not do that, and the
+reason is not repository size.
+
+### Bit-exact would be a promise Apollo cannot keep
+
+Identical source does not produce identical floats across toolchains.
+`std::sin`, `std::exp` and `std::tanh` are correctly rounded by nobody and
+differ by an ulp or so between MSVC's CRT, Apple's libm and glibc. GCC contracts
+`a * b + c` into a fused multiply-add by default and MSVC does not, which changes
+the result of a filter's difference equation in the last bits. Vectorisation
+changes the order of a summation. Every one of those is legitimate, and a
+bit-exact golden would report three of the four CI platforms as broken for doing
+nothing wrong.
+
+A binary golden is also unreviewable. The point of putting a reference under
+version control is that a diff says what changed; a changed WAV says a WAV
+changed.
+
+### What is stored instead
+
+A description of the audio, at a resolution fine enough that a real change moves
+it and a change of compiler does not — roughly what somebody would write down
+having played the render and looked at an analyser:
+
+- **Peak and RMS.** Gain staging, in one number each.
+- **Mid level through sixteen slices of the render.** The envelope: an attack
+  that got slower, a release that got shorter, a delay whose repeats moved.
+- **Side level through the same sixteen.** The stereo picture. Unison spread,
+  pan, ping-pong and reverb width live here and nowhere else, and a fingerprint
+  of the mono sum would call a collapsed image unchanged.
+- **Thirty-two logarithmic bands.** The timbre — a filter that moved, a
+  wavetable that changed shape, an oversampler that stopped running. Changes
+  that can leave the loudness and the envelope exactly where they were.
+
+Sixteen bands were tried first and were too coarse: at two thirds of an octave
+each, a filter corner can move inside one without the band noticing. Thirty-two
+between 20 Hz and Nyquist is very nearly third-octave, which is the resolution
+an audio engineer describes a spectrum at, and it doubled the measured
+sensitivity to a filter move.
+
+### The cases are mostly the factory presets
+
+Ten of the fifteen are the sounds Apollo ships. They are the only sounds a user
+hears before making their own, and between them they touch nearly the whole
+engine. A suite built from synthetic patches tests what the author of the suite
+thought of; a suite built from the shipped content fails when Apollo stops
+sounding like itself, which is the only definition of regression that matters to
+somebody using it. The other five cover what no preset does: several notes at
+once, a different block size, a different sample rate, the modulation matrix at
+a depth that dominates, and a wide stereo image.
+
+### The references are compiled in
+
+`ApolloTests --goldens` renders every case and prints the C++ that stores the
+result; it is redirected over `Tests/Regression/GoldenRenders.cpp` by somebody
+who means to move the references. Nothing does it automatically, and nothing
+should: a harness that rewrote its own references when they stopped matching
+would be an elaborate way of asserting nothing.
+
+Compiling them in is the same decision Apollo already made for its factory
+presets and for the same reasons (ADR-0065). A data file next to the source would
+need the binary told where the source is, and the only ways to do that are a path
+baked in at configure time or an environment variable somebody forgets to set
+(CLAUDE.md §31.2).
+
+### The test that earns the rest
+
+A fingerprint that agreed with its golden no matter what Apollo did would pass
+for ever and protect nothing — and that failure is invisible, because a green
+suite looks the same either way. So each part of the fingerprint is shown a
+change it is supposed to catch and has to catch it: the filter moved, the level
+moved, the release lengthened, the stereo image narrowed, the wavetable position
+moved.
+
+Writing that test immediately found a real weakness. The first version perturbed
+the cutoff by three per cent and **the suite did not notice** — 0.019 dB, against
+a tolerance of 0.2. Two things were wrong and only one of them was the harness:
+the bands were too wide, which was fixed; and the base patch was a near-sine at
+the wavetable's default position, so there were barely any harmonics for the
+filter to act on. With a patch that has something to filter, the same measurement
+moves 0.223 dB for one per cent.
+
+That is why the sensitivity figures are measured and written down (PROJECT-STATE
+§5d) rather than assumed. The thresholds differ by two orders of magnitude
+between the most and least sensitive parameters, and nobody would guess which is
+which.
+
+### What the tolerances are, and what they are not
+
+A tenth of a decibel on levels and a fifth on bands. These are set where a change
+would be **audible or meaningful**, not where the platforms happen to differ —
+the observed spread is far smaller. A threshold pinned to the current figure
+turns any improvement into a failure and teaches people to widen bounds rather
+than investigate them (ADR-0067).
+
+### Two properties this turned up on the way
+
+Both were observations rather than goals, and both are now checked:
+
+- **Block size does not change the audio.** The same patch rendered at 512
+  samples and at 64 came out sample for sample identical. The suite asserts the
+  audible claim — the two fingerprints agree — and logs the bit-exactness rather
+  than asserting it, because that part is a statement about how a compiler
+  vectorised a loop of 64 against a loop of 512.
+- **Optimisation does not change it either.** Every case is bit-identical
+  between the MSVC Debug and the strict optimised build. That is a property of
+  MSVC's default floating-point mode as much as of Apollo, and it is exactly the
+  kind of thing that does not carry to another compiler — which is why none of
+  the design depends on it.

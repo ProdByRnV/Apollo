@@ -116,7 +116,7 @@ front of it is better understood, the way 8f was.
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ✅ |
 | **10** | **Performance, DSP validation & host compatibility** | ⬜ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ✅ |
-| 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ⬜ |
+| 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ✅ |
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ⬜ |
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
@@ -739,7 +739,7 @@ Perform rigorous engineering validation before release hardening.
 - [x] Noise-floor measurements. — an instrument at rest produces **exact** silence, with every source at full level and after a release, rather than merely something quiet (10a)
 - [ ] Impulse/step-response tests.
 - [x] Numerical stability tests. — a minute of the worst patch the controls allow, measured per ten-second window to prove nothing compounds (10a)
-- [ ] Regression audio renders.
+- [x] Regression audio renders. — fifteen renders, ten of them the factory presets, each compared against a reference compiled in beside it. A reference is a *description* of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on (10b, ADR-0068)
 - [ ] Denormal testing.
 - [x] NaN/Inf protection tests. — every registered parameter driven to both ends and the middle of its range with a note held; output stays finite and bounded (10a)
 

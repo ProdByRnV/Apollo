@@ -11,6 +11,7 @@
         ApolloTests --list              list categories and tests, run nothing
         ApolloTests --seed <n>          use a fixed random seed (default 0)
         ApolloTests --benchmark         run the CPU measurements, run no tests
+        ApolloTests --goldens           print regenerated regression references
         ApolloTests --help
 */
 
@@ -20,6 +21,7 @@
 #include <iostream>
 
 #include "Performance/Benchmarks.h"
+#include "Regression/GoldenRenders.h"
 
 namespace
 {
@@ -47,6 +49,8 @@ void printUsage()
         << "  --list              list categories and tests without running them\n"
         << "  --seed <n>          random seed for tests that use randomness (default 0)\n"
         << "  --benchmark         run the CPU measurements instead of the tests\n"
+        << "  --goldens           render every regression case and print the C++ that\n"
+        << "                      stores it, for Tests/Regression/GoldenRenders.cpp\n"
         << "  --help              show this message\n"
         << std::endl;
 }
@@ -106,6 +110,17 @@ int main (int argc, char* argv[])
     if (args.contains ("--benchmark"))
     {
         apollo::benchmarks::run();
+        return EXIT_SUCCESS;
+    }
+
+    // Output, not a test. It renders the whole regression set and prints the
+    // file that stores the result, which is redirected over
+    // Tests/Regression/GoldenRenders.cpp by somebody who means to move the
+    // references. Nothing does this on its own: a harness that rewrote its own
+    // references when they stopped matching would assert nothing at all.
+    if (args.contains ("--goldens"))
+    {
+        std::cout << apollo::regression::generateGoldenSource().toStdString() << std::flush;
         return EXIT_SUCCESS;
     }
 

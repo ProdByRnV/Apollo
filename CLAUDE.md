@@ -1489,6 +1489,48 @@ Hardware-specific failures should be handled through adapters/configuration rath
 
 ---
 
+## 34.6 Regression Renders
+
+Apollo keeps a reference for what it sounds like, and a change that moves it
+fails the build.
+
+Fifteen renders — ten of them the sounds Apollo ships — are compared against
+references checked in beside the tests (ADR-0068). Every other test states a
+property; this asks whether the instrument still sounds like itself, which is the
+only question that separates a change somebody made on purpose from one nobody
+noticed.
+
+**A reference is a description of the audio, not a wave file.** Peak, RMS, level
+through sixteen slices of time in mid and in side, and energy in thirty-two
+logarithmic bands. Identical source does not produce identical floats across
+MSVC, Apple Clang and GCC — different libm, different fused-multiply-add
+contraction, different vectorisation — so a bit-exact reference would be a
+promise Apollo cannot keep. A binary reference is also unreviewable: a diff
+should say what changed about the sound.
+
+**A failure is not automatically a bug.** When the change was intended, the
+references are regenerated **in the same commit**, and the diff is the record of
+what it did to the sound:
+
+```sh
+ApolloTests --goldens > Tests/Regression/GoldenRenders.cpp
+```
+
+Nothing regenerates them on its own. A harness that rewrote its references when
+they stopped matching would assert nothing at all.
+
+**The suite must be able to fail.** Each part of a reference is shown a change it
+should catch and has to catch it, because a fingerprint that always agreed would
+pass for ever and look exactly like one that worked. The sensitivity that test
+measures is recorded rather than assumed — the thresholds differ by two orders of
+magnitude between parameters, and nobody would guess which is which.
+
+This is the machinery optimisation depends on. An optimisation is a change that
+is *supposed* to leave the sound alone, and without a way to check that, "it
+still sounds fine to me" is the only available evidence.
+
+---
+
 # 35. Performance Profiling
 
 Performance must be measured rather than assumed.
