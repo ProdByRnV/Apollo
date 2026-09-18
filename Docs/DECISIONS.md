@@ -3318,3 +3318,125 @@ binary stops paying 165 ms on every invocation including `--help`.
 Reporting neither number was still the right call at the time: the alternative
 was publishing 0.01 ms as a fact. What it bought was a question specific enough
 to answer later, which is what a recorded discrepancy is for.
+
+---
+
+## ADR-0070 — The table read masks instead of dividing, and interpolates once
+
+**Phase 10d · Accepted**
+
+Phase 10c ended with the target stated precisely rather than suspected: the
+worst patch Apollo's own controls can build — two oscillators at 16-voice
+unison, sub, noise, the modulation matrix and a full effects rack, at 32-voice
+polyphony — sat at 105 % of its callback deadline in the median and 122 % at the
+99th percentile. It did not merely run hot. It missed one block in a hundred,
+and a missed block is a click.
+
+10c also said where the cost was not. A full rack of all six effects, audibly
+configured, costs 2.8 % of one core. The arithmetic is 1088 interpolating
+oscillators: two oscillators at 16 unison voices, plus a sub and a noise
+generator, across 32 voices. ADR-0029 chose to publish that ceiling rather than
+lower it, so the work is to make an oscillator cheaper, not to take the ceiling
+away.
+
+### What the per-sample read was doing
+
+`Wavetable::getSampleAtPosition` is the innermost function in the instrument.
+Every one of those 1088 oscillators called it 48000 times a second, and it did
+this:
+
+- called `getSample` **twice**, once per frame of the two being blended;
+- inside each, checked the phase for finiteness, took its floor, scaled it,
+  cast it to an index and clamped it — **arriving at the same answer both
+  times**, because a phase lands in the same place in every frame of a level;
+- wrapped each of the interpolator's four taps with `i % size`, **an integer
+  division**, four per frame and so eight per sample;
+- evaluated a cubic per frame and crossfaded the two results.
+
+Eight integer divisions per oscillator per sample, at 1088 oscillators and
+48 kHz, is over four hundred million divisions a second. Integer division is
+among the slowest instructions a general-purpose core has, and `size` is a
+runtime value, so nothing in the compiler could turn it into anything cheaper.
+
+### Three changes, all identities
+
+**The wrap is a mask.** Every mip level's frame size is a power of two — a
+harmonic limit is `topLevelHarmonics >> level`, doubling it keeps it a power of
+two, and the floor beneath it is 512. So `i % size` is `i & (size - 1)`, exactly,
+for every index the interpolator can produce. This was already true and simply
+unused. It is now a compile-time assertion in `Wavetable.h` rather than a
+coincidence, because the failure mode is silent: a non-power-of-two size would
+wrap to the wrong sample and quietly change the waveform.
+
+**The tap is resolved once.** The finiteness check, the floor, the scale, the
+cast and the clamp happen once per sample rather than once per frame, which is
+what they always computed anyway.
+
+**One cubic, not two.** Cubic Hermite is a **linear** functional of its four
+sample points. Interpolating two frames and crossfading the results is therefore
+the same number as crossfading the four pairs of points and interpolating once.
+The second form halves the index arithmetic. Consecutive frames of a level also
+live back to back in one buffer, so the second frame is a pointer offset rather
+than a second bounds-checked lookup.
+
+None of the three is an approximation, which is the point. This phase is not a
+trade of quality for speed — there is nothing here to trade.
+
+### What it cost and what it bought
+
+Measured with the 10c harness, three interleaved runs of each binary on the same
+machine, medians reported (§35.1, §35.2):
+
+| | before | after |
+|---|---:|---:|
+| Worst patch, median of callbacks | **105 %** | **64 %** |
+| Worst patch, 99th percentile | 122 % | 78 % |
+| Worst patch, worst single block | 126 % | 81 % |
+| Heaviest patch, 8 notes, median | 49.3 % | 26.5 % |
+| Heaviest voice engine, 32 voices, normalised | 234 | 131 |
+
+The voice path is **1.8× faster**. The whole callback improves by less, 1.63×,
+which is the expected shape: the rack and the modulation matrix were not
+touched, so they are now a larger share of a smaller total.
+
+**Issue 13 is closed.** The worst patch the controls can build no longer misses
+its deadline at any percentile measured, including the worst single block of
+nine hundred.
+
+### How it is known to be the same function
+
+Two independent checks, and they answer different questions.
+
+The **regression renders** (ADR-0068) are the reason this could be attempted at
+all. All fifteen match their references to 0.0005 dB, which is the reference's
+own quantisation granularity, against a harness demonstrated to catch 0.33 dB.
+That says the instrument sounds the same.
+
+It does not say the arithmetic is the same arithmetic, so
+`Tests/DSP/WavetableTests.cpp` also **reimplements the old form** — modulo wrap,
+two cubics, a float crossfade — and compares the two across every mip level, a
+spread of frame positions including exact integers, and phases either side of
+both wrap points. The largest disagreement anywhere is **5.96e-8**: one float
+epsilon at unity, the single rounding of the final cast. The same test checks
+the mask against the modulo it replaced for every index at every level, and that
+a whole-numbered frame position reads *bit-identically* to the frame itself.
+
+Keeping the old form in the test file is deliberate. If it ever has to be changed
+to keep the comparison passing, that is the signal that the read path's behaviour
+has moved and not only its cost.
+
+### What was considered and not done
+
+- **Single precision throughout.** The interpolator accumulates in double and
+  casts once. Moving to float would save real work, but it changes the output
+  rather than reordering it, so it belongs behind a measurement of what it does
+  to the aliasing figures rather than in a phase whose whole claim is that
+  nothing changed.
+- **Hoisting the frame pointers into the oscillator.** The mip level and frame
+  position are constant across a modulation block, so the bounds checks could be
+  resolved once per block instead of once per sample. This is a real remaining
+  win and a larger change, spanning `WavetableOscillator` and
+  `UnisonOscillator`.
+- **SIMD across unison voices.** Sixteen voices reading the same table at
+  different phases is the shape a vector unit exists for, and it is the next
+  sub-phase rather than this one.

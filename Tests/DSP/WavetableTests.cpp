@@ -12,6 +12,7 @@
 #include <juce_core/juce_core.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -164,11 +165,226 @@ public:
         testFrameScanningIsSmooth();
         testTableSelectionChangesTimbre();
         testInterpolationIsAccurate();
+        testTheFastReadPathIsAnIdentity();
         testDegenerateInputIsSafe();
         testTheLibraryIsBuiltOncePerProcess();
     }
 
 private:
+    /** The Phase 10d read path must be the same function, faster — not a
+        cheaper approximation of it.
+
+        Three things changed in Wavetable's per-sample read (ADR-0070): the
+        interpolator's tap wrap became a mask instead of an integer modulo, the
+        phase tap is resolved once instead of once per frame, and a two-frame
+        blend crossfades the four sample points and runs one cubic rather than
+        running two cubics and crossfading the results.
+
+        The first is exact by construction, the second is a common subexpression,
+        and the third is exact because cubic Hermite is *linear* in its four
+        samples. All three are therefore identities on paper, and this test is
+        what says they are identities in the built binary: it reimplements the
+        old form — modulo wrap, two cubics, a float crossfade — and compares the
+        two across a grid of levels, frame positions and phases, including the
+        phases either side of the wrap point where the mask and the modulo would
+        disagree if the size were not a power of two.
+
+        Without this, the only evidence would be the regression renders, which
+        would catch a mistake at the scale of a whole patch but would not say
+        that the arithmetic is the same arithmetic.
+    */
+    void testTheFastReadPathIsAnIdentity()
+    {
+        beginTest ("The fast read path computes what the slow one did");
+
+        // The invariant everything here rests on. Asserted at compile time in
+        // Wavetable.h too; stated again as a test so that a failure names the
+        // reason rather than only the line.
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            const auto size = Wavetable::samplesAtLevel (level);
+
+            expect (size > 0 && (size & (size - 1)) == 0,
+                    "level " + juce::String (level) + " holds " + juce::String (size)
+                        + " samples, which is not a power of two — the mask wrap is invalid");
+
+            expectEquals (Wavetable::indexMaskAtLevel (level), size - 1);
+        }
+
+        // The mask must wrap exactly as the modulo it replaced, over every index
+        // the interpolator can ask for: index - 1 at the bottom of a frame and
+        // index + 2 at the top are the only cases that wrap at all, and they are
+        // the ones a mistake would live in.
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            const auto size = Wavetable::samplesAtLevel (level);
+            const auto mask = Wavetable::indexMaskAtLevel (level);
+
+            const auto modulo = [size] (int i) noexcept
+            {
+                i %= size;
+                return i < 0 ? i + size : i;
+            };
+
+            for (int index = 0; index < size; ++index)
+            {
+                expectEquals ((index + mask) & mask, modulo (index - 1));
+                expectEquals ((index + 1) & mask, modulo (index + 1));
+                expectEquals ((index + 2) & mask, modulo (index + 2));
+            }
+        }
+
+        // Now the arithmetic, against a table with real harmonic content in
+        // every frame — a flat or near-silent table would agree trivially.
+        const auto& table = library().getTable (0);
+
+        double worst = 0.0;
+
+        const auto maxFrame = static_cast<double> (table.getNumFrames() - 1);
+
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            const auto size = Wavetable::samplesAtLevel (level);
+            const auto sampleWidth = 1.0 / static_cast<double> (size);
+
+            // Frame positions: both ends, an exact integer in the middle (where
+            // the blend is degenerate and the two forms must agree *exactly*),
+            // and two positions between frames.
+            for (const double framePosition : { 0.0, 0.5, 1.0, 3.0, 7.25, maxFrame - 0.5, maxFrame })
+            {
+                // Phases either side of both wrap points, plus a spread across
+                // the cycle that does not land on sample boundaries.
+                for (const double phase : { 0.0,
+                                            sampleWidth * 0.5,
+                                            sampleWidth * 0.9999,
+                                            0.25,
+                                            1.0 / 3.0,
+                                            0.5,
+                                            0.7071,
+                                            1.0 - sampleWidth * 1.5,
+                                            1.0 - sampleWidth * 0.0001 })
+                {
+                    const auto fast = table.getSampleAtPosition (level, framePosition, phase);
+                    const auto slow = slowReadAtPosition (table, level, framePosition, phase);
+
+                    worst = std::max (worst, std::abs (static_cast<double> (fast - slow)));
+                }
+            }
+        }
+
+        logMessage ("  largest disagreement with the pre-10d form: "
+                    + juce::String (worst, 12));
+
+        // The two differ only by the order of floating-point operations: one
+        // cubic instead of two, and a crossfade in double rather than in float.
+        // A signal bounded by about 1.0 leaves this many bits of room, which is
+        // far tighter than anything audible and tight enough to catch a genuine
+        // change in the function.
+        expect (worst < 1.0e-6,
+                "the fast read path disagrees with the slow one by " + juce::String (worst, 12)
+                    + ", which is too much to be operation ordering");
+
+        // At an integer frame position the blend is degenerate, and the fast
+        // path routes to the same single-frame read getSample uses. That is
+        // meant to be bit-identical, not merely close — it is what keeps a
+        // one-frame table and a scanned table agreeing at their shared points.
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            for (const int frameIndex : { 0, 1, 7, table.getNumFrames() - 1 })
+            {
+                for (const double phase : { 0.0, 0.125, 1.0 / 3.0, 0.75, 0.99 })
+                {
+                    const auto viaPosition = table.getSampleAtPosition (
+                        level, static_cast<double> (frameIndex), phase);
+                    const auto viaFrame = table.getSample (level, frameIndex, phase);
+
+                    expect (viaPosition == viaFrame,
+                            "level " + juce::String (level) + ", frame " + juce::String (frameIndex)
+                                + ": a whole-numbered frame position read "
+                                + juce::String (viaPosition, 12) + " where the frame itself read "
+                                + juce::String (viaFrame, 12));
+                }
+            }
+        }
+    }
+
+    /** The read path as it stood before Phase 10d, kept here as the reference
+        the fast form is checked against.
+
+        Deliberately a transcription rather than a tidied version: a modulo
+        wrap, one cubic evaluated per frame, and a crossfade of the two results
+        in float. If this ever needs changing to keep the comparison passing,
+        that is the signal that the read path's *behaviour* has moved and not
+        only its cost.
+    */
+    [[nodiscard]] static float slowReadAtPosition (const Wavetable& table, int level,
+                                                   double framePosition, double phase)
+    {
+        const auto readOneFrame = [&table, level, phase] (int frameIndex) -> float
+        {
+            const auto* frame = table.getReadPointer (level, frameIndex);
+
+            if (frame == nullptr)
+                return 0.0f;
+
+            const auto size = Wavetable::samplesAtLevel (level);
+
+            if (! std::isfinite (phase))
+                return 0.0f;
+
+            const auto wrappedPhase = phase - std::floor (phase);
+            const auto position = wrappedPhase * static_cast<double> (size);
+
+            auto index = static_cast<int> (position);
+            const auto fraction = position - static_cast<double> (index);
+
+            if (index >= size)
+                index = size - 1;
+
+            if (index < 0)
+                index = 0;
+
+            const auto wrap = [size] (int i) noexcept
+            {
+                i %= size;
+                return i < 0 ? i + size : i;
+            };
+
+            const auto y0 = static_cast<double> (frame[wrap (index - 1)]);
+            const auto y1 = static_cast<double> (frame[index]);
+            const auto y2 = static_cast<double> (frame[wrap (index + 1)]);
+            const auto y3 = static_cast<double> (frame[wrap (index + 2)]);
+
+            const auto c0 = y1;
+            const auto c1 = 0.5 * (y2 - y0);
+            const auto c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
+            const auto c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+
+            return static_cast<float> (((c3 * fraction + c2) * fraction + c1) * fraction + c0);
+        };
+
+        const auto numFrames = table.getNumFrames();
+
+        if (numFrames <= 0)
+            return 0.0f;
+
+        if (numFrames == 1)
+            return readOneFrame (0);
+
+        const auto maxFrame = static_cast<double> (numFrames - 1);
+        const auto clamped = framePosition < 0.0 ? 0.0
+                                                 : (framePosition > maxFrame ? maxFrame : framePosition);
+
+        const auto lowerFrame = static_cast<int> (clamped);
+        const auto upperFrame = lowerFrame + 1 < numFrames ? lowerFrame + 1 : lowerFrame;
+        const auto blend = static_cast<float> (clamped - static_cast<double> (lowerFrame));
+
+        const auto lower = readOneFrame (lowerFrame);
+        const auto upper = readOneFrame (upperFrame);
+
+        return lower + (upper - lower) * blend;
+    }
+
     /** The tables are built once per process, not once per instrument.
 
         Rendering the four spectral tables is a couple of hundred milliseconds

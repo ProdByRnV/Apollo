@@ -109,8 +109,8 @@ front of it is better understood, the way 8f was.
 | | | |
 |---|---|---|
 | **9** | **Presets, resources & state migration** | ⬜ |
-| 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ⬜ |
-| 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ⬜ |
+| 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ✅ |
+| 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ✅ |
 | 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ✅ |
 | 9d | Factory presets — content that demonstrates the instrument, and the init patch | ✅ |
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ✅ |
@@ -119,6 +119,9 @@ front of it is better understood, the way 8f was.
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ✅ |
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ✅ |
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
+| 10d-1 | The per-sample table read — a mask in place of eight integer divisions, one phase tap in place of two, and one cubic in place of two, all identities. Voice path 1.8x cheaper; the worst patch stopped missing its deadline (ADR-0070) | ✅ |
+| 10d-2 | SIMD across unison voices, and hoisting the per-block invariants out of the per-sample path | ⬜ |
+| 10d-3 | Re-measure, and resolve why normalised absolutes did not transport between sittings for the voice-engine row (PROJECT-STATE §5b) | ⬜ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |

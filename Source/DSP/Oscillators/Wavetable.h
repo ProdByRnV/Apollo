@@ -82,12 +82,34 @@ public:
 
     /** Samples stored per frame at a mip level: twice its harmonic limit, or the
         floor above, whichever is larger.
+
+        **Every level's frame size is a power of two, and the read path depends
+        on it.** Both candidates are: a harmonic limit is `topLevelHarmonics >>
+        level` and doubling it keeps it a power of two, and the floor is 512.
+        Interpolation has to wrap its four taps around the end of a periodic
+        frame, and a power-of-two size turns that wrap from an integer division
+        into a mask — eight divisions a sample, at 1088 oscillators, being the
+        single largest cost the Phase 10c profile found (ADR-0070).
+
+        This is an invariant rather than a coincidence, so it is asserted at
+        compile time below rather than left to be rediscovered by whoever next
+        changes minSamplesPerFrame.
     */
     [[nodiscard]] static constexpr int samplesAtLevel (int level) noexcept
     {
         const auto samples = harmonicsAtLevel (level) * 2;
         return samples > minSamplesPerFrame ? samples : minSamplesPerFrame;
     }
+
+    /** @returns the mask that wraps an index into a frame at this level.
+
+        Valid only because samplesAtLevel is always a power of two; see above.
+    */
+    [[nodiscard]] static constexpr int indexMaskAtLevel (int level) noexcept
+    {
+        return samplesAtLevel (level) - 1;
+    }
+
 
     /** @returns the mip level whose harmonics all stay below Nyquist.
 
@@ -142,6 +164,46 @@ public:
     [[nodiscard]] float getSampleAtPosition (int level, double framePosition, double phase) const noexcept;
 
 private:
+    /** Where a phase lands inside a frame.
+
+        The sample at or below it, the fraction past that sample, and the mask
+        that wraps the interpolator's outer two taps around the end of a
+        periodic frame.
+
+        Resolved once per read rather than once per frame. A phase lands in the
+        same place in every frame of a table at a given level, so a two-frame
+        blend that resolved it twice repeated the finiteness check, the floor,
+        the multiply, the cast and the clamping to arrive at the same answer.
+    */
+    struct Tap
+    {
+        int index = 0;
+        int mask = 0;
+        double fraction = 0.0;
+    };
+
+    /** Resolves @p phase at @p level.
+
+        @returns false for a phase that cannot be turned into an index safely,
+                 in which case the caller must produce silence rather than read.
+    */
+    [[nodiscard]] static bool resolveTap (int level, double phase, Tap& tap) noexcept;
+
+    /** Evaluates the interpolator over one frame at a resolved tap. */
+    [[nodiscard]] static float readFrame (const float* frame, const Tap& tap) noexcept;
+
+    /** Evaluates the interpolator **once** over two frames blended at @p blend.
+
+        Cubic Hermite is a *linear* combination of its four sample points, so
+        interpolating each frame and then crossfading the two results gives the
+        same value as crossfading the four pairs of points and interpolating
+        once. The second form resolves one tap instead of two and runs one cubic
+        instead of two, and the arithmetic it removes is the arithmetic the
+        Phase 10c profile was dominated by (ADR-0070).
+    */
+    [[nodiscard]] static float readBlendedFrames (const float* lower, const float* upper,
+                                                  const Tap& tap, double blend) noexcept;
+
     [[nodiscard]] std::size_t offsetOf (int level, int frameIndex) const noexcept;
 
     int numFrames = 0;
@@ -152,5 +214,28 @@ private:
     */
     std::vector<std::vector<float>> levels;
 };
+
+/** The invariant the read path masks on, checked where the class is complete.
+
+    Asserted rather than commented because the failure mode is silent: a
+    non-power-of-two frame size would leave `indexMaskAtLevel` wrapping to the
+    wrong sample instead of to the right one, which is a quiet change in the
+    waveform rather than a crash.
+*/
+static_assert (
+    []
+    {
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            const auto size = Wavetable::samplesAtLevel (level);
+
+            if (size <= 0 || (size & (size - 1)) != 0)
+                return false;
+        }
+
+        return true;
+    }(),
+    "Wavetable frame sizes must be powers of two: the interpolator wraps its taps with a mask "
+    "rather than a division. A non-power-of-two minSamplesPerFrame breaks that.");
 
 } // namespace apollo::dsp
