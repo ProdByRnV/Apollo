@@ -1253,7 +1253,7 @@ of this one.
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); ten factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
-| 10 | **10a is done** — the assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067). Absent: golden regression renders (10b), profiling (10c), the optimisation it identifies (10d), and host compatibility (10e), which needs real DAWs |
+| 10 | **10a, 10b and 10c are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders — ten of them the factory presets — are pinned against references compiled in beside the tests, so a change that alters what Apollo sounds like fails the build (§5d, ADR-0068); and the benchmark was rebuilt into something that reports how much it should be believed, then used to measure the worst-case *callback* rather than an average, memory, first use, and the worst patch the controls can build with everything running at once (§5b, ADR-0069). Absent: the optimisation 10c identified (10d), and host compatibility (10e), which needs real DAWs |
 | 11–12 | Packaging, cross-platform release engineering, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -2290,31 +2290,34 @@ What somebody waits for, and what a session pays to hold.
 
 | | |
 |---|---:|
-| Constructing the first instrument in a process | 4.17 ms |
-| Constructing a second | 0.93 ms |
-| `prepareToPlay` at 48 kHz, 512 samples | 0.16 ms |
-| Rendering all ten factory presets to documents | 5.15 ms |
-| Loading all ten factory presets into an instrument | 13.28 ms |
-| The process before any instrument exists | 14.30 MB |
-| The first prepared instance adds | 4.71 MB |
-| The second adds | 2.60 MB |
+| Constructing the **first** instrument in a process | **142 ms** |
+| Constructing a second | 0.91 ms |
+| `prepareToPlay` at 48 kHz, 512 samples | 0.18 ms |
+| Rendering all ten factory presets to documents | 4.95 ms |
+| Loading all ten factory presets into an instrument | 10.35 ms |
+| The process before any instrument exists | 12.15 MB |
+| The **first** prepared instance adds | **6.82 MB** |
+| The second adds | 2.61 MB |
 | Each of the next sixteen adds | 2.57 MB |
 
 **An instrument costs about 2.6 MB**, so a project holding twenty of them costs
-around 50 MB — which is not a number anybody needs to worry about. The first
-costs roughly 2 MB and 3 ms more than the rest, being the one that sets up
-whatever the process shares.
+around 50 MB — which is not a number anybody needs to worry about.
 
-**Open question, deliberately not resolved here.** ADR-0066 says rendering the
-four built-in wavetables takes a couple of hundred milliseconds, and that is the
-whole argument for building them once per process. Timing the first
-`WavetableLibrary` construction in a process — the call that builds them —
-returns 0.01 ms, in Debug as well as optimised, which cannot be the cost of 16
-frames of 1024 harmonics across 11 mip levels for four tables. Either the ADR's
-figure is stale or the measurement is not reaching the work. **This harness
-cannot say which, so it reports neither**; the first-versus-later instrument rows
-above are measured without any claim about what the difference consists of.
-Carried to 10d.
+**The first instrument in a process costs 142 ms and 6.8 MB**, against 0.9 ms
+and 2.6 MB for every one after it. That difference is the four band-limited
+wavetables, built once and shared (ADR-0066), and it is the whole justification
+for sharing them: a host that instantiates a plugin forty times while scanning
+its menu would otherwise pay five and a half seconds and a quarter of a gigabyte
+instead of 142 ms and 110 MB.
+
+**These four rows were wrong when 10c first published them**, and the reason is
+worth keeping. They read 4.17 ms and 4.71 MB, and 10c recorded an open question
+because that contradicted ADR-0066. ADR-0066 was right. Two `juce::UnitTest`
+subclasses held a `WavetableLibrary` as a **member**, and a unit test object is
+constructed at static-initialisation time — so 165 ms of table building happened
+before `main()`, and every benchmark in the process measured a library that
+already existed. Both are lazy now. The bug cost the suite 165 ms on every
+invocation, including `--help`.
 
 ### Visualisation capture (Phase 10c)
 
@@ -2485,45 +2488,63 @@ of asserting nothing.
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 | 15 | ~~Synthetic input does not reach the WebView reliably~~ | **Closed** | Four sub-phases in a row (8b-8d, §5a) recorded that the interface could be read but not driven, because injecting input at the desktop reaches whatever window is in front. Solved in 8e by posting the mouse messages directly to Apollo's `Chrome_RenderWidgetHostHWND` child and capturing with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the cursor nor the foreground. The driving process must call `SetProcessDPIAware` first, or it measures a 1920x1080 window as 1280x720 and captures only its corner. |
 | 16 | No MIDI source on this machine for chain tests | Low | 8e and 8f could both drive the interface but neither could play a note into a configured chain, because no virtual MIDI port was running. Audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead, up to and including a full rack of six restored from a preset and still sounding. Worth having a port available before Phase 9, where a preset is supposed to be recognisable by ear. |
-| 18 | The wavetable build cost cannot be observed where ADR-0066 says it happens | Medium | Found in 10c. ADR-0066 states that rendering the four built-in wavetables takes a couple of hundred milliseconds, which is the entire argument for building them once per process and sharing them. Timing the first `WavetableLibrary` construction in a process — the call that runs the shared builder — returns **0.01 ms**, in Debug as well as optimised, which cannot be the cost of 16 frames of 1024 harmonics across 11 mip levels for four tables. Either the recorded figure is stale or the measurement is not reaching the work. The benchmark reports **neither** rather than picking the convenient one (§5b). 10d. |
+| 18 | ~~The wavetable build cost cannot be observed where ADR-0066 says it happens~~ | **Fixed** | Raised by 10c, found and fixed in the debugging pass after it. ADR-0066 says building the four wavetables takes a couple of hundred milliseconds; the benchmark timed that construction and got **0.01 ms**, in Debug as well as optimised. ADR-0066 was right and the benchmark was blind: `UnisonTests` and `WavetableTests` each held a `WavetableLibrary` as a **class member**, and a `juce::UnitTest` subclass is constructed at static-initialisation time in order to register itself — so **165 ms of table building ran before `main()`**, and every measurement in the process saw a library that already existed. Both are lazy now. Three things improved: the first-instrument figures are real (142 ms and 6.8 MB, against 4.17 ms and 4.71 MB before), every invocation of the test binary stopped paying 165 ms it did not need — including `--help` and a ctest run of one unrelated category — and the contradiction with ADR-0066 is gone. **No product code was affected**: nothing under `Source/` holds a heavy object at file scope, so the plugin never had this. |
 | 17 | ~~A duplicated rack slot claimed to be in the chain~~ | **Fixed** | Found in 8f by building a chain by hand and landing the same effect in two slots. The engine has resolved duplicates to first-occurrence-wins since 8a; the interface lit both, because it only checked whether the named effect existed in this build. The page now runs the same resolution the engine does, and a duplicated slot reads `duplicate` with its number unlit. |
 
 ---
 
 ## 7. Blockers
 
-**None.** Phase 8e can begin.
+**None for 10d.** One blocker exists further out and is worth naming now because
+it cannot be cleared from this machine:
+
+- **10e needs real DAWs.** Host compatibility — discovery, load and unload,
+  automation, state and preset recall, MIDI, variable block sizes, sample-rate
+  changes, bypass, transport, latency reporting, offline rendering — cannot be
+  verified by any amount of testing here. Nothing in Apollo has ever been loaded
+  into a host (issue 2).
+- **A virtual MIDI port would help before then.** The ten factory presets and
+  the four wavetables are measured but have never been *heard*, because this
+  machine has no MIDI source (issue 16).
 
 ---
 
 ## 8. Recommended next action
 
-Continue with **Phase 8e — the parametric EQ**, the last effect in the rack.
+Continue with **Phase 10d — optimisation of what 10c identified.**
 
-1. **Four bands, each with a type.** PRD §24 asks for frequency, gain, Q, filter
-   type and a per-band bypass, with bell, shelves and pass filters among the
-   types. That is five parameters times four bands, and the count is worth
-   deciding deliberately rather than discovering: the registry is a permanent
-   contract, and a band's type range must cover every type the EQ will ever
-   have (ADR-0054).
-2. **The filter already exists, and may not be the right one.** The TPT state
-   variable filter from Phase 5b gives lowpass, highpass, bandpass and notch
-   from shared state, but a *bell* needs a gain term the SVF does not currently
-   produce, and shelves need their own derivation. Whether to extend the SVF or
-   add a second form is the first decision of the phase.
-3. **Predictable gain behaviour is the stated requirement.** ROADMAP asks for it
-   in those words, and it means something measurable: a band at 0 dB must be
-   exactly transparent, and two bands that do not overlap must not interact.
-4. **It is the last effect, so 8f becomes reachable.** Whole-chain validation —
-   arbitrary orderings across all six, and aliasing measured through a chain
-   rather than one stage — needs the full set to be worth doing.
+Unusually for an optimisation phase, there is nothing to guess about. 10c
+measured it:
+
+1. **The target is the voice, not the rack.** A full rack of all six effects,
+   audibly configured, costs **2.8 % of one core**. The heaviest patch at full
+   polyphony costs **175 %**. Optimising effects would be work in the wrong
+   place, and the measurement says so rather than intuition (§5b).
+2. **The failure is per callback, not on average.** The worst patch the controls
+   can build — heaviest voices, modulation matrix and full rack together at full
+   polyphony — sits at **90 % of the block deadline in the median and 102 % at
+   the 99th percentile**. It is not "a bit slow"; it misses one block in a
+   hundred, and a missed block is a click (issue 13).
+3. **The arithmetic is 1088 interpolating oscillators.** Two oscillators at
+   16-voice unison, plus sub and noise, across 32 voices. ADR-0029 chose to
+   publish that ceiling rather than lower it, so the work is to make each
+   oscillator cheaper — SIMD across unison voices and a cheaper interpolation
+   are the two obvious candidates — rather than to take the ceiling away.
+4. **The regression renders are what make it safe.** An optimisation is a change
+   that is *supposed* to leave the sound alone. 10b built the machinery that
+   checks exactly that, and it is the reason 10d can be attempted with
+   confidence rather than by ear (ADR-0068).
+5. **Two measurement questions travel with it.** There is still no allocation or
+   lock detector on the audio thread (issue 6), and the obvious mechanism does
+   not work — replacing global `operator new` would miss `juce::HeapBlock`,
+   which calls `malloc` directly and is what every JUCE audio buffer is built
+   on.
 
 A spectrum analyser remains the one unticked Visualization item, and both PRD and
-ROADMAP mark it optional. It is an FFT, a window function and a log frequency
-axis — genuinely separate DSP rather than more of the transport built in 7a-7c —
-so it is better placed after the effects work than before it.
+ROADMAP mark it optional.
 
 ---
+
 
 ## 9. Version control policy
 

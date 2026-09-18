@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "DSP/Oscillators/UnisonOscillator.h"
@@ -110,7 +111,31 @@ public:
     }
 
 private:
-    WavetableLibrary library;
+    /** The table library, built on first use rather than held as a member.
+
+        A juce::UnitTest subclass is constructed at **static-initialisation
+        time**, because that is how it registers itself. An expensive member is
+        therefore expensive before main() runs, in every invocation of the
+        binary — including `--help`, `--list`, and a ctest run of one unrelated
+        category.
+
+        This was not theoretical: building the four band-limited tables takes
+        **165 ms**, and holding one here meant every run of the suite paid it up
+        front. It also made the cost impossible to measure from inside the
+        process, which is what PROJECT-STATE issue 18 was about — Phase 10c
+        timed the first library construction it could see and got 0.01 ms,
+        because this member had already done the work before the benchmark
+        existed.
+    */
+    [[nodiscard]] WavetableLibrary& library()
+    {
+        if (lazyLibrary == nullptr)
+            lazyLibrary = std::make_unique<WavetableLibrary>();
+
+        return *lazyLibrary;
+    }
+
+    std::unique_ptr<WavetableLibrary> lazyLibrary;
 
     //==========================================================================
     // Layout: the design decisions.
@@ -304,7 +329,7 @@ private:
     {
         beginTest ("A one-voice unison stack is identical to a plain oscillator");
 
-        const auto& table = library.getTable (0);
+        const auto& table = library().getTable (0);
 
         UnisonLayout layout;
         layout.update (1, 0.5f, 1.0f);
@@ -354,7 +379,7 @@ private:
 
         UnisonOscillator stack;
         stack.setSampleRate (testSampleRate);
-        stack.setTable (&library.getTable (0));
+        stack.setTable (&library().getTable (0));
         stack.setPosition (1.0f);
         stack.setFrequency (110.0);
 
@@ -382,7 +407,7 @@ private:
 
         UnisonOscillator stack;
         stack.setSampleRate (testSampleRate);
-        stack.setTable (&library.getTable (0));
+        stack.setTable (&library().getTable (0));
         stack.setPosition (0.0f); // A sine, so the envelope is the beat itself.
         stack.setLayout (&layout);
         stack.setFrequency (220.0);
@@ -421,7 +446,7 @@ private:
     {
         beginTest ("A unison stack stays within the root-N bound its normalisation implies");
 
-        const auto& table = library.getTable (0);
+        const auto& table = library().getTable (0);
 
         UnisonLayout single;
         single.update (1, 0.0f, 0.0f);
@@ -478,7 +503,7 @@ private:
         {
             UnisonOscillator stack;
             stack.setSampleRate (testSampleRate);
-            stack.setTable (&library.getTable (0));
+            stack.setTable (&library().getTable (0));
             stack.setLayout (&layout);
             stack.setPosition (0.5f);
             stack.setFrequency (frequency);
@@ -501,7 +526,7 @@ private:
         // centred voice rather than to an all-zero gain table.
         UnisonOscillator noLayout;
         noLayout.setSampleRate (testSampleRate);
-        noLayout.setTable (&library.getTable (0));
+        noLayout.setTable (&library().getTable (0));
         noLayout.setPosition (1.0f);
         noLayout.setFrequency (220.0);
         noLayout.resetPhase (0.0);

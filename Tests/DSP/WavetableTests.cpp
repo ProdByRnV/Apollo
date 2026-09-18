@@ -14,6 +14,7 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "DSP/Oscillators/Wavetable.h"
@@ -189,8 +190,9 @@ private:
     {
         beginTest ("A second instrument costs nothing to give tables to");
 
-        // The first one may or may not be the process's first; the suite's own
-        // member library above almost certainly was. Either way this one is not.
+        // The first one here may or may not be the process's first — the suite
+        // no longer builds one before main(), so whichever test runs first pays
+        // for it. Either way this one is not, which is all this test needs.
         const WavetableLibrary first;
 
         const auto start = juce::Time::getHighResolutionTicks();
@@ -238,7 +240,31 @@ private:
         expect (&first.getTable (0) != &third.getTable (0));
     }
 
-    WavetableLibrary library;
+    /** The table library, built on first use rather than held as a member.
+
+        A juce::UnitTest subclass is constructed at **static-initialisation
+        time**, because that is how it registers itself. An expensive member is
+        therefore expensive before main() runs, in every invocation of the
+        binary — including `--help`, `--list`, and a ctest run of one unrelated
+        category.
+
+        This was not theoretical: building the four band-limited tables takes
+        **165 ms**, and holding one here meant every run of the suite paid it up
+        front. It also made the cost impossible to measure from inside the
+        process, which is what PROJECT-STATE issue 18 was about — Phase 10c
+        timed the first library construction it could see and got 0.01 ms,
+        because this member had already done the work before the benchmark
+        existed.
+    */
+    [[nodiscard]] WavetableLibrary& library()
+    {
+        if (lazyLibrary == nullptr)
+            lazyLibrary = std::make_unique<WavetableLibrary>();
+
+        return *lazyLibrary;
+    }
+
+    std::unique_ptr<WavetableLibrary> lazyLibrary;
 
     /** The mipmap is the anti-aliasing mechanism, so its selection rule is
         worth pinning directly rather than only through its audible effect.
@@ -282,7 +308,7 @@ private:
 
         for (int index = 0; index < WavetableLibrary::numTables; ++index)
         {
-            const auto& table = library.getTable (index);
+            const auto& table = library().getTable (index);
 
             expect (! table.isEmpty(), "table " + juce::String (index) + " is empty");
             expectEquals (table.getNumFrames(), WavetableLibrary::framesPerTable);
@@ -329,7 +355,7 @@ private:
 
         for (const double frequency : { 55.0, 220.0, 440.0, 1760.0 })
         {
-            const auto spectrum = renderSpectrum (library.getTable (0), frequency, 1.0f);
+            const auto spectrum = renderSpectrum (library().getTable (0), frequency, 1.0f);
 
             // The loudest bin should sit at the fundamental.
             int loudestBin = 0;
@@ -369,7 +395,7 @@ private:
 
         // The saw end of table 0 — the brightest content available, and so the
         // hardest case for aliasing.
-        const auto& table = library.getTable (0);
+        const auto& table = library().getTable (0);
 
         struct Note { const char* name; double frequency; };
 
@@ -410,7 +436,7 @@ private:
 
         for (int tableIndex = 0; tableIndex < WavetableLibrary::numTables; ++tableIndex)
         {
-            const auto& table = library.getTable (tableIndex);
+            const auto& table = library().getTable (tableIndex);
 
             for (const float position : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
             {
@@ -432,7 +458,7 @@ private:
     {
         beginTest ("Sweeping the scan position produces no discontinuity");
 
-        const auto& table = library.getTable (0);
+        const auto& table = library().getTable (0);
 
         WavetableOscillator oscillator;
         oscillator.setSampleRate (testSampleRate);
@@ -512,8 +538,8 @@ private:
 
         // SWEEP opens its bandwidth across the table. At the bottom it is
         // essentially the fundamental alone; at the top it is a full saw.
-        const auto sweepClosed = renderSpectrum (library.getTable (0), 440.0, 0.0f);
-        const auto sweepOpen = renderSpectrum (library.getTable (0), 440.0, 1.0f);
+        const auto sweepClosed = renderSpectrum (library().getTable (0), 440.0, 0.0f);
+        const auto sweepOpen = renderSpectrum (library().getTable (0), 440.0, 1.0f);
 
         expect (harmonicOf (sweepClosed, 4) < -60.0f,
                 "the closed end of Sweep should be near enough a sine: "
@@ -527,8 +553,8 @@ private:
         // this is why: at the bottom it is a square, which has *no even
         // harmonics at all*, and at the top it is a narrow pulse, which has
         // every harmonic. The second harmonic alone tells the two apart.
-        const auto square = renderSpectrum (library.getTable (1), 440.0, 0.0f);
-        const auto narrow = renderSpectrum (library.getTable (1), 440.0, 1.0f);
+        const auto square = renderSpectrum (library().getTable (1), 440.0, 0.0f);
+        const auto narrow = renderSpectrum (library().getTable (1), 440.0, 1.0f);
 
         expect (harmonicOf (square, 2) < -50.0f,
                 "a square has no second harmonic: "
@@ -542,8 +568,8 @@ private:
         // Low in its travel the peak sits over the low harmonics, high in its
         // travel it has moved above them — so the *ratio* between a high and a
         // low harmonic has to rise, even though both are present throughout.
-        const auto formantLow = renderSpectrum (library.getTable (2), 440.0, 0.0f);
-        const auto formantHigh = renderSpectrum (library.getTable (2), 440.0, 1.0f);
+        const auto formantLow = renderSpectrum (library().getTable (2), 440.0, 0.0f);
+        const auto formantHigh = renderSpectrum (library().getTable (2), 440.0, 1.0f);
 
         const auto tiltLow = harmonicOf (formantLow, 16) - harmonicOf (formantLow, 2);
         const auto tiltHigh = harmonicOf (formantHigh, 16) - harmonicOf (formantHigh, 2);
@@ -555,8 +581,8 @@ private:
         // FOLD is a sine at the bottom and a folded one at the top. It is the
         // table built by drawing samples and analysing them, so this also
         // exercises the route a loaded wavetable takes into the engine.
-        const auto unfolded = renderSpectrum (library.getTable (3), 440.0, 0.0f);
-        const auto folded = renderSpectrum (library.getTable (3), 440.0, 1.0f);
+        const auto unfolded = renderSpectrum (library().getTable (3), 440.0, 0.0f);
+        const auto folded = renderSpectrum (library().getTable (3), 440.0, 1.0f);
 
         expect (harmonicOf (unfolded, 3) < -60.0f,
                 "an unfolded sine has no third harmonic: "
@@ -608,7 +634,7 @@ private:
         // is interpolation error.
         for (const double frequency : { 110.0, 440.0, 1000.0, 3000.0 })
         {
-            const auto spectrum = renderSpectrum (library.getTable (0), frequency, 0.0f);
+            const auto spectrum = renderSpectrum (library().getTable (0), frequency, 0.0f);
             const auto worst = measureWorstAlias (spectrum, frequency);
 
             logMessage ("    sine at " + juce::String (frequency, 0).paddedLeft (' ', 6)
@@ -631,7 +657,7 @@ private:
         oscillator.setFrequency (440.0);
         expectEquals (oscillator.getNextSample(), 0.0f, "an oscillator with no table must be silent");
 
-        oscillator.setTable (&library.getTable (0));
+        oscillator.setTable (&library().getTable (0));
 
         // Zero, negative and absurd frequencies must all stay finite.
         for (const double frequency : { 0.0, -440.0, 1.0e9, testSampleRate })
@@ -679,7 +705,7 @@ private:
 
         // Reading the table directly with a hostile phase must also be safe:
         // Wavetable is a public interface, not only the oscillator's private one.
-        const auto& table = library.getTable (0);
+        const auto& table = library().getTable (0);
 
         for (const double phase : { 0.0, 1.0, -1.0, 1.0e12, -1.0e12,
                                     std::numeric_limits<double>::infinity(),

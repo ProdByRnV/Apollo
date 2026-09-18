@@ -1093,20 +1093,18 @@ void benchmarkFirstUse()
 
     const auto emptyProcess = footprintBytes();
 
-    // NOT MEASURED HERE: the cost of building the four shared wavetables.
+    // THE FIRST INSTRUMENT PAYS FOR THE WAVETABLE LIBRARY, and this section is
+    // the only place that can see it — which is why it runs first and why that
+    // ordering is load-bearing rather than cosmetic.
     //
-    // ADR-0066 says rendering them takes a couple of hundred milliseconds, which
-    // is the entire argument for building them once per process. Timing the
-    // first `WavetableLibrary` in a process — the construction that calls the
-    // shared builder — returns 0.01 ms in RelWithDebInfo and the same in Debug,
-    // which cannot be the cost of 16 frames of 1024 harmonics across 11 mip
-    // levels for four tables.
-    //
-    // One of the two is wrong and this harness cannot say which, so it reports
-    // neither. What it does report is unambiguous: what the first instrument in
-    // a process costs against every later one. PROJECT-STATE records the
-    // discrepancy as an open question rather than resolving it by picking the
-    // number that suits.
+    // It did not always see it. Phase 10c reported this row at 4.17 ms and
+    // flagged the result as contradicting ADR-0066, which says building the four
+    // tables takes a couple of hundred milliseconds. ADR-0066 was right. Two
+    // juce::UnitTest subclasses held a WavetableLibrary as a *member*, and a
+    // unit test object is constructed at static-initialisation time, so 165 ms
+    // of table building happened before main() and every benchmark in the
+    // process measured a library that already existed. Both are lazy now, and
+    // the row reads what ADR-0066 always said it should.
 
     //==========================================================================
     // The very first instrument in this process. Nothing above has touched the

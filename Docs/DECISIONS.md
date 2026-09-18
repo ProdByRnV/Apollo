@@ -3304,3 +3304,17 @@ evidence for whether its tolerances are set sensibly — and `ctest` shows a
 passing test's output to nobody. The figure existed and was unreadable. The
 renders now also run as a separately labelled `ctest` entry that CI invokes
 verbosely, so a green run publishes its numbers instead of only a red one.
+
+**Postscript, added in the debugging pass after 10c closed.** The "report
+neither" case above was resolved, and the harness was the one that was wrong.
+`UnisonTests` and `WavetableTests` each held a `WavetableLibrary` as a class
+member, and a `juce::UnitTest` subclass is constructed at static-initialisation
+time in order to register itself — so 165 ms of table building ran before
+`main()` and every benchmark in the process measured a library that already
+existed. ADR-0066's figure was right all along. With both members made lazy the
+row reads 142 ms, the memory figure moves from 4.71 MB to 6.82 MB, and the test
+binary stops paying 165 ms on every invocation including `--help`.
+
+Reporting neither number was still the right call at the time: the alternative
+was publishing 0.01 ms as a fact. What it bought was a question specific enough
+to answer later, which is what a recorded discrepancy is for.
