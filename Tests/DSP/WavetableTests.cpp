@@ -166,6 +166,8 @@ public:
         testTableSelectionChangesTimbre();
         testInterpolationIsAccurate();
         testTheFastReadPathIsAnIdentity();
+        testTheResolvedReaderMatchesTheDirectRead();
+        testTheScanPositionSurvivesATableChange();
         testDegenerateInputIsSafe();
         testTheLibraryIsBuiltOncePerProcess();
     }
@@ -306,6 +308,157 @@ private:
                 }
             }
         }
+    }
+
+    /** A Reader held across a run of samples must read what the direct call
+        reads for each of them.
+
+        Phase 10d-2 moved everything about a read that cannot change within a
+        modulation block — the frame pointers, the frame size, the blend weight
+        — out of the per-sample path and into a Reader resolved once
+        (ADR-0071). `getSampleAtPosition` now builds a throwaway Reader per
+        call, which is how the two are guaranteed to agree; this test is what
+        says the *held* Reader, the one the oscillator actually uses, does not
+        drift from it over a run of samples.
+
+        Bit-identical is the bar, not merely close. There is no arithmetic here
+        that differs between the two paths — only when it is performed.
+    */
+    void testTheResolvedReaderMatchesTheDirectRead()
+    {
+        beginTest ("A Reader held across a block reads what the direct call reads");
+
+        const auto& table = library().getTable (0);
+
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            for (const double framePosition : { 0.0, 2.5, 7.25,
+                                                static_cast<double> (table.getNumFrames() - 1) })
+            {
+                const auto reader = table.makeReader (level, framePosition);
+
+                expect (reader.isValid(), "a reader over a real table should be valid");
+
+                // A run of phases of the kind an oscillator actually produces:
+                // advancing by an irrational increment so that no sample lands
+                // on a stored one twice.
+                double phase = 0.0;
+
+                for (int i = 0; i < 512; ++i)
+                {
+                    const auto held = reader.read (phase);
+                    const auto direct = table.getSampleAtPosition (level, framePosition, phase);
+
+                    expect (held == direct,
+                            "level " + juce::String (level) + ", frame position "
+                                + juce::String (framePosition, 2) + ", phase "
+                                + juce::String (phase, 9) + ": held reader read "
+                                + juce::String (held, 12) + " where the direct call read "
+                                + juce::String (direct, 12));
+
+                    phase += 0.00723418;
+
+                    if (phase >= 1.0)
+                        phase -= 1.0;
+                }
+            }
+        }
+
+        // A default-constructed Reader is usable and silent, which is what lets
+        // the oscillator drop its null check.
+        const Wavetable::Reader empty;
+
+        expect (! empty.isValid());
+
+        for (const double phase : { 0.0, 0.5, -1.0, 1.0e12,
+                                    std::numeric_limits<double>::quiet_NaN() })
+            expectEquals (empty.read (phase), 0.0f, "an empty reader must be silent");
+
+        // A non-finite frame position is treated as the first frame rather than
+        // refused. Unlike a broken phase, a broken scan position has an obvious
+        // answer to fall back on, and a mis-set control should leave the
+        // instrument sounding (§33).
+        for (const double bad : { std::numeric_limits<double>::quiet_NaN(),
+                                  std::numeric_limits<double>::infinity(),
+                                  -std::numeric_limits<double>::infinity() })
+        {
+            const auto reader = table.makeReader (0, bad);
+
+            expect (reader.isValid(), "a non-finite frame position should not silence the table");
+
+            for (const double phase : { 0.0, 0.25, 0.5, 0.75 })
+                expectEquals (reader.read (phase), table.getSample (0, 0, phase),
+                              "a non-finite frame position should read the first frame");
+        }
+    }
+
+    /** Changing the table must keep the scan position where the user put it.
+
+        This was wrong until Phase 10d-2 and is worth a test rather than only a
+        commit message. `WavetableOscillator::setTable` re-applied the position
+        by passing the *frame* position to a function that expects a normalised
+        one, so any position past the first frame clamped to 1.0 and jumped the
+        oscillator to the top of the new table.
+
+        Nothing sounded wrong, because Voice sets the position again on the very
+        next line and again every modulation block. That is exactly why it
+        wanted pinning: the defect was invisible through the only caller Apollo
+        had, and setTable is a public interface.
+
+        Normalised rather than absolute is also the right thing to preserve on
+        its own terms — tables may have different frame counts, and "half way
+        along" means the same thing in all of them while "frame 9.6" does not.
+    */
+    void testTheScanPositionSurvivesATableChange()
+    {
+        beginTest ("Changing the table keeps the scan position, not the frame index");
+
+        const auto& first = library().getTable (0);
+        const auto& second = library().getTable (1);
+
+        WavetableOscillator oscillator;
+        oscillator.setSampleRate (testSampleRate);
+        oscillator.setTable (&first);
+        oscillator.setFrequency (220.0);
+
+        for (const float position : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+        {
+            oscillator.setPosition (position);
+            oscillator.resetPhase (0.0);
+
+            // What the oscillator produces on the first table at this position.
+            std::vector<float> before (64, 0.0f);
+
+            for (auto& sample : before)
+                sample = oscillator.getNextSample();
+
+            // Move to the other table and back. The position must be exactly
+            // where it was, so the samples must be exactly what they were.
+            oscillator.setTable (&second);
+            oscillator.setTable (&first);
+            oscillator.resetPhase (0.0);
+
+            for (std::size_t i = 0; i < before.size(); ++i)
+                expectEquals (oscillator.getNextSample(), before[i],
+                              "position " + juce::String (position, 2) + ", sample "
+                                  + juce::String (static_cast<int> (i))
+                                  + ": a round trip through another table moved the scan position");
+        }
+
+        // And directly: at the top of the table the oscillator must not read
+        // the same thing it reads in the middle, or the test above would pass
+        // on a table whose frames are all alike.
+        oscillator.setTable (&first);
+        oscillator.setPosition (0.0f);
+        oscillator.resetPhase (0.25);
+        const auto atBottom = oscillator.getNextSample();
+
+        oscillator.setPosition (1.0f);
+        oscillator.resetPhase (0.25);
+        const auto atTop = oscillator.getNextSample();
+
+        expect (std::abs (atBottom - atTop) > 1.0e-4f,
+                "the two ends of the table should not read alike, or this test proves nothing");
     }
 
     /** The read path as it stood before Phase 10d, kept here as the reference

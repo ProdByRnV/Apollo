@@ -120,8 +120,8 @@ front of it is better understood, the way 8f was.
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ✅ |
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
 | 10d-1 | The per-sample table read — a mask in place of eight integer divisions, one phase tap in place of two, and one cubic in place of two, all identities. Voice path 1.8x cheaper; the worst patch stopped missing its deadline (ADR-0070) | ✅ |
-| 10d-2 | SIMD across unison voices, and hoisting the per-block invariants out of the per-sample path | ⬜ |
-| 10d-3 | Re-measure, and resolve why normalised absolutes did not transport between sittings for the voice-engine row (PROJECT-STATE §5b) | ⬜ |
+| 10d-2 | The rest of the read hoisted out of the per-sample path — a Reader resolved once per modulation block rather than once per sample. Another 1.5x, making the voice path ~2.8x cheaper than before Phase 10d (ADR-0071) | ✅ |
+| 10d-3 | Fix the measurement harness — normalisation over-corrects memory-bound rows, and the steadiness check samples the start of a run rather than the traces — then decide whether SIMD across unison voices still earns its complexity (PROJECT-STATE §5b, §8) | ⬜ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |

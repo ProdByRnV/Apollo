@@ -14,7 +14,16 @@ void WavetableOscillator::setSampleRate (double newSampleRate) noexcept
 void WavetableOscillator::setTable (const Wavetable* newTable) noexcept
 {
     table = newTable;
-    setPosition (static_cast<float> (framePosition));
+
+    // Re-derived from the *normalised* position, not from the frame position.
+    //
+    // This used to read `setPosition (static_cast<float> (framePosition))`,
+    // which handed an absolute frame index to a function expecting [0, 1]: any
+    // position past the first frame clamped to 1.0 and jumped the oscillator to
+    // the top of the new table. Nothing sounded wrong, because Voice always set
+    // the position again on the next line and again every modulation block —
+    // but setTable is a public interface and it was wrong on its own terms.
+    refreshReader();
 }
 
 void WavetableOscillator::setFrequency (double frequencyHz) noexcept
@@ -29,21 +38,45 @@ void WavetableOscillator::setFrequency (double frequencyHz) noexcept
 void WavetableOscillator::updateIncrement() noexcept
 {
     phaseIncrement = frequency / sampleRate;
-    mipLevel = Wavetable::selectMipLevel (frequency, sampleRate);
+
+    const auto newLevel = Wavetable::selectMipLevel (frequency, sampleRate);
+
+    if (newLevel == mipLevel)
+        return;
+
+    // The level is part of what the Reader resolved, so a level change has to
+    // rebuild it. Guarded because pitch modulation calls this every modulation
+    // block and the level changes on almost none of them.
+    mipLevel = newLevel;
+    refreshReader();
 }
 
-void WavetableOscillator::setPosition (float normalisedPosition) noexcept
+void WavetableOscillator::setPosition (float newNormalisedPosition) noexcept
+{
+    // Non-finite is clamped to zero rather than passed on: neither comparison
+    // below is true for a NaN, so it would otherwise travel into the frame
+    // position and from there into an undefined conversion.
+    const auto clamped = ! std::isfinite (newNormalisedPosition) ? 0.0f
+                       : (newNormalisedPosition < 0.0f ? 0.0f
+                       : (newNormalisedPosition > 1.0f ? 1.0f : newNormalisedPosition));
+
+    if (clamped == normalisedPosition && reader.isValid())
+        return;
+
+    normalisedPosition = clamped;
+    refreshReader();
+}
+
+void WavetableOscillator::refreshReader() noexcept
 {
     if (table == nullptr || table->getNumFrames() <= 1)
-    {
         framePosition = 0.0;
-        return;
-    }
+    else
+        framePosition = static_cast<double> (normalisedPosition)
+                      * static_cast<double> (table->getNumFrames() - 1);
 
-    const auto clamped = normalisedPosition < 0.0f ? 0.0f
-                                                   : (normalisedPosition > 1.0f ? 1.0f : normalisedPosition);
-
-    framePosition = static_cast<double> (clamped) * static_cast<double> (table->getNumFrames() - 1);
+    reader = table != nullptr ? table->makeReader (mipLevel, framePosition)
+                              : Wavetable::Reader {};
 }
 
 void WavetableOscillator::resetPhase (double startPhase) noexcept
@@ -56,10 +89,10 @@ void WavetableOscillator::resetPhase (double startPhase) noexcept
 
 float WavetableOscillator::getNextSample() noexcept
 {
-    if (table == nullptr || table->isEmpty())
-        return 0.0f;
-
-    const auto value = table->getSampleAtPosition (mipLevel, framePosition, phase);
+    // No null check, no empty check, no bounds check, no frame lookup. All of
+    // it was settled by refreshReader, at most once per modulation block, and
+    // a Reader with nothing behind it reads as silence (ADR-0071).
+    const auto value = reader.read (phase);
 
     phase += phaseIncrement;
 

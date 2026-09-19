@@ -86,6 +86,17 @@ private:
 
     double frequency = 0.0;
 
+    /** The scan position, held here so that a voice which becomes active later
+        can be given it.
+
+        Since ADR-0071 setting a position rebuilds a Reader, so `setPosition`
+        touches only the voices that are actually sounding rather than all
+        sixteen — a one-voice stack must not pay for fifteen it does not have.
+        The voices above the count are brought up to date by `applyLayout`, the
+        one place a voice can become active.
+    */
+    float normalisedPosition = 0.0f;
+
     /** The layout generation the per-voice frequencies were derived from, so a
         layout that changes underneath this object is noticed rather than
         assumed away.

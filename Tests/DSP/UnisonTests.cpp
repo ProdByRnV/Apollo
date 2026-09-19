@@ -107,10 +107,119 @@ public:
         testSpreadStackIsGenuinelyStereo();
         testDetunedStackBeats();
         testStackStaysWithinItsDocumentedBound();
+        testAVoiceThatBecomesActiveHasTheCurrentPosition();
         testExtremeInputsStayFinite();
     }
 
 private:
+    /** A unison voice that becomes active must already know the scan position.
+
+        Phase 10d-2 made setting a position rebuild a Reader, which meant
+        `UnisonOscillator::setPosition` could no longer afford to walk all
+        sixteen voices every modulation block when only one of them is sounding
+        — on the default patch that would have been fifteen rebuilds for
+        nothing, every block (ADR-0071).
+
+        It now walks only the active voices, which opens a hole this test
+        closes: turning the unison count up activates voices that were never
+        given the current position. `applyLayout` is the one place a voice can
+        become active, so it is where the position is pushed, and here is where
+        that is checked.
+
+        The failure this guards against is specific and quiet: raising unison
+        from one voice to sixteen mid-note would leave fifteen of them scanned
+        to wherever the table was when the note started — or to frame zero —
+        while the first played the position the user can see.
+    */
+    void testAVoiceThatBecomesActiveHasTheCurrentPosition()
+    {
+        beginTest ("A unison voice that becomes active has the current scan position");
+
+        const auto& table = library().getTable (0);
+
+        // Two stacks of sixteen. One has been at sixteen the whole time; the
+        // other starts at one voice, is moved to the position, and is only then
+        // opened up. They must sound identical.
+        UnisonLayout wide;
+        wide.update (16, 0.4f, 0.6f);
+
+        const auto renderStack = [&] (bool growLate)
+        {
+            UnisonLayout layout;
+            layout.update (growLate ? 1 : 16, 0.4f, 0.6f);
+
+            UnisonOscillator stack;
+            stack.setSampleRate (testSampleRate);
+            stack.setTable (&table);
+            stack.setLayout (&layout);
+            stack.setFrequency (220.0);
+
+            // The position is set while the stack is narrow, so the voices that
+            // do not exist yet never see this call.
+            stack.setPosition (0.8f);
+
+            if (growLate)
+                layout.update (16, 0.4f, 0.6f);
+
+            stack.resetPhase (0.0);
+
+            std::vector<float> samples;
+            samples.reserve (256);
+
+            for (int i = 0; i < 128; ++i)
+            {
+                float left = 0.0f;
+                float right = 0.0f;
+                stack.addNextStereoSample (left, right);
+
+                samples.push_back (left);
+                samples.push_back (right);
+            }
+
+            return samples;
+        };
+
+        const auto grownLate = renderStack (true);
+        const auto wideThroughout = renderStack (false);
+
+        expectEquals (static_cast<int> (grownLate.size()),
+                      static_cast<int> (wideThroughout.size()));
+
+        for (std::size_t i = 0; i < grownLate.size(); ++i)
+            expectEquals (grownLate[i], wideThroughout[i],
+                          "sample " + juce::String (static_cast<int> (i))
+                              + ": a stack opened up after the position was set does not match one "
+                                "that was wide all along");
+
+        // And the position must actually matter, or the comparison above would
+        // hold for a stack that ignored it entirely.
+        UnisonLayout layout;
+        layout.update (16, 0.4f, 0.6f);
+
+        UnisonOscillator elsewhere;
+        elsewhere.setSampleRate (testSampleRate);
+        elsewhere.setTable (&table);
+        elsewhere.setLayout (&layout);
+        elsewhere.setFrequency (220.0);
+        elsewhere.setPosition (0.0f);
+        elsewhere.resetPhase (0.0);
+
+        double difference = 0.0;
+
+        for (std::size_t i = 0; i < grownLate.size(); i += 2)
+        {
+            float left = 0.0f;
+            float right = 0.0f;
+            elsewhere.addNextStereoSample (left, right);
+
+            difference += std::abs (static_cast<double> (left - grownLate[i]));
+        }
+
+        expect (difference > 1.0e-3,
+                "the bottom and the top of the table should not sound alike, or this test proves "
+                "nothing");
+    }
+
     /** The table library, built on first use rather than held as a member.
 
         A juce::UnitTest subclass is constructed at **static-initialisation

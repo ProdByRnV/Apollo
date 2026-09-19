@@ -47,13 +47,32 @@ void UnisonOscillator::applyLayout() noexcept
     const auto count = active.getCount();
 
     for (int i = 0; i < count; ++i)
-        oscillators[static_cast<std::size_t> (i)].setFrequency (frequency * active.getFrequencyRatio (i));
+    {
+        auto& oscillator = oscillators[static_cast<std::size_t> (i)];
+
+        oscillator.setFrequency (frequency * active.getFrequencyRatio (i));
+
+        // The count may have just grown, in which case these last few voices
+        // have never been given a position. Cheap for the ones that already
+        // have it — setPosition returns immediately when nothing moved — and
+        // this is the only place a voice can become active, so it is the only
+        // place that has to care.
+        oscillator.setPosition (normalisedPosition);
+    }
 }
 
-void UnisonOscillator::setPosition (float normalisedPosition) noexcept
+void UnisonOscillator::setPosition (float newNormalisedPosition) noexcept
 {
-    for (auto& oscillator : oscillators)
-        oscillator.setPosition (normalisedPosition);
+    normalisedPosition = newNormalisedPosition;
+
+    // Only the sounding voices. Setting a position now rebuilds a Reader
+    // (ADR-0071), and this runs every modulation block, so walking all sixteen
+    // would make a one-voice stack pay fifteen times over — on the default
+    // patch, which is what Apollo loads with.
+    const auto count = currentLayout().getCount();
+
+    for (int i = 0; i < count; ++i)
+        oscillators[static_cast<std::size_t> (i)].setPosition (newNormalisedPosition);
 }
 
 void UnisonOscillator::resetPhase (double basePhase) noexcept

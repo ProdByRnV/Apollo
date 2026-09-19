@@ -160,50 +160,82 @@ public:
         Frames are blended linearly. Scanning a wavetable is a slow, deliberate
         gesture, so linear blending is inaudible here and costs one crossfade
         rather than a second cubic evaluation.
+
+        Convenience over Reader, and the slower way to do it: reading a run of
+        samples at one level and position should make one Reader and keep it.
     */
     [[nodiscard]] float getSampleAtPosition (int level, double framePosition, double phase) const noexcept;
 
-private:
-    /** Where a phase lands inside a frame.
+    /** Everything about a read that does not change from sample to sample.
 
-        The sample at or below it, the fraction past that sample, and the mask
-        that wraps the interpolator's outer two taps around the end of a
-        periodic frame.
+        A voice reads one table, at one mip level, at one frame position, for a
+        whole modulation block at a time — sixteen samples (`Voice.h`). Before
+        this existed, every one of those samples re-derived the same frame
+        pointers: two bounds-checked lookups, a `vector<vector<float>>` double
+        indirection, three separate recomputations of the level's frame size,
+        and the frame-position clamp and blend weight. None of it can change
+        within a block, and it was the largest remaining per-sample cost after
+        Phase 10d-1 (ADR-0071).
 
-        Resolved once per read rather than once per frame. A phase lands in the
-        same place in every frame of a table at a given level, so a two-frame
-        blend that resolved it twice repeated the finiteness check, the floor,
-        the multiply, the cast and the clamping to arrive at the same answer.
+        **Lifetime.** A Reader holds raw pointers into the table's storage, so
+        it is exactly as valid as the `const Wavetable*` an oscillator already
+        held, and no more: a table is immutable once built, and a slot replaced
+        while playing hands the voice a new pointer, at which point the
+        oscillator makes a new Reader (§12.4). A Reader must not outlive the
+        table it came from.
+
+        Default-constructed, it is valid to use and produces silence.
     */
-    struct Tap
+    class Reader
     {
-        int index = 0;
+    public:
+        Reader() = default;
+
+        /** @returns false for a Reader that will only ever produce silence —
+                    no table, an empty one, or an out-of-range level.
+        */
+        [[nodiscard]] bool isValid() const noexcept { return lowerFrame != nullptr; }
+
+        /** Reads one interpolated sample at @p phase, wrapped into [0, 1).
+
+            This is the innermost function in the instrument. It is the only
+            implementation of the interpolation arithmetic — `getSample` and
+            `getSampleAtPosition` both route through it — which is what keeps
+            the one-frame and two-frame paths from drifting apart.
+        */
+        [[nodiscard]] float read (double phase) const noexcept;
+
+    private:
+        friend class Wavetable;
+
+        const float* lowerFrame = nullptr;
+
+        /** Equal to lowerFrame when there is nothing to blend towards: a
+            one-frame table, the last frame, or a blend weight of exactly zero.
+            Comparing the two pointers is how `read` picks its path, so a
+            degenerate blend costs one cubic rather than one cubic and four
+            multiplications by nothing.
+        */
+        const float* upperFrame = nullptr;
+
+        double blend = 0.0;
+
+        int size = 0;
         int mask = 0;
-        double fraction = 0.0;
     };
 
-    /** Resolves @p phase at @p level.
+    /** Resolves a level and frame position into a Reader.
 
-        @returns false for a phase that cannot be turned into an index safely,
-                 in which case the caller must produce silence rather than read.
+        @param framePosition  continuous frame position, clamped into
+                              [0, numFrames - 1]. A non-finite position is
+                              treated as the first frame rather than refused:
+                              a broken scan control should leave the instrument
+                              sounding (§33), and unlike a broken phase there is
+                              an obvious answer to fall back on.
     */
-    [[nodiscard]] static bool resolveTap (int level, double phase, Tap& tap) noexcept;
+    [[nodiscard]] Reader makeReader (int level, double framePosition) const noexcept;
 
-    /** Evaluates the interpolator over one frame at a resolved tap. */
-    [[nodiscard]] static float readFrame (const float* frame, const Tap& tap) noexcept;
-
-    /** Evaluates the interpolator **once** over two frames blended at @p blend.
-
-        Cubic Hermite is a *linear* combination of its four sample points, so
-        interpolating each frame and then crossfading the two results gives the
-        same value as crossfading the four pairs of points and interpolating
-        once. The second form resolves one tap instead of two and runs one cubic
-        instead of two, and the arithmetic it removes is the arithmetic the
-        Phase 10c profile was dominated by (ADR-0070).
-    */
-    [[nodiscard]] static float readBlendedFrames (const float* lower, const float* upper,
-                                                  const Tap& tap, double blend) noexcept;
-
+private:
     [[nodiscard]] std::size_t offsetOf (int level, int frameIndex) const noexcept;
 
     int numFrames = 0;

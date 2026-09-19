@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 10 — Performance, DSP Validation & Host Compatibility, in progress; **10a, 10b, 10c and 10d-1 complete** |
-| **Status** | **Phases 8 and 9 are done, and Phase 10 is four sub-phases in.** Apollo is now measured, pinned, profiled on a harness that reports how much it should be believed — and, as of 10d-1, fast enough that the worst patch its own controls can build keeps up. **10d-1 made the voice path 1.8x cheaper and closed the deadline miss issue 13 was about** (§5b, ADR-0070): the per-sample wavetable read was performing eight integer divisions and resolving the same phase tap twice, four hundred million divisions a second across 1088 oscillators, and all of it was removable without changing a single audible thing — every mip level frame size is a power of two, so the wrap is a mask, and cubic Hermite is linear in its samples, so a two-frame blend needs one cubic rather than two. The worst patch went from 105 % of its callback deadline to 64 %, and from 122 % at the 99th percentile to 78 %. All fifteen regression renders match their references to 0.0005 dB and the new read path agrees with the one it replaced to 5.96e-8 — one float epsilon — so the evidence that nothing moved is arithmetic rather than opinion. 10c replaced a benchmark whose figures moved forty per cent between idle runs with one that pins its thread, normalises against a fixed reference kernel, reports the spread of every row, and says at the top when the machine was too busy to be measured on (ADR-0069) — and then measured what nothing had measured before: the **worst-case callback** rather than an average, and the worst patch the controls can build with everything running at once, which misses its deadline one block in a hundred (§5b, issue 13). 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Phase** | Phase 10 — Performance, DSP Validation & Host Compatibility, in progress; **10a, 10b, 10c, 10d-1 and 10d-2 complete** |
+| **Status** | **Phases 8 and 9 are done, and Phase 10 is five sub-phases in.** Apollo is now measured, pinned, profiled on a harness that reports how much it should be believed — and, as of 10d-1, fast enough that the worst patch its own controls can build keeps up. **10d-1 made the voice path 1.8x cheaper and closed the deadline miss issue 13 was about** (§5b, ADR-0070): the per-sample wavetable read was performing eight integer divisions and resolving the same phase tap twice, four hundred million divisions a second across 1088 oscillators, and all of it was removable without changing a single audible thing — every mip level frame size is a power of two, so the wrap is a mask, and cubic Hermite is linear in its samples, so a two-frame blend needs one cubic rather than two. The worst patch went from 105 % of its callback deadline to 64 %, and from 122 % at the 99th percentile to 78 %. All fifteen regression renders match their references to 0.0005 dB and the new read path agrees with the one it replaced to 5.96e-8 — one float epsilon — so the evidence that nothing moved is arithmetic rather than opinion. **10d-2 then took another 1.5x** by resolving a read once per modulation block instead of once per sample (ADR-0071) — the mip level and frame position cannot change within a block, yet every sample was redoing two bounds-checked lookups, a vector-of-vectors indirection and three computations of the same frame size. The voice path is now about 2.8x cheaper than before Phase 10d and the worst patch sits near a third of its deadline. It also found a defect that was invisible through Apollo's only caller — setTable re-applied the scan position by handing a frame index to a function expecting a normalised one — and two faults in the measurement harness itself, which are now what 10d-3 is for. 10c replaced a benchmark whose figures moved forty per cent between idle runs with one that pins its thread, normalises against a fixed reference kernel, reports the spread of every row, and says at the top when the machine was too busy to be measured on (ADR-0069) — and then measured what nothing had measured before: the **worst-case callback** rather than an average, and the worst patch the controls can build with everything running at once, which misses its deadline one block in a hundred (§5b, issue 13). 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M10 — Performance, validation & host compatibility |
-| **Next step** | **Phase 10d-2 — SIMD across unison voices.** 10d-1 took the arithmetic out of the per-sample table read and got 1.8x, which was enough to close the deadline miss (issue 13). What is left is the shape of the work rather than its cost per sample: sixteen unison voices read the same table at sixteen different phases, which is exactly what a vector unit is for, and the heaviest patch in isolation still costs 131 % of one core at 32 voices. The adjacent candidate, cheaper than SIMD and worth measuring first, is hoisting the frame pointers and bounds checks out of the per-sample path into the per-modulation-block path, where the mip level and frame position are already constant (ADR-0070). One measurement question is carried forward (issue 6: still no allocation or lock detector on the audio thread) (ROADMAP §2a) |
+| **Next step** | **Phase 10d-3 — fix the measurement harness, then decide whether SIMD is worth it.** 10d-2 returned another 1.5x from hoisting the per-block invariants out of the per-sample read (ADR-0071), so the voice path is about 2.8x cheaper than before Phase 10d and the worst patch sits near a third of its callback deadline. SIMD across unison voices is therefore **optional rather than needed**, and it should be bought with a measurement rather than an expectation — which is exactly what the harness currently cannot supply. Two faults surfaced in 10d-2 and both are now the blocking work: normalisation *over-corrects* the voice-engine row, because the reference kernel is register arithmetic and the voice engine is memory-bound (it amplified a 23 % spread into 58 %); and the steadiness check samples the start of the run while the callback trace happens minutes later, so a run reported 2.7 % contention and then produced a 435 % block (§5b). One measurement question is carried forward (issue 6: still no allocation or lock detector on the audio thread) (ROADMAP §2a) |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -1253,7 +1253,7 @@ of this one.
 | 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); ten factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
-| 10 | **10a, 10b, 10c and 10d-1 are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders — ten of them the factory presets — are pinned against references compiled in beside the tests, so a change that alters what Apollo sounds like fails the build (§5d, ADR-0068); the benchmark was rebuilt into something that reports how much it should be believed, then used to measure the worst-case *callback* rather than an average, memory, first use, and the worst patch the controls can build with everything running at once (§5b, ADR-0069); and **10d-1 made that patch keep up** — the per-sample table read stopped dividing and stopped interpolating twice, the voice path got 1.8x cheaper, and the worst patch fell from 105 % of its callback deadline to 64 % without moving the sound by more than one float epsilon (ADR-0070). Absent: 10d-2 (SIMD across unison voices) and 10d-3, and host compatibility (10e), which needs real DAWs |
+| 10 | **10a, 10b, 10c, 10d-1 and 10d-2 are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders — ten of them the factory presets — are pinned against references compiled in beside the tests, so a change that alters what Apollo sounds like fails the build (§5d, ADR-0068); the benchmark was rebuilt into something that reports how much it should be believed, then used to measure the worst-case *callback* rather than an average, memory, first use, and the worst patch the controls can build with everything running at once (§5b, ADR-0069); **10d-1 made that patch keep up** — the per-sample table read stopped dividing and stopped interpolating twice, for 1.8x (ADR-0070); and **10d-2 took another 1.5x** by resolving a read once per modulation block rather than once per sample, leaving the voice path about 2.8x cheaper than before Phase 10d (ADR-0071). Absent: 10d-3 — the harness faults 10d-2 surfaced, and the decision on whether SIMD across unison voices is still worth its complexity — and host compatibility (10e), which needs real DAWs |
 | 11–12 | Packaging, cross-platform release engineering, release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
@@ -2345,6 +2345,72 @@ and it is also why the anomaly noted in the voice-engine section above is
 recorded as a caveat rather than dismissed: the harness demonstrably can
 transport a figure, so a row that does not is telling us something.
 
+### After 10d-2 (Phase 10d)
+
+10d-2 resolved the rest of the per-sample read out of the per-sample path. The
+mip level and the frame position cannot change within a modulation block, yet
+every sample was re-deriving two bounds-checked lookups, a vector-of-vectors
+indirection, three separate computations of the level's frame size, and the
+frame-position clamp and blend weight. A `Wavetable::Reader` now settles all of
+it once and the oscillator holds it (ADR-0071).
+
+**This was the cheaper of the two candidates, measured first on purpose**, and
+it was enough that SIMD across unison voices is now optional rather than needed.
+
+Interleaved runs of the two binaries in one sitting. The headline pair is the
+two runs whose machine speeds matched to within one per cent (1.017x and
+1.008x), both among the cleanest of the sitting:
+
+| | 10d-1 | 10d-2 | Ratio |
+|---|---:|---:|---:|
+| Heaviest patch, 32 voices (raw) | 84.7 % | **54.0 %** | **1.57x** |
+| Default patch, 32 voices (raw) | 7.15 % | **4.79 %** | 1.49x |
+| Worst patch, median callback | 50.9 % | **36.2 %** | **1.41x** |
+| Worst patch, p99 | 55.8 % | **39.1 %** | 1.43x |
+| Worst patch, worst single block | 62.3 % | **45.8 %** | 1.36x |
+
+Medians over every clean run agree — 1.62x, 1.44x, 1.50x — before correcting for
+10d-2's runs having landed on a machine about 4.6 % faster, which puts the true
+figures between those and the pair above.
+
+**Against the pre-10d baseline the voice path is about 2.8x cheaper** (1.79x
+then 1.57x), and the worst patch Apollo's own controls can build now sits near a
+third of its callback deadline where before 10d it exceeded it.
+
+The default patch improved as well, which was not automatic: `setPosition` on a
+unison stack used to walk all sixteen voices whether or not they were sounding,
+and with a Reader rebuild attached that would have made the one-voice case
+*worse*. It now walks only the active voices, and the voices that become active
+later are brought up to date where they become active (ADR-0071).
+
+**Two harness faults surfaced here, and neither is fixed.** They are 10d-3.
+
+- **Normalisation over-corrects this row**, which is the anomaly 10d-1 recorded
+  without being able to explain. Across 10d-1's runs the *normalised*
+  heaviest-patch figure varied from 83 to 131 while the *raw* figure varied only
+  from 84.7 to 104.5: normalisation turned a 23 % spread into 58 %. The
+  reference kernel is register arithmetic and the voice engine is memory-bound,
+  so when the core clock drops the kernel slows proportionally and the table
+  reads do not, and dividing by the kernel's ratio over-corrects. The worst-case
+  callback row is reported raw and transports between sittings to within one per
+  cent, which is why the tables above are raw and speed-matched rather than
+  normalised.
+- **The steadiness check samples the wrong part of the run.** Contention is
+  measured while the reference kernel is timed at the start; the callback trace
+  runs minutes later. One run reported **2.7 % contention** and then produced a
+  **435 %** worst-case block on a patch whose median was 39 % — with every other
+  row degraded too, including the default patch's worst case going from 2.4 % to
+  41 %. No code change can do that; something else had the machine, and the
+  report said the machine was quiet.
+
+  Until the harness can say this itself, a run is discarded here when its
+  **default patch, 8 held** worst case exceeds 5 %. The default patch is cheap
+  enough that a large worst case there can only be interference, which makes it
+  a witness for the whole run. Four of fourteen runs were discarded by that
+  rule, and they are named rather than dropped quietly: 10d-2 passes 2, 4 and
+  7, and 10d-1 pass 7 — pass 7 having been disturbed for both binaries, which
+  is what an external event looks like.
+
 ### First use (Phase 10c)
 
 What somebody waits for, and what a session pays to hold.
@@ -2545,7 +2611,7 @@ of asserting nothing.
 | 10 | ~~`filter_*` parameters are un-indexed while the PRD specifies two filters~~ | **Closed** | Resolved in Phase 5b. They became `filter1_*`, joined by `filter2_*` and `filter_routing`, through a schema version 1 to 2 migration rather than a bare rename — the first real use of the migration path built in Phase 2 (ADR-0032). Done while Apollo is pre-1.0, which is the only window in which it is cheap. |
 | 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
-| 13 | The heaviest patch cannot sustain full polyphony in real time | **Largely fixed** | Measured in Phase 4c, re-measured properly in 10c, and **addressed in 10d-1**. 10c restated it in the terms that matter: the worst patch the controls can build, at full polyphony with a full rack and the modulation matrix running, missed its callback deadline one block in a hundred — median 90 %, p99 102 %, worst 112 %. **It no longer misses one.** Removing the eight integer divisions and the duplicated cubic from the per-sample table read (ADR-0070) made the voice path 1.8x cheaper, and the worst patch now sits at 64 % of its deadline in the median and 80 % at its worst single block of nine hundred (§5b). What remains open is the narrower original claim: the heaviest patch *in isolation* still costs 131 % of one core at 32 voices, down from 234 %, so it cannot be sustained at the very top of every ceiling at once. That is inherent arithmetic — 1088 interpolating oscillators — and ADR-0029 records why the ceilings were published rather than lowered. 10d-2 (SIMD across unison voices) is aimed at the remainder. |
+| 13 | The heaviest patch cannot sustain full polyphony in real time | **Largely fixed** | Measured in Phase 4c, re-measured properly in 10c, and addressed across **10d-1 and 10d-2**. 10c restated it in the terms that matter: the worst patch the controls can build, at full polyphony with a full rack and the modulation matrix running, missed its callback deadline one block in a hundred — median 90 %, p99 102 %. **It no longer misses one, and now has roughly two thirds of its deadline spare.** 10d-1 removed eight integer divisions and a duplicated cubic from the per-sample table read (ADR-0070) and 10d-2 resolved the rest of the read once per modulation block instead of once per sample (ADR-0071). Together the voice path is about **2.8x** cheaper — the product of two within-sitting ratios, 1.79x and 1.57x, rather than a comparison across sittings, which §5b explains this harness cannot currently support. The worst patch sits at **36 % of its deadline in the median and 46 % at its worst single block**, and the heaviest patch in isolation at 32 voices measures **54 % of one core**. What remains of the original claim is narrow: that is the ceiling of every control at once, and there is no headroom above it. The arithmetic is inherent — 1088 interpolating oscillators — and ADR-0029 records why the ceilings were published rather than lowered. |
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
 | 15 | ~~Synthetic input does not reach the WebView reliably~~ | **Closed** | Four sub-phases in a row (8b-8d, §5a) recorded that the interface could be read but not driven, because injecting input at the desktop reaches whatever window is in front. Solved in 8e by posting the mouse messages directly to Apollo's `Chrome_RenderWidgetHostHWND` child and capturing with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the cursor nor the foreground. The driving process must call `SetProcessDPIAware` first, or it measures a 1920x1080 window as 1280x720 and captures only its corner. |
 | 16 | No MIDI source on this machine for chain tests | Low | 8e and 8f could both drive the interface but neither could play a note into a configured chain, because no virtual MIDI port was running. Audible behaviour is asserted through `processBlock` in `Tests/Audio/EffectsIntegrationTests.cpp` instead, up to and including a full rack of six restored from a preset and still sounding. Worth having a port available before Phase 9, where a preset is supposed to be recognisable by ear. |
@@ -2572,51 +2638,60 @@ it cannot be cleared from this machine:
 
 ## 8. Recommended next action
 
-Continue with **Phase 10d-2 — SIMD across unison voices.**
+Continue with **Phase 10d-3 — fix the harness, then decide whether SIMD is
+worth it.**
 
-10d-1 did the cheap half and it was enough to close issue 13. What is left is
-narrower and better understood than it was a sub-phase ago:
+The order matters, and it is the reverse of what the roadmap originally
+implied. SIMD across unison voices was planned as the main event of 10d. It is
+now optional, and the thing that would tell us whether to do it is broken.
 
-1. **The remaining cost is the shape of the work, not the arithmetic per
-   sample.** 10d-1 removed eight integer divisions and a duplicated cubic from
-   the per-sample read and got 1.8x (ADR-0070). Sixteen unison voices reading
-   one table at sixteen different phases is what remains, and it is exactly the
-   shape a vector unit exists for: the same four-tap gather and the same cubic,
-   sixteen at a time.
-2. **Measure the cheaper candidate first.** The mip level and the frame position
-   are constant across a modulation block, yet the bounds checks and the frame
-   pointer arithmetic are still redone every sample. Hoisting them into the
-   per-block path is a smaller change than SIMD and may take a useful fraction
-   of what is left. It spans `WavetableOscillator` and `UnisonOscillator`, which
-   is why 10d-1 did not do it.
-3. **The target is no longer a deadline miss.** The worst patch has a fifth of
-   its callback spare (§5b), so 10d-2 is about headroom rather than about
-   correctness. That changes how much complexity is worth accepting: SIMD across
-   unison voices is a real increase in the amount of code that has to be right,
-   and it should be bought with a measurement rather than with an expectation.
-4. **The evidence machinery is in place and proven.** The regression renders
-   caught nothing in 10d-1 because there was nothing to catch, and the identity
-   test against the pre-10d read path put a number on that — 5.96e-8, one float
-   epsilon. A SIMD path needs the same treatment: not "the renders still pass"
-   but "the vector path and the scalar path agree, and here is by how much".
+1. **The optimisation target is gone.** 10d-1 and 10d-2 together made the voice
+   path about 2.8x cheaper. The worst patch Apollo's controls can build sits at
+   36 % of its callback deadline in the median and 46 % at its worst single
+   block, against 105 % and 126 % before Phase 10d. Nothing is missing a
+   deadline and nothing is close to one.
+2. **So SIMD now has to justify itself.** Sixteen unison voices reading one
+   table at sixteen phases is still the shape a vector unit exists for, and it
+   is still the largest structural win available. It is also a real increase in
+   the amount of code that has to be right, on the innermost function in the
+   instrument, with a scalar fallback to maintain for platforms and builds that
+   do not get the vector path. When the deadline was being missed that trade
+   was obvious. It is not obvious now, and PROJECT-STATE's own standing
+   position is that an optimisation is bought with a measurement rather than an
+   expectation.
+3. **The measurement cannot currently be trusted to make that call**, which is
+   what makes the harness the blocking work rather than a tidy-up:
+   - **Normalisation over-corrects the voice-engine row.** The reference kernel
+     is register arithmetic; the voice engine is memory-bound. When the core
+     clock drops the kernel slows proportionally and the table reads do not, so
+     dividing by the kernel's ratio overshoots — it turned a 23 % raw spread
+     into a 58 % normalised one across 10d-1's runs (§5b). A second reference,
+     memory-bound rather than arithmetic-bound, would let each row normalise
+     against whichever one it actually resembles.
+   - **The steadiness check watches the wrong minutes.** Contention is sampled
+     while the reference kernel is timed, at the start of the run; the callback
+     trace happens minutes later. One run reported 2.7 % contention and then
+     produced a 435 % worst-case block. The check should run *during* the
+     traces, or at least again after them.
+   - **A cheap witness already exists** and is worth building in rather than
+     applying by hand: the default patch at 8 voices is so cheap that a large
+     worst case in that row can only be interference. 10d-2 used a 5 % gate on
+     it to discard four runs of fourteen, stated before the numbers rather than
+     after.
+4. **Only then, decide.** With a harness that can distinguish a 10 % change from
+   noise, measuring a SIMD prototype against the scalar path becomes a
+   half-day's work with a defensible answer at the end. Without one it is an
+   argument.
 5. **One measurement question still travels with the phase.** There is no
    allocation or lock detector on the audio thread (issue 6), and the obvious
    mechanism does not work — replacing global `operator new` would miss
    `juce::HeapBlock`, which calls `malloc` directly and is what every JUCE audio
    buffer is built on.
 
-**And one harness question 10d-1 raised.** Normalised absolute figures did not
-transport between sittings for the voice-engine row — the same code measured a
-third higher than 10c recorded — while the worst-case callback row transported
-to within one per cent (§5b). Same-sitting ratios are unaffected and that is
-what 10d-1 published, but the discrepancy is recorded rather than averaged away,
-and 10d-3 is the place to find it.
-
 A spectrum analyser remains the one unticked Visualization item, and both PRD and
 ROADMAP mark it optional.
 
 ---
-
 
 ## 9. Version control policy
 

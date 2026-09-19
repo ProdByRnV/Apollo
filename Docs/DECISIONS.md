@@ -3440,3 +3440,155 @@ has moved and not only its cost.
 - **SIMD across unison voices.** Sixteen voices reading the same table at
   different phases is the shape a vector unit exists for, and it is the next
   sub-phase rather than this one.
+
+---
+
+## ADR-0071 — A read is resolved once a block, not once a sample
+
+**Phase 10d-2 · Accepted**
+
+ADR-0070 took the arithmetic out of the per-sample table read and got 1.8x,
+which was enough to stop the worst patch missing its callback deadline. It left
+a note about what it had not done: the mip level and the frame position are
+constant across a modulation block, so the bounds checks and the frame pointer
+arithmetic could be resolved once per block instead of once per sample. That is
+this decision.
+
+PROJECT-STATE §8 said to measure that before reaching for SIMD, on the grounds
+that it is the smaller change and the deadline was no longer the problem. It was
+worth the order: it returned another **1.5x**, and SIMD has not been needed to
+close anything.
+
+### What was still being redone every sample
+
+A voice reads one table, at one level, at one frame position, for sixteen
+samples at a time — `Voice::modulationBlockSamples`. Every one of those samples
+was re-deriving:
+
+- `table == nullptr` and `table->isEmpty()`;
+- `numFrames <= 0` and `numFrames == 1`;
+- the frame position clamp, the cast to an integer frame index, and the blend
+  weight;
+- **two bounds-checked lookups** through `getReadPointer`, each of which walks a
+  vector of vectors — two dependent loads before any table data is touched;
+- `samplesAtLevel(level)` **three separate times**, and `size - 1` with it.
+
+None of it can change within a block. All of it was in the innermost loop of the
+instrument, 1088 oscillators wide.
+
+### Wavetable::Reader
+
+A `Reader` is everything about a read that does not change from sample to
+sample: two frame pointers, the frame size, its mask, and the blend weight.
+`makeReader` resolves it; `Reader::read (phase)` is what the audio thread calls.
+
+`WavetableOscillator` holds one and rebuilds it when the table, the scan
+position or the mip level moves — on a note, a pitch change, or a modulation
+block, never per sample. `getNextSample` is now a `read`, an add and a wrap,
+with no null check and no lookup: a default-constructed Reader is valid to use
+and produces silence, which is what lets the checks go away rather than move.
+
+**Lifetime.** A Reader holds raw pointers into the table's storage, so it is
+exactly as valid as the `const Wavetable*` the oscillator already held and no
+more. Tables are immutable once built; a slot replaced while playing hands the
+voice a new pointer and the oscillator makes a new Reader (§12.4). This adds no
+new lifetime obligation, which is the reason it is a value type rather than a
+handle with a generation counter.
+
+`getSample` and `getSampleAtPosition` both route through a throwaway Reader, so
+there is exactly one implementation of the interpolation arithmetic. That is
+stronger than the previous arrangement, where the one-frame and two-frame paths
+were separate functions that a test had to check agreed.
+
+### The change that was not an optimisation
+
+`UnisonOscillator::setPosition` walked all sixteen voices every modulation block
+regardless of how many were sounding. That was merely wasteful before; with a
+Reader rebuild attached to each call it would have made the **default patch** —
+one oscillator, no unison, which is what Apollo loads with — pay fifteen
+rebuilds a block for voices it does not have.
+
+It now walks only the active voices. That opens a hole: turning unison up
+activates voices that were never given the current position, which would leave
+them scanned to frame zero while the first plays the position the user can see.
+`applyLayout` is the one place a voice can become active, so the position is
+pushed there, and a test renders a stack opened up after the position was set
+against one that was wide all along and requires them to be sample-identical.
+
+### A defect found on the way
+
+`WavetableOscillator::setTable` re-applied the scan position by passing the
+**frame** position to `setPosition`, which expects a **normalised** one. Any
+position past the first frame clamped to 1.0 and jumped the oscillator to the
+top of the new table.
+
+Nothing sounded wrong, because `Voice` sets the position again on the very next
+line and again every modulation block. That is precisely why it is worth
+recording: the defect was invisible through the only caller Apollo had, and
+`setTable` is a public interface. The oscillator now keeps the normalised
+position as its canonical state and derives the frame position from it, which is
+also the right thing on its own terms — tables may have different frame counts,
+and "half way along" means the same thing in all of them while "frame 9.6" does
+not.
+
+A non-finite frame position is now clamped rather than cast, closing an
+undefined conversion that had been reachable through the public API since the
+class was written. It is treated as the first frame rather than as silence:
+unlike a broken phase, a broken scan position has an obvious answer to fall back
+on, and a mis-set control should leave the instrument sounding (§33).
+
+### What it bought
+
+Interleaved runs of the 10d-1 binary and this one, same sitting. The headline
+pair is the two runs whose machine speeds matched to within one per cent, with
+the medians of all clean runs as corroboration.
+
+| | 10d-1 | 10d-2 | Ratio |
+|---|---:|---:|---:|
+| Heaviest patch, 32 voices (raw) | 84.7 % | 54.0 % | **1.57x** |
+| Worst patch, median callback | 50.9 % | 36.2 % | **1.41x** |
+| Worst patch, p99 | 55.8 % | 39.1 % | 1.43x |
+| Default patch, 32 voices | 7.15 % | 4.79 % | 1.49x |
+
+Medians over all clean runs agree — 1.62x, 1.44x, 1.50x — before correcting for
+10d-2's runs having landed on a machine about 4.6 % faster.
+
+**Against the pre-10d baseline the voice path is now about 2.8x cheaper**, and
+the worst patch Apollo's controls can build sits near a third of its callback
+deadline where it used to exceed it.
+
+### Two things learned about the harness, neither fixed here
+
+**Normalisation over-corrects for this row, which explains what 10d-1 could only
+report.** ADR-0069 normalises every figure against a reference kernel of fixed
+arithmetic. Across 10d-1's runs here the *normalised* heaviest-patch figure
+varied from 83 to 131 while the *raw* figure varied only from 84.7 to 104.5 —
+normalisation amplified a 23 % spread into 58 %. The kernel is register
+arithmetic and the voice engine is memory-bound, so when the core clock drops
+the kernel slows proportionally and the table reads do not; dividing by the
+kernel's ratio then over-corrects. The worst-case callback row, which is
+reported raw, transports between sittings to within one per cent.
+
+**The steadiness check samples the wrong part of the run.** Contention is
+measured while the reference kernel is timed, at the start; the callback trace
+runs minutes later. One run here reported 2.7 % contention and then produced a
+435 % worst-case block on a patch whose median was 39 % — and *every* row in that
+run was degraded, including the default patch's worst case going from 2.4 % to
+41 %. No code change can do that; something else had the machine.
+
+Until the harness can say this itself, comparisons here discard a run whose
+**default patch, 8 held** worst case exceeds 5 %. The default patch is so cheap
+that a large worst case there can only be external interference, which makes it
+a usable witness for the whole run. The filter is stated before the numbers
+rather than after, and the discarded runs are reported rather than dropped
+quietly.
+
+Both belong to 10d-3.
+
+### Still not done
+
+SIMD across unison voices. Sixteen voices reading one table at sixteen phases
+remains the shape a vector unit is for, and it remains the largest structural
+win available. It is now optional rather than needed, which changes what it has
+to justify: a real increase in the amount of code that has to be right, bought
+with a measurement rather than an expectation.

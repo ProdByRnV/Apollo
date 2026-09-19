@@ -53,12 +53,36 @@ public:
 private:
     void updateIncrement() noexcept;
 
+    /** Re-derives the frame position from the normalised one, and with it the
+        Reader. Called whenever the table, the scan position or the mip level
+        moves — which is to say on a note, a pitch change and a modulation
+        block, never per sample (ADR-0071).
+    */
+    void refreshReader() noexcept;
+
     const Wavetable* table = nullptr;
+
+    /** The resolved read position, rebuilt by refreshReader.
+
+        This is what makes `getNextSample` cheap: the frame pointers, the frame
+        size and the blend weight are settled here rather than re-derived for
+        every sample of every unison voice.
+    */
+    Wavetable::Reader reader;
 
     double sampleRate = 44100.0;
     double frequency = 0.0;
     double phase = 0.0;
     double phaseIncrement = 0.0;
+
+    /** The scan position as the user set it, in [0, 1].
+
+        Kept alongside the derived frame position because it is the one that
+        survives a change of table: tables may have different frame counts, and
+        "half way along" means the same thing in all of them while "frame 9.6"
+        does not.
+    */
+    float normalisedPosition = 0.0f;
 
     double framePosition = 0.0;
     int mipLevel = 0;
