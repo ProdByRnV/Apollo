@@ -3592,3 +3592,131 @@ remains the shape a vector unit is for, and it remains the largest structural
 win available. It is now optional rather than needed, which changes what it has
 to justify: a real increase in the amount of code that has to be right, bought
 with a measurement rather than an expectation.
+
+---
+
+## ADR-0072 — Hold the clock still before measuring anything
+
+**Phase 10d-3 · Accepted**
+
+Phase 10d-1 recorded an anomaly it could not explain: normalised figures did not
+transport between sittings. Phase 10d-2 quantified it — across its runs the
+*normalised* heaviest-patch figure varied from 83 to 131 while the *raw* figure
+varied only from 84.7 to 104.5, so correcting a row made it **less** reproducible
+than leaving it alone — and proposed an explanation: the reference kernel walks a
+32 KB table that never leaves L1, so it tracks the core clock, while the voice
+engine reads a two-megabyte wavetable library out of L2 and L3, and memory
+latency does not throttle with the core clock.
+
+That explanation is true. It is not the main thing that was wrong.
+
+### What was actually wrong
+
+The development machine is an **i7-1255U**: a 15 W mobile part with a 1.7 GHz
+base clock and a turbo near 4.7. Nothing in the harness had ever asked what the
+clock does *during* a report, so this decision added a second assessment after
+the last section. The answer was that the machine sheds **up to 68 % of its
+speed** while a single report runs.
+
+Every normalised figure was divided by a speed measured in the opening seconds.
+On a part like this, that divisor describes a processor which no longer exists by
+the time the later sections are taken. The report was not mis-correcting by a few
+per cent for the wrong reference; it was correcting by a factor measured on a
+different machine from the one that produced the rows.
+
+That is the anomaly. The compute-versus-memory distinction is real and
+second-order.
+
+### The fix is to stop measuring a clock the machine cannot hold
+
+`prepareMachine` now runs sustained load until the reference unit stops getting
+slower, and only then is anything assessed or reported. Everything that follows
+is taken at a speed the machine can sustain — which is also the speed a user's
+session runs at, because a synthesiser is not a burst workload. Warming for a
+minute to measure honestly is a better trade than reporting turbo figures no
+listener will ever hear.
+
+It is bounded, and exits early on a machine that does not throttle.
+
+**The floor is forty-five seconds and it took two attempts.** The first version
+had only a settling test — the median of the last three bursts against the three
+before — and it let two runs in three exit while the machine was still boosting:
+those opened at 1.07x and 1.08x the reference speed and then drifted 16 % and
+56 %, while the one run that warmed properly opened at 0.90x and drifted -1 %. A
+comparison of noisy medians is satisfied by chance long before a ramp ends. The
+test now runs over a wider window, must be confirmed twice, and is not consulted
+at all until the floor has passed.
+
+Twenty-five seconds was the first floor, and it was too short for a specific
+reason: Intel mobile parts hold their turbo power budget for a Tau of about
+twenty-eight seconds before falling back to the sustained limit, and the warm-up
+was exiting at 25.6 s on every run — immediately before the drop it existed to
+get past. Twenty-five and forty-five were then compared directly, three passes
+each, interleaved: the heaviest-patch row reproduced between runs to 9 % at
+forty-five against 25 % at twenty-five, with a within-run pass spread of 11 %
+against 16 %.
+
+### What it bought
+
+| | before | after |
+|---|---|---|
+| Machine speed, between runs | 0.525 – 1.089 (a factor of two) | **0.929 – 0.944 (1.6 %)** |
+| Heaviest patch row, between runs | 23 % raw, 58 % normalised | **0.4 %** |
+
+The second row is the point. Apollo's most expensive measurement now reproduces
+to within half a per cent between runs, where before it moved by a quarter raw
+and by more than half once "corrected". **The answer to "why do these numbers not
+reproduce" turned out to be "hold the clock still", not "choose a better
+divisor".**
+
+### Three other things this phase added
+
+**A second reference, bound by memory.** A dependent chase through a 2 MB table —
+the size of the built-in wavetable library — reading four neighbours at each stop,
+which is the width of the interpolator's taps. The next address is the value just
+loaded, so the loads cannot be issued ahead of one another. Every row now declares
+which reference it resembles; the parameter is required rather than defaulted, so
+all nine call sites had to state a choice rather than inherit one.
+
+**The drift check itself**, described above, and reported on every run. Its first
+version compared a 96 ms reading against a 3.6 s baseline — exactly the asymmetry
+this file already warned about for the per-row case — and produced drift figures
+between 3 % and 55 % on a machine that could not have varied that much between
+consecutive runs. It now takes bursts of the same length and compares medians.
+
+**A witness for the callback traces.** The default patch at eight voices is the
+cheapest thing Apollo does; there is not enough work in it to produce a large
+worst-case block, so one appearing means something else had the machine. Phase
+10d-2 applied exactly this rule by hand to discard four runs of fourteen. It is
+now the report's own, and it distinguishes sustained interference (nothing is
+usable) from an isolated event (the median and p99 columns survive, the worst
+column does not).
+
+### What is not established
+
+**That the memory reference is the better divisor for memory-bound rows.** It is
+reasoned, and its premise is measured — the two references decouple, their ratio
+moving by 24 % across six runs, so the per-row choice has something to choose.
+The claim itself needs several low-contention runs spanning a range of machine
+speeds, and there have been none: selecting runs by the voice row's own quality
+left two or three, all at nearly the same speed.
+
+There is an irony in that, and it is the honest resolution rather than a defeat.
+The warm-up works by *removing* the speed variation the validation would need in
+order to discriminate between two divisors — and in removing it, it also removes
+most of the reason to care which divisor is used, because the raw figures now
+reproduce on their own. The mechanism stays, because it is still the right thing
+for comparing between different machines, and the report prints its own caveat on
+every run.
+
+### What this says about the machine
+
+It is worth recording plainly: **a 15 W laptop running an antivirus, a VPN, a
+browser and an IDE is not a measurement instrument**, and across this phase it
+produced long runs of reports that the harness's own gates refused — eighteen
+consecutive at one point. That is the machinery working. The figures above were
+obtained from the runs that passed.
+
+None of this makes the laptop into an instrument. It makes one that says when it
+is not being one, which was ADR-0069's stated goal and is now considerably closer
+to true.

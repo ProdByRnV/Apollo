@@ -83,6 +83,56 @@ struct Statistics
 */
 [[nodiscard]] double referenceKernel();
 
+/** A second reference, bound by **memory** rather than by arithmetic.
+
+    WHY A SECOND ONE EXISTS (Phase 10d-3, ADR-0072). The kernel above walks a
+    32 KB table that never leaves L1, so what it measures is very nearly the
+    core clock. Apollo's voice engine does not look like that: one wavetable is
+    about 480 KB across its eleven mip levels, four of them are about 2 MB
+    together, and 1088 oscillators read them at scattered levels, frames and
+    phases. That workload lives in L2 and L3, and **memory latency does not
+    throttle with the core clock**.
+
+    Correcting one by the other therefore overshoots, and it was measured
+    overshooting. Across Phase 10d-2's runs the *normalised* heaviest-patch
+    figure varied from 83 to 131 while the *raw* figure varied only from 84.7 to
+    104.5 — normalisation turned a 23 % spread into 58 %, which is worse than
+    not correcting at all. The header above had predicted exactly this
+    ("correcting a memory-bound workload by a partly compute-bound reference is
+    an approximation"); 10d-2 found out how bad the approximation is.
+
+    So this kernel is deliberately shaped like the read it has to stand in for:
+    a **dependent chase** through a 2 MB table — the size of Apollo's built-in
+    wavetable library — reading four neighbouring entries at each stop, which is
+    the width of the interpolator's taps. The next location depends on what was
+    just read, so the loads cannot be issued ahead of one another and the figure
+    is latency at that size rather than peak bandwidth.
+
+    It is a frozen synthetic analogue and never the real read, so optimising the
+    oscillator cannot move the reference it is normalised against.
+
+    @returns a value, so that no compiler can decide the work was pointless.
+*/
+[[nodiscard]] double memoryKernel();
+
+/** Which reference a row should be corrected by.
+
+    Declared per row rather than guessed once, because the report contains both
+    kinds of work and a single answer is wrong for half of it.
+*/
+enum class Reference
+{
+    /** Arithmetic in registers and small tables: LFO shapes, waveshapers,
+        oversampling filters, biquads.
+    */
+    compute,
+
+    /** Work whose cost is dominated by reaching memory: wavetable reads, delay
+        lines, visualisation buffers.
+    */
+    memory
+};
+
 /** The reference machine: one whose reference unit takes three and a half
     milliseconds.
 
@@ -102,6 +152,16 @@ struct Statistics
     does not change.
 */
 inline constexpr double nominalReferenceSeconds = 0.0035;
+
+/** The same convention for the memory reference: a machine whose memory unit
+    takes three and a half milliseconds.
+
+    A separate constant rather than the same one, because the two kernels are
+    different amounts of work and there is no reason for them to coincide. Like
+    the one above it is a fixed unit rather than a measurement, and changing it
+    reprices every memory-normalised figure ever recorded.
+*/
+inline constexpr double nominalMemoryReferenceSeconds = 0.0035;
 
 //==============================================================================
 
@@ -134,8 +194,37 @@ struct Stability
 
     /** How fast this machine is against the reference machine. Greater than one
         means faster, so a raw percentage measured here is optimistic.
+
+        This is the **compute** speed, and it is the right divisor only for rows
+        whose cost is arithmetic. See `memorySpeed`.
     */
     double speed = 1.0;
+
+    /** What one memory reference unit cost here, in seconds. */
+    double memoryReferenceSeconds = 0.0;
+
+    /** How fast this machine's *memory path* is against the reference machine.
+
+        Corrects the rows that spend their time reaching memory rather than
+        computing. The two speeds do not move together — that is the entire
+        reason both are measured — and how far apart they are on a given run is
+        reported, because it is the uncertainty every normalised figure carries.
+    */
+    double memorySpeed = 1.0;
+
+    /** How much slower the machine became between the start of the report and
+        the end of it, as a fraction.
+
+        Filled in by `reassessDrift()` after the last section. The original
+        assessment happens before any measuring and the report takes a minute
+        and a half of solid work, so a laptop really is slower by the end. This
+        does not *correct* anything — per-row correction was tried and made
+        matters worse (see `machineSpeed` in Benchmarks.cpp) — it says how much
+        of the report's spread is the machine cooling off rather than the code.
+
+        Positive means the machine slowed down over the run.
+    */
+    double driftAcrossRun = 0.0;
 
     /** False when the machine moved too much for its absolute figures to mean
         anything. Ratios measured alternately are still usable.
@@ -150,7 +239,29 @@ struct Stability
     benchmark that would not run without them would be a benchmark that does not
     run on somebody's machine.
 */
-void prepareMachine();
+/** What the warm-up had to do to reach a speed this machine can hold. */
+struct WarmUp
+{
+    /** How long it took. A machine that does not throttle exits quickly; a
+        15 W laptop takes the better part of half a minute.
+    */
+    double seconds = 0.0;
+
+    /** How far the clock fell while warming, as a fraction of where it started.
+
+        On a part that sustains its clock this is near zero. On the development
+        laptop it is large, and that is the figure explaining why every earlier
+        phase's normalised numbers would not transport between runs.
+    */
+    double slowdown = 0.0;
+
+    /** False when the warm-up hit its time limit without the machine settling,
+        which means the figures that follow were still taken on a moving clock.
+    */
+    bool reachedFloor = false;
+};
+
+WarmUp prepareMachine();
 
 /** Times the reference kernel repeatedly and reports how steady the machine is.
 
@@ -158,6 +269,20 @@ void prepareMachine();
     discarded: they are the ones that pay for the clock ramping up.
 */
 [[nodiscard]] Stability assessMachine();
+
+/** Re-times both references after the report and fills in `driftAcrossRun`.
+
+    Called once, at the end. The steadiness figures in `assessMachine` are taken
+    before any measuring, and Phase 10d-2 found a run that reported 2.7 %
+    contention at the start and then produced a 435 % worst-case callback block
+    minutes later, with every other row degraded too — a report that says the
+    machine was quiet when it was not is worse than one that says nothing.
+
+    Cheaper than the opening assessment on purpose: this is a second opinion at
+    the other end of the run, not a second full measurement, and the figure it
+    produces is reported rather than used as a divisor.
+*/
+void reassessDrift (Stability& stability);
 
 //==============================================================================
 

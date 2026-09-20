@@ -73,6 +73,32 @@ volatile int documentSink = 0;
 */
 double machineSpeed = 1.0;
 
+/** The same, for rows whose cost is reaching memory rather than computing.
+
+    ONE SPEED WAS NOT ENOUGH, AND THAT WAS ALSO A CORRECTION (Phase 10d-3,
+    ADR-0072). Everything the comment above says about *when* to measure the
+    reference still holds — once, carefully, for the whole report. What it got
+    wrong was *what* to measure. A kernel walking a 32 KB table in L1 tracks the
+    core clock; Apollo's voice engine reads a two-megabyte wavetable library out
+    of L2 and L3, and memory latency does not throttle with the core clock.
+
+    Dividing the second by the first therefore overshoots, and it was measured
+    overshooting: across Phase 10d-2's runs the normalised heaviest-patch figure
+    varied from 83 to 131 while the raw figure varied only from 84.7 to 104.5,
+    so correcting made the row *less* reproducible than leaving it alone.
+
+    Each row now declares which reference it resembles and is divided by that
+    one. The two are measured the same way, at the same timescale, in the same
+    opening assessment.
+*/
+double memoryMachineSpeed = 1.0;
+
+/** @returns the divisor for a row of this kind. */
+[[nodiscard]] double speedFor (Reference reference)
+{
+    return reference == Reference::memory ? memoryMachineSpeed : machineSpeed;
+}
+
 /** @returns the fraction of real time a render took.
 
     This is the number that matters for audio. 0.05 means the work took five
@@ -110,7 +136,7 @@ constexpr int passes = 5;
     series hides the drift by construction.
 */
 template <typename RenderBlock>
-[[nodiscard]] Measurement measure (double seconds, RenderBlock&& render)
+[[nodiscard]] Measurement measure (double seconds, RenderBlock&& render, Reference reference)
 {
     const auto blocks = static_cast<int> (seconds * sampleRate / static_cast<double> (blockSize));
 
@@ -134,7 +160,7 @@ template <typename RenderBlock>
 
     const auto fraction = statistics.median / rendered;
 
-    return { fraction, fraction / machineSpeed, rendered, statistics.spread };
+    return { fraction, fraction / speedFor (reference), rendered, statistics.spread };
 }
 
 /** Measures two renderers *alternately* and returns the best of each.
@@ -152,7 +178,8 @@ template <typename RenderBlock>
 */
 template <typename FirstBlock, typename SecondBlock>
 [[nodiscard]] std::pair<Measurement, Measurement> measurePair (double seconds, FirstBlock&& first,
-                                                               SecondBlock&& second)
+                                                               SecondBlock&& second,
+                                                               Reference reference)
 {
     const auto blocks = static_cast<int> (seconds * sampleRate / static_cast<double> (blockSize));
     const auto rendered = static_cast<double> (blocks * blockSize) / sampleRate;
@@ -177,12 +204,12 @@ template <typename FirstBlock, typename SecondBlock>
         secondTimings.push_back (time (second));
     }
 
-    const auto describe = [rendered] (std::vector<double> timings)
+    const auto describe = [rendered, reference] (std::vector<double> timings)
     {
         const auto statistics = statisticsOf (std::move (timings));
         const auto fraction = statistics.median / rendered;
 
-        return Measurement { fraction, fraction / machineSpeed, rendered, statistics.spread };
+        return Measurement { fraction, fraction / speedFor (reference), rendered, statistics.spread };
     };
 
     return { describe (std::move (firstTimings)), describe (std::move (secondTimings)) };
@@ -271,8 +298,12 @@ void printRow (const std::string& label, const Measurement& measurement, int voi
     for (int i = 0; i < 32; ++i)
         voiceEngine.render (channels, 2, 0, blockSize);
 
+    // Memory: a voice engine render is 1088 oscillators reading a two-megabyte
+    // wavetable library at scattered levels, frames and phases. This is the row
+    // whose normalisation was wrong before Phase 10d-3 (ADR-0072).
     return measure (secondsPerMeasurement,
-                    [&] { voiceEngine.render (channels, 2, 0, blockSize); });
+                    [&] { voiceEngine.render (channels, 2, 0, blockSize); },
+                    Reference::memory);
 }
 
 void benchmarkPolyphony()
@@ -345,7 +376,8 @@ void benchmarkModulation()
 
         printRow (std::to_string (voices) + " voices, modulated",
                   measure (secondsPerMeasurement,
-                           [&] { voiceEngine.render (channels, 2, 0, blockSize); }),
+                           [&] { voiceEngine.render (channels, 2, 0, blockSize); },
+                           Reference::memory),
                   voices);
     }
 }
@@ -392,7 +424,7 @@ void benchmarkLfos()
                 total += lfo.getNextValue();
 
             sink = total;
-        });
+        }, Reference::compute);
 
         printRow (testCase.name, measurement, 0);
 
@@ -441,7 +473,7 @@ void benchmarkOversampling()
 
                 oversampler.downsample (output.data(), blockSize);
             }
-        });
+        }, Reference::compute);
 
         printRow (std::string (testCase.name) + ", with tanh drive", measurement, 0);
 
@@ -583,7 +615,7 @@ void benchmarkEffects()
             }
 
             rack.process (channels, 2, blockSize);
-        });
+        }, Reference::memory);
 
         printRow (testCase.name, measurement, 0);
     }
@@ -656,7 +688,7 @@ void benchmarkEffects()
             }
 
             rack.process (channels, 2, blockSize);
-        });
+        }, Reference::memory);
 
         printRow ("all six at once", measurement, 0);
     }
@@ -723,7 +755,9 @@ void benchmarkTelemetry()
                 hub.scope (telemetry::ScopeSource::output)
                     .writeMixedToMono (channels, 2, 0, blockSize);
                 hub.outputMeter().process (channels, 2, 0, blockSize);
-            });
+            },
+            // Memory: a voice render plus six capture buffers being written.
+            Reference::memory);
 
         hub.setCapturing (false);
 
@@ -774,7 +808,7 @@ void benchmarkTelemetry()
             for (std::size_t source = 0; source < telemetry::scopeSourceCount; ++source)
                 (void) telemetry::buildScopeFrame (
                     hub.scope (static_cast<telemetry::ScopeSource> (source)), frames[source]);
-        });
+        }, Reference::memory);
 
         printRow ("six frames, per block", measurement, 0);
 
@@ -990,10 +1024,39 @@ void benchmarkCallbacks()
     // sample of a handful.
     constexpr int blocks = 938;
 
+    // THE WITNESS ROW, and it runs first for that reason.
+    //
+    // The default patch at eight voices is the cheapest thing Apollo does: a few
+    // per cent of a callback, steady, with its worst case within a fifth of its
+    // median on any machine that is behaving. A large worst case *here* cannot
+    // be Apollo — there is not enough work in this row to produce one — so it is
+    // a usable witness for whether anything else had the machine during the
+    // traces, which is a question the opening assessment cannot answer because
+    // it finished minutes ago (ADR-0072).
+    //
+    // Phase 10d-2 applied exactly this rule by hand, discarding four runs of
+    // fourteen, after a run that reported 2.7 % contention went on to produce a
+    // 435 % worst-case block. Doing it by hand is fine once; having the report
+    // say it is better.
+    double witnessWorst = 0.0;
+    double witnessP99 = 0.0;
+
     {
         ApolloAudioProcessor processor;
         processor.prepareToPlay (sampleRate, blockSize);
-        printCallbackRow ("default patch, 8 held", traceCallbacks (processor, blocks, 8));
+
+        const auto trace = traceCallbacks (processor, blocks, 8);
+
+        if (! trace.seconds.empty())
+        {
+            const auto deadline = static_cast<double> (blockSize) / sampleRate;
+            const auto slowest = *std::max_element (trace.seconds.begin(), trace.seconds.end());
+
+            witnessWorst = slowest / deadline * 100.0;
+            witnessP99 = percentileOf (trace.seconds, 0.99) / deadline * 100.0;
+        }
+
+        printCallbackRow ("default patch, 8 held", trace);
         processor.releaseResources();
     }
 
@@ -1037,6 +1100,49 @@ void benchmarkCallbacks()
     std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
                  "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
               << std::endl;
+
+    // Five per cent of one block's deadline. The default patch at eight voices
+    // measures two to four per cent in the median and lands within a fifth of
+    // that at its worst on a quiet machine, so five per cent as a *worst case*
+    // is already generous — it is set to catch interference, not to be a
+    // performance assertion about Apollo.
+    constexpr double witnessLimit = 5.0;
+
+    if (witnessWorst > witnessLimit)
+    {
+        std::cout << "  *** THESE TRACES ARE NOT TRUSTWORTHY. ***\n"
+                     "  The cheapest row above, the default patch at eight voices, had a worst\n"
+                     "  callback of " << std::fixed << std::setprecision (1) << witnessWorst
+                  << " % of the deadline. There is not enough work in that\n"
+                     "  patch to produce such a block, so something else was using this machine\n"
+                     "  while these traces were being taken.\n";
+
+        // Which columns are ruined depends on whether the interference was
+        // sustained or a single event, and saying which is strictly more useful
+        // than one verdict — a run spoiled by one interrupt still has usable
+        // medians, and a run spoiled throughout has nothing.
+        //
+        // The gate itself stays on the worst case. Loosening it to the 99th
+        // percentile was considered and the evidence refused it: across the
+        // fourteen Phase 10d-2 runs the worst case separated cleanly (clean runs
+        // reached 4.0 %, disturbed ones started at 12.9 %), and one disturbed run
+        // had a 99th percentile of 2.67 %, inside the clean range, while its
+        // worst block was 23 %. A gate on the 99th percentile would have passed
+        // it.
+        if (witnessP99 > witnessLimit)
+            std::cout << "  Its 99th percentile was " << witnessP99
+                      << " % too, so the interference was sustained\n"
+                         "  rather than a single event: every column of every row above is\n"
+                         "  suspect, including the ones that look reasonable. Discard this run.\n";
+        else
+            std::cout << "  Its 99th percentile was only " << witnessP99
+                      << " %, so this was an isolated event\n"
+                         "  rather than sustained contention. The median and p99 columns above\n"
+                         "  are probably sound; the p99.9 and worst columns are not, and those\n"
+                         "  are the ones issue 13 is about.\n";
+
+        std::cout << std::endl;
+    }
 }
 
 //==============================================================================
@@ -1215,20 +1321,65 @@ void run()
     // Before anything is timed: pin the thread, raise the priority, warm the
     // caches, and then find out whether this machine is in a fit state to be
     // measured on at all (Machine.h).
-    prepareMachine();
+    const auto warmUp = prepareMachine();
 
-    const auto stability = assessMachine();
+    auto stability = assessMachine();
 
     machineSpeed = stability.speed;
+    memoryMachineSpeed = stability.memorySpeed;
 
     std::cout << "\nMachine\n-------\n"
-              << "  reference unit                  "
+              << "  warmed to a sustainable clock   " << std::fixed << std::setprecision (1)
+              << warmUp.seconds << " s, giving up " << (warmUp.slowdown * 100.0) << " % of clock\n"
+              << (warmUp.reachedFloor
+                    ? ""
+                    : "      (it never settled -- everything below is on a moving clock)\n")
+              << "  arithmetic reference unit       "
               << std::fixed << std::setprecision (3) << (stability.referenceSeconds * 1000.0)
               << " ms  (nominal " << (nominalReferenceSeconds * 1000.0) << " ms)\n"
-              << "  speed against the reference     " << std::setprecision (3) << stability.speed << " x\n"
+              << "  memory reference unit           "
+              << std::setprecision (3) << (stability.memoryReferenceSeconds * 1000.0)
+              << " ms  (nominal " << (nominalMemoryReferenceSeconds * 1000.0) << " ms)\n"
+              << "  speed, arithmetic               " << std::setprecision (3) << stability.speed << " x\n"
+              << "  speed, memory                   " << std::setprecision (3) << stability.memorySpeed << " x\n"
               << "  typical contention              " << std::setprecision (1)
               << (stability.typicalSlowdown * 100.0) << " %"
               << "   (worst burst " << (stability.spread * 100.0) << " % off the fastest)"
+              << std::endl;
+
+    // How far apart the two references are is the uncertainty every normalised
+    // figure carries, so it is stated rather than left for a reader to divide
+    // out of the two lines above. They are not expected to agree: the point of
+    // measuring both is that the core clock and the memory path do not throttle
+    // together (ADR-0072).
+    if (stability.speed > 0.0 && stability.memorySpeed > 0.0)
+    {
+        const auto disagreement = std::abs (stability.memorySpeed - stability.speed)
+                                / std::max (stability.memorySpeed, stability.speed);
+
+        std::cout << "  the two references disagree by  " << std::setprecision (1)
+                  << (disagreement * 100.0) << " %";
+
+        if (disagreement > 0.15)
+            std::cout << "   <- large; normalised figures carry this";
+
+        std::cout << std::endl;
+    }
+
+    // THE STANDING CAVEAT ON THE NORMALISED COLUMN, printed every run because it
+    // is still true (ADR-0072).
+    //
+    // That the two references decouple is measured: their ratio moved by 24 %
+    // across six runs, so they are demonstrably not reporting the same thing,
+    // and the per-row choice between them therefore has something to choose.
+    // That the *memory* one is the better divisor for the memory-bound rows is
+    // reasoned rather than demonstrated: confirming it means showing that it
+    // reduces a row's variation between runs, and that needs several runs this
+    // report is willing to vouch for. On the machine this was developed on
+    // there have been none.
+    std::cout << "\n  The normalised column's per-row choice of reference is reasoned and not\n"
+                 "  yet validated: see ADR-0072. Raw figures and same-sitting ratios do not\n"
+                 "  depend on it."
               << std::endl;
 
     if (! stability.settled)
@@ -1257,6 +1408,27 @@ void run()
     benchmarkEffects();
     benchmarkTelemetry();
     benchmarkCallbacks();
+
+    // The other end of the run. The assessment above happened before any Apollo
+    // code had executed and the report is a minute and a half of solid work, so
+    // a report that only ever asks at the start cannot notice a machine that
+    // went bad halfway through — which is exactly what happened during 10d-2
+    // (ADR-0072).
+    reassessDrift (stability);
+
+    std::cout << "\nMachine, afterwards\n-------------------\n"
+              << "  drift across the run            " << std::fixed << std::setprecision (1)
+              << (stability.driftAcrossRun * 100.0) << " %"
+              << (stability.driftAcrossRun > 0.0 ? "   (slower at the end)" : "   (no slower at the end)")
+              << std::endl;
+
+    if (stability.driftAcrossRun > 0.10)
+        std::cout << "\n  *** THIS MACHINE SLOWED DOWN WHILE IT WAS BEING MEASURED. ***\n"
+                     "  The sections near the top of this report and the sections near the\n"
+                     "  bottom were not measured on the same machine. Rows cannot be compared\n"
+                     "  against each other across sections, and none of them should be compared\n"
+                     "  against another run.\n"
+                  << std::endl;
 
     std::cout << "\nMeasured on this machine, in this configuration. These numbers are\n"
                  "not portable and are not asserted on: see Tests/Performance/Benchmarks.h.\n"

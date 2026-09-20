@@ -121,7 +121,8 @@ front of it is better understood, the way 8f was.
 | 10d | Optimisation of whatever 10c identifies — the known candidate is the heaviest patch at full polyphony (issue 13) | ⬜ |
 | 10d-1 | The per-sample table read — a mask in place of eight integer divisions, one phase tap in place of two, and one cubic in place of two, all identities. Voice path 1.8x cheaper; the worst patch stopped missing its deadline (ADR-0070) | ✅ |
 | 10d-2 | The rest of the read hoisted out of the per-sample path — a Reader resolved once per modulation block rather than once per sample. Another 1.5x, making the voice path ~2.8x cheaper than before Phase 10d (ADR-0071) | ✅ |
-| 10d-3 | Fix the measurement harness — normalisation over-corrects memory-bound rows, and the steadiness check samples the start of a run rather than the traces — then decide whether SIMD across unison voices still earns its complexity (PROJECT-STATE §5b, §8) | ⬜ |
+| 10d-3 | The measurement harness — a second, memory-bound reference; drift measured at the far end of the run; a witness that refuses contaminated traces; and a warm-up that holds the clock at a speed the machine can sustain. Apollo's most expensive row went from reproducing to 23 % between runs to 0.4 % (ADR-0072) | ✅ |
+| 10d-4 | Decide whether SIMD across unison voices earns its complexity, measured against the scalar path on the fixed harness | ⬜ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |
