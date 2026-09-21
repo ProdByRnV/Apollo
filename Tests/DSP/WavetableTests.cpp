@@ -166,6 +166,7 @@ public:
         testTableSelectionChangesTimbre();
         testInterpolationIsAccurate();
         testTheFastReadPathIsAnIdentity();
+        testTheTwoSchedulesAgree();
         testTheResolvedReaderMatchesTheDirectRead();
         testTheScanPositionSurvivesATableChange();
         testDegenerateInputIsSafe();
@@ -307,6 +308,116 @@ private:
                                 + juce::String (viaFrame, 12));
                 }
             }
+        }
+    }
+
+    /** Gathering sixteen voices and then interpolating sixteen times must give
+        exactly what interpolating each voice as it is gathered gives.
+
+        Phase 10d-5 split `Reader::read` into a `gather` and an `interpolate` so
+        that `UnisonOscillator` could do all of one and then all of the other —
+        a scalar gather pass, then arithmetic over contiguous arrays that a
+        compiler can vectorise (ADR-0074). The two are now the same arithmetic
+        on **different schedules**.
+
+        ADR-0071 made `read` the single implementation of the interpolation for
+        a reason: it is what stops the one-frame and two-frame paths drifting
+        apart. Splitting it put that at risk, and the mitigation is that neither
+        half was duplicated — `read` *is* gather-then-interpolate, and the stack
+        calls the same two functions in a different order. This test is what
+        says so, and it demands **bit-identical** results, because there is no
+        arithmetic difference between the schedules for floating point to round
+        differently.
+
+        Without it, the guarantee would rest on reading the code and noticing
+        that neither function appears twice.
+    */
+    void testTheTwoSchedulesAgree()
+    {
+        beginTest ("Gathering a batch then interpolating equals doing each in turn");
+
+        const auto& table = library().getTable (0);
+
+        for (int level = 0; level < Wavetable::numMipLevels; ++level)
+        {
+            for (const double framePosition : { 0.0, 3.0, 7.35,
+                                                static_cast<double> (table.getNumFrames() - 1) })
+            {
+                const auto reader = table.makeReader (level, framePosition);
+
+                // Sixteen phases spread across the cycle, the way a detuned
+                // unison stack spreads them.
+                std::vector<double> phases;
+
+                for (int voice = 0; voice < 16; ++voice)
+                    phases.push_back (static_cast<double> (voice) * 0.0613 + 0.00417);
+
+                // Schedule one: interpolate each as it is gathered.
+                std::vector<float> oneAtATime;
+
+                for (const auto phase : phases)
+                    oneAtATime.push_back (reader.read (phase));
+
+                // Schedule two: gather the batch, then interpolate the batch.
+                std::vector<Wavetable::Reader::Taps> taps (phases.size());
+
+                for (std::size_t i = 0; i < phases.size(); ++i)
+                    reader.gather (phases[i], taps[i]);
+
+                for (std::size_t i = 0; i < phases.size(); ++i)
+                {
+                    const auto batched =
+                        static_cast<float> (Wavetable::Reader::interpolate (taps[i]));
+
+                    expect (batched == oneAtATime[i],
+                            "level " + juce::String (level) + ", frame position "
+                                + juce::String (framePosition, 2) + ", voice "
+                                + juce::String (static_cast<int> (i)) + ": batched read "
+                                + juce::String (batched, 12) + " where one at a time read "
+                                + juce::String (oneAtATime[i], 12));
+                }
+            }
+        }
+
+        // And the degenerate case, which is the one that used to need a branch:
+        // a reader with nothing behind it must gather zeroes, and zeroes must
+        // interpolate to silence. That is what lets both schedules drop the
+        // check rather than move it.
+        const Wavetable::Reader empty;
+
+        for (const double phase : { 0.0, 0.5, -3.25, 1.0e12,
+                                    std::numeric_limits<double>::quiet_NaN(),
+                                    std::numeric_limits<double>::infinity() })
+        {
+            Wavetable::Reader::Taps taps;
+            taps.y0 = taps.y1 = taps.y2 = taps.y3 = 999.0;
+            taps.fraction = 0.5;
+
+            empty.gather (phase, taps);
+
+            expectEquals (taps.y0, 0.0);
+            expectEquals (taps.y1, 0.0);
+            expectEquals (taps.y2, 0.0);
+            expectEquals (taps.y3, 0.0);
+            expectEquals (Wavetable::Reader::interpolate (taps), 0.0);
+            expectEquals (empty.read (phase), 0.0f);
+        }
+
+        // A valid reader handed a hostile phase must do the same, so that the
+        // stack never has to distinguish the two failures.
+        const auto valid = table.makeReader (0, 0.0);
+
+        for (const double phase : { std::numeric_limits<double>::quiet_NaN(),
+                                    std::numeric_limits<double>::infinity(),
+                                    -std::numeric_limits<double>::infinity() })
+        {
+            Wavetable::Reader::Taps taps;
+            taps.y1 = 999.0;
+
+            valid.gather (phase, taps);
+
+            expectEquals (taps.y1, 0.0, "a hostile phase must gather silence, not stale taps");
+            expectEquals (valid.read (phase), 0.0f);
         }
     }
 

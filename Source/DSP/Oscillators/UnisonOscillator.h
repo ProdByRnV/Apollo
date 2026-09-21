@@ -74,7 +74,54 @@ private:
         return layout != nullptr ? *layout : fallbackLayout;
     }
 
-    std::array<WavetableOscillator, static_cast<std::size_t> (maxVoices)> oscillators {};
+    /** Re-derives one voice's read position from the table, its own pitch and
+        the shared scan position.
+    */
+    void refreshVoice (int index) noexcept;
+
+    //==========================================================================
+    // THE STACK IS FLAT, NOT SIXTEEN OSCILLATOR OBJECTS (ADR-0074).
+    //
+    // This held a `std::array<WavetableOscillator, 16>` until Phase 10d-5. Each
+    // of those is about a hundred bytes — table pointer, Reader, sample rate,
+    // frequency, phase, increment, positions, mip level — so reading sixteen
+    // phases meant sixteen loads a hundred bytes apart, and the gains came
+    // through a call into the layout object per voice per sample.
+    //
+    // Phase 10d-4 measured what removing that is worth: **1.39x** on a
+    // sixteen-voice stack, with no change to the arithmetic and no vector code.
+    // It also measured what float and SIMD would add on top — a further 1.27x
+    // — and that was declined, so what follows is deliberately ordinary scalar
+    // double-precision code whose only trick is where it keeps its data.
+    //
+    // Parallel arrays rather than an array of structures, because the second
+    // pass of `addNextStereoSample` walks each of these in order and that is
+    // the shape a compiler can vectorise.
+
+    /** Where each voice is in its cycle, and how far it advances per sample.
+        The two hottest arrays in the instrument.
+    */
+    std::array<double, static_cast<std::size_t> (maxVoices)> phase {};
+    std::array<double, static_cast<std::size_t> (maxVoices)> increment {};
+
+    /** Each voice's resolved read position.
+
+        Per voice rather than shared because detuning can put two voices on
+        different mip levels — the levels change at particular frequencies and a
+        stack spread over fifty cents can straddle one. Usually they are all
+        identical, and nothing here depends on that being so.
+    */
+    std::array<Wavetable::Reader, static_cast<std::size_t> (maxVoices)> readers {};
+
+    /** Copied out of the layout when it changes, rather than fetched through it
+        per voice per sample.
+    */
+    std::array<float, static_cast<std::size_t> (maxVoices)> gainLeft {};
+    std::array<float, static_cast<std::size_t> (maxVoices)> gainRight {};
+
+    const Wavetable* table = nullptr;
+
+    double sampleRate = 44100.0;
 
     const UnisonLayout* layout = nullptr;
 

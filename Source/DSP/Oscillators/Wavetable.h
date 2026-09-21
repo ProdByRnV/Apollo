@@ -27,7 +27,9 @@
     read it concurrently without synchronisation.
 */
 
+#include <cmath>
 #include <cstddef>
+#include <type_traits>
 #include <vector>
 
 namespace apollo::dsp
@@ -196,14 +198,166 @@ public:
         */
         [[nodiscard]] bool isValid() const noexcept { return lowerFrame != nullptr; }
 
+        /** The four samples the interpolator needs, and where between the
+            middle two the phase landed.
+
+            Separated from the arithmetic so that a stack of voices can gather
+            all of its taps and then evaluate all of its polynomials, instead of
+            alternating the two one voice at a time (ADR-0073, ADR-0074). The
+            gather is loads at addresses derived from each voice's phase and
+            cannot be vectorised; the arithmetic over a run of these can be.
+        */
+        struct Taps
+        {
+            double y0;
+            double y1;
+            double y2;
+            double y3;
+            double fraction;
+        };
+
+        static_assert (std::is_trivially_default_constructible_v<Taps>,
+                       "Taps must not initialise its members. A unison stack declares an array of "
+                       "sixteen of these per sample and fills only the voices that sound; default "
+                       "member initialisers made that 640 bytes of stores every sample whatever the "
+                       "voice count, which cost the default patch 31 per cent (ADR-0074). Every "
+                       "path through gather() writes all five fields, so there is nothing to "
+                       "initialise.");
+
+        /** Fetches the taps around @p phase, wrapped into [0, 1).
+
+            **Always leaves @p taps usable.** Where there is nothing safe to
+            read — no table, or a phase that cannot be turned into an index —
+            it zeroes them, and zero taps interpolate to silence. That is why
+            neither this nor its callers need a branch for the degenerate case,
+            and on a sixteen-voice stack a branch per voice per sample is not
+            nothing (ADR-0074).
+
+            Inline, and deliberately so. It is the innermost function in the
+            instrument, and when it lived in the .cpp the unison stack paid a
+            cross-translation-unit call per voice per sample: the restructuring
+            of Phase 10d-5 recovered only 1.20x of the 1.39x its prototype had
+            measured until this moved into the header, because the prototype
+            had it inlined and the production version did not.
+        */
+        void gather (double phase, Taps& taps) const noexcept
+        {
+            // Phase is wrapped into [0, 1) *before* it is scaled, not after.
+            //
+            // Converting a double that exceeds INT_MAX to int is undefined
+            // behaviour, not a wrap — and it does not announce itself: MSVC
+            // produced usable-looking garbage while UBSan on Linux reported
+            // "2.15456e+09 is outside the range of representable values of
+            // type 'int'". Wrapping first bounds the value before the cast can
+            // see it, so the cast is always in range by construction rather
+            // than by the caller's good manners.
+            //
+            // Non-finite phase is rejected outright: floor(inf) is inf and
+            // floor(NaN) is NaN, either of which would put the same undefined
+            // cast right back.
+            if (lowerFrame == nullptr || ! std::isfinite (phase))
+            {
+                // Explicit, because Taps no longer initialises itself and the
+                // caller is entitled to interpolate whatever this leaves.
+                taps.y0 = 0.0;
+                taps.y1 = 0.0;
+                taps.y2 = 0.0;
+                taps.y3 = 0.0;
+                taps.fraction = 0.0;
+
+                return;
+            }
+
+            const auto wrappedPhase = phase - std::floor (phase);
+            const auto position = wrappedPhase * static_cast<double> (size);
+
+            auto index = static_cast<int> (position);
+
+            taps.fraction = position - static_cast<double> (index);
+
+            // Belt and braces against a phase of exactly 1.0 surviving the
+            // wrap through rounding, which would index one past the end.
+            if (index >= size)
+                index = size - 1;
+
+            if (index < 0)
+                index = 0;
+
+            // The table is periodic, so the interpolator's outer taps wrap
+            // rather than clamp — clamping would flatten the waveform at the
+            // wrap point and put a discontinuity in every cycle.
+            //
+            // Wrapped with a mask rather than a modulo, which is valid because
+            // every frame size is a power of two (see below) and matters
+            // because this was four integer divisions per frame, two frames per
+            // oscillator, 1088 oscillators, 48000 times a second (ADR-0070).
+            //
+            // `index - 1` is written as `index + mask` so the expression never
+            // goes negative: index - 1 + size == index + mask, since
+            // size == mask + 1. The two agree on every two's-complement
+            // machine, but only one of them is obviously right.
+            const auto i0 = (index + mask) & mask;
+            const auto i1 = index;
+            const auto i2 = (index + 1) & mask;
+            const auto i3 = (index + 2) & mask;
+
+            if (upperFrame == lowerFrame)
+            {
+                taps.y0 = static_cast<double> (lowerFrame[i0]);
+                taps.y1 = static_cast<double> (lowerFrame[i1]);
+                taps.y2 = static_cast<double> (lowerFrame[i2]);
+                taps.y3 = static_cast<double> (lowerFrame[i3]);
+
+                return;
+            }
+
+            // Crossfade the four pairs of points, so that one cubic can stand
+            // in for two. Hermite is linear in its samples, so this is the same
+            // value two cubics and a crossfade of their results would produce
+            // (ADR-0070).
+            const auto mix = [this] (float a, float b) noexcept
+            {
+                const auto low = static_cast<double> (a);
+                return low + (static_cast<double> (b) - low) * blend;
+            };
+
+            taps.y0 = mix (lowerFrame[i0], upperFrame[i0]);
+            taps.y1 = mix (lowerFrame[i1], upperFrame[i1]);
+            taps.y2 = mix (lowerFrame[i2], upperFrame[i2]);
+            taps.y3 = mix (lowerFrame[i3], upperFrame[i3]);
+        }
+
+        /** 4-point cubic Hermite over gathered taps.
+
+            **The only implementation of the interpolation arithmetic in
+            Apollo.** Inline in the header rather than in the .cpp because both
+            the single-voice path below and the unison stack in
+            `UnisonOscillator` must inline it, and because having one copy is
+            what stops those two drifting apart — a test asserts they agree
+            sample for sample (ADR-0071, ADR-0074).
+        */
+        [[nodiscard]] static double interpolate (const Taps& taps) noexcept
+        {
+            const auto c0 = taps.y1;
+            const auto c1 = 0.5 * (taps.y2 - taps.y0);
+            const auto c2 = taps.y0 - 2.5 * taps.y1 + 2.0 * taps.y2 - 0.5 * taps.y3;
+            const auto c3 = 0.5 * (taps.y3 - taps.y0) + 1.5 * (taps.y1 - taps.y2);
+
+            return ((c3 * taps.fraction + c2) * taps.fraction + c1) * taps.fraction + c0;
+        }
+
         /** Reads one interpolated sample at @p phase, wrapped into [0, 1).
 
-            This is the innermost function in the instrument. It is the only
-            implementation of the interpolation arithmetic — `getSample` and
-            `getSampleAtPosition` both route through it — which is what keeps
-            the one-frame and two-frame paths from drifting apart.
+            A gather followed by an interpolate, which is the whole of it. The
+            one-voice schedule.
         */
-        [[nodiscard]] float read (double phase) const noexcept;
+        [[nodiscard]] float read (double phase) const noexcept
+        {
+            Taps taps;
+            gather (phase, taps);
+
+            return static_cast<float> (interpolate (taps));
+        }
 
     private:
         friend class Wavetable;

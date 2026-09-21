@@ -61,27 +61,6 @@ const float* Wavetable::getReadPointer (int level, int frameIndex) const noexcep
     return levels[static_cast<std::size_t> (level)].data() + offsetOf (level, frameIndex);
 }
 
-namespace
-{
-
-/** 4-point cubic Hermite over four samples and a fraction between y1 and y2.
-
-    One function rather than an expression inlined at each call site, so that
-    the one-frame and two-frame read paths cannot drift apart: they must agree
-    exactly where a blend is degenerate, and a test asserts that they do.
-*/
-[[nodiscard]] inline double hermite (double y0, double y1, double y2, double y3, double fraction) noexcept
-{
-    const auto c0 = y1;
-    const auto c1 = 0.5 * (y2 - y0);
-    const auto c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
-    const auto c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
-
-    return ((c3 * fraction + c2) * fraction + c1) * fraction + c0;
-}
-
-} // namespace
-
 Wavetable::Reader Wavetable::makeReader (int level, double framePosition) const noexcept
 {
     Reader reader;
@@ -125,80 +104,6 @@ Wavetable::Reader Wavetable::makeReader (int level, double framePosition) const 
     reader.mask = size - 1;
 
     return reader;
-}
-
-float Wavetable::Reader::read (double phase) const noexcept
-{
-    if (lowerFrame == nullptr)
-        return 0.0f;
-
-    // Phase is wrapped into [0, 1) *before* it is scaled, not after.
-    //
-    // Converting a double that exceeds INT_MAX to int is undefined behaviour,
-    // not a wrap — and it does not announce itself: MSVC produced usable-looking
-    // garbage while UBSan on Linux reported
-    // "2.15456e+09 is outside the range of representable values of type 'int'".
-    // Wrapping first bounds the value before the cast can see it, so the cast is
-    // always in range by construction rather than by the caller's good manners.
-    //
-    // Non-finite phase is rejected outright: floor(inf) is inf and floor(NaN) is
-    // NaN, either of which would put the same undefined cast right back.
-    if (! std::isfinite (phase))
-        return 0.0f;
-
-    const auto wrappedPhase = phase - std::floor (phase);
-    const auto position = wrappedPhase * static_cast<double> (size);
-
-    auto index = static_cast<int> (position);
-    const auto fraction = position - static_cast<double> (index);
-
-    // Belt and braces against a phase of exactly 1.0 surviving the wrap through
-    // rounding, which would index one past the end.
-    if (index >= size)
-        index = size - 1;
-
-    if (index < 0)
-        index = 0;
-
-    // The table is periodic, so the interpolator's outer taps wrap rather than
-    // clamp — clamping would flatten the waveform at the wrap point and put a
-    // discontinuity in every cycle.
-    //
-    // Wrapped with a mask rather than a modulo, which is valid because every
-    // frame size is a power of two (see Wavetable.h) and matters because this
-    // was four integer divisions per frame, two frames per oscillator, 1088
-    // oscillators, 48000 times a second (ADR-0070).
-    //
-    // `index - 1` is written as `index + mask` so that the expression never goes
-    // negative: index - 1 + size == index + mask, since size == mask + 1. The
-    // two agree on every two's-complement machine, but only one of them is
-    // obviously right.
-    const auto i0 = (index + mask) & mask;
-    const auto i1 = index;
-    const auto i2 = (index + 1) & mask;
-    const auto i3 = (index + 2) & mask;
-
-    if (upperFrame == lowerFrame)
-        return static_cast<float> (hermite (static_cast<double> (lowerFrame[i0]),
-                                            static_cast<double> (lowerFrame[i1]),
-                                            static_cast<double> (lowerFrame[i2]),
-                                            static_cast<double> (lowerFrame[i3]),
-                                            fraction));
-
-    // Crossfade the four pairs of points, then interpolate once. Hermite is
-    // linear in its samples, so this is the same value two cubics and a
-    // crossfade of their results would produce, for half the cubic (ADR-0070).
-    const auto mix = [this] (float a, float b) noexcept
-    {
-        const auto lower = static_cast<double> (a);
-        return lower + (static_cast<double> (b) - lower) * blend;
-    };
-
-    return static_cast<float> (hermite (mix (lowerFrame[i0], upperFrame[i0]),
-                                        mix (lowerFrame[i1], upperFrame[i1]),
-                                        mix (lowerFrame[i2], upperFrame[i2]),
-                                        mix (lowerFrame[i3], upperFrame[i3]),
-                                        fraction));
 }
 
 float Wavetable::getSample (int level, int frameIndex, double phase) const noexcept

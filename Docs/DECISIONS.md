@@ -3826,3 +3826,139 @@ voice at a time, or sixteen gathered then sixteen evaluated — and a test
 asserting they agree. The prototype here is also kept, because it becomes the
 way to check that the production version actually achieves the 1.39x it
 predicted.
+
+---
+
+## ADR-0074 — The unison stack is flat, and the schedule is separate from the arithmetic
+
+**Phase 10d-5 · Accepted**
+
+ADR-0073 measured what a restructured unison inner loop is worth — 1.39x with no
+accuracy cost and no vector code — and decided to build that rather than the SIMD
+the roadmap had been carrying. This is the building of it.
+
+### What changed
+
+`UnisonOscillator` held a `std::array<WavetableOscillator, 16>`. Each of those is
+about a hundred bytes — table pointer, Reader, sample rate, frequency, phase,
+increment, positions, mip level — so reading sixteen phases meant sixteen loads a
+hundred bytes apart, and the per-voice gains came through a call into the layout
+object once per voice per sample.
+
+It is now flat: parallel arrays for phase, increment, readers and gains, rendered
+in two passes. A **gather** pass, which is loads at addresses derived from each
+voice's own phase and cannot be vectorised, and an **arithmetic** pass over
+contiguous arrays, which can.
+
+`WavetableOscillator` stays. The sub oscillator is one, and a one-voice stack is
+still required to match one sample for sample.
+
+### Splitting read without duplicating it
+
+ADR-0071 made `Wavetable::Reader::read` the single implementation of the
+interpolation arithmetic, deliberately: it is what stops the one-frame and
+two-frame paths drifting apart. A gather-then-arithmetic loop threatened that,
+and ADR-0073 promised only to share the polynomial.
+
+It shares both. `Reader` now exposes `gather`, which fetches four taps and a
+fraction, and `interpolate`, which evaluates the cubic over them. `read` *is*
+gather-then-interpolate. The unison stack calls the same two functions in a
+different order — sixteen gathers, then sixteen interpolates.
+
+**The two are the same arithmetic on different schedules, and a test says so**,
+demanding bit-identical results rather than approximate ones: there is no
+arithmetic difference between the schedules for floating point to round
+differently, so anything less would be hiding a divergence.
+
+`gather` also lost its branch. It now zeroes its taps where there is nothing safe
+to read, and zero taps interpolate to silence, so neither schedule needs a check
+for the degenerate case. That is a small design improvement the performance work
+surfaced: `read` had been carrying a branch it never needed.
+
+### Three things the measurement caught that review would not have
+
+**The predicted win did not arrive.** The first working version recovered 1.20x
+of the 1.39x its prototype had measured. The obvious suspect was that `gather`
+lived in the .cpp and so cost a cross-translation-unit call per voice per sample.
+Inlining it into the header changed the ratio by about a hundredth — useful
+mostly for ruling the suspect out. It stays inline regardless, because it is the
+innermost function in the instrument and that is where it belongs.
+
+**The default patch got 31 % worse.** `Taps` had default member initialisers, so
+declaring `Taps taps[16]` value-initialised **640 bytes every sample**, whatever
+the voice count. A sixteen-voice stack absorbed that; one voice paid it in full —
+and Apollo loads with oscillator 1 alone and no unison, so one voice is the
+common case rather than a corner of one. `Taps` is now trivially constructible,
+with a `static_assert` saying why, because this is exactly the sort of thing
+somebody re-adds while tidying.
+
+A benchmark of a sixteen-voice stack could not have found this. It was found
+because the report measures the instrument's own patches, the default one
+included, which is the argument for §35.2's insistence on measuring what a user
+actually builds.
+
+**One voice is not a batch.** With the initialisation gone a doubt remained on
+the default patch, so a count of one now bypasses the arrays entirely: the two
+passes exist to amortise across voices and at one voice there is nothing to
+amortise. Its arithmetic is identical to the batch path's — with a single voice
+the accumulator *is* the product — and the existing one-voice equivalence test
+is what guarantees it.
+
+### What it bought
+
+Interleaved runs of the pre-10d-5 binary and this one, four passes each, in one
+sitting. Medians of the runs the harness vouched for; one post-change pass is
+discarded because its own pass-spread was 50 % (ADR-0072's gate, applied to a row
+rather than a report).
+
+| | before | after | |
+|---|---:|---:|---:|
+| Heaviest patch, 32 voices | 52.6 % | **41.1 %** | **1.28x** |
+| Heaviest patch, 8 voices | 13.2 % | **10.0 %** | **1.32x** |
+| Default patch, 32 voices | 4.60 % | 4.90 % | not resolvable |
+| Worst-case callback, median | 35.3 % | — | inconclusive |
+
+**The heaviest patch is 1.28x cheaper.** ADR-0073's prototype predicted 1.39x on
+a unison stack in isolation, and the heaviest patch is two stacks plus a sub, a
+noise generator, filters and an envelope — so 1.28x across the whole patch says
+the stacks dominate it, which is what the polyphony rows had implied.
+
+**The default patch shows no measurable change against the pre-10d-5 binary**,
+which is the right outcome for a patch that gains nothing from a batch schedule
+and must not lose anything either.
+
+Two things about that row need separating, because they are easy to run
+together. **The 31 % regression from the taps initialisation was real**: the
+unchanged binary measured 4.61, 4.63 and 4.74 while the broken one measured
+5.98, 6.04 and 7.55 — ranges that do not overlap. **The 5 % that appeared to
+remain afterwards was not.** That row varies by 25 % between runs on its own,
+4.55 % to 5.69 % across four passes of the *unchanged* binary, so five per cent
+either way is below what this machine can resolve.
+
+The single-voice fast path was added on the strength of that 5 %. It is still
+right on its own terms — two passes over one voice amortise nothing — but it
+should not be credited with fixing something that was never demonstrated, and
+this is recorded so that nobody later reads it as load-bearing.
+
+**The worst-case callback row came out bimodal** — two passes at 40 % and two at
+29 % against a steady 35 % before the change — so nothing is claimed from it. Per
+§35.3 the discrepancy is recorded rather than resolved in whichever direction
+suits; the polyphony rows above are tight and are what this decision rests on.
+
+### What was left on the table, and the price of taking it
+
+The production stack remains slower than ADR-0073's prototype. The difference is
+that `Taps` is an array of structures, forty bytes apart, where the prototype
+used four separate arrays of taps. Structure-of-arrays is what the arithmetic
+pass would need to vectorise, and array-of-structures is what the shared `Taps`
+abstraction produces.
+
+**Taking it would mean giving up the property above** — one `gather`, one
+`interpolate`, provably the same arithmetic on two schedules — in exchange for a
+batch interface that both paths would have to route through, with the single-voice
+path calling a batch function with a count of one. That is a worse shape for a
+small gain on a stack whose cost is no longer anywhere near a deadline.
+
+Recorded rather than done, with the reason, the same way ADR-0073 recorded the
+float option: available, priced, and declined on the merits rather than
+forgotten.
