@@ -274,14 +274,17 @@ private:
 
             const auto expectedSteps = static_cast<int> (definition.maximum - definition.minimum) + 1;
 
-            // getNumSteps is the contract that matters: it is what the VST3 and
-            // standalone wrappers publish as the step count, and therefore what
-            // stops a host treating an integer control as continuous.
+            // Both halves are the contract. The VST3 wrapper publishes a step
+            // count only for a parameter that says it is discrete, and publishes
+            // zero — continuous — for any other, whatever getNumSteps returns.
             //
-            // Note that juce::AudioParameterInt does NOT override isDiscrete();
-            // only AudioParameterChoice does. Asserting on isDiscrete() here
-            // would test a JUCE implementation detail rather than the behaviour
-            // Apollo depends on.
+            // This comment used to say the opposite: that getNumSteps alone was
+            // what the wrapper published, and that isDiscrete() was a JUCE
+            // detail not worth asserting. juce::AudioParameterInt does not
+            // override isDiscrete(), so since Phase 2 every integer control
+            // Apollo has reached every VST3 host as a continuous one. Only
+            // loading the plugin into a host found it (ADR-0075).
+            expect (parameter->isDiscrete(), idOf (definition) + ": not discrete, so a host sees it as continuous");
             expectEquals (parameter->getNumSteps(), expectedSteps,
                           idOf (definition) + ": wrong number of discrete steps");
 

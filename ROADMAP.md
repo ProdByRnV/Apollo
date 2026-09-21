@@ -124,7 +124,10 @@ front of it is better understood, the way 8f was.
 | 10d-3 | The measurement harness — a second, memory-bound reference; drift measured at the far end of the run; a witness that refuses contaminated traces; and a warm-up that holds the clock at a speed the machine can sustain. Apollo's most expensive row went from reproducing to 23 % between runs to 0.4 % (ADR-0072) | ✅ |
 | 10d-4 | Price SIMD across unison voices against the scalar path, and decide. **Decided against**: decomposing the 1.76x available showed 1.39x comes from data layout alone, at no accuracy cost and with no vector code (ADR-0073) | ✅ |
 | 10d-5 | The flat unison stack — parallel arrays rather than sixteen oscillator objects, rendered as a gather pass and an arithmetic pass, with `read` and the stack sharing one gather and one interpolate. **1.28x on the heaviest patch** (ADR-0074) | ✅ |
-| 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering. **Needs real DAWs** | ⬜ |
+| 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering | ⬜ |
+| 10e-1 | The host harness — the built VST3 bundle loaded through a VST3 host implementation and driven as a DAW drives it, in CI on all three platforms. Found and fixed four defects no direct test could see: every integer parameter published to hosts as continuous, mono output refused, a note or pedal released during a host bypass never ending, and the default bypass asserting under latency. The VST3 parameter IDs a saved project stores are now pinned (ADR-0075) | ✅ |
+| 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it | ⬜ |
+| 10e-3 | What 10e-2 finds, and the harness extended to cover it | ⬜ |
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |
 | 11b | macOS — release build, VST3, standalone, WebView backend, Retina, code signing and notarisation | ⬜ |
@@ -144,7 +147,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 | From | Item | Lands in |
 |---|---|---|
 | 1 | Resource embedding and packaging | 9d, 9e |
-| 1 | VST3 loads in a representative host | 10e |
+| 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in a DAW in 10e-2 |
 | 2 | Thread-safety tests — an allocation and lock detector on the audio thread | 10a |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
@@ -764,19 +767,24 @@ Perform rigorous engineering validation before release hardening.
 
 Test representative compatible environments for:
 
-- [ ] Plugin discovery.
-- [ ] Plugin loading.
-- [ ] Plugin unloading/reloading.
-- [ ] Parameter automation.
-- [ ] State recall.
-- [ ] Preset recall.
-- [ ] MIDI.
-- [ ] Variable block sizes.
-- [ ] Sample-rate changes.
-- [ ] Bypass.
-- [ ] Transport behavior where applicable.
-- [ ] Plugin latency reporting.
-- [ ] Offline rendering.
+Each item below is covered through the VST3 interfaces by the host harness
+(10e-1, ADR-0075), which runs in CI on all three platforms. None is ticked
+until a real DAW has confirmed it as well: the harness proves conformance to the
+interfaces, not what a particular host does beyond them.
+
+- [ ] Plugin discovery. — harness: one class, an instrument, identical across scans (10e-1)
+- [ ] Plugin loading. — harness: stereo out, no input, no latency, the right tail; mono accepted after a fix (10e-1)
+- [ ] Plugin unloading/reloading. — harness: forty cycles, and sixteen independent instances at once (10e-1)
+- [ ] Parameter automation. — harness: automation reaches the sound, a stepped lane arrives as a ramp, every VST3 parameter ID pinned, and every integer parameter published as discrete after a fix (10e-1)
+- [ ] State recall. — harness: every parameter back, in the plugin and in the host, sample-identical; before prepare; mid-note; foreign state refused (10e-1)
+- [ ] Preset recall. — harness: a host's own .vstpreset written and read (10e-1)
+- [ ] MIDI. — harness: sample-accurate onsets; sustain, pitch bend and All Notes Off through IMidiMapping (10e-1)
+- [ ] Variable block sizes. — harness: blocks of 0 to 512 samples sample-identical to fixed blocks (10e-1)
+- [ ] Sample-rate changes. — harness: one instance re-prepared at six rates, in tune at each (10e-1)
+- [ ] Bypass. — harness: silent, nothing stuck and nothing resumed afterwards, latency unchanged; the lost-MIDI and resumed-tail defects fixed (10e-1)
+- [ ] Transport behavior where applicable. — harness: the host's tempo playing and stopped, and its absence (10e-1)
+- [ ] Plugin latency reporting. — harness: reported equals measured, follows the rack, recalled before the first block (10e-1)
+- [ ] Offline rendering. — harness: offline at 8192-sample blocks identical to realtime (10e-1)
 
 The goal is standards compliance and broad compatibility, not optimization for one canonical host.
 

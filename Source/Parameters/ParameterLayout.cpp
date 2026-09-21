@@ -15,6 +15,28 @@ juce::ParameterID makeParameterID (const ParameterDefinition& definition)
 {
     return juce::ParameterID { toJuceString (definition.id), parameterVersionHint };
 }
+
+/** An integer parameter that tells the host it is one.
+
+    juce::AudioParameterInt reports the right number of steps but does not
+    override isDiscrete(), and the VST3 wrapper publishes a step count only for
+    a parameter that is discrete. Every integer control Apollo has — the rack's
+    slots, the filter types, the LFO shapes, the modulation sources and
+    destinations — therefore reached every VST3 host as a continuous control: a
+    selector drawn as a smooth knob, and automation free to land between its
+    values (ADR-0075).
+
+    Nothing a host has saved changes. The normalised value of each step is what
+    it was, and so is the parameter's ID; only the step count the host is told
+    is new.
+*/
+class DiscreteIntParameter final : public juce::AudioParameterInt
+{
+public:
+    using juce::AudioParameterInt::AudioParameterInt;
+
+    bool isDiscrete() const override { return true; }
+};
 } // namespace
 
 juce::NormalisableRange<float> makeRange (const ParameterDefinition& definition)
@@ -35,8 +57,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
             case ParameterType::integer:
                 // An integer parameter rather than a float with a step, so the
                 // discrete step count survives the round trip through the host
-                // and the bridge (UI_BINDINGS.md §4).
-                layout.add (std::make_unique<juce::AudioParameterInt> (
+                // and the bridge (UI_BINDINGS.md §4) — which, for the host, also
+                // needs it to say it is discrete. See DiscreteIntParameter.
+                layout.add (std::make_unique<DiscreteIntParameter> (
                     makeParameterID (definition),
                     toJuceString (definition.name),
                     static_cast<int> (definition.minimum),

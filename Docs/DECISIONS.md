@@ -3962,3 +3962,128 @@ small gain on a stack whose cost is no longer anywhere near a deadline.
 Recorded rather than done, with the reason, the same way ADR-0073 recorded the
 float option: available, priced, and declined on the merits rather than
 forgotten.
+
+---
+
+## ADR-0075 — Apollo is tested through a host, not only through its interface
+
+**Phase 10e-1 · Accepted**
+
+Until this phase nothing in Apollo had been loaded into a host. Every guarantee
+in the project — the measurements, the regression renders, the state tests —
+was established by driving `ApolloAudioProcessor` through its C++ interface. No
+DAW ever does that. A DAW loads a bundle, reads its factory, and talks to it
+through the VST3 interfaces by way of a wrapper Apollo did not write, and every
+guarantee has to survive that wrapper.
+
+### The decision
+
+Host compatibility is tested in two layers.
+
+**A host harness, automated and in CI.** `ApolloHostTests` loads the VST3
+bundle the build produced through JUCE's VST3 hosting implementation and drives
+it as a DAW does: parameter changes as `IParameterChanges` queues, MIDI as an
+`IEventList`, controllers routed through the plugin's `IMidiMapping`, state
+through `IBStream`, latency through `restartComponent`, bypass through the
+parameter flagged `kIsBypass`. It runs on all three CI platforms.
+
+**Real DAWs, by hand** (10e-2 onwards). The harness proves conformance to the
+interfaces. It cannot prove what a particular host does beyond them — how it
+scans, when it restores state, what it does with a bypass, whether it keeps the
+module loaded — and it does not open the editor.
+
+### Why a separate binary that links no Apollo code
+
+`ApolloTests` links the engine. A host test compiled beside the engine could
+reach it without meaning to — a helper that read a value directly, a type shared
+across the boundary — and the wrapper would be bypassed without anyone
+noticing. The harness knows Apollo only from the bundle and from the parameter
+registry, which is plain data with no JUCE dependency: the list a host is
+shown, used to check that the host was shown it correctly.
+
+It is built on `juce_audio_processors_headless`, so it needs no display, and its
+bundle path is a build output rather than a location, overridable with
+`--plugin` to test an installed copy or an older build.
+
+### What it found on its first run
+
+Four defects, none visible to any test that drives the processor directly, each
+shown to fail against the build from before its fix:
+
+**Every integer parameter reached every VST3 host as continuous.**
+`juce::AudioParameterInt` reports the right step count but does not override
+`isDiscrete()`, and the VST3 wrapper publishes a step count only for a discrete
+parameter. Ninety-nine parameters — the rack's slots, the filter types, the LFO
+shapes, the modulation sources and destinations, the effect modes — have been
+published as continuous since Phase 2, so a host drew selectors as smooth knobs
+and let automation land between their values. The registry test that should
+have caught it had a comment explaining why `isDiscrete()` was not worth
+asserting. They are now `DiscreteIntParameter`, which says it is discrete.
+Nothing a host has saved changes: the normalised value of each step and the
+parameter's ID are what they were.
+
+**No VST3 host could run Apollo in mono.** VST3 has no arrangement for a disabled
+bus, so a host asking for mono out still describes the inactive input as the
+stereo it last was. Apollo refused any input wider than its output, a rule
+written for a pass-through that `processBlock` no longer performs. The rule is
+gone; the input is never written to the output.
+
+**A note released while the host had Apollo bypassed never ended.** Apollo had
+no bypass of its own, so the wrapper supplied one and, while it was on, called
+JUCE's default `processBlockBypassed`, which discards MIDI. The note-off for a
+key held across the bypass was lost, and so was the release of a sustain pedal:
+every note afterwards sustained. And a reverb tail frozen mid-decay resumed when
+the bypass lifted, long after the note that made it.
+
+**The same default asserts in a Debug build** whenever the rack reports latency,
+because it does not delay a pass-through to match. Found by reading while
+writing the bypass tests rather than by running them.
+
+### How bypass now behaves
+
+Apollo overrides `processBlockBypassed`. The output is silent. On the block the
+bypass begins, the voices, the rack's tails and the scopes are cleared — the
+same bounded reset a transport jump performs — so nothing frozen resumes. Every
+MIDI message except a note-on is still applied, so the pedal, the wheels, MIDI
+Learn and the MPE setup are where the controller says they are when the
+instrument returns. The rack is still read, so a chain rearranged while bypassed
+reports its latency now rather than when the bypass lifts. No latency-matching
+path is needed: silence delayed is the same silence.
+
+Not added: a bypass parameter of Apollo's own. The wrapper's is flagged
+`kIsBypass`, which is what a host's bypass button looks for, and a second one
+would be a parameter that permanently existed to duplicate it.
+
+### What a host stores is pinned
+
+A host does not store "filter1_cutoff". It stores a 32-bit `ParamID` beside every
+automation lane, which JUCE derives by hashing the string ID. A stable string is
+necessary and not sufficient: a JUCE upgrade that changed the hash, or a build
+that set `JUCE_FORCE_USE_LEGACY_PARAM_IDS`, would renumber every parameter with
+every string intact. `Tests/Host/ParameterIdentities.cpp` pins the number each
+parameter answers to, as read from a loaded plugin, and the harness checks that
+each still resolves to its own parameter and is still JUCE's hash of its ID —
+the second check says which of the two causes it is. It is generated, like the
+regression goldens, and for a released plugin the only change it may see is an
+addition.
+
+### Measured on the way
+
+- **A host sees 2,308 parameters**: Apollo's 227, one bypass, and 2,080 that the
+  wrapper creates so a host can route sixteen channels of 130 controllers
+  through `IMidiMapping`. They are not automatable, and most hosts hide them.
+- **An instance costs 21 ms to load and prepare through the host** with the
+  module resident, against 0.9 ms to construct directly (§5b). The difference is
+  the wrapper — 2,308 host-side parameters built per instance — and is not
+  Apollo's to remove.
+- **The first instance costs 301 ms**, the module load and the shared wavetables
+  (ADR-0066). A host that unloads the module when its last instance closes pays
+  that again next time; a load-and-unload cycle measured 330 ms for exactly that
+  reason.
+
+### What was given up
+
+Steinberg's own validator is not part of this. It tests conformance to the
+letter of the SDK where the harness tests Apollo's behaviour through it, and it
+is worth running — as a third-party tool, alongside the first real DAW, in the
+next sub-phase rather than as a build dependency.

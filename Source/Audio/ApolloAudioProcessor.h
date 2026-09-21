@@ -49,6 +49,22 @@ public:
 
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override;
 
+    /** What the host's bypass does to an instrument.
+
+        Apollo has no bypass parameter of its own, so a plugin wrapper that
+        offers the host one calls this instead of processBlock while it is on.
+        JUCE's default discards the MIDI buffer, which loses the note-off for a
+        key held across the bypass and the release of a sustain pedal, and the
+        instrument comes back with a note that never ends (ADR-0075).
+
+        So the output is silent, the voices and the rack's tails are cleared on
+        the block the bypass begins — nothing frozen mid-decay resumes when it
+        lifts — and every MIDI message except a note-on is still applied, so
+        the pedal, the wheels, MIDI Learn and the MPE setup are where the
+        controller says they are when the instrument returns. Audio thread.
+    */
+    void processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) override;
+
     //==============================================================================
     // Editor
 
@@ -264,6 +280,11 @@ private:
     /** Written by prepareToPlay, read by the DSP and by tests. */
     std::atomic<double> preparedSampleRate { 0.0 };
     std::atomic<int> preparedBlockSize { 0 };
+
+    /** Whether the previous block was a bypassed one. Audio thread only: it is
+        how processBlockBypassed knows the bypass has just begun.
+    */
+    bool bypassedLastBlock = false;
 
     std::atomic<state::StateLoadResult> lastStateLoadResult { state::StateLoadResult::ok };
     std::atomic<int> stateReloadCounter { 0 };

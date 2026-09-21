@@ -33,6 +33,7 @@ Tests/
 ├── TestMain.cpp          # runner: argument handling, reporting, exit status
 ├── Analysis/             # measurement equipment, not tests (spectra, THD, DC)
 ├── Regression/           # golden renders and the harness that compares them (§7)
+├── Host/                 # ApolloHostTests: the bundle, loaded through a VST3 host (§8)
 └── Foundation/           # build system, conventions, project invariants
 ```
 
@@ -175,3 +176,74 @@ fingerprint.
 
 Keep cases short. The suite renders every one of them twice over, and the
 sanitized CI job pays several times what this machine does for each sample.
+
+---
+
+## 8. The host harness
+
+`ApolloHostTests` is a second test binary, and it asks what the rest of the
+suite cannot: **does Apollo still work once a host is in the way?** (ADR-0075)
+
+`ApolloTests` links the engine and drives `ApolloAudioProcessor` through its C++
+interface. No DAW ever does that. A DAW loads the bundle from disk, reads its
+factory, and talks to it through the VST3 interfaces — `IComponent`,
+`IAudioProcessor`, `IEditController`, `IMidiMapping` — by way of a wrapper Apollo
+did not write. `ApolloHostTests` does the same: it links no Apollo code at all,
+loads the bundle the build just produced through JUCE's VST3 hosting, and drives
+it the way a host does. Parameter changes arrive as `IParameterChanges` queues,
+MIDI as an `IEventList`, controllers as parameters routed through
+`IMidiMapping`, state through `IBStream`, and latency through
+`restartComponent`.
+
+It covers discovery, loading and unloading, sixteen instances at once, the
+parameter list and every parameter's metadata, the VST3 parameter IDs a saved
+project stores, bus layouts, project and `.vstpreset` recall, refused state,
+automation, sample-accurate MIDI, the sustain pedal and pitch bend through the
+controller mapping, variable and empty blocks, six sample rates on one
+instance, offline rendering, the tail, the host's tempo and its absence, latency,
+and bypass.
+
+```sh
+ctest --test-dir build -C RelWithDebInfo -L host -V
+```
+
+```text
+ApolloHostTests                    run everything, against the bundle this build made
+ApolloHostTests --plugin <path>    run against another bundle — the copy a DAW has
+                                   installed, or an older build
+ApolloHostTests --list             list the tests
+ApolloHostTests --parameter-ids    print the pinned parameter identities (below)
+```
+
+It is headless — built on `juce_audio_processors_headless`, so it needs no
+display — and it runs in CI on all three platforms. It does not open the
+editor, and it is not a DAW: it proves Apollo conforms to the interfaces, which
+is necessary and not sufficient. What a particular host does beyond them is
+checked by hand, and recorded in PROJECT-STATE.md.
+
+### Pinned parameter identities
+
+`Tests/Host/ParameterIdentities.cpp` lists the VST3 `ParamID` a host stores for
+every parameter, read from a loaded plugin. A host writes that number beside
+every automation lane; if Apollo stops answering to it, the lane silently
+drives nothing. The number is a hash of the string ID, so a JUCE upgrade or a
+build flag could change it with every string ID intact — which only a host
+would notice.
+
+A new parameter must be added to the list, and the test says so. Regenerate
+with
+
+```sh
+ApolloHostTests --parameter-ids > Tests/Host/ParameterIdentities.cpp
+```
+
+and check that the diff is **only additions**. A changed or removed line is an
+automation lane in somebody's project that no longer works
+(PARAMETER-CONVENTIONS.md §1).
+
+### A host test that has never failed
+
+Every defect the harness was written to find was first shown against a build
+from before its fix, with `--plugin` pointing at the older bundle. A test added
+here should be given the same chance: point it at a build that has the defect,
+and watch it fail.

@@ -80,7 +80,16 @@ The runner can also be invoked directly for faster iteration:
 ./build/Tests/ApolloTests_artefacts/RelWithDebInfo/ApolloTests --category Foundation
 ```
 
-See [TESTING.md](TESTING.md) for the test framework and for how to add tests.
+The host harness loads the VST3 bundle the build produced and drives it
+through the VST3 interfaces, as a DAW does. It builds the plugin first:
+
+```sh
+cmake --build build --config RelWithDebInfo --target ApolloHostTests
+ctest --test-dir build -C RelWithDebInfo -L host -V
+```
+
+See [TESTING.md](TESTING.md) for the test framework, for the host harness
+(§8), and for how to add tests.
 
 ---
 

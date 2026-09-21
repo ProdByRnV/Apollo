@@ -103,6 +103,20 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C RelWithDebInfo -L unit --output-on-failure
 
+      # The host harness (ADR-0075): the VST3 bundle built above, loaded
+      # through a VST3 host implementation and driven the way a DAW drives it.
+      # After the plugin, because it tests the bundle rather than the sources,
+      # and separately, because it compiles a third copy of the JUCE modules it
+      # needs and this runner is short of memory (see the matrix above).
+      #
+      # Verbose, so a run that passed still records what the host saw: the
+      # parameter count, the load time, and the per-case measurements.
+      - name: Build host harness
+        run: cmake --build build --config RelWithDebInfo --target ApolloHostTests --parallel ${{ matrix.parallel }}
+
+      - name: Host tests
+        run: ctest --test-dir build -C RelWithDebInfo -L host -V
+
       # The regression renders, verbosely, so their per-case measurements appear
       # in the log of a run that passed. ctest prints a passing test's output
       # only when asked, and this is the one place the cross-platform spread of

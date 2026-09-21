@@ -925,18 +925,18 @@ bool ApolloAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
         && mainOutput != juce::AudioChannelSet::stereo())
         return false;
 
-    // The input bus is optional. When present it must be mono or stereo and
-    // must not be wider than the output, because pass-through writes input
-    // channels directly into the shared buffer.
-    if (! mainInput.isDisabled())
-    {
-        if (mainInput != juce::AudioChannelSet::mono()
-            && mainInput != juce::AudioChannelSet::stereo())
-            return false;
-
-        if (mainInput.size() > mainOutput.size())
-            return false;
-    }
+    // The input bus is optional. When present it must be mono or stereo.
+    //
+    // Its width is NOT tied to the output's. That rule dated from a
+    // pass-through processBlock no longer performs — the input is never written
+    // to the output — and it made mono output unreachable from any VST3 host:
+    // VST3 has no arrangement for a disabled bus, so a host asking for mono out
+    // still describes the inactive input as the stereo it last was, and the
+    // wrapper asks whether stereo-in, mono-out is supported (ADR-0075).
+    if (! mainInput.isDisabled()
+        && mainInput != juce::AudioChannelSet::mono()
+        && mainInput != juce::AudioChannelSet::stereo())
+        return false;
 
     return true;
 }
@@ -951,6 +951,8 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     const auto numOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
+
+    bypassedLastBlock = false;
 
     if (numOutputChannels <= 0 || numSamples <= 0)
         return;
@@ -1054,6 +1056,58 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         // a scope want different arithmetic and merging them would produce a
         // loop that did neither job plainly.
         telemetry->outputMeter().process (outputs, numOutputChannels, 0, numSamples);
+    }
+}
+
+void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer,
+                                                 juce::MidiBuffer& midiMessages)
+{
+    const juce::ScopedNoDenormals noDenormals;
+
+    // The bypass has just begun. Whatever was sounding stops here rather than
+    // freezing: a voice or a reverb tail left in place would carry on from the
+    // same point when the bypass lifts, long after the note that made it.
+    // Bounded work and no allocation — the same reset a host's transport jump
+    // performs (CLAUDE.md §7).
+    if (! bypassedLastBlock)
+    {
+        voiceEngine.reset();
+        effects.reset();
+        telemetry->reset();
+        bypassedLastBlock = true;
+    }
+
+    // Controller state keeps up with the controller. A note-off, a pedal
+    // lifting, a wheel moving or an MPE zone being configured while bypassed
+    // must all be in force when the instrument returns; only a note-on is
+    // refused, because a bypassed instrument plays nothing.
+    midiControl.refreshMappings();
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto message = metadata.getMessage();
+
+        if (! message.isNoteOn())
+            handleMidiMessage (message);
+    }
+
+    // The chain is still read, so a rack rearranged while bypassed reports its
+    // latency to the host now rather than on the block the bypass lifts.
+    applyHostTempo();
+    applyEffectParameters();
+
+    // Silent, and delayed by nothing: silence delayed by the rack's latency is
+    // the same silence, so no latency-matching path is needed here.
+    buffer.clear();
+
+    if (telemetry->isCapturing())
+    {
+        const auto numOutputChannels = getTotalNumOutputChannels();
+        auto* const* outputs = buffer.getArrayOfWritePointers();
+
+        telemetry->scope (telemetry::ScopeSource::output)
+            .writeMixedToMono (outputs, numOutputChannels, 0, buffer.getNumSamples());
+        telemetry->outputMeter().process (outputs, numOutputChannels, 0, buffer.getNumSamples());
     }
 }
 

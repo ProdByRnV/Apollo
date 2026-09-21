@@ -296,10 +296,14 @@ private:
         expect (supports (mono, mono), "mono in/out must be supported");
         expect (supports (mono, stereo), "a narrower input than output must be supported");
 
+        // Required, not merely tolerated: a VST3 host asking for mono out
+        // describes the inactive input as the stereo it last was, so refusing
+        // this refused mono output in every VST3 host (ADR-0075).
+        expect (supports (stereo, mono),
+                "an input wider than the output must be supported");
+
         expect (! supports (disabled, juce::AudioChannelSet::create5point1()),
                 "surround output is not supported yet and must be rejected");
-        expect (! supports (stereo, mono),
-                "an input wider than the output must be rejected");
         expect (! supports (disabled, disabled),
                 "a disabled output bus must be rejected");
     }

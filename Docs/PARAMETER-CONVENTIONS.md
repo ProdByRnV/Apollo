@@ -23,6 +23,15 @@ references it.
 To change what a parameter means: add a new ID, and migrate the old one during
 state load.
 
+The string ID is not what a host stores. A VST3 host stores a 32-bit `ParamID`,
+which JUCE derives from the string ID by hashing it, so the ID being stable is
+necessary but not sufficient: a JUCE upgrade or a build flag could renumber
+every parameter while every string stayed the same. The number a host actually
+receives is pinned in `Tests/Host/ParameterIdentities.cpp` and checked by the
+host harness against a loaded plugin (TESTING.md §8, ADR-0075). Adding a
+parameter adds a line there; changing or removing one breaks saved automation,
+and is exactly what this rule forbids.
+
 Pre-1.0 this rule is relaxed in practice — see [VERSIONING.md](VERSIONING.md) §2 —
 but every ID change before 1.0 still requires a deliberate decision, not a rename
 in passing.
