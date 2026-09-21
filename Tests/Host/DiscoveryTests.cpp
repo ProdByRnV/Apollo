@@ -196,12 +196,13 @@ private:
             return;
 
         // What a host pays per insert once the module is resident. The first
-        // load also pays for the module and the shared wavetables (ADR-0066);
-        // the rest should pay for neither.
+        // of the sixteen pays for the module and the shared wavetables
+        // (ADR-0066) only if the host unloaded the module after the previous
+        // test; whether it does is the host's choice, and differs by platform.
         auto later = std::vector<double> (loadTimes.begin() + 1, loadTimes.end());
         std::sort (later.begin(), later.end());
 
-        logMessage ("    load and prepare, module cold: " + juce::String (loadTimes.front(), 1)
+        logMessage ("    load and prepare, first of sixteen: " + juce::String (loadTimes.front(), 1)
                     + " ms; module resident, median of 15: " + juce::String (later[later.size() / 2], 1)
                     + " ms, worst " + juce::String (later.back(), 1) + " ms");
 

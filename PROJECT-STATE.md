@@ -1279,8 +1279,8 @@ Measured on the way, on the development machine:
 | | |
 |---|---:|
 | Parameters a host sees | **2,308** — 227 Apollo, 1 bypass, 2,080 emulated MIDI controllers |
-| Load and prepare, module cold | **301 ms** |
-| Load and prepare, module resident, median of 15 | **21 ms** |
+| Load and prepare, first of sixteen | **301 ms** on Windows, where the host had unloaded the module; 5-10 ms on the macOS and Linux CI runners, where it had not |
+| Load and prepare, module resident, median of 15 | **21 ms** here; 8-10 ms on the CI runners |
 | A load-prepare-play-unload cycle | 330 ms |
 
 The resident figure is twenty times the 0.9 ms a direct construction costs
@@ -1342,6 +1342,11 @@ controller on the desk rather than the patch.
 | `Debug` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings; the suite passes |
 | `Release` | Builds clean, no warnings |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
+
+**Verified by CI against Phase 10e-1 code** (run 35636662504, all four jobs green),
+including the new host harness, which loaded the built VST3 and passed 159 of
+159 on Windows, macOS and Linux — so the bundle scans, loads and behaves
+through a VST3 host on all three platforms, not only on this machine.
 
 **Verified by CI against Phase 8e code** (run 34781646589, all four jobs green):
 Linux (GCC), macOS (Apple Clang), Windows (MSVC) and the Linux Clang sanitizer

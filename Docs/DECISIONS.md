@@ -4076,10 +4076,12 @@ addition.
   module resident, against 0.9 ms to construct directly (§5b). The difference is
   the wrapper — 2,308 host-side parameters built per instance — and is not
   Apollo's to remove.
-- **The first instance costs 301 ms**, the module load and the shared wavetables
-  (ADR-0066). A host that unloads the module when its last instance closes pays
-  that again next time; a load-and-unload cycle measured 330 ms for exactly that
-  reason.
+- **The first instance costs 301 ms** on this machine when the module is not
+  resident — the module load and the shared wavetables (ADR-0066). On the macOS
+  and Linux CI runners JUCE's host kept the module loaded between tests, and the
+  same load cost 5-10 ms. A host that unloads the module when its last instance closes pays
+  that again next time; a load-and-unload cycle measured 330 ms here for exactly
+  that reason.
 
 ### What was given up
 
