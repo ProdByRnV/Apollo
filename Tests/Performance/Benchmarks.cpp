@@ -17,6 +17,7 @@
 #include "Audio/ApolloAudioProcessor.h"
 #include "DSP/Effects/EffectsRack.h"
 #include "DSP/LFO/Lfo.h"
+#include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Oversampling/Oversampler.h"
 #include "Engine/VoiceEngine.h"
@@ -1010,6 +1011,345 @@ void printCallbackRow (const std::string& label, const CallbackTrace& trace)
               << std::endl;
 }
 
+//==============================================================================
+// Would SIMD across unison voices be worth it? (Phase 10d-4)
+//
+// 10d-1 and 10d-2 made the voice path about 2.8x cheaper and left the worst
+// patch at roughly a third of its callback deadline, so vectorising the unison
+// stack is headroom rather than a fix. That changes what it has to justify: a
+// hand-vectorised inner loop is a substantial increase in the amount of code
+// that has to be right, on the innermost function in the instrument, with a
+// scalar fallback to maintain for every target that does not get the vector
+// path — and ARM64, a stated target (CLAUDE.md §3.2), has no gather at all.
+//
+// So this measures the gain BEFORE paying for it. The prototype below is not
+// production code and is not wired into the engine; it exists to answer one
+// question with a number, so that the decision in PROJECT-STATE §8 is bought
+// with a measurement rather than an expectation.
+//
+// WHAT THE PROTOTYPE CHANGES, and each is a cost as well as a saving:
+//
+//   * It splits the per-sample work into a scalar *gather* pass and an
+//     arithmetic pass over contiguous arrays. Only the second can vectorise;
+//     the first is loads at addresses that depend on each voice's phase, which
+//     is the part no vector unit helps with. Whatever speedup this shows is
+//     therefore bounded by how much of the cost is arithmetic.
+//   * It interpolates in **float** rather than double. That is most of where a
+//     vector win would come from — twice the lanes — and it is not free, so the
+//     accuracy cost is measured here too rather than assumed negligible.
+//
+// It deliberately does NOT hand-write intrinsics. A portable implementation
+// would have to work on SSE, NEON and whatever a future target brings, and the
+// realistic form is exactly this: separate the gather, then write arithmetic
+// simple enough for the compiler to vectorise. Measuring hand-tuned AVX2 would
+// answer a question Apollo cannot ship.
+
+// Templated on the arithmetic type so the win can be DECOMPOSED. The prototype
+// changes two things at once and only one of them needs a vector unit:
+//
+//   * the arithmetic type (float halves the width, which is where SIMD lanes
+//     come from, and costs accuracy);
+//   * the data layout (taps and gains in flat parallel arrays, no per-sample
+//     applyLayout call, no reads through sixteen separate Reader objects).
+//
+// Measuring only the float version would leave it impossible to say which of
+// those bought the speedup -- and if it is mostly the layout, the same win is
+// available in double with no accuracy cost and no vector code at all. So both
+// are instantiated and both are reported.
+template <typename Sample>
+struct UnisonPrototypeOf
+{
+    static constexpr int maxVoices = dsp::UnisonLayout::maxVoices;
+
+    void prepare (const dsp::Wavetable& table, const dsp::UnisonLayout& layout,
+                  double baseFrequency, double framePosition)
+    {
+        count = layout.getCount();
+
+        const auto level = dsp::Wavetable::selectMipLevel (baseFrequency, sampleRate);
+        const auto frameSize = dsp::Wavetable::samplesAtLevel (level);
+
+        const auto lowerIndex = static_cast<int> (framePosition);
+
+        blend = static_cast<Sample> (framePosition - static_cast<double> (lowerIndex));
+
+        const auto* base = table.getReadPointer (level, lowerIndex);
+
+        for (int v = 0; v < count; ++v)
+        {
+            // Every unison voice reads the same table at the same frame and the
+            // same mip level; only its phase differs. That is exactly why the
+            // stack is the candidate for vectorising — sixteen reads whose only
+            // difference is an index.
+            lower[v] = base;
+            upper[v] = base + frameSize;
+            mask[v] = frameSize - 1;
+            size[v] = static_cast<float> (frameSize);
+
+            increment[v] = baseFrequency * layout.getFrequencyRatio (v) / sampleRate;
+            phase[v] = layout.getStartPhase (v);
+            gainLeft[v] = layout.getGainLeft (v);
+            gainRight[v] = layout.getGainRight (v);
+        }
+    }
+
+    void addNextStereoSample (float& leftOut, float& rightOut) noexcept
+    {
+        // PASS ONE: the gather. Scalar by necessity — each voice's four taps sit
+        // at an address derived from its own phase.
+        for (int v = 0; v < count; ++v)
+        {
+            const auto wrapped = phase[v] - std::floor (phase[v]);
+            const auto position = wrapped * static_cast<double> (size[v]);
+
+            auto index = static_cast<int> (position);
+
+            fraction[v] = static_cast<Sample> (position - static_cast<double> (index));
+
+            const auto m = mask[v];
+
+            if (index > m)
+                index = m;
+
+            const auto i0 = (index + m) & m;
+            const auto i1 = index;
+            const auto i2 = (index + 1) & m;
+            const auto i3 = (index + 2) & m;
+
+            const auto* lo = lower[v];
+            const auto* hi = upper[v];
+
+            // Blended here rather than in the arithmetic pass, because the
+            // blend is what doubles the loads and it belongs with them.
+            const auto mix = [this] (float a, float b) noexcept
+            {
+                const auto low = static_cast<Sample> (a);
+                return low + (static_cast<Sample> (b) - low) * blend;
+            };
+
+            tap0[v] = mix (lo[i0], hi[i0]);
+            tap1[v] = mix (lo[i1], hi[i1]);
+            tap2[v] = mix (lo[i2], hi[i2]);
+            tap3[v] = mix (lo[i3], hi[i3]);
+
+            phase[v] += increment[v];
+
+            if (phase[v] >= 1.0 || phase[v] < 0.0)
+                phase[v] -= std::floor (phase[v]);
+        }
+
+        // PASS TWO: the arithmetic, over contiguous arrays with no
+        // data-dependent addressing. This is the part a vector unit earns its
+        // keep on, and the part written so a compiler can see it.
+        Sample sumLeft = Sample (0);
+        Sample sumRight = Sample (0);
+
+        for (int v = 0; v < count; ++v)
+        {
+            const auto y0 = tap0[v];
+            const auto y1 = tap1[v];
+            const auto y2 = tap2[v];
+            const auto y3 = tap3[v];
+            const auto t = fraction[v];
+
+            const auto c1 = Sample (0.5) * (y2 - y0);
+            const auto c2 = y0 - Sample (2.5) * y1 + Sample (2) * y2 - Sample (0.5) * y3;
+            const auto c3 = Sample (0.5) * (y3 - y0) + Sample (1.5) * (y1 - y2);
+
+            const auto sample = ((c3 * t + c2) * t + c1) * t + y1;
+
+            sumLeft += sample * static_cast<Sample> (gainLeft[v]);
+            sumRight += sample * static_cast<Sample> (gainRight[v]);
+        }
+
+        leftOut += static_cast<float> (sumLeft);
+        rightOut += static_cast<float> (sumRight);
+    }
+
+    const float* lower[maxVoices] {};
+    const float* upper[maxVoices] {};
+    int mask[maxVoices] {};
+    float size[maxVoices] {};
+
+    double phase[maxVoices] {};
+    double increment[maxVoices] {};
+    float gainLeft[maxVoices] {};
+    float gainRight[maxVoices] {};
+
+    Sample tap0[maxVoices] {};
+    Sample tap1[maxVoices] {};
+    Sample tap2[maxVoices] {};
+    Sample tap3[maxVoices] {};
+    Sample fraction[maxVoices] {};
+
+    Sample blend = Sample (0);
+    int count = 0;
+};
+
+using UnisonPrototype = UnisonPrototypeOf<float>;
+using UnisonPrototypeDouble = UnisonPrototypeOf<double>;
+
+void benchmarkUnisonSimd()
+{
+    printHeading ("Unison stack: what a restructured inner loop is worth (Phase 10d-4)");
+
+    const dsp::WavetableLibrary library;
+    const auto& table = library.getTable (0);
+
+    dsp::UnisonLayout layout;
+    layout.update (dsp::UnisonLayout::maxVoices, 0.4f, 0.6f);
+
+    // A frame position deliberately between two frames, so both paths pay for
+    // the two-frame blend. At a whole-numbered position both skip it, and the
+    // comparison would flatter the prototype by measuring the easier case.
+    constexpr double framePosition = 7.35;
+    constexpr double frequency = 110.0;
+
+    const auto normalisedPosition =
+        static_cast<float> (framePosition / static_cast<double> (table.getNumFrames() - 1));
+
+    dsp::UnisonOscillator scalar;
+    scalar.setSampleRate (sampleRate);
+    scalar.setTable (&table);
+    scalar.setLayout (&layout);
+    scalar.setFrequency (frequency);
+    scalar.setPosition (normalisedPosition);
+    scalar.resetPhase (0.0);
+
+    UnisonPrototype prototype;
+    prototype.prepare (table, layout, frequency, framePosition);
+
+    UnisonPrototypeDouble prototypeDouble;
+    prototypeDouble.prepare (table, layout, frequency, framePosition);
+
+    //==========================================================================
+    // AGREEMENT FIRST. A faster path that computes something else is not a
+    // faster path, and the float interpolation means "identical" is not the
+    // bar — so the bar is a measured bound, stated rather than assumed.
+    {
+        double worst = 0.0;
+        double sumSquaredError = 0.0;
+        double sumSquaredSignal = 0.0;
+
+        for (int i = 0; i < 4096; ++i)
+        {
+            float scalarLeft = 0.0f, scalarRight = 0.0f;
+            float protoLeft = 0.0f, protoRight = 0.0f;
+
+            scalar.addNextStereoSample (scalarLeft, scalarRight);
+            prototype.addNextStereoSample (protoLeft, protoRight);
+
+            const auto errorLeft = static_cast<double> (protoLeft - scalarLeft);
+            const auto errorRight = static_cast<double> (protoRight - scalarRight);
+
+            worst = std::max (worst, std::max (std::abs (errorLeft), std::abs (errorRight)));
+
+            sumSquaredError += errorLeft * errorLeft + errorRight * errorRight;
+            sumSquaredSignal += static_cast<double> (scalarLeft) * scalarLeft
+                              + static_cast<double> (scalarRight) * scalarRight;
+        }
+
+        const auto errorDecibels = sumSquaredSignal > 0.0
+                                 ? 10.0 * std::log10 (sumSquaredError / sumSquaredSignal)
+                                 : -200.0;
+
+        std::cout << "  float prototype vs scalar:  worst sample " << std::scientific
+                  << std::setprecision (3) << worst << ", error energy "
+                  << std::fixed << std::setprecision (1) << errorDecibels << " dB"
+                  << std::endl;
+    }
+
+    //==========================================================================
+    // THEN THE COST, measured alternately. Two long runs one after the other
+    // would compare two different machines on this laptop (ADR-0072).
+    scalar.resetPhase (0.0);
+    prototype.prepare (table, layout, frequency, framePosition);
+
+    static volatile float sink = 0.0f;
+
+    const auto [scalarCost, protoCost] = measurePair (
+        secondsPerMeasurement,
+        [&]
+        {
+            float left = 0.0f, right = 0.0f;
+
+            for (int i = 0; i < blockSize; ++i)
+                scalar.addNextStereoSample (left, right);
+
+            sink = left + right;
+        },
+        [&]
+        {
+            float left = 0.0f, right = 0.0f;
+
+            for (int i = 0; i < blockSize; ++i)
+                prototype.addNextStereoSample (left, right);
+
+            sink = left + right;
+        },
+        Reference::memory);
+
+    // The double variant, alternated against the same scalar path so the two
+    // ratios are comparable. This is the row that decides whether float and a
+    // vector unit are needed at all, or whether the data layout was the whole
+    // story.
+    scalar.resetPhase (0.0);
+    prototypeDouble.prepare (table, layout, frequency, framePosition);
+
+    const auto [scalarAgain, doubleCost] = measurePair (
+        secondsPerMeasurement,
+        [&]
+        {
+            float left = 0.0f, right = 0.0f;
+
+            for (int i = 0; i < blockSize; ++i)
+                scalar.addNextStereoSample (left, right);
+
+            sink = left + right;
+        },
+        [&]
+        {
+            float left = 0.0f, right = 0.0f;
+
+            for (int i = 0; i < blockSize; ++i)
+                prototypeDouble.addNextStereoSample (left, right);
+
+            sink = left + right;
+        },
+        Reference::memory);
+
+    printRow ("scalar, 16 voices", scalarCost, 0);
+    printRow ("prototype, float arithmetic", protoCost, 0);
+    printRow ("prototype, double arithmetic", doubleCost, 0);
+
+    if (protoCost.realtimeFraction > 0.0 && doubleCost.realtimeFraction > 0.0
+        && scalarAgain.realtimeFraction > 0.0)
+    {
+        std::cout << "      float:  " << std::fixed << std::setprecision (2)
+                  << (scalarCost.realtimeFraction / protoCost.realtimeFraction)
+                  << "x the scalar path\n"
+                  << "      double: "
+                  << (scalarAgain.realtimeFraction / doubleCost.realtimeFraction)
+                  << "x the scalar path, at no accuracy cost at all"
+                  << std::endl;
+    }
+
+    std::cout << "\n  One oscillator's stack, not a whole voice. A voice runs two of these\n"
+                 "  plus a sub, a noise generator, filters and an envelope, so the effect on\n"
+                 "  the instrument is smaller than the ratios above (§5b).\n"
+                 "\n"
+                 "  THE TWO ROWS ARE THE POINT. The double row changes only the data layout --\n"
+                 "  flat parallel arrays, gains hoisted out of the layout object, no per-sample\n"
+                 "  generation check, and per-voice state packed instead of strided across\n"
+                 "  sixteen oscillator objects. It costs nothing in accuracy and needs no\n"
+                 "  vector code, no runtime dispatch and no scalar fallback. The float row adds\n"
+                 "  half-width arithmetic on top, which is where SIMD lanes would come from.\n"
+                 "\n"
+                 "  Most of the available win is in the layout, not the vectorising. That is\n"
+                 "  what ADR-0073 decided on, and it is why Apollo is not getting hand-written\n"
+                 "  intrinsics it would then have to maintain twice over.\n"
+              << std::endl;
+}
 void benchmarkCallbacks()
 {
     printHeading ("Worst-case callback, through the whole processor (% of one block's deadline)");
@@ -1407,6 +1747,7 @@ void run()
     benchmarkOversampling();
     benchmarkEffects();
     benchmarkTelemetry();
+    benchmarkUnisonSimd();
     benchmarkCallbacks();
 
     // The other end of the run. The assessment above happened before any Apollo

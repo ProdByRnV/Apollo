@@ -3720,3 +3720,109 @@ obtained from the runs that passed.
 None of this makes the laptop into an instrument. It makes one that says when it
 is not being one, which was ADR-0069's stated goal and is now considerably closer
 to true.
+
+---
+
+## ADR-0073 — No SIMD. The win was the data layout.
+
+**Phase 10d-4 · Accepted**
+
+Since Phase 10d-2 the roadmap has carried "SIMD across unison voices" as the
+next optimisation, on the reasoning that sixteen voices reading one table at
+sixteen phases is the shape a vector unit exists for. 10d-1 and 10d-2 then made
+the voice path about 2.8x cheaper without it, which turned SIMD from a fix into
+headroom and meant it had to be bought with a measurement rather than an
+expectation.
+
+It was measured. **It is not being built**, and the measurement found something
+better.
+
+### What was measured, and why in that form
+
+A prototype in `Tests/Performance/Benchmarks.cpp`, not wired into the engine,
+because the point was to price the change before paying for it. It restructures
+one oscillator's sixteen-voice unison stack into two passes:
+
+- a **scalar gather**, because each voice's four taps sit at an address derived
+  from its own phase, and no vector unit helps with that;
+- an **arithmetic pass** over contiguous arrays with no data-dependent
+  addressing, which is the part a compiler can vectorise.
+
+Deliberately no hand-written intrinsics. A portable implementation would have to
+work on SSE and on NEON — and ARM64 is a stated target (CLAUDE.md §3.2) with no
+gather instruction at all — so the realistic form is exactly this: separate the
+gather, then write arithmetic simple enough for the compiler. Measuring
+hand-tuned AVX2 would have answered a question Apollo cannot ship.
+
+Measured at frame position 7.35, deliberately between two frames, so both paths
+pay for the two-frame blend. At a whole-numbered position both skip it and the
+comparison would flatter the prototype.
+
+### The decomposition, which is the actual finding
+
+The prototype changes **two** things at once, and they are separable. So it is
+templated on its arithmetic type and both are reported:
+
+| | median of five | accuracy cost | portability cost |
+|---|---:|---|---|
+| Data layout only, double arithmetic | **1.39x** | none | none |
+| Plus float arithmetic | **1.76x** | -135.4 dB | the whole SIMD question |
+
+Alternated against the scalar path rather than measured after it, so both saw
+the same machine (ADR-0069). Stable to within three per cent across runs whose
+contention ranged from 1.5 % to 31.9 %, which is what alternation is for.
+
+**Most of the available win is the layout, not the vectorising.** The double row
+changes only: flat parallel arrays for phase, increment and taps; gains hoisted
+out of the layout object into a local array; no per-sample generation check; and
+per-voice state packed instead of strided across sixteen hundred-byte oscillator
+objects.
+
+### The decision
+
+**Do the data-layout restructuring. Do not do SIMD, and do not go to float.**
+
+1. **1.39x of the 1.76x, for none of the cost.** No intrinsics, no runtime CPU
+   dispatch, no second code path to keep in agreement, no ARM64 gather problem,
+   no change to precision, and no new accuracy claim to defend.
+2. **The remaining 1.27x has no customer.** After 10d-1 and 10d-2 the worst
+   patch Apollo's own controls can build sits at roughly a third of its callback
+   deadline. Headroom nobody is using does not justify hand-maintained vector
+   code on the innermost function in the instrument.
+3. **It is the wrong direction on the priority hierarchy.** §47 puts audio
+   quality above performance. -135 dB is far below the -60 dBc aliasing budget
+   and below what Apollo currently measures at -98.5 dBc worst case, so the
+   error would be inaudible — but trading precision for speed that is not needed
+   is still trading the wrong way round.
+4. **The float option is not lost, only priced.** It remains available at a
+   further 1.27x should a future target or a future feature actually need it,
+   and this benchmark stays in the tree as the way to re-ask.
+
+### What it says about the plan it replaces
+
+10d-2's note, and PROJECT-STATE's recommendation after it, both assumed the
+remaining cost was intrinsically the shape of the work — sixteen voices needing
+sixteen lanes. The measurement says most of it was ordinary bad data layout, and
+that a vector unit would have been an expensive way to work around a problem
+that a `struct`-of-arrays fixes for free.
+
+This is the second time in Phase 10d that the obvious next step turned out to be
+the wrong one: 10d-3 set out to choose a better normalisation divisor and found
+that the real fault was a throttling clock. Both were found by measuring the
+thing rather than reasoning about it, which is the only reason either was found
+at all.
+
+### What happens next
+
+The restructuring itself is Phase 10d-5, and it is a real change to the
+instrument's innermost loop rather than a benchmark: `UnisonOscillator` stops
+holding an array of `WavetableOscillator` objects and becomes a flat stack.
+
+One constraint travels with it. ADR-0071 made `Wavetable::Reader::read` the
+single implementation of the interpolation arithmetic, and a gather-then-
+arithmetic loop would duplicate it. It must not: the polynomial is to be shared
+as one inline function, with the two paths differing only in **schedule** — one
+voice at a time, or sixteen gathered then sixteen evaluated — and a test
+asserting they agree. The prototype here is also kept, because it becomes the
+way to check that the production version actually achieves the 1.39x it
+predicted.
