@@ -172,7 +172,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          installed=$(ldconfig -p)
+          # Written to a file rather than piped into grep. `grep -q` stops at
+          # the first match and closes the pipe, which kills the writer with
+          # SIGPIPE — and under `pipefail` that failed writer becomes the
+          # pipeline's status, so every library that IS installed reports as
+          # missing. That is exactly what the first version of this step did.
+          ldconfig -p > "$RUNNER_TEMP/ldconfig.txt"
+
           missing=()
 
           for soname in $(grep -oE 'lib[A-Za-z0-9._+-]*\.so[0-9.]*' staged/INSTALL.txt | sed 's/\.$//' | sort -u); do
@@ -182,12 +188,12 @@ jobs:
               libwebkit2gtk-*|libjavascriptcoregtk-*|libsoup-*) continue ;;
             esac
 
-            if ! printf '%s' "$installed" | grep -Fq "$soname"; then
+            if ! grep -Fq "$soname" "$RUNNER_TEMP/ldconfig.txt"; then
               missing+=("$soname")
             fi
           done
 
-          if ! printf '%s' "$installed" | grep -Eq 'libwebkit2gtk-4\.(0|1)\.so'; then
+          if ! grep -Eq 'libwebkit2gtk-4\.(0|1)\.so' "$RUNNER_TEMP/ldconfig.txt"; then
             missing+=("either WebKitGTK generation")
           fi
 
