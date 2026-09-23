@@ -1408,8 +1408,15 @@ controller on the desk rather than the patch.
 | `Release` | Builds clean, no warnings. **Phase 11a also runs it**: both suites pass in Release — 2,320,361 unit assertions and 181 host assertions, the regression renders included, so the optimisation level does not change what Apollo sounds like |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
+**Verified by CI against Phase 11a code** (run 35890524226, all four jobs green).
+The Windows job also stages the package, runs the host harness against the
+**staged** bundle, builds the archive and keeps it. That archive is a
+RelWithDebInfo build — 26 MB against the 6.6 MB Release one — and exists to
+prove the package builds and loads; a release is cut from `Release`
+(Docs/BUILD.md §7).
+
 **Verified by CI against Phase 10e-1 code** (run 35636662504, all four jobs green),
-including the new host harness, which loaded the built VST3 and passed 159 of
+including the host harness, which loaded the built VST3 and passed 159 of
 159 on Windows, macOS and Linux — so the bundle scans, loads and behaves
 through a VST3 host on all three platforms, not only on this machine.
 

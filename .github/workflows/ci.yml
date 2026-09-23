@@ -146,7 +146,12 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: apollo-windows-x86_64
+          # Named for the configuration it is: CI gates on RelWithDebInfo, so
+          # this archive is a RelWithDebInfo build and is larger than a release
+          # one (26 MB against 6.6 MB). It exists to prove the package builds
+          # and loads, not to be shipped — a release is cut from Release
+          # (Docs/BUILD.md §7).
+          name: apollo-windows-x86_64-relwithdebinfo
           path: build/Apollo-*.zip
           if-no-files-found: error
 
