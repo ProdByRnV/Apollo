@@ -63,6 +63,7 @@ target_sources(ApolloTests PRIVATE
     Regression/RegressionTests.cpp
     State/PresetDocumentTests.cpp
     State/StateSerializationTests.cpp
+    UI/EditorSizingTests.cpp
     UI/BridgeProtocolTests.cpp
     UI/ParameterBridgeTests.cpp)
 
@@ -173,7 +174,8 @@ if(TARGET Apollo_VST3)
         Host/DiscoveryTests.cpp
         Host/StateTests.cpp
         Host/ProcessingTests.cpp
-        Host/BypassTests.cpp)
+        Host/BypassTests.cpp
+        Host/PackageTests.cpp)
 
     target_compile_definitions(ApolloHostTests PRIVATE
         JUCE_STANDALONE_APPLICATION=1

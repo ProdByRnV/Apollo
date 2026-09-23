@@ -50,6 +50,35 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 get_property(APOLLO_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 
 # ---------------------------------------------------------------------------
+# The Visual C++ runtime (Phase 11a)
+# ---------------------------------------------------------------------------
+#
+# Linked statically, so that nothing Apollo ships needs the Visual C++
+# Redistributable installed on the machine that receives it.
+#
+# This is not a preference. Measured on the built plugin, the default dynamic
+# runtime made Apollo import MSVCP140.dll, VCRUNTIME140.dll and
+# VCRUNTIME140_1.dll (ADR-0076). A user without the redistributable does not get
+# a message about a missing runtime: the plugin fails to load, and the host
+# reports that it could not find it — indistinguishable from never having
+# installed it. Plugins are copied around rather than installed by a setup
+# program that could carry a prerequisite, so the redistributable is a
+# dependency nothing in the delivery path would satisfy.
+#
+# The cost is size — each binary carries the part of the runtime it uses — and
+# that no runtime bug can be fixed under Apollo by updating the system
+# redistributable. For a plugin that is the right trade: a larger download is a
+# nuisance, and a plugin that will not load is not a plugin.
+#
+# It must be set here, before any target exists, because every object in a
+# binary has to agree about which runtime it uses — JUCE's included.
+option(APOLLO_MSVC_STATIC_RUNTIME "Link the Visual C++ runtime statically (Windows)" ON)
+
+if(MSVC AND APOLLO_MSVC_STATIC_RUNTIME)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+# ---------------------------------------------------------------------------
 # Build configurations
 # ---------------------------------------------------------------------------
 

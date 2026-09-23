@@ -70,6 +70,8 @@ the shape of the remaining work is visible rather than being invented a phase at
 a time. It is a plan, not a contract: a sub-phase may be re-cut when the work in
 front of it is better understood, the way 8f was.
 
+✅ done · ⬜ not started · ⏸ deferred at the developer's direction, not blocked.
+
 ### Done
 
 | | | |
@@ -126,10 +128,10 @@ front of it is better understood, the way 8f was.
 | 10d-5 | The flat unison stack — parallel arrays rather than sixteen oscillator objects, rendered as a gather pass and an arithmetic pass, with `read` and the stack sharing one gather and one interpolate. **1.28x on the heaviest patch** (ADR-0074) | ✅ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering | ⬜ |
 | 10e-1 | The host harness — the built VST3 bundle loaded through a VST3 host implementation and driven as a DAW drives it, in CI on all three platforms. Found and fixed four defects no direct test could see: every integer parameter published to hosts as continuous, mono output refused, a note or pedal released during a host bypass never ending, and the default bypass asserting under latency. The VST3 parameter IDs a saved project stores are now pinned (ADR-0075) | ✅ |
-| 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it | ⬜ |
-| 10e-3 | What 10e-2 finds, and the harness extended to cover it | ⬜ |
+| 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it. **Deferred at the developer's direction**: DAW testing is set aside for now | ⏸ |
+| 10e-3 | What 10e-2 finds, and the harness extended to cover it. **Deferred with 10e-2** | ⏸ |
 | **11** | **Cross-platform release engineering** | ⬜ |
-| 11a | Windows — release build, VST3 packaging, standalone, WebView backend, high DPI | ⬜ |
+| 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
 | 11b | macOS — release build, VST3, standalone, WebView backend, Retina, code signing and notarisation | ⬜ |
 | 11c | Linux — build feasibility for the chosen configuration, standalone, VST3 where supported, documented limitations | ⬜ |
 | 11d | CPU architectures — x86-64 and ARM64 where the toolchain allows | ⬜ |
@@ -808,11 +810,11 @@ Validate Apollo as a portable product rather than a development-machine-specific
 
 ### Windows
 
-- [ ] Release build validation.
-- [ ] VST3 installation/package validation.
-- [ ] Standalone validation.
-- [ ] WebView backend validation.
-- [ ] High-DPI validation.
+- [x] Release build validation. — Release builds clean with warnings as errors, and both suites pass in it: 2,320,361 unit assertions and 181 host assertions, the regression renders included (11a)
+- [x] VST3 installation/package validation. — `cmake --install` stages the bundle, the standalone and an INSTALL.txt, CPack archives it, and **the staged bundle is run through the whole host suite** rather than inspected. The import table is asserted against the libraries that ship with Windows, which is what found the Visual C++ Redistributable dependency (11a, ADR-0076)
+- [x] Standalone validation. — the packaged standalone launches, renders its full interface, and closes with exit code 0 (11a, PROJECT-STATE §5a)
+- [x] WebView backend validation. — WebView2 renders the full interface from the packaged build, with its user-data folder under the per-user application data directory (ADR-0027) rather than beside the executable (11a)
+- [x] High-DPI validation. — measured rather than eyeballed, and it found the editor opening **102 physical pixels taller than the screen** at 150% scaling, since the interface was built. Fixed, and the sizing rule moved somewhere a test can reach it (11a, ADR-0076)
 
 ### macOS
 

@@ -4089,3 +4089,101 @@ Steinberg's own validator is not part of this. It tests conformance to the
 letter of the SDK where the harness tests Apollo's behaviour through it, and it
 is worth running — as a third-party tool, alongside the first real DAW, in the
 next sub-phase rather than as a build dependency.
+
+---
+
+## ADR-0076 — Apollo is packaged, and the package is what gets tested
+
+**Phase 11a · Accepted**
+
+Until this phase the build produced artefacts inside the build tree and nothing
+collected them. `COPY_PLUGIN_AFTER_BUILD` is deliberately off — a build must
+never install itself into the user's plugin folders — and installation was
+left as "an explicit, packaged step (Phase 11)". This is that step, for
+Windows.
+
+### What ships
+
+A ZIP: the VST3 bundle, the standalone, and an `INSTALL.txt` naming the plugin
+folder for each platform. `cmake --install` stages it and CPack archives
+exactly that tree, named `Apollo-<version>-<system>-<arch>.zip`.
+
+**No installer.** An installer wants administrator rights, an uninstaller and a
+signing identity, for a format whose convention is already a folder in a known
+place. Copying a folder is something a user can undo without help, which is the
+same argument §29.3 made for compiling the factory content in rather than
+installing it.
+
+**Debug symbols are excluded**, by pattern rather than by hoping none appear:
+they are large, useless to a user, and on Windows contain the absolute path of
+the machine that built them.
+
+### The package is loaded before it is shipped
+
+`ApolloHostTests --plugin <path>` already existed for testing an installed
+copy, so the staged bundle is run through the entire host suite — discovery,
+automation, state recall, MIDI, bypass, latency — rather than merely inspected.
+The install step is exactly where a file goes missing, and a package nobody
+loaded is a guess. CI stages, tests and archives on Windows, and keeps the
+archive.
+
+Five package tests run alongside: the bundle's layout, `moduleinfo.json`
+describing an `Instrument|Synth`, no build leftovers, no path from the build
+machine in anything shipped as text, and — the one that found something — the
+import table.
+
+### The Visual C++ runtime is now static, because it was measured
+
+The import table of the built plugin listed `MSVCP140.dll`, `VCRUNTIME140.dll`
+and `VCRUNTIME140_1.dll`: the Visual C++ Redistributable. A machine without it
+does not report a missing runtime. The plugin fails to load and the host says it
+could not find it, which is indistinguishable from never having installed it —
+and a plugin is copied around rather than installed by a setup program that
+could carry a prerequisite.
+
+`APOLLO_MSVC_STATIC_RUNTIME` is on by default and the imports are gone. The cost
+is size — the Release bundle is 7.2 MB — and that no runtime bug can be fixed by
+updating the system redistributable underneath Apollo. For a plugin that is the
+right way round: a larger download is a nuisance, a plugin that will not load is
+not a plugin.
+
+What remains in the table is Windows itself, including Direct2D, DXGI,
+Direct3D 11 and DirectComposition, which JUCE 8 draws through. Those are what
+set Apollo's floor at Windows 10 — the same floor the WebView2 runtime implies —
+and it is stated in `INSTALL.txt` rather than left for a user to discover.
+
+### The editor opened taller than the screen
+
+Found by running the packaged standalone and measuring its window rather than
+looking at it: **1773x1182 physical pixels on a 1920x1080 display**, with 102
+pixels of the interface below the bottom of the screen and unreachable.
+
+The editor asked for its designed 1180x760 unconditionally. At 150% scaling —
+the default on most 1080p laptops, and on the development machine — the usable
+area is 1280x720 in the units a component is laid out in, so 760 never fit. It
+had been that way since the interface was built.
+
+The fix is that the editor opens at the designed size where it fits and at what
+the display can show where it does not, never below the size the layout works
+at. `toggleFullscreen` had been reading `userBounds` correctly all along; the
+constructor simply never asked.
+
+**The decision moved out of the editor to where a test can reach it.**
+`Source/UI/EditorSizing.h` is plain arithmetic with no JUCE in it, because the
+editor is compiled only when the WebView is and the suite builds headless — the
+reason this survived five phases is that it lived where no test could see it.
+`Tests/UI/EditorSizingTests.cpp` covers the display it was found on, displays
+with room to spare, displays too small for the minimum, an absurd display, a
+display that reports nothing, and then the property over five thousand display
+sizes; they fail against the old behaviour.
+
+### What is not claimed
+
+The install rules are written for all three platforms and only Windows has been
+validated: its runtime dependencies, its WebView backend, its display scaling.
+CI stages and archives on Windows only. macOS is 11b and Linux is 11c, and
+ticking them here would be claiming work nobody has done.
+
+Code signing is not part of this. On Windows an unsigned plugin is copied
+without complaint; on macOS it is not, which makes signing and notarisation part
+of 11b rather than a general question.

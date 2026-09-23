@@ -44,6 +44,9 @@ if(APOLLO_BUILD_TESTS)
     add_subdirectory(Tests)
 endif()
 
+# After the targets, because the install rules name them (Phase 11a).
+include(ApolloPackaging)
+
 if(APOLLO_IS_TOP_LEVEL)
     message(STATUS "")
     message(STATUS "Apollo ${PROJECT_VERSION} configured")

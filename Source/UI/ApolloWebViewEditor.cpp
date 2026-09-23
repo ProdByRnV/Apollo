@@ -1,5 +1,7 @@
 #include "UI/ApolloWebViewEditor.h"
 
+#include "UI/EditorSizing.h"
+
 // Named explicitly rather than relied on transitively. MSVC's headers pull most
 // of these in for free and libc++ often does too, which is exactly why a missing
 // include here compiles on Windows and macOS and fails only on libstdc++.
@@ -17,8 +19,26 @@ namespace apollo::ui
 namespace
 {
 
-constexpr int defaultEditorWidth = 1180;
-constexpr int defaultEditorHeight = 760;
+/** @returns the size the editor should open at on this machine.
+
+    The decision is in UI/EditorSizing.h, where a test can reach it; this reads
+    the display and hands it over (ADR-0076).
+*/
+ui::EditorSize initialEditorSizeForThisDisplay()
+{
+    const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+
+    if (display == nullptr)
+        return ui::designedEditorSize;
+
+    // The *user* bounds, which exclude the taskbar, dock and menu bar — the
+    // same measure toggleFullscreen uses. Rounded explicitly, because a display
+    // under scaling can report a fractional size.
+    const auto area = display->userBounds;
+
+    return ui::initialEditorSize (juce::roundToInt (area.getWidth()),
+                                  juce::roundToInt (area.getHeight()));
+}
 
 /** How often the editor checks for a wholesale state reload.
 
@@ -165,8 +185,11 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     lastSeenStateReload = processor.getStateReloadCounter();
 
     setResizable (true, true);
-    setResizeLimits (900, 560, 3840, 2160);
-    setSize (defaultEditorWidth, defaultEditorHeight);
+    setResizeLimits (ui::minimumEditorSize.width, ui::minimumEditorSize.height,
+                     ui::maximumEditorSize.width, ui::maximumEditorSize.height);
+
+    const auto initial = initialEditorSizeForThisDisplay();
+    setSize (initial.width, initial.height);
 
     // The page cannot do this for itself. A WebView inside a plugin has no way
     // to resize the window it is hosted in, and the browser's own fullscreen

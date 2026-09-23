@@ -117,6 +117,39 @@ jobs:
       - name: Host tests
         run: ctest --test-dir build -C RelWithDebInfo -L host -V
 
+      # Packaging (Phase 11a, ADR-0076). The package is staged, and then the
+      # host harness is pointed at the *staged* bundle rather than the one in
+      # the build tree: a package nobody loaded is a guess, and the install step
+      # is exactly where a file can go missing.
+      #
+      # Windows only for now. The install rules are written for all three
+      # platforms, but only Windows has been validated by hand — its runtime
+      # dependencies, its WebView backend and its display scaling. macOS is 11b
+      # and Linux is 11c, and claiming them here would be claiming work that has
+      # not been done.
+      - name: Stage the package
+        if: runner.os == 'Windows'
+        run: cmake --install build --config RelWithDebInfo --prefix staged
+
+      - name: Test the staged package
+        if: runner.os == 'Windows'
+        run: >
+          ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests.exe
+          --plugin staged/VST3/Apollo.vst3
+
+      - name: Build the archive
+        if: runner.os == 'Windows'
+        working-directory: build
+        run: cpack -C RelWithDebInfo -G ZIP
+
+      - name: Keep the archive
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollo-windows-x86_64
+          path: build/Apollo-*.zip
+          if-no-files-found: error
+
       # The regression renders, verbosely, so their per-case measurements appear
       # in the log of a run that passed. ctest prints a passing test's output
       # only when asked, and this is the one place the cross-platform spread of

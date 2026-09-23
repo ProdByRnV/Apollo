@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-09-21
+**Last verified:** 2026-09-23
 **Apollo version:** 0.1.0
 
 ---
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 10 — Performance, DSP Validation & Host Compatibility, in progress; **10a to 10d complete, and 10e-1 — the host harness — complete** |
-| **Status** | **10e-1 loaded Apollo into a host for the first time, and found four defects that no test driving the processor directly could have seen** (ADR-0075). `ApolloHostTests` loads the VST3 bundle the build produced through a VST3 host implementation and drives it as a DAW does — parameter changes as IParameterChanges queues, MIDI as an IEventList, controllers through IMidiMapping, state through IBStream, latency through restartComponent — in CI on all three platforms, linking no Apollo code. **Every integer parameter had reached every VST3 host as continuous since Phase 2**, ninety-nine of them, because JUCE's AudioParameterInt does not say it is discrete; **mono output was refused by every VST3 host**, by a bus rule written for a pass-through Apollo no longer does; and **a note or a sustain pedal released while a host had Apollo bypassed never ended**, because the default bypass discards MIDI, while a reverb tail frozen at the bypass resumed after it. All fixed, each shown failing against the build from before its fix. The VST3 parameter IDs a saved project stores are now pinned against a loaded plugin, because a JUCE upgrade could renumber them with every string ID intact. **Phases 8 and 9 are done, and Phase 10d is complete.** Apollo is now measured, pinned, profiled on a harness that reports how much it should be believed — and, as of 10d-1, fast enough that the worst patch its own controls can build keeps up. **10d-1 made the voice path 1.8x cheaper and closed the deadline miss issue 13 was about** (§5b, ADR-0070): the per-sample wavetable read was performing eight integer divisions and resolving the same phase tap twice, four hundred million divisions a second across 1088 oscillators, and all of it was removable without changing a single audible thing — every mip level frame size is a power of two, so the wrap is a mask, and cubic Hermite is linear in its samples, so a two-frame blend needs one cubic rather than two. The worst patch went from 105 % of its callback deadline to 64 %, and from 122 % at the 99th percentile to 78 %. All fifteen regression renders match their references to 0.0005 dB and the new read path agrees with the one it replaced to 5.96e-8 — one float epsilon — so the evidence that nothing moved is arithmetic rather than opinion. **10d-2 then took another 1.5x** by resolving a read once per modulation block instead of once per sample (ADR-0071) — the mip level and frame position cannot change within a block, yet every sample was redoing two bounds-checked lookups, a vector-of-vectors indirection and three computations of the same frame size. The voice path is now about 2.8x cheaper than before Phase 10d and the worst patch sits near a third of its deadline. It also found a defect that was invisible through Apollo's only caller — setTable re-applied the scan position by handing a frame index to a function expecting a normalised one — and two faults in the measurement harness itself. **10d-3 then fixed the harness and found that neither fault was the main one** (ADR-0072): the development laptop is a 15 W i7-1255U that sheds up to 68 per cent of its clock while a report runs, so every normalised figure was divided by a speed describing a processor that no longer existed by the later sections. The harness now warms under sustained load until the clock stops falling before it measures anything, and Apollo's most expensive row went from reproducing to 23 per cent between runs to reproducing to 0.4 per cent. The answer to why the numbers would not reproduce was to hold the clock still, not to choose a better divisor. **10d-4 then priced the SIMD work the roadmap had been carrying since 10d-2, and decided against it** (ADR-0073): a prototype showed 1.76x available on a unison stack, but decomposing it found 1.39x came from data layout alone -- flat parallel arrays instead of sixteen strided oscillator objects -- at no accuracy cost and needing no vector code, while the remaining 1.27x required float arithmetic and platform-specific gathers for headroom nobody is using. So the restructuring is 10d-5 and the intrinsics are not happening. Twice now in Phase 10d the obvious next step has been the wrong one, and both times measuring rather than reasoning is what caught it. **10d-5 then built the restructuring and closed Phase 10d** (ADR-0074): the unison stack is flat rather than sixteen oscillator objects, rendering as a gather pass and an arithmetic pass, and the heaviest patch is **1.28x cheaper** for it. ADR-0071's single-implementation property survived the split -- `read` is gather-then-interpolate and the stack calls the same two functions in a different order, with a test demanding the two schedules agree bit-identically. It also found a defect no review would have: `Taps` had default member initialisers, so an array of sixteen value-initialised 640 bytes every sample whatever the voice count, which cost the *default* patch 31 per cent and was invisible to any benchmark of a sixteen-voice stack. 10c replaced a benchmark whose figures moved forty per cent between idle runs with one that pins its thread, normalises against a fixed reference kernel, reports the spread of every row, and says at the top when the machine was too busy to be measured on (ADR-0069) — and then measured what nothing had measured before: the **worst-case callback** rather than an average, and the worst patch the controls can build with everything running at once, which misses its deadline one block in a hundred (§5b, issue 13). 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
+| **Phase** | Phase 11 — Cross-Platform Release Engineering, in progress; **11a (Windows) complete**. Phase 10 is closed except 10e-2 and 10e-3, which are **deferred at the developer's direction**: testing inside a DAW is set aside for now |
+| **Status** | **11a packaged Apollo for the first time, and the package found two defects** (ADR-0076). `cmake --install` stages the VST3 bundle, the standalone and an INSTALL.txt; CPack archives exactly that tree as `Apollo-0.1.0-windows-x86_64.zip`, 6.6 MB; and **the staged bundle is run through the entire host suite rather than inspected**, because the install step is where a file goes missing. Five package tests run with it, and the one that reads the import table found that **Apollo required the Visual C++ Redistributable** — a machine without it does not report a missing runtime, the plugin simply fails to load. The runtime is now linked statically and the imports are gone. Then running the packaged standalone and measuring its window found the second: **the editor opened 102 physical pixels taller than the screen** at 150% display scaling, with the bottom of the interface unreachable, and had done since the interface was built. The sizing rule now fits the display and lives in a header a test can reach, because it survived five phases by living where the headless suite could not see it. **10e-1 loaded Apollo into a host for the first time, and found four defects that no test driving the processor directly could have seen** (ADR-0075). `ApolloHostTests` loads the VST3 bundle the build produced through a VST3 host implementation and drives it as a DAW does — parameter changes as IParameterChanges queues, MIDI as an IEventList, controllers through IMidiMapping, state through IBStream, latency through restartComponent — in CI on all three platforms, linking no Apollo code. **Every integer parameter had reached every VST3 host as continuous since Phase 2**, ninety-nine of them, because JUCE's AudioParameterInt does not say it is discrete; **mono output was refused by every VST3 host**, by a bus rule written for a pass-through Apollo no longer does; and **a note or a sustain pedal released while a host had Apollo bypassed never ended**, because the default bypass discards MIDI, while a reverb tail frozen at the bypass resumed after it. All fixed, each shown failing against the build from before its fix. The VST3 parameter IDs a saved project stores are now pinned against a loaded plugin, because a JUCE upgrade could renumber them with every string ID intact. **Phases 8 and 9 are done, and Phase 10d is complete.** Apollo is now measured, pinned, profiled on a harness that reports how much it should be believed — and, as of 10d-1, fast enough that the worst patch its own controls can build keeps up. **10d-1 made the voice path 1.8x cheaper and closed the deadline miss issue 13 was about** (§5b, ADR-0070): the per-sample wavetable read was performing eight integer divisions and resolving the same phase tap twice, four hundred million divisions a second across 1088 oscillators, and all of it was removable without changing a single audible thing — every mip level frame size is a power of two, so the wrap is a mask, and cubic Hermite is linear in its samples, so a two-frame blend needs one cubic rather than two. The worst patch went from 105 % of its callback deadline to 64 %, and from 122 % at the 99th percentile to 78 %. All fifteen regression renders match their references to 0.0005 dB and the new read path agrees with the one it replaced to 5.96e-8 — one float epsilon — so the evidence that nothing moved is arithmetic rather than opinion. **10d-2 then took another 1.5x** by resolving a read once per modulation block instead of once per sample (ADR-0071) — the mip level and frame position cannot change within a block, yet every sample was redoing two bounds-checked lookups, a vector-of-vectors indirection and three computations of the same frame size. The voice path is now about 2.8x cheaper than before Phase 10d and the worst patch sits near a third of its deadline. It also found a defect that was invisible through Apollo's only caller — setTable re-applied the scan position by handing a frame index to a function expecting a normalised one — and two faults in the measurement harness itself. **10d-3 then fixed the harness and found that neither fault was the main one** (ADR-0072): the development laptop is a 15 W i7-1255U that sheds up to 68 per cent of its clock while a report runs, so every normalised figure was divided by a speed describing a processor that no longer existed by the later sections. The harness now warms under sustained load until the clock stops falling before it measures anything, and Apollo's most expensive row went from reproducing to 23 per cent between runs to reproducing to 0.4 per cent. The answer to why the numbers would not reproduce was to hold the clock still, not to choose a better divisor. **10d-4 then priced the SIMD work the roadmap had been carrying since 10d-2, and decided against it** (ADR-0073): a prototype showed 1.76x available on a unison stack, but decomposing it found 1.39x came from data layout alone -- flat parallel arrays instead of sixteen strided oscillator objects -- at no accuracy cost and needing no vector code, while the remaining 1.27x required float arithmetic and platform-specific gathers for headroom nobody is using. So the restructuring is 10d-5 and the intrinsics are not happening. Twice now in Phase 10d the obvious next step has been the wrong one, and both times measuring rather than reasoning is what caught it. **10d-5 then built the restructuring and closed Phase 10d** (ADR-0074): the unison stack is flat rather than sixteen oscillator objects, rendering as a gather pass and an arithmetic pass, and the heaviest patch is **1.28x cheaper** for it. ADR-0071's single-implementation property survived the split -- `read` is gather-then-interpolate and the stack calls the same two functions in a different order, with a test demanding the two schedules agree bit-identically. It also found a defect no review would have: `Taps` had default member initialisers, so an array of sixteen value-initialised 640 bytes every sample whatever the voice count, which cost the *default* patch 31 per cent and was invisible to any benchmark of a sixteen-voice stack. 10c replaced a benchmark whose figures moved forty per cent between idle runs with one that pins its thread, normalises against a fixed reference kernel, reports the spread of every row, and says at the top when the machine was too busy to be measured on (ADR-0069) — and then measured what nothing had measured before: the **worst-case callback** rather than an average, and the worst patch the controls can build with everything running at once, which misses its deadline one block in a hundred (§5b, issue 13). 10b added the machinery every later phase leans on: fifteen renders — ten of them the sounds Apollo ships — each compared against a reference compiled in beside it, so a change that alters what the instrument sounds like fails the build instead of going unnoticed (§5d, ADR-0068). A reference is a description of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on. The assembled instrument is now measured rather than only its parts: in tune to within three quarters of a cent, 0.0013 % THD+N on its one sine source, exactly silent at rest, no DC offset, no inharmonic content above -121 dBc, and stable for a minute at the worst settings its own controls allow (§5c, ADR-0067). A `.rnv` preset is written, read, validated, migrated and bounded, sharing one validator with host state and deliberately carrying no part of the user’s controller setup (ADR-0061); the library it lives in is located per platform, scanned on a background thread under three bounds, and saved to atomically so an interrupted save cannot destroy the preset already there (ADR-0062); and the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); and the library it opens with is ten factory sounds and the init patch, compiled into the plugin rather than installed, stored as the parameters each one changes and played a note by the suite to prove each makes one (ADR-0065). Behind them, all six rack slots hold all six effects: the distortion (three curves, 4x oversampled), a stereo delay (gliding time, bounded feedback, ping-pong, tempo sync), a reverb (an eight-line feedback delay network whose decay measures as RT60), a dynamics pair — a peak-detected gate with hold, and a feed-forward RMS compressor with parallel mix — and a seven-band parametric equaliser of RBJ biquads in double precision, whose response curve the interface draws and whose handles can be dragged. 8f validated the whole chain: all 720 orderings, a rack rearranged every block, a full rack at the top of every range decaying to exact silence, and a six-effect preset round trip. A full rack costs 2.83 % of one core |
 | **Milestone** | M10 — Performance, validation & host compatibility |
-| **Next step** | **Phase 10e-2 — Apollo in FL Studio, by hand.** FL Studio is installed on the development machine and the developer has authorised installing the VST3 into it, so host testing is not blocked. 10e-2 installs the bundle, and drives scanning, insertion, the editor inside a host window, automation, project save and reopen, host presets, notes from the piano roll, bypass and rendering — the host-specific behaviour the harness cannot reach — and runs Steinberg's validator alongside it. 10e-3 then turns whatever it finds into harness tests. Carried: issue 6 (no allocation or lock detector on the audio thread), the structure-of-arrays taps declined in ADR-0074, and the optional spectrum analyser |
+| **Next step** | **Phase 11b and 11c, as far as they go without a Mac or a Linux desktop** — the install rules are already written for all three platforms, so staging, package validation and archiving can run in CI on the macOS and Linux runners the way they now do on Windows. What genuinely needs those machines — Retina scaling, the WebKit and WebKitGTK backends, code signing and notarisation — stays open and is named as such. After that, **12a reliability** (soak, repeated load and unload, rapid automation, malformed state) is work this machine can do in full. Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer.** Two band-limited wavetable oscillators,
 each with up to 16 detuned and stereo-spread unison voices, plus a sine sub and
@@ -1293,6 +1293,70 @@ instance closes — which is why the load-and-unload cycle costs what it does.
 the interfaces: how it scans and caches, when it restores state, how it
 implements its bypass button, how it renders. That is 10e-2, in FL Studio.
 
+### The Windows package (Phase 11a)
+
+The first time Apollo has been assembled into something a user could be given
+(ADR-0076). `CMake/ApolloPackaging.cmake` adds install rules and a CPack
+archive; the tree it stages is the tree the archive contains:
+
+```text
+VST3/Apollo.vst3          the plugin, as a bundle
+Standalone/Apollo.exe     the standalone application
+INSTALL.txt               where the plugin goes, per platform
+README.md
+```
+
+`Apollo-0.1.0-windows-x86_64.zip`, **6.6 MB**, from a Release build whose bundle
+is 7.2 MB. No installer: Apollo is a folder to copy, and uninstalling is
+deleting it. Debug symbols are excluded by pattern rather than by hoping none
+appear.
+
+**The package is loaded, not inspected.** `ApolloHostTests --plugin` points the
+whole host suite at the staged bundle, so discovery, automation, state recall,
+MIDI, bypass and latency are all exercised against the artefact that ships —
+181 assertions, the same as against the build tree. Five package tests run
+alongside it:
+
+| Checks | |
+|---|---|
+| Bundle layout | A directory named `Apollo.vst3`, `Contents/`, the platform binary directory for this architecture, and a binary inside it large enough to be the instrument |
+| `moduleinfo.json` | Parses; names Apollo at the project version; vendor ProdByRnV; declares a class of category `Audio Module Class` with sub-categories `Instrument` and `Synth` |
+| No build leftovers | No `.pdb`, `.ilk`, `.exp`, `.lib` or `.obj` anywhere in the bundle |
+| No developer paths | Nothing shipped as text contains a path from the machine that built it (CLAUDE.md §31.2) |
+| Runtime dependencies | **The whole import table of the plugin and of the standalone**, asserted against the set of libraries that ship with Windows |
+
+**The import table is the one that found something.** With the default dynamic
+runtime, Apollo imported `MSVCP140.dll`, `VCRUNTIME140.dll` and
+`VCRUNTIME140_1.dll` — the Visual C++ Redistributable. A machine without it does
+not report a missing runtime; the plugin fails to load and the host says it
+could not find it, which looks exactly like never having installed it. A plugin
+is copied around rather than installed by a setup program that could carry a
+prerequisite, so nothing in the delivery path would have fixed it.
+
+`APOLLO_MSVC_STATIC_RUNTIME` is now on by default. The imports went from 34 to
+22, the three runtime DLLs and the CRT API sets are gone, and the bundle grew
+by about a megabyte. What remains is Windows itself — including Direct2D, DXGI,
+Direct3D 11 and DirectComposition, which JUCE 8 draws through, and which are
+what put Apollo's floor at Windows 10. `INSTALL.txt` says so rather than
+leaving a user to find out.
+
+**The editor opened taller than the screen.** Measuring the packaged
+standalone's window rather than looking at it found 1773x1182 physical pixels on
+a 1920x1080 display: 102 pixels of the interface below the bottom of the screen,
+unreachable. The editor asked for its designed 1180x760 unconditionally, and at
+150% scaling — the default on most 1080p laptops — the usable area is 1280x720
+in the units a component is laid out in. It had been that way since the
+interface was built. It now opens at 1180x656 here, and at the designed size
+wherever that fits.
+
+The rule moved to `Source/UI/EditorSizing.h`, which has no JUCE in it and is
+covered by `Tests/UI/EditorSizingTests.cpp`: the display this was found on,
+displays with room to spare, displays too small for the minimum, an absurd
+display, a display that reports nothing, and the property itself over five
+thousand display sizes. They fail against the old behaviour. The point is
+where the rule lives — it survived five phases inside the WebView editor, which
+the headless suite does not build.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -1301,7 +1365,8 @@ implements its bypass button, how it renders. That is 10e-2, in FL Studio.
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); ten factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
-| 11–12 | Packaging, cross-platform release engineering, release hardening |
+| 11 | **11a (Windows) is done**: install rules, a CPack archive, five package tests including the import table of both binaries, and the staged package run through the whole host suite (ADR-0076). Absent: macOS (11b), Linux (11c) and ARM64 (11d), each needing a machine this project does not have, and code signing, which only macOS forces |
+| 12 | Release hardening |
 
 **All 227 registered parameters now affect audio** — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
@@ -1340,7 +1405,7 @@ controller on the desk rather than the patch.
 |---|---|
 | `RelWithDebInfo` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings — the CI gate. `ApolloTests`, `Apollo_All`, the VST3 bundle and the standalone binary all built and linked; the suite passes. |
 | `Debug` + `APOLLO_WARNINGS_AS_ERRORS=ON` | Builds clean, no warnings; the suite passes |
-| `Release` | Builds clean, no warnings |
+| `Release` | Builds clean, no warnings. **Phase 11a also runs it**: both suites pass in Release — 2,320,361 unit assertions and 181 host assertions, the regression renders included, so the optimisation level does not change what Apollo sounds like |
 | `APOLLO_JUCE_SOURCE_DIR` (local JUCE checkout) | Configures and builds |
 
 **Verified by CI against Phase 10e-1 code** (run 35636662504, all four jobs green),
@@ -1381,7 +1446,7 @@ machine, 32 s on the macOS runner, 322 s under the Linux sanitizers.
 
 ## 5. Test status
 
-**2,320,343 assertions, 0 failures**, across 39 test classes, in `ApolloTests`; and **159 assertions, 0 failures**, across 4 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness"). The table below
+**2,320,361 assertions, 0 failures**, across 40 test classes, in `ApolloTests`; and **181 assertions, 0 failures**, across 5 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2000,6 +2065,33 @@ That is a smoke check and no more. The standalone never bypasses, uses the
 stereo layout, and builds its controls from the registry's metadata rather than
 from `isDiscrete()`, so none of the three fixes changes what it does; what they
 change is visible only through a host, and the harness is what checks it.
+
+---
+### The packaged Windows build, 2026-09-23
+
+Phase 11a, on the development machine (Windows 11, 1920x1080 at 150% display
+scaling). What was run is the **packaged** standalone —
+`cmake --install` into a staging folder, then the copy from there — rather than
+the build tree, because the package is what a user would receive.
+
+| Checked | Result |
+|---|---|
+| The staged standalone launches | Window titled "Apollo", responding, closed through its own window with exit code 0 |
+| The WebView renders the interface | Yes, in full: masthead and `@ProdByRnV`, the preset browser with all ten factory presets listed by name, category, bank and author, both oscillator panels with their wave displays, and the status bar reading "227 parameters bound · protocol v1" |
+| WebView2 user-data folder | `%APPDATA%\Apollo\WebView2`, the per-user application data directory — not beside the executable, which is what ADR-0027 requires and what keeps it working from a read-only program folder |
+| **Window fits the display** | **It did not.** 1773x1182 physical pixels against a 1920x1080 screen: 102 pixels below the bottom of the work area, with the status bar and the lower panels unreachable. Fixed in 11a; the window is now 1773x1026 and the whole interface is on screen |
+| High-DPI rendering | Text and controls are crisp at 150% — drawn at device resolution rather than scaled up from 96 dpi |
+| The staged package under test | The entire host suite, pointed at the staged bundle with `--plugin`: 181 assertions, 0 failures |
+
+**How the window was measured**, since "it looks fine" is what missed it for
+five phases: `GetWindowRect` on the standalone's main window from a
+DPI-aware process, against `SystemParametersInfo(SPI_GETWORKAREA)`. The window
+was captured with `PrintWindow`/`PW_RENDERFULLCONTENT`, which needs neither the
+cursor nor the foreground (issue 15).
+
+**Not checked here:** that the packaged build makes sound. This machine has no
+MIDI source (issue 16), and the audio path is covered by 2.3 million assertions
+and fifteen regression renders against the same binaries.
 
 ---
 
@@ -2834,51 +2926,60 @@ of asserting nothing.
 | 19 | ~~Every integer parameter reached VST3 hosts as continuous~~ | **Fixed** | Found by 10e-1, the first time Apollo was loaded through a host. `juce::AudioParameterInt` does not override `isDiscrete()`, and JUCE's VST3 wrapper publishes a step count only for a discrete parameter, so all 99 integer parameters — rack slots, filter types, LFO shapes, modulation sources and destinations, effect modes — have been continuous to every VST3 host since Phase 2: drawn as knobs, and automatable to values between their steps. The registry test that should have caught it carried a comment explaining why `isDiscrete()` was not worth asserting. Fixed with `DiscreteIntParameter`; the test now asserts both halves; nothing a host saved changes (ADR-0075). |
 | 20 | ~~No VST3 host could run Apollo with a mono output~~ | **Fixed** | Found by 10e-1. VST3 has no arrangement for a disabled bus, so a host asking for mono out describes the inactive input as the stereo it last was, and Apollo refused any input wider than its output — a Phase 1 rule for a pass-through `processBlock` no longer does. The rule is gone, and the lifecycle test that pinned it now pins the opposite (ADR-0075). |
 | 21 | ~~A note or sustain pedal released during a host bypass never ended~~ | **Fixed** | Found by 10e-1. Apollo had no bypass of its own, so the VST3 wrapper's called JUCE's default `processBlockBypassed`, which discards MIDI: a note-off for a key held across the bypass was lost, and so was a pedal release, after which every note sustained. A reverb tail frozen at the bypass also resumed after it, and the default asserts in Debug whenever the rack reports latency. `processBlockBypassed` is now Apollo's: silent, clears voices and tails as the bypass begins, and applies every MIDI message except a note-on. Measured against the pre-fix build: the stuck note peaked at 0.063, the stuck pedal at 0.126, the resumed tail at 0.039; all exact zero now (ADR-0075). |
+| 22 | ~~Apollo required the Visual C++ Redistributable~~ | **Fixed** | Found in 11a by reading the built plugin's import table, which listed `MSVCP140.dll`, `VCRUNTIME140.dll` and `VCRUNTIME140_1.dll`. On a machine without the redistributable the plugin does not report a missing runtime — it fails to load, and the host says it could not find it, which is indistinguishable from never having installed it. Plugins are copied rather than installed by a setup program that could carry a prerequisite, so nothing in the delivery path would have fixed it. `APOLLO_MSVC_STATIC_RUNTIME` now links the runtime statically; imports went from 34 to 22 and the bundle grew about a megabyte. The package test asserts the whole import table, so a new dependency fails the build (ADR-0076). |
+| 23 | ~~The editor opened taller than the screen at 150% scaling~~ | **Fixed** | Found in 11a by measuring the packaged standalone's window instead of looking at it: 1773x1182 physical pixels on a 1920x1080 display, 102 pixels below the bottom of the work area, with the status bar and lower panels unreachable. The editor asked for its designed 1180x760 unconditionally, and at 150% scaling the usable area is 1280x720 in layout units. Present since the interface was built, on the developer's own machine, through every manual pass. It now opens at what the display can show, and the rule lives in `Source/UI/EditorSizing.h` with tests, because inside the WebView editor no test could reach it (ADR-0076). |
 
 ---
 
 ## 7. Blockers
 
-**None.** Host testing is no longer blocked: FL Studio is installed on the
-development machine, and the developer has authorised installing Apollo's VST3
-into it and driving it directly. That is 10e-2.
+**None for the work that is next.** Two constraints shape what can be claimed
+rather than stopping progress:
 
-One limitation remains and shapes what 10e-2 can do:
+- **No macOS or Linux desktop, and no ARM64 machine.** CI builds, tests,
+  and can package on macOS and Linux runners, which covers a great deal; what
+  it cannot do is open a window. Retina scaling, the WebKit and WebKitGTK
+  backends, and macOS code signing and notarisation need the machines
+  themselves, and 11b and 11c will say so rather than tick them.
+- **No MIDI controller on this machine** (issue 16). The audio path is covered
+  by the suite and the regression renders; what is not covered is a physical
+  controller's own behaviour, which was verified by hand in Phase 6 through a
+  virtual port.
 
-- **No MIDI controller on this machine** (issue 16). FL Studio's piano roll can
-  play notes into Apollo, which covers notes, velocity and automation; what it
-  cannot exercise is a physical controller's own behaviour — MIDI Learn from a
-  real knob, MPE from a real surface — which was verified by hand in Phase 6
-  with a virtual port and is not host-specific.
+**Deferred at the developer's direction:** 10e-2 and 10e-3 — everything to do
+with running Apollo inside a DAW. FL Studio is installed and the work is
+possible; it is set aside for now, not blocked. Phase 10's host-compatibility
+items therefore remain unticked in ROADMAP, with the harness coverage noted
+against each.
 
 ---
 
 ## 8. Recommended next action
 
-Continue with **Phase 10e-2 — Apollo in FL Studio, by hand.**
+**11b and 11c, as far as they go without those machines.**
 
-1. **What 10e-1 established.** Apollo conforms to the VST3 interfaces: it scans,
-   loads, automates, saves, recalls, bypasses and renders correctly through a
-   VST3 host implementation, in CI on all three platforms, and four defects that
-   a DAW would have exposed are fixed (issues 19-21, ADR-0075).
-2. **What it could not establish**, and 10e-2 is for: what a real host does
-   beyond the interfaces. How FL Studio scans and caches the plugin; whether
-   the WebView editor opens, resizes and closes inside a host window, and
-   survives being closed and reopened while audio runs; what its bypass,
-   project save and reopen, host presets, piano-roll notes, automation clips and
-   render actually do to Apollo; and whether the 99 selectors now appear as
-   stepped controls in its automation.
-3. **Install from the build, not by hand-copying from memory.** The bundle is
-   `build-strict/Source/Plugin/Apollo_artefacts/RelWithDebInfo/VST3/Apollo.vst3`,
-   and the harness can then be pointed at the installed copy with `--plugin`,
-   which checks that what FL Studio loads is what CI tested.
-4. **Run Steinberg's validator alongside it.** ADR-0075 left it for this step:
-   it checks conformance to the letter of the SDK, which the harness does not.
-5. **10e-3** turns whatever 10e-2 finds into harness tests, the way 10e-1 turned
-   the four defects into tests that fail against the build before each fix.
-6. **Still carried**, none blocking: issue 6, no allocation or lock detector on
-   the audio thread; the structure-of-arrays taps declined in ADR-0074; and the
-   optional spectrum analyser.
+1. **The install rules already cover all three platforms.** Only the CI wiring
+   and the validation are Windows-only, deliberately (ADR-0076). Staging, the
+   package tests and the archive can run on the macOS and Linux runners
+   immediately, which would produce a tested package per platform rather than
+   an untested one.
+2. **What genuinely needs the machines stays open**: Retina and WebKit on
+   macOS, WebKitGTK on Linux, and code signing and notarisation, which only
+   macOS forces. These should be named as unverified rather than assumed to
+   follow from a green CI job.
+3. **The package tests are written to grow.** The layout and `moduleinfo.json`
+   checks already run on every platform; the dependency check is Windows-only
+   and wants an ELF and a Mach-O equivalent — `ldd`-style import reading is the
+   same idea in a different container format, and it is what would catch a
+   Linux build that needs a library the user does not have.
+4. **Then 12a reliability**, which this machine can do in full: soak runs,
+   repeated load and unload, rapid automation, maximum polyphony, extreme
+   modulation and feedback, repeated sample-rate changes, interface reload and
+   malformed state. Much of it is a longer, meaner version of tests that
+   already exist, and the harness can drive it through a real host.
+5. **Carried, none blocking**: issue 6, no allocation or lock detector on the
+   audio thread; the structure-of-arrays taps declined in ADR-0074; the
+   optional spectrum analyser; and 10e-2/10e-3, deferred above.
 
 **A standing note on where this is measured.** The development machine is a
 15 W i7-1255U running an antivirus, a VPN, a browser and an IDE, and it cannot

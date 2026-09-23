@@ -1,0 +1,72 @@
+Apollo @PROJECT_VERSION@
+A cross-platform wavetable synthesizer by ProdByRnV
+
+WHAT IS IN THIS PACKAGE
+
+  VST3/Apollo.vst3        the plugin, for a DAW
+  Standalone/             Apollo as an application, needing no DAW
+  INSTALL.txt             this file
+
+  Nothing here is an installer. Apollo is a folder you copy, and removing it
+  is deleting that folder again.
+
+
+INSTALLING THE PLUGIN
+
+  Copy the whole "Apollo.vst3" folder — not the file inside it — into the
+  place your system keeps VST3 plugins:
+
+  Windows     C:\Program Files\Common Files\VST3
+              or, without administrator rights:
+              %LOCALAPPDATA%\Programs\Common\VST3
+
+  macOS       /Library/Audio/Plug-Ins/VST3
+              or, for one user only:
+              ~/Library/Audio/Plug-Ins/VST3
+
+  Linux       /usr/lib/vst3
+              or, for one user only:
+              ~/.vst3
+
+  Then rescan your plugins in your DAW. Most hosts do this on startup; some
+  have a button for it.
+
+
+RUNNING THE STANDALONE
+
+  Open the application in the Standalone folder. It has its own audio and
+  MIDI settings, and does not need a DAW or the plugin to be installed.
+
+
+WHAT APOLLO NEEDS
+
+  A 64-bit system. On Windows, Windows 10 or later.
+
+  On Windows, the Microsoft Edge WebView2 runtime, which draws Apollo's
+  interface. Windows 11 has it already; Windows 10 usually does, because it
+  arrives with Microsoft Edge. If Apollo's window opens without an interface,
+  install "Microsoft Edge WebView2 Runtime" from Microsoft and reopen it.
+
+  You do NOT need the Visual C++ Redistributable. Apollo carries what it
+  needs of that runtime inside itself.
+
+  Nothing else. Apollo does not require an internet connection, and it does
+  not phone anywhere while you use it.
+
+
+WHERE APOLLO KEEPS YOUR THINGS
+
+  Presets you save go to your own settings folder, not into this folder, so
+  replacing Apollo with a newer version never touches them:
+
+  Windows     %APPDATA%\Apollo\Presets
+  macOS       ~/Library/Apollo/Presets
+  Linux       ~/.config/Apollo/Presets
+
+  The sounds Apollo ships with are built into the plugin itself. They cannot
+  be lost, and they are there the first time you open it.
+
+
+VERSION
+
+  Apollo @PROJECT_VERSION@, built for @APOLLO_PACKAGE_SYSTEM@ on @APOLLO_PACKAGE_ARCH@.

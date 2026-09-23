@@ -195,3 +195,57 @@ cmake -S . -B build
 
 Removing `build/` also discards the cached JUCE checkout, so the next configure
 re-clones it.
+
+---
+
+## 7. Packaging
+
+What a user is given: a ZIP holding the plugin, the standalone and a file
+saying where to put them (Phase 11a, ADR-0076).
+
+```sh
+cmake --build build --config Release --target Apollo_All
+cmake --install build --config Release --prefix staged
+cd build && cpack -C Release -G ZIP
+```
+
+The staged tree, which is exactly what the archive contains:
+
+```text
+VST3/Apollo.vst3          the plugin, as a bundle
+Standalone/Apollo.exe     the standalone application
+INSTALL.txt               where the plugin goes, per platform
+README.md
+```
+
+The archive is named `Apollo-<version>-<system>-<arch>.zip`, so two downloads
+cannot be confused for each other.
+
+**No installer.** Apollo is a folder to copy, and uninstalling is deleting it.
+An installer would want administrator rights, an uninstaller and a signing
+identity, for a format whose whole convention is a folder in a known place.
+
+**Test the package, not the build tree.** The install step is exactly where a
+file goes missing, so the host harness is pointed at the staged bundle:
+
+```sh
+./build/Tests/ApolloHostTests_artefacts/Release/ApolloHostTests --plugin staged/VST3/Apollo.vst3
+```
+
+That runs the whole host suite — discovery, automation, state, MIDI, bypass —
+against the thing that ships, plus the package tests: the bundle layout,
+`moduleinfo.json`, no debug leftovers, no path from the build machine, and, on
+Windows, the import table of both binaries.
+
+### Runtime dependencies
+
+`APOLLO_MSVC_STATIC_RUNTIME` (on by default) links the Visual C++ runtime
+statically, so nothing Apollo ships needs the Redistributable installed. This
+was measured rather than assumed: with the default dynamic runtime the plugin
+imported `MSVCP140.dll`, `VCRUNTIME140.dll` and `VCRUNTIME140_1.dll`, and a
+machine without them does not report a missing runtime — the plugin fails to
+load and the host says it could not find it.
+
+The package test asserts the whole import table against the set of libraries
+that ship with Windows, so a new dependency fails the build rather than
+appearing as a support request.
