@@ -4309,3 +4309,97 @@ rather than the package: a comma inside `$<BOOL:...>` that CMake reads as its
 own argument separator, a Linux check that should have stayed a skip until
 11c, and a manufacturer code looked for in a VST3 `Info.plist`, which is an
 Audio Unit convention and is not there.
+
+---
+
+## ADR-0078 — On Linux, what a binary links is not what it needs
+
+**Phase 11c · Accepted**
+
+11a and 11b check a package by reading the binary's own table of what the
+loader must find, and asking whether each entry is part of the operating
+system. That check found Apollo's dependency on the Visual C++ Redistributable
+and confirmed that the macOS build needs nothing but frameworks. 11c brought
+the same check to Linux, and found that on Linux the question is different.
+
+### The ELF reader
+
+`Tests/Package/BinaryImage.h` now reads ELF as well as PE and Mach-O:
+`DT_NEEDED` entries, resolved by finding the string table's virtual address in
+the dynamic section and translating it through the `PT_LOAD` segments, with the
+architecture from `e_machine`.
+
+`DT_RPATH` and `DT_RUNPATH` are recorded as dependencies in their own right. A
+binary carrying a search path from the machine that built it finds nothing on
+anybody else's, and the packaging test treats that as a defect rather than as
+information.
+
+Tested the way the Mach-O reader was: ELF shared objects assembled byte by byte
+in the test and read back on whatever platform runs the suite, so it was
+exercised on Windows before a runner saw it (ADR-0077).
+
+### Three kinds of dependency, because Linux has no single answer
+
+macOS has one: `/usr/lib` and `/System/Library`, or it is a mistake. Windows
+has one: the set that ships with Windows. Linux does not — a desktop has GTK,
+a container has almost nothing, and distributions disagree about the version
+suffix on every library. So a dependency is classified:
+
+- **Always present.** The C and C++ runtimes and what they rest on: `libc`,
+  `libm`, `libstdc++`, `libgcc_s`, the dynamic loader.
+- **A desktop prerequisite.** Present on a desktop, absent on a minimal system,
+  and therefore something the installation notes must name.
+- **Unexpected.** A library from the builder's tree, or one no distribution
+  ships. Only this fails the test.
+
+Matched by family rather than by exact version, because pinning
+`libwebkit2gtk-4.1.so.0` would turn every distribution's ordinary variation
+into a failure.
+
+### What the Linux binaries actually link
+
+Measured, not assumed (run 35907239478):
+
+| | Linked | Of those, prerequisites |
+|---|---:|---|
+| The plugin | 7 | `libfreetype.so.6`, `libfontconfig.so.1` |
+| The standalone | 8 | those two, and `libasound.so.2` |
+
+**No X11. No GTK. No WebKitGTK.** Which is the finding: JUCE opens all of them
+at run time with `dlopen` rather than linking them —
+`juce_XSymbols_linux.h` holds `DynamicLibrary` handles for `libX11.so.6`,
+`libXext.so.6`, `libXcursor.so.1`, `libXinerama.so.1`, `libXrender.so.1` and
+`libXrandr.so.2`, and `juce_WebBrowserComponent_linux.cpp` opens
+`libwebkit2gtk-4.1.so` with `libjavascriptcoregtk-4.1.so` and `libsoup-3.0.so`,
+falling back to the 4.0 generation.
+
+**So the dependency check is necessary and not sufficient on Linux**, and
+saying so is the point of this ADR. It proves nothing *unexpected* is linked.
+It cannot enumerate what is opened at run time, and a package that passed it
+while missing WebKitGTK would still open an empty window on a user's machine.
+
+### The installation notes carry the real list, and CI checks them
+
+`INSTALL.txt` names every library Apollo opens at run time, with the package to
+install on Debian and Ubuntu, Fedora and Arch. That list is prose, which is
+exactly the kind of thing that rots: nothing in a build would notice a typo in
+a soname nobody links.
+
+So CI reads the sonames out of the **staged** `INSTALL.txt` and checks each one
+against `ldconfig` on a real Linux system. The two WebKitGTK generations are
+checked as alternatives, because only one of them is ever present. A name that
+does not resolve fails the job.
+
+### What 11c does not claim
+
+- **Nobody has seen Apollo's interface on Linux.** WebKitGTK is opened at run
+  time and CI has no display; the editor has never rendered under it.
+- **The graceful path is reasoned, not observed.** JUCE gates its WebKit use on
+  a `webKitIsAvailable` flag, so a system without WebKitGTK should get a
+  working instrument with an empty window rather than a crash. That follows
+  from the code; nobody has run it.
+- **One distribution.** The runner is Ubuntu. The package is built and tested
+  there and nowhere else, and the notes for Fedora and Arch are translations of
+  the same library list rather than something tried.
+- **ARM64 is 11d.** The reader handles `aarch64` and no ARM64 machine has built
+  anything.

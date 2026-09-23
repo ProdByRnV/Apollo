@@ -40,18 +40,57 @@ RUNNING THE STANDALONE
 
 WHAT APOLLO NEEDS
 
-  A 64-bit system. On Windows, Windows 10 or later.
+  A 64-bit system. On Windows, Windows 10 or later. On macOS, 11 or later.
 
-  On Windows, the Microsoft Edge WebView2 runtime, which draws Apollo's
-  interface. Windows 11 has it already; Windows 10 usually does, because it
-  arrives with Microsoft Edge. If Apollo's window opens without an interface,
-  install "Microsoft Edge WebView2 Runtime" from Microsoft and reopen it.
+  Apollo does not require an internet connection, and it does not phone
+  anywhere while you use it.
 
-  You do NOT need the Visual C++ Redistributable. Apollo carries what it
-  needs of that runtime inside itself.
+  Windows
 
-  Nothing else. Apollo does not require an internet connection, and it does
-  not phone anywhere while you use it.
+    The Microsoft Edge WebView2 runtime, which draws Apollo's interface.
+    Windows 11 has it already; Windows 10 usually does, because it arrives
+    with Microsoft Edge. If Apollo's window opens without an interface,
+    install "Microsoft Edge WebView2 Runtime" from Microsoft and reopen it.
+
+    You do NOT need the Visual C++ Redistributable. Apollo carries what it
+    needs of that runtime inside itself.
+
+  macOS
+
+    Nothing beyond the system. Everything Apollo uses is part of macOS.
+
+  Linux
+
+    Apollo loads these while it runs, so a minimal or headless system needs
+    them installed. Without the WebKitGTK set, Apollo still loads and still
+    makes sound: it is the interface that needs it.
+
+      X11         libX11.so.6, libXext.so.6, libXcursor.so.1,
+                  libXinerama.so.1, libXrender.so.1, libXrandr.so.2
+      Fonts       libfreetype.so.6, libfontconfig.so.1
+      Audio       libasound.so.2      (the standalone; the plugin uses the host's)
+      Interface   libgtk-3.so.0, libglib-2.0.so.0, and one WebKitGTK
+                  generation — either libwebkit2gtk-4.1.so.0 with
+                  libjavascriptcoregtk-4.1.so.0 and libsoup-3.0.so.0,
+                  or libwebkit2gtk-4.0.so.37 with
+                  libjavascriptcoregtk-4.0.so.18 and libsoup-2.4.so.1
+
+    On Debian and Ubuntu:
+
+      sudo apt install libx11-6 libxext6 libxcursor1 libxinerama1 \
+                       libxrender1 libxrandr2 libfreetype6 libfontconfig1 \
+                       libasound2 libgtk-3-0 libwebkit2gtk-4.1-0
+
+    On Fedora:
+
+      sudo dnf install libX11 libXext libXcursor libXinerama libXrender \
+                       libXrandr freetype fontconfig alsa-lib gtk3 \
+                       webkit2gtk4.1
+
+    On Arch:
+
+      sudo pacman -S libx11 libxext libxcursor libxinerama libxrender \
+                     libxrandr freetype2 fontconfig alsa-lib gtk3 webkit2gtk-4.1
 
 
 WHERE APOLLO KEEPS YOUR THINGS

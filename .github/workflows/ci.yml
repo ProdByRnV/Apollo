@@ -162,6 +162,44 @@ jobs:
           ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests
           --plugin staged/VST3/Apollo.vst3
 
+      # The installation notes are checked against a real Linux system: every
+      # library they name must be one the loader can actually find. JUCE opens
+      # X11, GTK and WebKitGTK with dlopen rather than linking them, so those
+      # names appear nowhere in the binary and nothing else would catch a typo
+      # in them (ADR-0078).
+      - name: Check the libraries INSTALL.txt names
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+
+          installed=$(ldconfig -p)
+          missing=()
+
+          for soname in $(grep -oE 'lib[A-Za-z0-9._+-]*\.so[0-9.]*' staged/INSTALL.txt | sed 's/\.$//' | sort -u); do
+            case "$soname" in
+              # The two WebKitGTK generations are alternatives: only one of them
+              # is on any given system, so they are checked as a pair below.
+              libwebkit2gtk-*|libjavascriptcoregtk-*|libsoup-*) continue ;;
+            esac
+
+            if ! printf '%s' "$installed" | grep -Fq "$soname"; then
+              missing+=("$soname")
+            fi
+          done
+
+          if ! printf '%s' "$installed" | grep -Eq 'libwebkit2gtk-4\.(0|1)\.so'; then
+            missing+=("either WebKitGTK generation")
+          fi
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            for name in "${missing[@]}"; do
+              echo "::error::INSTALL.txt names a library this system does not have: $name"
+            done
+            exit 1
+          fi
+
+          echo "Every library INSTALL.txt names resolves on this system."
+
       - name: Build the archive
         working-directory: build
         run: cpack -C RelWithDebInfo -G ZIP

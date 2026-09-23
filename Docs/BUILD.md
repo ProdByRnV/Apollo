@@ -266,6 +266,23 @@ project does not have; a downloaded plugin without them is refused as coming
 from an unidentified developer. On Windows nothing is signed, and an unsigned
 plugin is copied without complaint.
 
+### Linux
+
+The package is built and validated on Ubuntu in CI, the same way as the other
+two: staged, loaded through a VST3 host, archived. Two things differ
+(ADR-0078):
+
+**What the binary links is not what it needs.** JUCE opens X11, GTK and
+WebKitGTK with `dlopen` rather than linking them, so they appear nowhere in the
+ELF `DT_NEEDED` list — the plugin links seven libraries and the standalone
+eight. The dependency check therefore proves that nothing *unexpected* is
+linked, and cannot prove the list is complete.
+
+**So `INSTALL.txt` carries the runtime list**, with the packages to install on
+Debian and Ubuntu, Fedora and Arch — and CI reads the sonames back out of the
+staged file and checks each against `ldconfig`, because nothing in a build
+would notice a typo in a library nobody links.
+
 ### Runtime dependencies
 
 `APOLLO_MSVC_STATIC_RUNTIME` (on by default) links the Visual C++ runtime

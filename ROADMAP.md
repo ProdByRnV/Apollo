@@ -133,7 +133,7 @@ front of it is better understood, the way 8f was.
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
 | 11b | macOS — deployment target and a universal binary, both of which fail silently when unset; a Mach-O reader tested against binaries built byte by byte on Windows; ad-hoc signing; and the staged universal package driven through the whole host suite in CI. What needs a Mac — the editor rendering, Retina, Developer ID signing and notarisation — is named rather than ticked (ADR-0077) | ✅ |
-| 11c | Linux — build feasibility for the chosen configuration, standalone, VST3 where supported, documented limitations | ⬜ |
+| 11c | Linux — an ELF reader for the dependency check, tested against shared objects assembled in the test; three classes of dependency because Linux has no single answer; and the finding that what the binary links is not what it needs, since JUCE opens X11, GTK and WebKitGTK at run time. INSTALL.txt carries the real list and CI checks every name in it resolves (ADR-0078) | ✅ |
 | 11d | CPU architectures — x86-64 and ARM64 where the toolchain allows | ⬜ |
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — long-duration soak, repeated load and unload, preset changes, rapid automation, maximum polyphony, extreme modulation and feedback, repeated sample-rate changes, interface reload, malformed state | ⬜ |
@@ -832,11 +832,15 @@ everything else says what is missing rather than being ticked on inference
 
 ### Linux
 
-- [ ] Build feasibility validation for the selected JUCE/WebView/plugin configuration.
-- [ ] Release build validation where supported.
-- [ ] Standalone validation.
-- [ ] VST3 validation where supported.
-- [ ] Document platform-specific limitations.
+Built and validated on Ubuntu in CI; there is no Linux desktop on this project,
+so the same rule applies as for macOS — ticked means a runner proved it
+(11c, ADR-0078).
+
+- [x] Build feasibility validation for the selected JUCE/WebView/plugin configuration. — configures, builds and passes the whole suite on Ubuntu, and has since Phase 0; 11c adds the package (11c)
+- [ ] Release build validation where supported. — CI gates on RelWithDebInfo, as it does on macOS
+- [ ] Standalone validation. — packaged and its ELF inspected; it has never been launched
+- [x] VST3 validation where supported. — the staged bundle is loaded through a VST3 host and passes the whole suite: 182 assertions, layout, moduleinfo.json, no build leftovers, and every linked library either part of any system or a named prerequisite (11c)
+- [x] Document platform-specific limitations. — `INSTALL.txt` names every library Apollo opens at run time and the package to install on Debian and Ubuntu, Fedora and Arch; **CI checks each of those names resolves on a real system**, because JUCE opens X11, GTK and WebKitGTK with dlopen and nothing in the build would catch a typo in a library nobody links (11c, ADR-0078)
 
 ### CPU architectures
 
