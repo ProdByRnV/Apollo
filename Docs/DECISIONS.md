@@ -4279,3 +4279,33 @@ So these remain unverified, and the roadmap says so rather than ticking them:
 The honest summary is that a macOS package now builds, loads through a VST3
 host, contains both processors, depends only on the operating system, and is
 signed well enough to run locally — and that nobody has looked at it.
+
+### What the first green macOS run actually showed (11b)
+
+Recorded because the point of 11b is the measurement, not the intention
+(run 35901131724, all four jobs green):
+
+| | |
+|---|---|
+| Package | `Apollo-0.1.0-macos-universal.zip` |
+| Plugin and standalone | `x86_64+arm64` — both processors in one binary, read back out of the built file rather than assumed from the flag |
+| Dependencies | 26, every one of them a macOS framework or a `/usr/lib` dylib. Nothing from Homebrew, `/usr/local` or `@rpath` |
+| Signature | Valid on disk, satisfies its Designated Requirement, `Signature=adhoc`, `TeamIdentifier=not set` |
+| Host suite against the staged bundle | 189 assertions, 0 failures |
+| Files in the bundle | 5 |
+
+**The build tree's bundle was not signed at all.** `codesign` reported exactly
+that before the packaging step signed it, which settles a question this ADR
+would otherwise have guessed at: the linker's ad-hoc signature covers a Mach-O
+binary, not the bundle around it, so signing is a packaging step rather than
+something the build has already done.
+
+**WebKit is in the dependency list**, which is the WKWebView backend being
+linked in — the nearest thing to evidence for the editor that can be had
+without a Mac, and not the same as having seen it render.
+
+Three of my own expectations were wrong before this run, and each was the test
+rather than the package: a comma inside `$<BOOL:...>` that CMake reads as its
+own argument separator, a Linux check that should have stayed a skip until
+11c, and a manufacturer code looked for in a VST3 `Info.plist`, which is an
+Audio Unit convention and is not there.

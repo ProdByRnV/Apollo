@@ -132,7 +132,7 @@ front of it is better understood, the way 8f was.
 | 10e-3 | What 10e-2 finds, and the harness extended to cover it. **Deferred with 10e-2** | ⏸ |
 | **11** | **Cross-platform release engineering** | ⬜ |
 | 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
-| 11b | macOS — release build, VST3, standalone, WebView backend, Retina, code signing and notarisation | ⬜ |
+| 11b | macOS — deployment target and a universal binary, both of which fail silently when unset; a Mach-O reader tested against binaries built byte by byte on Windows; ad-hoc signing; and the staged universal package driven through the whole host suite in CI. What needs a Mac — the editor rendering, Retina, Developer ID signing and notarisation — is named rather than ticked (ADR-0077) | ✅ |
 | 11c | Linux — build feasibility for the chosen configuration, standalone, VST3 where supported, documented limitations | ⬜ |
 | 11d | CPU architectures — x86-64 and ARM64 where the toolchain allows | ⬜ |
 | **12** | **Release candidate & production hardening** | ⬜ |
@@ -818,12 +818,17 @@ Validate Apollo as a portable product rather than a development-machine-specific
 
 ### macOS
 
-- [ ] Release build validation.
-- [ ] VST3 validation.
-- [ ] Standalone validation.
-- [ ] WebView backend validation.
-- [ ] Retina/scaling validation.
-- [ ] Code-signing/notarization pipeline where required.
+There is no Mac on this project. CI builds, tests, packages, signs ad-hoc and
+archives; it cannot open a window. Ticked below means a CI runner proved it;
+everything else says what is missing rather than being ticked on inference
+(11b, ADR-0077).
+
+- [ ] Release build validation. — CI gates on RelWithDebInfo. Windows validated Release by hand in 11a; nobody has on a Mac
+- [x] VST3 validation. — the staged universal bundle is loaded through a VST3 host and passes the whole suite: 189 assertions. Layout, Info.plist, moduleinfo.json, both processors read back out of the binary, 26 dependencies all macOS frameworks, ad-hoc signature valid and satisfying its Designated Requirement (11b)
+- [ ] Standalone validation. — the `.app` is built universal, packaged, signed and its binary inspected. It has never been launched
+- [ ] WebView backend validation. — WebKit is linked, which is the WKWebView backend being compiled in. Nobody has seen the editor render on a Mac
+- [ ] Retina/scaling validation. — the sizing rule 11a fixed is arithmetic and is tested, but a 2x display has never shown it
+- [ ] Code-signing/notarization pipeline where required. — ad-hoc signing is in CI and is enough to load locally. Developer ID signing and notarisation need an Apple developer account, and a downloaded plugin without them is refused as coming from an unidentified developer
 
 ### Linux
 
