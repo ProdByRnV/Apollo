@@ -281,16 +281,6 @@ private:
             return;
         }
 
-       #if JUCE_LINUX
-        // Reading an ELF binary's DT_NEEDED entries is Phase 11c, along with
-        // deciding which libraries a Linux user is entitled to already have —
-        // a question with a different answer on each distribution, and the
-        // reason it is its own sub-phase rather than a line here.
-        logMessage ("    ELF dependency reading arrives with 11c; the binary is only checked for existence");
-        expect (binary.getSize() > 0, "The binary is not empty");
-        return;
-       #endif
-
         const auto check = [this] (const juce::File& file, const juce::String& what)
         {
             const auto image = package::readBinaryImage (file);
@@ -306,25 +296,41 @@ private:
                         + ", needs " + juce::String (image.dependencies.size()) + " libraries");
 
             juce::StringArray notOnTheMachine;
+            juce::StringArray prerequisites;
 
             for (const auto& dependency : image.dependencies)
             {
+               #if JUCE_LINUX
+                // Linux has no single answer to what a user already has, so a
+                // dependency is either part of any system, something the
+                // installation notes must name, or a mistake (ADR-0078).
+                const auto kind = package::classifyLinuxDependency (dependency);
+
+                if (kind == package::LinuxDependency::unexpected)
+                    notOnTheMachine.add (dependency);
+                else if (kind == package::LinuxDependency::desktopPrerequisite)
+                    prerequisites.add (dependency);
+
+                logMessage ("      " + dependency
+                            + (kind == package::LinuxDependency::desktopPrerequisite ? "   [prerequisite]" : ""));
+               #else
                 logMessage ("      " + dependency);
 
-               #if JUCE_MAC
-                if (! package::isMacOsSystemLibrary (dependency))
-               #elif JUCE_WINDOWS
-                if (! package::isWindowsSystemLibrary (dependency))
-               #else
-                // Linux is 11c. The dependencies are listed rather than judged
-                // until the set that ships with a distribution is decided.
-                if (false)
-               #endif
+                #if JUCE_MAC
+                 if (! package::isMacOsSystemLibrary (dependency))
+                #else
+                 if (! package::isWindowsSystemLibrary (dependency))
+                #endif
                     notOnTheMachine.add (dependency);
+               #endif
             }
 
             expectEquals (notOnTheMachine.joinIntoString (", "), juce::String(),
-                          "Everything " + what + " needs ships with the operating system");
+                          "Everything " + what + " needs ships with the operating system, or is named as a prerequisite");
+
+            if (! prerequisites.isEmpty())
+                logMessage ("    " + what + " needs " + juce::String (prerequisites.size())
+                            + " libraries a minimal system would not have; INSTALL.txt names the packages");
         };
 
         check (binary, "the plugin");

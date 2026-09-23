@@ -57,6 +57,13 @@ struct BinaryImage
 /** Reads a macOS Mach-O image, thin or universal. */
 [[nodiscard]] BinaryImage readMachO (const juce::File& file);
 
+/** Reads a Linux ELF image (`.so` or an executable).
+
+    The dependencies are its `DT_NEEDED` entries: the sonames the dynamic
+    loader will look for, in the order the binary lists them.
+*/
+[[nodiscard]] BinaryImage readElf (const juce::File& file);
+
 /** Reads whichever format @p file is, by its magic number rather than by the
     platform the test happens to be running on — so a macOS bundle can be
     inspected from anywhere.
@@ -77,5 +84,29 @@ struct BinaryImage
     developer's machine — and is a plugin that will not load on theirs.
 */
 [[nodiscard]] bool isMacOsSystemLibrary (const juce::String& name);
+
+/** What a Linux dependency is to the person installing Apollo. */
+enum class LinuxDependency
+{
+    /** Part of any Linux system that can run a desktop application at all:
+        the C and C++ runtimes, and what they rest on.
+    */
+    alwaysPresent,
+
+    /** Present on a desktop, and named in the installation notes because a
+        minimal or headless system will not have it — X11, GTK, WebKitGTK,
+        ALSA. A user without these gets a plugin that does not load, and the
+        only cure is knowing which packages to install (ADR-0078).
+    */
+    desktopPrerequisite,
+
+    /** Something Apollo has no business needing: a library from the machine
+        that built it, or one no distribution ships.
+    */
+    unexpected
+};
+
+/** Classifies an ELF soname. See LinuxDependency. */
+[[nodiscard]] LinuxDependency classifyLinuxDependency (const juce::String& soname);
 
 } // namespace apollo::package

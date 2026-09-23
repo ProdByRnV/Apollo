@@ -45,6 +45,12 @@ struct Bytes
             data.push_back (static_cast<juce::uint8> ((value >> (8 * i)) & 0xff));
     }
 
+    void u64 (juce::uint64 value)
+    {
+        for (int i = 0; i < 8; ++i)
+            data.push_back (static_cast<juce::uint8> ((value >> (8 * i)) & 0xff));
+    }
+
     void text (const juce::String& value)
     {
         const auto* utf8 = value.toRawUTF8();
@@ -152,6 +158,100 @@ Bytes universalBinary (const std::vector<Bytes>& slices, const std::vector<juce:
     return file;
 }
 
+/** A 64-bit little-endian ELF shared object needing the given libraries.
+
+    Laid out so that virtual addresses and file offsets are the same number —
+    one PT_LOAD covering the whole file at address zero — which is legitimate
+    and keeps the fixture readable. The reader is not told this and still has
+    to resolve the string table's address through the segment table.
+*/
+Bytes elfSharedObject (juce::uint16 machine, const juce::StringArray& dependencies)
+{
+    // The string table, and where each name begins inside it. Index 0 is the
+    // empty string, as an ELF string table always starts.
+    Bytes strings;
+    strings.u8 (0);
+
+    std::vector<juce::uint32> nameOffsets;
+
+    for (const auto& dependency : dependencies)
+    {
+        nameOffsets.push_back (static_cast<juce::uint32> (strings.size()));
+        strings.text (dependency);
+    }
+
+    constexpr std::size_t headerSize = 64;
+    constexpr std::size_t programHeaderSize = 56;
+    constexpr std::size_t programHeaderCount = 2;
+    const std::size_t dynamicOffset = headerSize + programHeaderSize * programHeaderCount;
+
+    // One DT_NEEDED each, then DT_STRTAB, DT_STRSZ and DT_NULL.
+    const std::size_t dynamicEntries = dependencies.size() + 3;
+    const std::size_t dynamicSize = dynamicEntries * 16;
+    const std::size_t stringsOffset = dynamicOffset + dynamicSize;
+    const std::size_t totalSize = stringsOffset + strings.size();
+
+    Bytes file;
+
+    // ELF header.
+    file.u32 (0x464c457f);           // magic
+    file.u8 (2);                     // 64-bit
+    file.u8 (1);                     // little-endian
+    file.u8 (1);                     // version
+    file.u8 (0);                     // System V ABI
+
+    for (int i = 0; i < 8; ++i)
+        file.u8 (0);                 // padding to 16 bytes
+
+    file.u32 (3 | (machine << 16));  // e_type = ET_DYN, e_machine
+    file.u32 (1);                    // e_version
+    file.u64 (0);                    // e_entry
+    file.u64 (headerSize);           // e_phoff
+    file.u64 (0);                    // e_shoff
+    file.u32 (0);                    // e_flags
+    file.u32 (static_cast<juce::uint32> (headerSize) | (programHeaderSize << 16));
+    file.u32 (programHeaderCount | (0u << 16));  // e_phnum, e_shentsize
+    file.u32 (0);                    // e_shnum, e_shstrndx
+
+    // PT_LOAD over the whole file, at address zero.
+    file.u32 (1);                    // p_type
+    file.u32 (5);                    // p_flags
+    file.u64 (0);                    // p_offset
+    file.u64 (0);                    // p_vaddr
+    file.u64 (0);                    // p_paddr
+    file.u64 (totalSize);            // p_filesz
+    file.u64 (totalSize);            // p_memsz
+    file.u64 (0x1000);               // p_align
+
+    // PT_DYNAMIC over the dynamic array.
+    file.u32 (2);
+    file.u32 (6);
+    file.u64 (dynamicOffset);
+    file.u64 (dynamicOffset);
+    file.u64 (dynamicOffset);
+    file.u64 (dynamicSize);
+    file.u64 (dynamicSize);
+    file.u64 (8);
+
+    for (const auto offset : nameOffsets)
+    {
+        file.u64 (1);                // DT_NEEDED
+        file.u64 (offset);
+    }
+
+    file.u64 (5);                    // DT_STRTAB
+    file.u64 (stringsOffset);        // as a virtual address, which here is the offset
+    file.u64 (10);                   // DT_STRSZ
+    file.u64 (strings.size());
+    file.u64 (0);                    // DT_NULL
+    file.u64 (0);
+
+    for (const auto byte : strings.data)
+        file.data.push_back (byte);
+
+    return file;
+}
+
 juce::File writeTemporary (const Bytes& bytes, const juce::String& name)
 {
     const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
@@ -173,9 +273,11 @@ public:
     {
         testUniversalBinary();
         testThinBinary();
+        testElfSharedObject();
         testFormatIsDetectedByContent();
         testMalformedFilesAreRefused();
         testSystemLibraryRules();
+        testLinuxDependencyClasses();
 
         juce::File::getSpecialLocation (juce::File::tempDirectory)
             .getChildFile ("apollo-binary-image-tests")
@@ -228,6 +330,41 @@ private:
         expectEquals (image.architectures.size(), 1);
         expectEquals (image.architectures[0], juce::String ("arm64"));
         expectEquals (image.dependencies.size(), 1);
+    }
+
+    void testElfSharedObject()
+    {
+        beginTest ("An ELF shared object reports its processor and the sonames it needs");
+
+        // The Linux plugin is a .so, and what it needs is the DT_NEEDED list:
+        // the names the dynamic loader will look for. Resolving them means
+        // finding the string table by its virtual address, through the
+        // segment table — which is the part worth testing.
+        const juce::StringArray dependencies {
+            "libwebkit2gtk-4.1.so.0",
+            "libgtk-3.so.0",
+            "libasound.so.2",
+            "libstdc++.so.6",
+            "libc.so.6"
+        };
+
+        const auto file = writeTemporary (elfSharedObject (0x3e, dependencies), "plugin.so");
+        const auto image = readElf (file);
+
+        expect (image.valid, image.problem);
+        expect (image.is64Bit);
+        expectEquals (image.architectures.size(), 1);
+        expectEquals (image.architectures[0], juce::String ("x86_64"));
+        expectEquals (image.dependencies.size(), dependencies.size());
+
+        for (const auto& dependency : dependencies)
+            expect (image.dependencies.contains (dependency),
+                    dependency + " is listed: " + image.dependencies.joinIntoString (", "));
+
+        // And on the other architecture Apollo may one day ship for.
+        const auto arm = readElf (writeTemporary (elfSharedObject (0xb7, { "libc.so.6" }), "arm.so"));
+        expect (arm.valid, arm.problem);
+        expectEquals (arm.architectures[0], juce::String ("arm64"));
     }
 
     void testFormatIsDetectedByContent()
@@ -337,6 +474,38 @@ private:
         expect (isWindowsSystemLibrary ("d2d1.dll"));
         expect (! isWindowsSystemLibrary ("MSVCP140.dll"), "the Visual C++ runtime is not a system library");
         expect (! isWindowsSystemLibrary ("WebView2Loader.dll"));
+    }
+
+    void testLinuxDependencyClasses()
+    {
+        beginTest ("What a Linux user already has, and what they may have to install");
+
+        // Linux has no single answer, so Apollo sorts its dependencies into
+        // what any desktop system has and what the installation notes must
+        // name (ADR-0078). Getting this wrong in the generous direction is a
+        // plugin that does not load and a user with nothing to go on.
+        using Dependency = LinuxDependency;
+
+        expect (classifyLinuxDependency ("libc.so.6") == Dependency::alwaysPresent);
+        expect (classifyLinuxDependency ("libstdc++.so.6") == Dependency::alwaysPresent);
+        expect (classifyLinuxDependency ("libgcc_s.so.1") == Dependency::alwaysPresent);
+
+        // The ones a minimal or headless system will not have, and which the
+        // package has to name.
+        expect (classifyLinuxDependency ("libgtk-3.so.0") == Dependency::desktopPrerequisite);
+        expect (classifyLinuxDependency ("libwebkit2gtk-4.1.so.0") == Dependency::desktopPrerequisite);
+        expect (classifyLinuxDependency ("libwebkit2gtk-4.0.so.37") == Dependency::desktopPrerequisite,
+                "either WebKitGTK generation, because distributions differ");
+        expect (classifyLinuxDependency ("libasound.so.2") == Dependency::desktopPrerequisite);
+        expect (classifyLinuxDependency ("libX11.so.6") == Dependency::desktopPrerequisite);
+        expect (classifyLinuxDependency ("libfreetype.so.6") == Dependency::desktopPrerequisite);
+
+        // And the ones that mean the package was built wrong: a library from
+        // the builder's own tree, or one no distribution ships.
+        expect (classifyLinuxDependency ("libfftw3.so.3") == Dependency::unexpected);
+        expect (classifyLinuxDependency ("libApolloInternal.so") == Dependency::unexpected);
+        expect (classifyLinuxDependency ("(runpath)") == Dependency::unexpected,
+                "a runpath is recorded as a dependency, because it searches the builder's machine");
     }
 };
 

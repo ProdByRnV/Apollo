@@ -123,16 +123,12 @@ jobs:
       - name: Host tests
         run: ctest --test-dir build -C RelWithDebInfo -L host -V
 
-      # Packaging (Phase 11a on Windows, 11b on macOS — ADR-0076, ADR-0077).
-      # The package is staged, and then the host harness is pointed at the
-      # *staged* bundle rather than the one in the build tree: a package nobody
-      # loaded is a guess, and the install step is exactly where a file can go
-      # missing.
-      #
-      # Linux is 11c, and claiming it here would be claiming work nobody has
-      # done.
+      # Packaging: 11a on Windows, 11b on macOS, 11c on Linux (ADR-0076,
+      # ADR-0077, ADR-0078). The package is staged, and then the host harness is
+      # pointed at the *staged* bundle rather than the one in the build tree: a
+      # package nobody loaded is a guess, and the install step is exactly where
+      # a file can go missing.
       - name: Stage the package
-        if: runner.os != 'Linux'
         run: cmake --install build --config RelWithDebInfo --prefix staged
 
       # macOS refuses to load code it cannot verify, and on Apple Silicon that
@@ -160,19 +156,17 @@ jobs:
           ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests.exe
           --plugin staged/VST3/Apollo.vst3
 
-      - name: Test the staged package (macOS)
-        if: runner.os == 'macOS'
+      - name: Test the staged package (macOS and Linux)
+        if: runner.os != 'Windows'
         run: >
           ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests
           --plugin staged/VST3/Apollo.vst3
 
       - name: Build the archive
-        if: runner.os != 'Linux'
         working-directory: build
         run: cpack -C RelWithDebInfo -G ZIP
 
       - name: Keep the archive
-        if: runner.os != 'Linux'
         uses: actions/upload-artifact@v4
         with:
           # Named for the configuration it is: CI gates on RelWithDebInfo, so

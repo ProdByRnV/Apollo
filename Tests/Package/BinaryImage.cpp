@@ -203,6 +203,202 @@ BinaryImage readMachO (const juce::File& file)
 }
 
 //==============================================================================
+// ELF
+
+namespace
+{
+
+constexpr juce::uint64 dtNull = 0;
+constexpr juce::uint64 dtNeeded = 1;
+constexpr juce::uint64 dtStrTab = 5;
+constexpr juce::uint64 dtRunPath = 29;
+constexpr juce::uint64 dtRpath = 15;
+
+constexpr juce::uint32 ptLoad = 1;
+constexpr juce::uint32 ptDynamic = 2;
+
+juce::String elfArchitecture (juce::uint16 machine)
+{
+    switch (machine)
+    {
+        case 0x3e: return "x86_64";
+        case 0xb7: return "arm64";
+        case 0x28: return "arm";
+        case 0x03: return "x86";
+        default: break;
+    }
+
+    return "machine 0x" + juce::String::toHexString (static_cast<int> (machine));
+}
+
+} // namespace
+
+BinaryImage readElf (const juce::File& file)
+{
+    BinaryImage image;
+    juce::MemoryBlock data;
+
+    if (! file.loadFileAsData (data))
+    {
+        image.problem = "could not be read";
+        return image;
+    }
+
+    bool ok = true;
+
+    // e_ident: the magic, then the class and the byte order.
+    if (readAt<juce::uint32> (data, 0, ok) != 0x464c457f || ! ok)
+    {
+        image.problem = "is not an ELF image";
+        return image;
+    }
+
+    const auto elfClass = readAt<juce::uint8> (data, 4, ok);
+    const auto byteOrder = readAt<juce::uint8> (data, 5, ok);
+
+    if (! ok || elfClass != 2)
+    {
+        image.problem = "is not a 64-bit ELF image";
+        return image;
+    }
+
+    if (byteOrder != 1)
+    {
+        // Every platform Apollo targets is little-endian, and a reader that
+        // pretended otherwise would be untested code.
+        image.problem = "is big-endian, which this reader does not handle";
+        return image;
+    }
+
+    image.is64Bit = true;
+    image.architectures.add (elfArchitecture (readAt<juce::uint16> (data, 18, ok)));
+
+    const auto programHeaderOffset = static_cast<std::size_t> (readAt<juce::uint64> (data, 32, ok));
+    const auto programHeaderSize = readAt<juce::uint16> (data, 54, ok);
+    const auto programHeaderCount = readAt<juce::uint16> (data, 56, ok);
+
+    if (! ok || programHeaderSize < 56 || programHeaderCount == 0)
+    {
+        image.problem = "has no usable program headers";
+        return image;
+    }
+
+    // PT_LOAD segments are what turn a virtual address into a file offset, and
+    // PT_DYNAMIC is the table naming the libraries.
+    struct Segment { juce::uint64 offset, virtualAddress, fileSize; };
+    std::vector<Segment> loaded;
+    Segment dynamic { 0, 0, 0 };
+    auto foundDynamic = false;
+
+    for (juce::uint16 i = 0; i < programHeaderCount && ok; ++i)
+    {
+        const auto header = programHeaderOffset + static_cast<std::size_t> (i) * programHeaderSize;
+        const auto type = readAt<juce::uint32> (data, header, ok);
+        const Segment segment { readAt<juce::uint64> (data, header + 8, ok),
+                                readAt<juce::uint64> (data, header + 16, ok),
+                                readAt<juce::uint64> (data, header + 32, ok) };
+
+        if (! ok)
+            break;
+
+        if (type == ptLoad)
+            loaded.push_back (segment);
+        else if (type == ptDynamic)
+        {
+            dynamic = segment;
+            foundDynamic = true;
+        }
+    }
+
+    if (! ok)
+    {
+        image.problem = "has a truncated program header table";
+        return image;
+    }
+
+    if (! foundDynamic)
+    {
+        // A statically linked binary needs nothing at load time. Valid, and
+        // not something Apollo produces.
+        image.valid = true;
+        return image;
+    }
+
+    const auto toFileOffset = [&loaded] (juce::uint64 address, bool& found) -> std::size_t
+    {
+        for (const auto& segment : loaded)
+            if (address >= segment.virtualAddress && address < segment.virtualAddress + segment.fileSize)
+                return static_cast<std::size_t> (segment.offset + (address - segment.virtualAddress));
+
+        found = false;
+        return 0;
+    };
+
+    // Two passes: the string table's address is itself an entry in the table.
+    juce::uint64 stringTableAddress = 0;
+    std::vector<juce::uint64> neededOffsets;
+
+    const auto entryCount = static_cast<std::size_t> (dynamic.fileSize / 16);
+
+    if (entryCount == 0 || entryCount > 65536)
+    {
+        image.problem = "has an implausible dynamic section";
+        return image;
+    }
+
+    for (std::size_t i = 0; i < entryCount && ok; ++i)
+    {
+        const auto entry = static_cast<std::size_t> (dynamic.offset) + i * 16;
+        const auto tag = readAt<juce::uint64> (data, entry, ok);
+        const auto value = readAt<juce::uint64> (data, entry + 8, ok);
+
+        if (! ok)
+            break;
+
+        if (tag == dtNull)
+            break;
+
+        if (tag == dtNeeded)
+            neededOffsets.push_back (value);
+        else if (tag == dtStrTab)
+            stringTableAddress = value;
+        else if (tag == dtRunPath || tag == dtRpath)
+            // Recorded as a dependency in its own right: a binary that searches
+            // a path from the machine that built it is one that finds nothing
+            // on anybody else's.
+            image.dependencies.addIfNotAlreadyThere ("(runpath)");
+    }
+
+    if (! ok)
+    {
+        image.problem = "has a truncated dynamic section";
+        return image;
+    }
+
+    if (stringTableAddress == 0)
+    {
+        image.problem = "names libraries but has no string table";
+        return image;
+    }
+
+    auto addressFound = true;
+    const auto stringTable = toFileOffset (stringTableAddress, addressFound);
+
+    if (! addressFound)
+    {
+        image.problem = "has a string table outside its loadable segments";
+        return image;
+    }
+
+    for (const auto offset : neededOffsets)
+        image.dependencies.addIfNotAlreadyThere (
+            stringAt (data, stringTable + static_cast<std::size_t> (offset), 512));
+
+    image.valid = true;
+    return image;
+}
+
+//==============================================================================
 BinaryImage readPortableExecutable (const juce::File& file)
 {
     BinaryImage image;
@@ -350,6 +546,9 @@ BinaryImage readBinaryImage (const juce::File& file)
         || first == fatMagic || first == fatCigam)
         return readMachO (file);
 
+    if (first == 0x464c457f)
+        return readElf (file);
+
     if ((first & 0xffff) == 0x5a4d)
         return readPortableExecutable (file);
 
@@ -400,6 +599,52 @@ bool isMacOsSystemLibrary (const juce::String& name)
     return name.startsWith ("/usr/lib/")
         || name.startsWith ("/System/Library/")
         || name.startsWith ("/System/iOSSupport/");
+}
+
+LinuxDependency classifyLinuxDependency (const juce::String& soname)
+{
+    // Linux has no single answer to "what does the user already have", so
+    // Apollo's dependencies are sorted into what any system running a desktop
+    // application has, and what a user may have to install (ADR-0078). The
+    // second list is what the installation notes name; the point of the
+    // distinction is that it is written down rather than discovered by
+    // somebody whose plugin will not load.
+    //
+    // Matched on the soname as the loader sees it, version suffix and all,
+    // because that is what has to be present: libwebkit2gtk-4.1.so.0 does not
+    // satisfy a binary asking for libwebkit2gtk-4.0.so.37.
+    static const std::set<juce::String> alwaysPresent {
+        "libc.so.6", "libm.so.6", "libdl.so.2", "librt.so.1", "libpthread.so.0",
+        "libstdc++.so.6", "libgcc_s.so.1", "ld-linux-x86-64.so.2",
+        "ld-linux-aarch64.so.1", "libresolv.so.2"
+    };
+
+    if (alwaysPresent.find (soname) != alwaysPresent.end())
+        return LinuxDependency::alwaysPresent;
+
+    // A desktop prerequisite is recognised by family rather than by exact
+    // version: distributions differ on the suffix, and pinning it here would
+    // turn every distribution's ordinary variation into a test failure.
+    static const juce::StringArray desktopFamilies {
+        "libX11.so", "libXext.so", "libXinerama.so", "libXcursor.so",
+        "libXrandr.so", "libXrender.so", "libXcomposite.so", "libxcb.so",
+        "libGL.so", "libGLX.so", "libGLdispatch.so", "libEGL.so",
+        "libfreetype.so", "libfontconfig.so", "libz.so",
+        "libasound.so", "libjack.so",
+        "libgtk-3.so", "libgdk-3.so", "libgdk_pixbuf-2.0.so", "libgio-2.0.so",
+        "libglib-2.0.so", "libgobject-2.0.so", "libgmodule-2.0.so",
+        "libpango-1.0.so", "libpangocairo-1.0.so", "libcairo.so",
+        "libcairo-gobject.so", "libatk-1.0.so", "libharfbuzz.so",
+        "libwebkit2gtk-4.0.so", "libwebkit2gtk-4.1.so",
+        "libjavascriptcoregtk-4.0.so", "libjavascriptcoregtk-4.1.so",
+        "libsoup-2.4.so", "libsoup-3.0.so", "libcurl.so"
+    };
+
+    for (const auto& family : desktopFamilies)
+        if (soname.startsWith (family))
+            return LinuxDependency::desktopPrerequisite;
+
+    return LinuxDependency::unexpected;
 }
 
 } // namespace apollo::package
