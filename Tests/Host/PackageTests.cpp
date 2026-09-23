@@ -275,6 +275,16 @@ private:
             return;
         }
 
+       #if JUCE_LINUX
+        // Reading an ELF binary's DT_NEEDED entries is Phase 11c, along with
+        // deciding which libraries a Linux user is entitled to already have —
+        // a question with a different answer on each distribution, and the
+        // reason it is its own sub-phase rather than a line here.
+        logMessage ("    ELF dependency reading arrives with 11c; the binary is only checked for existence");
+        expect (binary.getSize() > 0, "The binary is not empty");
+        return;
+       #endif
+
         const auto check = [this] (const juce::File& file, const juce::String& what)
         {
             const auto image = package::readBinaryImage (file);

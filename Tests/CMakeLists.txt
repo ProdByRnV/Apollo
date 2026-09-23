@@ -195,11 +195,19 @@ if(TARGET Apollo_VST3)
         # copy a DAW actually has installed. JUCE stores the path as a generator
         # expression of its own, hence the evaluation.
         "APOLLO_HOST_TEST_DEFAULT_BUNDLE=\"$<TARGET_GENEX_EVAL:Apollo_VST3,$<TARGET_PROPERTY:Apollo_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>\""
-        "APOLLO_HOST_TEST_EXPECTED_VERSION=\"${PROJECT_VERSION}\""
-        # What the build asked the toolchain to produce, so the package test can
-        # check the artefact against the intention rather than against a guess.
-        # Comma-separated: a semicolon here would be read as a list separator.
-        $<$<BOOL:${APOLLO_EXPECTED_ARCHITECTURES}>:"APOLLO_EXPECTED_ARCHITECTURES=\"${APOLLO_EXPECTED_ARCHITECTURES}\"">)
+        "APOLLO_HOST_TEST_EXPECTED_VERSION=\"${PROJECT_VERSION}\"")
+
+    # What the build asked the toolchain to produce, so the package test can
+    # check the artefact against the intention rather than against a guess.
+    #
+    # A plain if() rather than a generator expression: the value is a
+    # comma-separated list, and a comma inside $<BOOL:...> is read as the
+    # expression's own argument separator — which is a configure error on the
+    # one platform that sets more than one architecture.
+    if(APOLLO_EXPECTED_ARCHITECTURES)
+        target_compile_definitions(ApolloHostTests PRIVATE
+            "APOLLO_EXPECTED_ARCHITECTURES=\"${APOLLO_EXPECTED_ARCHITECTURES}\"")
+    endif()
 
     target_link_libraries(ApolloHostTests PRIVATE
         juce::juce_audio_processors_headless
