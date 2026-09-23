@@ -253,10 +253,16 @@ private:
         expect (text.contains (APOLLO_HOST_TEST_EXPECTED_VERSION),
                 "It carries the project version");
 
-        // The four-character codes a host may still key on. They are permanent
-        // once released, the same way a parameter ID is.
+        // The plugin code, as the bundle's signature. It is permanent once
+        // released, the same way a parameter ID is.
+        //
+        // The *manufacturer* code is deliberately not looked for here: a VST3
+        // bundle's plist does not carry one — that is an Audio Unit
+        // convention — and the vendor a VST3 host actually reads is in
+        // moduleinfo.json's Factory Info, which testModuleInfo checks. The
+        // first version of this test asserted it and failed on a package that
+        // was correct.
         expect (text.contains ("Apol"), "The plugin code is there");
-        expect (text.contains ("Prnv"), "The manufacturer code is there");
     }
 
     void testRuntimeDependencies()
