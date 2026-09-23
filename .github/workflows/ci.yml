@@ -50,6 +50,14 @@ jobs:
           - name: Linux (GCC)
             os: ubuntu-latest
             parallel: 2
+          # ARM64 (Phase 11d). Apollo's DSP has no intrinsics in it — ADR-0073
+          # and ADR-0074 declined SIMD on the evidence — so portability here is
+          # by construction rather than by porting. What this job establishes is
+          # that the claim is true: the same 2.3 million assertions, the same
+          # fifteen regression renders, and a package of its own.
+          - name: Linux ARM64 (GCC)
+            os: ubuntu-24.04-arm
+            parallel: 2
 
     steps:
       - name: Check out
@@ -86,7 +94,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: juce-${{ runner.os }}-${{ hashFiles('CMake/ApolloDependencies.cmake') }}
+          # The architecture is part of the key: two Linux jobs now share a
+          # runner.os, and a cache holding one of them would be handed to the
+          # other.
+          key: juce-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('CMake/ApolloDependencies.cmake') }}
 
       - name: Configure
         run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON ${{ matrix.configure-extra }}
@@ -217,7 +228,9 @@ jobs:
           # these archives are RelWithDebInfo builds and are larger than release
           # ones. They exist to prove the package builds and loads, not to be
           # shipped — a release is cut from Release (Docs/BUILD.md §7).
-          name: apollo-${{ runner.os }}-relwithdebinfo
+          # The architecture is in the name for the same reason it is in the
+          # cache key: an artefact name has to be unique within a run.
+          name: apollo-${{ runner.os }}-${{ runner.arch }}-relwithdebinfo
           path: build/Apollo-*.zip
           if-no-files-found: error
 
