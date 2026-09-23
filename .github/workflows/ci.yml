@@ -31,9 +31,15 @@ jobs:
           - name: Windows (MSVC)
             os: windows-latest
             parallel: 4
+          # Universal: a macOS release has to run on Apple Silicon and on
+          # Intel, and a build on either contains only that one unless it is
+          # asked for both (ADR-0077). It is the whole job rather than a second
+          # configure, so what is tested and what is packaged are the same
+          # binaries; the cost is that the tests are compiled twice over too.
           - name: macOS (Apple Clang)
             os: macos-latest
             parallel: 3
+            configure-extra: -DAPOLLO_MACOS_UNIVERSAL=ON
           # Capped at 2 deliberately. This job compiles the whole of JUCE twice
           # over — once into the plugin, once into the test runner (ADR-0010) —
           # and since Phase 2 those translation units also pull in the GTK and
@@ -83,7 +89,7 @@ jobs:
           key: juce-${{ runner.os }}-${{ hashFiles('CMake/ApolloDependencies.cmake') }}
 
       - name: Configure
-        run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON
+        run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON ${{ matrix.configure-extra }}
 
       # Built target by target rather than all at once: the plugin and the test
       # runner each compile their own copy of the JUCE modules, and running both
@@ -117,41 +123,63 @@ jobs:
       - name: Host tests
         run: ctest --test-dir build -C RelWithDebInfo -L host -V
 
-      # Packaging (Phase 11a, ADR-0076). The package is staged, and then the
-      # host harness is pointed at the *staged* bundle rather than the one in
-      # the build tree: a package nobody loaded is a guess, and the install step
-      # is exactly where a file can go missing.
+      # Packaging (Phase 11a on Windows, 11b on macOS — ADR-0076, ADR-0077).
+      # The package is staged, and then the host harness is pointed at the
+      # *staged* bundle rather than the one in the build tree: a package nobody
+      # loaded is a guess, and the install step is exactly where a file can go
+      # missing.
       #
-      # Windows only for now. The install rules are written for all three
-      # platforms, but only Windows has been validated by hand — its runtime
-      # dependencies, its WebView backend and its display scaling. macOS is 11b
-      # and Linux is 11c, and claiming them here would be claiming work that has
-      # not been done.
+      # Linux is 11c, and claiming it here would be claiming work nobody has
+      # done.
       - name: Stage the package
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
         run: cmake --install build --config RelWithDebInfo --prefix staged
 
-      - name: Test the staged package
+      # macOS refuses to load code it cannot verify, and on Apple Silicon that
+      # includes an unsigned binary. Signed ad-hoc, which needs no certificate
+      # and is what a build without a Developer ID can produce; a release for
+      # distribution needs a Developer ID and notarisation, which need
+      # credentials this project does not have (ADR-0077).
+      #
+      # --force because the linker already applies an ad-hoc signature and
+      # installing copies it; re-signing the staged copy is what makes the
+      # verification below a statement about the package rather than the build
+      # tree.
+      - name: Sign the staged package ad-hoc
+        if: runner.os == 'macOS'
+        run: |
+          codesign --force --sign - --deep staged/VST3/Apollo.vst3
+          codesign --force --sign - --deep staged/Standalone/Apollo.app
+          codesign --verify --strict --verbose=2 staged/VST3/Apollo.vst3
+          codesign --verify --strict --verbose=2 staged/Standalone/Apollo.app
+          codesign --display --verbose=2 staged/VST3/Apollo.vst3
+
+      - name: Test the staged package (Windows)
         if: runner.os == 'Windows'
         run: >
           ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests.exe
           --plugin staged/VST3/Apollo.vst3
 
+      - name: Test the staged package (macOS)
+        if: runner.os == 'macOS'
+        run: >
+          ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests
+          --plugin staged/VST3/Apollo.vst3
+
       - name: Build the archive
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
         working-directory: build
         run: cpack -C RelWithDebInfo -G ZIP
 
       - name: Keep the archive
-        if: runner.os == 'Windows'
+        if: runner.os != 'Linux'
         uses: actions/upload-artifact@v4
         with:
           # Named for the configuration it is: CI gates on RelWithDebInfo, so
-          # this archive is a RelWithDebInfo build and is larger than a release
-          # one (26 MB against 6.6 MB). It exists to prove the package builds
-          # and loads, not to be shipped — a release is cut from Release
-          # (Docs/BUILD.md §7).
-          name: apollo-windows-x86_64-relwithdebinfo
+          # these archives are RelWithDebInfo builds and are larger than release
+          # ones. They exist to prove the package builds and loads, not to be
+          # shipped — a release is cut from Release (Docs/BUILD.md §7).
+          name: apollo-${{ runner.os }}-relwithdebinfo
           path: build/Apollo-*.zip
           if-no-files-found: error
 

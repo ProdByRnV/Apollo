@@ -4187,3 +4187,95 @@ ticking them here would be claiming work nobody has done.
 Code signing is not part of this. On Windows an unsigned plugin is copied
 without complaint; on macOS it is not, which makes signing and notarisation part
 of 11b rather than a general question.
+
+---
+
+## ADR-0077 — macOS, without a Mac
+
+**Phase 11b · Accepted**
+
+11a packaged Apollo for Windows on a Windows machine, ran the result, and
+measured it. There is no Mac on this project, so 11b cannot be that. What it
+can be is: decide the things that are decisions rather than observations, build
+the checks that a CI runner can perform on Apollo's behalf, and write down
+plainly what is left unverified.
+
+### Two settings that were missing, and both fail silently
+
+**A deployment target.** Left unset, a macOS build targets whatever the machine
+that built it was running. A package built on a current runner would refuse to
+launch on an older Mac, and the person who built it would never see it.
+`CMAKE_OSX_DEPLOYMENT_TARGET` is now 11.0 — Big Sur, 2020 — which is also what
+the arm64 half of a universal binary requires in any case. A lower floor would
+buy Intel machines a few more years while making the two halves of one file
+disagree about what they support.
+
+**Both processors.** A build on an Apple Silicon runner contains arm64 and
+nothing else, so every Intel Mac gets a plugin that does not appear at all.
+`APOLLO_MACOS_UNIVERSAL` builds `arm64;x86_64`. It is off by default — it
+doubles compile time and a developer running the tests wants their own
+processor — and the macOS CI job turns it on for the whole job, so what is
+tested and what is packaged are the same binaries.
+
+**The flag is not the evidence.** The package test reads the built binary and
+asserts that every architecture the build asked for is actually in it. A flag
+that silently did nothing would otherwise look exactly like success.
+
+### A binary reader, written on Windows
+
+The check that found Apollo's dependency on the Visual C++ Redistributable was
+reading the plugin's import table (ADR-0076). macOS keeps the same information
+in Mach-O load commands, and the risk there is the same in kind: a plugin
+linked against something from Homebrew or `/usr/local` loads perfectly on the
+machine that built it and nowhere else.
+
+`Tests/Package/BinaryImage.h` now reads both formats — PE imports and Mach-O
+`LC_LOAD_DYLIB` commands, thin or universal — and decides which by the file's
+magic number rather than by the platform running the test, so a macOS bundle
+can be inspected from anywhere.
+
+**It is tested against binaries built byte by byte in the test.** A universal
+binary with two slices, a thin one, a library list, a fat header claiming
+thousands of slices, a slice offset past the end of the file, a load command
+with a size of zero, a file that stops after its magic number. Written that way
+because the alternative was to write a Mach-O parser here and first exercise it
+on a CI runner, where a failure is twenty minutes away and says only that
+something did not match. The reader was exercised on Windows before any Mac saw
+it, and the fixtures keep working everywhere afterwards.
+
+A parser walking a table whose length the file itself supplies is exactly where
+a malformed file becomes a crash, which is why the malformed cases are half of
+those tests.
+
+### Signing, and what ad-hoc does not buy
+
+macOS will not load code it cannot verify, and on Apple Silicon that includes
+unsigned code. The staged package is signed **ad-hoc** — no certificate, no
+identity — and the signature is then verified. That is what a build without a
+Developer ID can produce, and it is enough for the plugin to load on the machine
+it was built on.
+
+It is not enough to distribute. A downloaded plugin that is not signed with a
+Developer ID and notarised by Apple is refused with a message about an
+unidentified developer, and no amount of CI configuration substitutes for the
+credentials. Notarisation is therefore **named as absent** rather than attempted:
+it needs an Apple Developer account, a certificate, and an upload step, and it
+belongs to whoever ships the release.
+
+### What 11b does not claim
+
+CI can build, test, package, sign ad-hoc and archive. It cannot open a window.
+So these remain unverified, and the roadmap says so rather than ticking them:
+
+- **The WKWebView backend rendering the interface.** JUCE selects it for macOS
+  and Apollo names a backend per platform (ADR-0027), but nobody has seen the
+  editor on a Mac.
+- **Retina scaling.** The editor sizing rule that 11a fixed is arithmetic and is
+  tested, but a 2x display has never actually shown it.
+- **Developer ID signing and notarisation**, above.
+- **Release as a configuration.** CI gates on RelWithDebInfo; Windows validated
+  Release by hand in 11a and no one has done that on a Mac.
+
+The honest summary is that a macOS package now builds, loads through a VST3
+host, contains both processors, depends only on the operating system, and is
+signed well enough to run locally — and that nobody has looked at it.

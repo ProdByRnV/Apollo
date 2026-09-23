@@ -237,6 +237,35 @@ against the thing that ships, plus the package tests: the bundle layout,
 `moduleinfo.json`, no debug leftovers, no path from the build machine, and, on
 Windows, the import table of both binaries.
 
+### macOS
+
+A macOS release has to run on both processors and on Macs older than the one
+that built it, and neither happens by default (ADR-0077):
+
+```sh
+cmake -S . -B build -DAPOLLO_MACOS_UNIVERSAL=ON
+cmake --build build --target Apollo_All
+cmake --install build --prefix staged
+codesign --force --sign - --deep staged/VST3/Apollo.vst3
+codesign --force --sign - --deep staged/Standalone/Apollo.app
+cd build && cpack -G ZIP
+```
+
+| Setting | Default | What it does |
+|---|---|---|
+| `APOLLO_MACOS_DEPLOYMENT_TARGET` | `11.0` | The oldest macOS the build runs on. Unset, a build demands the version of the machine that made it |
+| `APOLLO_MACOS_UNIVERSAL` | `OFF` | Builds `arm64;x86_64` in one binary. Off for ordinary work because it doubles compile time; on for anything shipped, or every Intel Mac gets nothing |
+
+The package test asserts the architectures are really in the binary, so a flag
+that silently did nothing is caught.
+
+**Signing.** The staged bundles are signed ad-hoc, which needs no certificate
+and is enough for macOS to load them locally. A package for distribution needs a
+Developer ID certificate and Apple notarisation, which need credentials this
+project does not have; a downloaded plugin without them is refused as coming
+from an unidentified developer. On Windows nothing is signed, and an unsigned
+plugin is copied without complaint.
+
 ### Runtime dependencies
 
 `APOLLO_MSVC_STATIC_RUNTIME` (on by default) links the Visual C++ runtime

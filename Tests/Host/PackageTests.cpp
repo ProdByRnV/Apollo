@@ -11,12 +11,11 @@
     is the one that matters, because that is what gets copied.
 */
 
-#include "Host/HostedApollo.h"
 
-#include <cstdint>
-#include <cstring>
+#include "Host/HostedApollo.h"
+#include "Package/BinaryImage.h"
+
 #include <set>
-#include <vector>
 
 namespace apollo::host
 {
@@ -46,200 +45,8 @@ juce::String platformBinaryDirectory()
    #endif
 }
 
-/** The Windows DLLs a machine is entitled to already have.
-
-    Everything on this list ships with Windows itself. Anything else in the
-    import table is something the user must install before Apollo will load,
-    and a plugin that silently fails to load is indistinguishable from one that
-    was never installed — the failure a host reports is "not found".
-*/
-bool isWindowsSystemLibrary (const juce::String& name)
-{
-    static const std::set<juce::String> system {
-        "kernel32.dll", "user32.dll", "gdi32.dll", "advapi32.dll", "shell32.dll",
-        "ole32.dll", "oleaut32.dll", "shlwapi.dll", "comdlg32.dll", "version.dll",
-        "winmm.dll", "ws2_32.dll", "imm32.dll", "wininet.dll", "dwmapi.dll",
-        "uxtheme.dll", "rpcrt4.dll", "crypt32.dll", "bcrypt.dll", "ntdll.dll",
-        "setupapi.dll", "msimg32.dll", "gdiplus.dll", "psapi.dll", "userenv.dll",
-        "winspool.drv", "oleacc.dll", "dbghelp.dll", "wldap32.dll", "normaliz.dll",
-        "comctl32.dll",
-        // JUCE 8 draws through Direct2D, which brings DXGI, Direct3D 11 and
-        // DirectComposition with it, and reads per-monitor scaling through the
-        // shcore API set. All are Windows components rather than anything a
-        // user installs — but they are what sets Apollo's floor at Windows 10
-        // (ADR-0076), which is the same floor the WebView2 runtime implies.
-        "d2d1.dll", "dxgi.dll", "d3d11.dll", "dcomp.dll",
-        "api-ms-win-shcore-scaling-l1-1-1.dll",
-        "api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-heap-l1-1-0.dll",
-        "api-ms-win-crt-math-l1-1-0.dll", "api-ms-win-crt-stdio-l1-1-0.dll",
-        "api-ms-win-crt-string-l1-1-0.dll", "api-ms-win-crt-convert-l1-1-0.dll",
-        "api-ms-win-crt-locale-l1-1-0.dll", "api-ms-win-crt-time-l1-1-0.dll",
-        "api-ms-win-crt-filesystem-l1-1-0.dll", "api-ms-win-crt-utility-l1-1-0.dll",
-        "api-ms-win-crt-environment-l1-1-0.dll", "api-ms-win-crt-multibyte-l1-1-0.dll"
-    };
-
-    return system.find (name.toLowerCase()) != system.end();
-}
-
-/** What a PE file says about itself: what it runs on, and what it needs.
-
-    Parsed here rather than read from `dumpbin`, so the check runs wherever the
-    tests run and needs no Visual Studio installation.
-*/
-struct PortableExecutable
-{
-    bool valid = false;
-    juce::String problem;
-    juce::uint16 machine = 0;
-    bool is64Bit = false;
-    juce::StringArray imports;
-
-    [[nodiscard]] juce::String machineName() const
-    {
-        switch (machine)
-        {
-            case 0x8664: return "x86-64";
-            case 0xaa64: return "ARM64";
-            case 0x014c: return "x86";
-            default:     return "0x" + juce::String::toHexString (static_cast<int> (machine));
-        }
-    }
-};
-
-template <typename T>
-T readAt (const juce::MemoryBlock& data, std::size_t offset, bool& ok)
-{
-    if (offset + sizeof (T) > data.getSize())
-    {
-        ok = false;
-        return {};
-    }
-
-    T value {};
-    std::memcpy (&value, static_cast<const char*> (data.getData()) + offset, sizeof (T));
-    return value;
-}
-
-PortableExecutable readPortableExecutable (const juce::File& file)
-{
-    PortableExecutable result;
-    juce::MemoryBlock data;
-
-    if (! file.loadFileAsData (data))
-    {
-        result.problem = "could not be read";
-        return result;
-    }
-
-    bool ok = true;
-
-    if (readAt<juce::uint16> (data, 0, ok) != 0x5a4d || ! ok)
-    {
-        result.problem = "is not a PE file";
-        return result;
-    }
-
-    const auto headerOffset = static_cast<std::size_t> (readAt<juce::uint32> (data, 0x3c, ok));
-
-    if (! ok || readAt<juce::uint32> (data, headerOffset, ok) != 0x00004550)
-    {
-        result.problem = "has no PE signature";
-        return result;
-    }
-
-    result.machine = readAt<juce::uint16> (data, headerOffset + 4, ok);
-
-    const auto sectionCount = readAt<juce::uint16> (data, headerOffset + 6, ok);
-    const auto optionalHeaderSize = readAt<juce::uint16> (data, headerOffset + 20, ok);
-    const auto optionalHeader = headerOffset + 24;
-    const auto magic = readAt<juce::uint16> (data, optionalHeader, ok);
-
-    if (! ok || (magic != 0x10b && magic != 0x20b))
-    {
-        result.problem = "has no recognisable optional header";
-        return result;
-    }
-
-    result.is64Bit = (magic == 0x20b);
-
-    // The import directory is entry 1 of the data directory, which follows the
-    // optional header's fixed part — at a different offset for PE32 and PE32+.
-    const auto dataDirectory = optionalHeader + (result.is64Bit ? 112 : 96);
-    const auto importRva = readAt<juce::uint32> (data, dataDirectory + 8, ok);
-
-    if (! ok)
-    {
-        result.problem = "has a truncated data directory";
-        return result;
-    }
-
-    // Section headers follow the optional header, and are what turns a virtual
-    // address into a file offset.
-    struct Section { juce::uint32 virtualAddress, virtualSize, rawAddress, rawSize; };
-    std::vector<Section> sections;
-
-    for (int i = 0; i < sectionCount; ++i)
-    {
-        const auto header = optionalHeader + optionalHeaderSize + static_cast<std::size_t> (i) * 40;
-
-        sections.push_back ({ readAt<juce::uint32> (data, header + 12, ok),
-                              readAt<juce::uint32> (data, header + 8, ok),
-                              readAt<juce::uint32> (data, header + 20, ok),
-                              readAt<juce::uint32> (data, header + 16, ok) });
-    }
-
-    const auto toFileOffset = [&sections] (juce::uint32 rva) -> std::size_t
-    {
-        for (const auto& section : sections)
-            if (rva >= section.virtualAddress && rva < section.virtualAddress + juce::jmax (section.virtualSize, section.rawSize))
-                return static_cast<std::size_t> (section.rawAddress + (rva - section.virtualAddress));
-
-        return 0;
-    };
-
-    if (importRva == 0)
-    {
-        // A binary that imports nothing at all would be remarkable, but it is
-        // not malformed.
-        result.valid = ok;
-        return result;
-    }
-
-    auto descriptor = toFileOffset (importRva);
-
-    if (descriptor == 0)
-    {
-        result.problem = "has an import directory outside its sections";
-        return result;
-    }
-
-    // Each descriptor is 20 bytes and the list ends with a zeroed one. The
-    // name is at offset 12, as a virtual address of a NUL-terminated string.
-    for (int i = 0; i < 4096; ++i, descriptor += 20)
-    {
-        const auto nameRva = readAt<juce::uint32> (data, descriptor + 12, ok);
-        const auto firstThunk = readAt<juce::uint32> (data, descriptor + 16, ok);
-
-        if (! ok || (nameRva == 0 && firstThunk == 0))
-            break;
-
-        const auto nameOffset = toFileOffset (nameRva);
-
-        if (nameOffset == 0 || nameOffset >= data.getSize())
-            continue;
-
-        const auto* start = static_cast<const char*> (data.getData()) + nameOffset;
-        const auto available = data.getSize() - nameOffset;
-        const auto length = strnlen (start, available);
-
-        result.imports.addIfNotAlreadyThere (juce::String (start, length));
-    }
-
-    result.valid = ok;
-    return result;
-}
-
 } // namespace
+
 
 class PackageTests final : public juce::UnitTest
 {
@@ -252,7 +59,9 @@ public:
         testModuleInfo();
         testNoDebugArtefacts();
         testNoDeveloperPaths();
+        testBundleDescribesItselfToTheSystem();
         testRuntimeDependencies();
+        testEveryArchitectureTheBuildAskedFor();
     }
 
 private:
@@ -417,10 +226,47 @@ private:
                       "No file in the bundle contains a build-machine path");
     }
 
+
+    void testBundleDescribesItselfToTheSystem()
+    {
+        beginTest ("The bundle's Info.plist identifies Apollo to the operating system");
+
+        // macOS only: the plist is what identifies a bundle to Launch Services
+        // and to a host's plugin scanner, and a wrong identifier means two
+        // different plugins that the system believes are the same one.
+        const auto plist = bundle().getChildFile ("Contents").getChildFile ("Info.plist");
+
+       #if JUCE_MAC
+        expect (plist.existsAsFile(), "Info.plist is present");
+       #endif
+
+        if (! plist.existsAsFile())
+        {
+            logMessage ("    no Info.plist in this bundle; not a macOS package");
+            return;
+        }
+
+        const auto text = plist.loadFileAsString();
+
+        expect (text.contains ("com.prodbyrnv.apollo"),
+                "It carries Apollo's bundle identifier");
+        expect (text.contains (APOLLO_HOST_TEST_EXPECTED_VERSION),
+                "It carries the project version");
+
+        // The four-character codes a host may still key on. They are permanent
+        // once released, the same way a parameter ID is.
+        expect (text.contains ("Apol"), "The plugin code is there");
+        expect (text.contains ("Prnv"), "The manufacturer code is there");
+    }
+
     void testRuntimeDependencies()
     {
-        beginTest ("The plugin depends only on what the user's machine already has");
+        beginTest ("The binaries depend only on what the user's machine already has");
 
+        // The check that found Apollo's dependency on the Visual C++
+        // Redistributable (ADR-0076). It reads the binary's own table of what
+        // the loader must find, and asks whether each entry is part of the
+        // operating system.
         const auto binary = binaryInBundle();
 
         if (! binary.existsAsFile())
@@ -429,63 +275,108 @@ private:
             return;
         }
 
-       #if JUCE_WINDOWS
-        const auto pe = readPortableExecutable (binary);
-        expect (pe.valid, "The binary parses as a PE image: " + pe.problem);
-
-        if (! pe.valid)
-            return;
-
-        expect (pe.is64Bit, "It is a 64-bit image");
-        logMessage ("    machine: " + pe.machineName() + ", imports " + juce::String (pe.imports.size()) + " libraries");
-
-        juce::StringArray notOnTheMachine;
-
-        for (const auto& import : pe.imports)
+        const auto check = [this] (const juce::File& file, const juce::String& what)
         {
-            logMessage ("      " + import);
+            const auto image = package::readBinaryImage (file);
 
-            if (! isWindowsSystemLibrary (import))
-                notOnTheMachine.add (import);
-        }
+            expect (image.valid, what + " parses as a binary image: " + image.problem);
 
-        // The two that would actually happen: the Visual C++ runtime, which
-        // needs a redistributable installed, and WebView2Loader.dll, which is
-        // linked statically precisely so it does not have to travel beside the
-        // plugin (Source/Plugin/CMakeLists.txt).
-        expectEquals (notOnTheMachine.joinIntoString (", "), juce::String(),
-                      "Every imported library ships with Windows");
+            if (! image.valid)
+                return;
+
+            expect (image.is64Bit, what + " is a 64-bit image");
+
+            logMessage ("    " + what + ": " + image.architectures.joinIntoString ("+")
+                        + ", needs " + juce::String (image.dependencies.size()) + " libraries");
+
+            juce::StringArray notOnTheMachine;
+
+            for (const auto& dependency : image.dependencies)
+            {
+                logMessage ("      " + dependency);
+
+               #if JUCE_MAC
+                if (! package::isMacOsSystemLibrary (dependency))
+               #elif JUCE_WINDOWS
+                if (! package::isWindowsSystemLibrary (dependency))
+               #else
+                // Linux is 11c. The dependencies are listed rather than judged
+                // until the set that ships with a distribution is decided.
+                if (false)
+               #endif
+                    notOnTheMachine.add (dependency);
+            }
+
+            expectEquals (notOnTheMachine.joinIntoString (", "), juce::String(),
+                          "Everything " + what + " needs ships with the operating system");
+        };
+
+        check (binary, "the plugin");
 
         // The standalone travels in the same package and is installed by the
         // same copy, so it has to be as self-contained as the plugin. Present
         // only when the harness is pointed at a staged package.
-        const auto standalone = bundle().getParentDirectory().getParentDirectory()
-                                        .getChildFile ("Standalone").getChildFile ("Apollo.exe");
+        const auto standaloneDirectory = bundle().getParentDirectory().getParentDirectory()
+                                                 .getChildFile ("Standalone");
 
-        if (standalone.existsAsFile())
-        {
-            const auto application = readPortableExecutable (standalone);
-            expect (application.valid, "The standalone parses as a PE image: " + application.problem);
-
-            juce::StringArray applicationNeeds;
-
-            for (const auto& import : application.imports)
-                if (! isWindowsSystemLibrary (import))
-                    applicationNeeds.add (import);
-
-            expectEquals (applicationNeeds.joinIntoString (", "), juce::String(),
-                          "The standalone imports only Windows libraries too");
-            logMessage ("    standalone: " + application.machineName() + ", imports "
-                        + juce::String (application.imports.size()) + " libraries");
-        }
-        else
+        if (! standaloneDirectory.isDirectory())
         {
             logMessage ("    no staged standalone beside this bundle; plugin only");
+            return;
         }
+
+       #if JUCE_MAC
+        const auto standalone = standaloneDirectory.getChildFile ("Apollo.app")
+                                                   .getChildFile ("Contents")
+                                                   .getChildFile ("MacOS")
+                                                   .getChildFile ("Apollo");
+       #elif JUCE_WINDOWS
+        const auto standalone = standaloneDirectory.getChildFile ("Apollo.exe");
        #else
-        logMessage ("    dependency inspection is implemented for Windows only so far (Phase 11a)");
-        expect (binary.getSize() > 0);
+        const auto standalone = standaloneDirectory.getChildFile ("Apollo");
        #endif
+
+        if (standalone.existsAsFile())
+            check (standalone, "the standalone");
+        else
+            expect (false, "The staged package has a Standalone folder with no application in it");
+    }
+
+    void testEveryArchitectureTheBuildAskedFor()
+    {
+        beginTest ("The binaries contain the processors this build was asked to produce");
+
+        // A macOS release has to run on Apple Silicon and on Intel, and a
+        // package built on one of them contains only that one unless it was
+        // asked for both. The build states what it asked for, so the package
+        // can be checked against the intention rather than against a guess
+        // (ADR-0077).
+       #ifdef APOLLO_EXPECTED_ARCHITECTURES
+        const juce::StringArray expected =
+            juce::StringArray::fromTokens (juce::String (APOLLO_EXPECTED_ARCHITECTURES), ",", "");
+       #else
+        const juce::StringArray expected;
+       #endif
+
+        if (expected.isEmpty())
+        {
+            logMessage ("    the build named no architectures; whatever the toolchain produced is what ships");
+            return;
+        }
+
+        const auto image = package::readBinaryImage (binaryInBundle());
+        expect (image.valid, image.problem);
+
+        if (! image.valid)
+            return;
+
+        for (const auto& architecture : expected)
+            expect (image.architectures.contains (architecture),
+                    "the plugin contains " + architecture + "; it has "
+                        + image.architectures.joinIntoString ("+"));
+
+        logMessage ("    asked for " + expected.joinIntoString ("+")
+                    + ", built " + image.architectures.joinIntoString ("+"));
     }
 };
 

@@ -47,6 +47,9 @@ target_sources(ApolloTests PRIVATE
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp
     Resources/WavetableResourceTests.cpp
+    Package/BinaryImage.cpp
+    Package/BinaryImage.h
+    Package/BinaryImageTests.cpp
     Analysis/SignalAnalysis.cpp
     Analysis/SignalAnalysis.h
     Validation/InstrumentValidationTests.cpp
@@ -175,7 +178,9 @@ if(TARGET Apollo_VST3)
         Host/StateTests.cpp
         Host/ProcessingTests.cpp
         Host/BypassTests.cpp
-        Host/PackageTests.cpp)
+        Host/PackageTests.cpp
+        Package/BinaryImage.cpp
+        Package/BinaryImage.h)
 
     target_compile_definitions(ApolloHostTests PRIVATE
         JUCE_STANDALONE_APPLICATION=1
@@ -190,7 +195,11 @@ if(TARGET Apollo_VST3)
         # copy a DAW actually has installed. JUCE stores the path as a generator
         # expression of its own, hence the evaluation.
         "APOLLO_HOST_TEST_DEFAULT_BUNDLE=\"$<TARGET_GENEX_EVAL:Apollo_VST3,$<TARGET_PROPERTY:Apollo_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>\""
-        "APOLLO_HOST_TEST_EXPECTED_VERSION=\"${PROJECT_VERSION}\"")
+        "APOLLO_HOST_TEST_EXPECTED_VERSION=\"${PROJECT_VERSION}\""
+        # What the build asked the toolchain to produce, so the package test can
+        # check the artefact against the intention rather than against a guess.
+        # Comma-separated: a semicolon here would be read as a list separator.
+        $<$<BOOL:${APOLLO_EXPECTED_ARCHITECTURES}>:"APOLLO_EXPECTED_ARCHITECTURES=\"${APOLLO_EXPECTED_ARCHITECTURES}\"">)
 
     target_link_libraries(ApolloHostTests PRIVATE
         juce::juce_audio_processors_headless

@@ -79,6 +79,50 @@ if(MSVC AND APOLLO_MSVC_STATIC_RUNTIME)
 endif()
 
 # ---------------------------------------------------------------------------
+# macOS: how old a Mac, and which processors (Phase 11b)
+# ---------------------------------------------------------------------------
+#
+# Both must be stated. Left alone, a macOS build targets whatever the machine
+# that built it happens to be running and contains only that machine's
+# processor — so a package built on a current Apple Silicon runner would refuse
+# to launch on an older Mac and would not run on an Intel one at all. Neither
+# failure is visible to the person who built it (ADR-0077).
+#
+# 11.0 (Big Sur, 2020) is the floor. It is what the arm64 slice of a universal
+# binary requires in any case, so a lower number would buy Intel machines a few
+# more years while making the two halves of the same file disagree about what
+# they support.
+set(APOLLO_MACOS_DEPLOYMENT_TARGET "11.0" CACHE STRING
+    "Oldest macOS version Apollo is built to run on")
+
+# Off by default because it doubles compile time, and a developer building to
+# run the tests wants their own processor. A release package turns it on, and
+# the package test asserts that both slices are actually there rather than
+# trusting the flag.
+option(APOLLO_MACOS_UNIVERSAL "Build for Apple Silicon and Intel in one binary" OFF)
+
+if(APPLE)
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${APOLLO_MACOS_DEPLOYMENT_TARGET}" CACHE STRING
+            "Oldest macOS version Apollo is built to run on" FORCE)
+    endif()
+
+    if(APOLLO_MACOS_UNIVERSAL AND NOT CMAKE_OSX_ARCHITECTURES)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING
+            "Architectures to build for" FORCE)
+    endif()
+endif()
+
+# What the build asked the toolchain to produce, comma-separated, for the
+# package test to check the artefact against. Empty when nothing was asked for,
+# in which case whatever the toolchain produced is what ships.
+set(APOLLO_EXPECTED_ARCHITECTURES "")
+
+if(CMAKE_OSX_ARCHITECTURES)
+    string(REPLACE ";" "," APOLLO_EXPECTED_ARCHITECTURES "${CMAKE_OSX_ARCHITECTURES}")
+endif()
+
+# ---------------------------------------------------------------------------
 # Build configurations
 # ---------------------------------------------------------------------------
 
