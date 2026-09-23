@@ -4403,3 +4403,75 @@ does not resolve fails the job.
   the same library list rather than something tried.
 - **ARM64 is 11d.** The reader handles `aarch64` and no ARM64 machine has built
   anything.
+
+---
+
+## ADR-0079 — ARM64, and the first evidence that the goldens travel
+
+**Phase 11d · Accepted**
+
+Apollo now builds, tests and packages on ARM64, as a fifth CI job on an
+`ubuntu-24.04-arm` runner. It passed on its first run: the same 2.3 million
+assertions, the same 182 host assertions against a staged package, the same
+fifteen regression renders, an `aarch64-linux` bundle, and
+`Apollo-0.1.0-linux-arm64.zip`.
+
+### Why it was this easy, and why that is not luck
+
+Apollo contains no intrinsics. ADR-0073 priced SIMD across unison voices and
+declined it — 1.39x of the available 1.76x came from data layout alone, at no
+accuracy cost and with no vector code — and ADR-0074 built the data layout
+instead. The reasoning then was about complexity and precision; the dividend
+arrives here. There was nothing to port.
+
+Denormal handling is `juce::ScopedNoDenormals`, which sets the ARM FPCR on
+ARM64 and MXCSR on x86, so §37 holds on both without Apollo naming either.
+
+The tree was checked rather than assumed: no `_mm_`, no `__m128`, no
+`immintrin.h`, no inline assembly, no `__x86` anywhere under `Source/`.
+
+### What the regression renders did across instruction sets
+
+This is the part worth recording. ADR-0068 stored each golden as a
+**description** of the audio — peak, RMS, mid and side through sixteen slices,
+energy in thirty-two bands — rather than as samples, on the argument that
+"identical source does not produce identical floats across MSVC, Apple Clang
+and GCC". Until now that argument had only ever been tested across three
+compilers on one instruction set.
+
+| Job | Worst deviation from the checked-in reference |
+|---|---|
+| Windows (MSVC, x86-64) | 0.0005 dB |
+| Linux (GCC, x86-64) | 0.0005 dB |
+| **Linux (GCC, ARM64)** | **0.0005 dB** |
+| macOS (Apple Clang, arm64) | 0.0029 dB |
+
+Against tolerances of 0.1 dB on levels and 0.2 dB on bands. The renders are
+*not* bit-identical between platforms — the per-case checksums differ, as
+expected when ARM64 contracts multiply-adds into FMA and baseline x86-64 has
+no FMA to contract into — and the fingerprints match anyway, everywhere, by
+two orders of magnitude.
+
+One curiosity, recorded because it is true rather than because it means
+anything: the `Init` render alone comes out bit-identical between the two
+ARM64 jobs, and between the two x86-64 jobs. Every other case differs on every
+platform. The grouping is therefore not "one result per architecture", and
+nothing should be built on it.
+
+**The cheap conclusion would be that the goldens are too loose.** They are not:
+the sensitivity test in §5d shows the same fingerprints resolving a 0.06 %
+change in wavetable position and a 0.5 % change in cutoff. The gap between what
+a compiler does to the last bits and what a change to the instrument does to
+the sound is simply very wide, which is what makes the approach work.
+
+### What is not covered
+
+- **Windows on ARM64.** No runner, and JUCE's VST3 support there is `arm64ec`,
+  which is a different target rather than a rebuild. Untried.
+- **ARM64 macOS as its own job.** It is covered as the arm64 half of the
+  universal binary that 11b builds and tests, which is how it ships.
+- **Anything a desktop would show.** The same limitation as 11b and 11c: CI has
+  no display, so the interface has not been rendered on any ARM64 machine.
+- **Performance on ARM64.** Nothing has been measured. §35's methodology is
+  built around one machine's reference kernel (ADR-0072), and a figure from a
+  runner would be a number nobody could reproduce.

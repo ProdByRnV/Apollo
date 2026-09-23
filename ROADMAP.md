@@ -130,11 +130,11 @@ front of it is better understood, the way 8f was.
 | 10e-1 | The host harness — the built VST3 bundle loaded through a VST3 host implementation and driven as a DAW drives it, in CI on all three platforms. Found and fixed four defects no direct test could see: every integer parameter published to hosts as continuous, mono output refused, a note or pedal released during a host bypass never ending, and the default bypass asserting under latency. The VST3 parameter IDs a saved project stores are now pinned (ADR-0075) | ✅ |
 | 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it. **Deferred at the developer's direction**: DAW testing is set aside for now | ⏸ |
 | 10e-3 | What 10e-2 finds, and the harness extended to cover it. **Deferred with 10e-2** | ⏸ |
-| **11** | **Cross-platform release engineering** | ⬜ |
+| **11** | **Cross-platform release engineering** | ✅ |
 | 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
 | 11b | macOS — deployment target and a universal binary, both of which fail silently when unset; a Mach-O reader tested against binaries built byte by byte on Windows; ad-hoc signing; and the staged universal package driven through the whole host suite in CI. What needs a Mac — the editor rendering, Retina, Developer ID signing and notarisation — is named rather than ticked (ADR-0077) | ✅ |
 | 11c | Linux — an ELF reader for the dependency check, tested against shared objects assembled in the test; three classes of dependency because Linux has no single answer; and the finding that what the binary links is not what it needs, since JUCE opens X11, GTK and WebKitGTK at run time. INSTALL.txt carries the real list and CI checks every name in it resolves (ADR-0078) | ✅ |
-| 11d | CPU architectures — x86-64 and ARM64 where the toolchain allows | ⬜ |
+| 11d | CPU architectures — an ARM64 Linux job that passed first time, because ADR-0073 and ADR-0074 left no intrinsics to port. The first evidence that the regression goldens travel across instruction sets: every render within 0.0005 dB of its reference on ARM64, against tolerances of 0.1 dB, while the renders are not bit-identical between platforms (ADR-0079) | ✅ |
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — long-duration soak, repeated load and unload, preset changes, rapid automation, maximum polyphony, extreme modulation and feedback, repeated sample-rate changes, interface reload, malformed state | ⬜ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review | ⬜ |
@@ -844,9 +844,9 @@ so the same rule applies as for macOS — ticked means a runner proved it
 
 ### CPU architectures
 
-- [ ] Validate x86-64 builds.
-- [ ] Validate ARM64 builds where toolchain/dependency/plugin ecosystem support is available.
-- [ ] Avoid architecture-specific assumptions in DSP.
+- [x] Validate x86-64 builds. — Windows, macOS and Linux, on every push since Phase 0 (11d)
+- [x] Validate ARM64 builds where toolchain/dependency/plugin ecosystem support is available. — a fifth CI job on an `ubuntu-24.04-arm` runner: the whole suite, the host suite against a staged `aarch64-linux` package, and an archive of its own. macOS ships arm64 as half of its universal binary (11b). **Windows on ARM64 is untried** — no runner, and JUCE targets `arm64ec` there, which is a different target rather than a rebuild (11d, ADR-0079)
+- [x] Avoid architecture-specific assumptions in DSP. — there are none to avoid: no intrinsics, no inline assembly, no `_mm_` or `__m128` anywhere under `Source/`, because ADR-0073 declined SIMD on measured evidence and ADR-0074 took the data layout instead. Denormal handling is `juce::ScopedNoDenormals`, which sets the ARM FPCR as readily as the x86 MXCSR (11d)
 
 ## Exit Criteria
 
