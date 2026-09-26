@@ -59,6 +59,8 @@ void printUsage()
         << "Apollo host harness\n\n"
         << "  --plugin <path>     the VST3 bundle to load (default: the one this build produced)\n"
         << "  --category <name>   run only the tests in one category\n"
+        << "  --soak <n>          run the reliability tests n times longer than their\n"
+        << "                      default length (default 1, which is what CI runs)\n"
         << "  --list              list the tests without running them\n"
         << "  --parameter-ids     print the pinned parameter identities, for\n"
         << "                      Tests/Host/ParameterIdentities.cpp\n"
@@ -118,6 +120,15 @@ int run (const juce::StringArray& args)
             std::cerr << "The plugin could not be scanned: " << error.toStdString() << std::endl;
             return EXIT_FAILURE;
         }
+    }
+
+    // How much longer the reliability tests run than their default length.
+    // The defaults are sized for CI; a real soak is a deliberate act, and this
+    // is how it is asked for (ADR-0080).
+    if (const auto soak = valueForFlag (args, "--soak"); soak.isNotEmpty())
+    {
+        apollo::host::setSoakScale (soak.getIntValue());
+        std::cout << "Soak scale: x" << apollo::host::soakScale() << "\n" << std::endl;
     }
 
     const auto category = valueForFlag (args, "--category");

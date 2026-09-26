@@ -4475,3 +4475,131 @@ the sound is simply very wide, which is what makes the approach work.
 - **Performance on ARM64.** Nothing has been measured. §35's methodology is
   built around one machine's reference kernel (ADR-0072), and a figure from a
   runner would be a number nobody could reproduce.
+
+---
+
+## ADR-0080 — What a soak asserts, and what it caught
+
+**Phase 12a · Accepted**
+
+Every test before this one asks whether something is correct once. Reliability
+asks whether it stays correct: over a long session, across hundreds of state
+recalls, under automation moving every block, through repeated device changes,
+and while a host hands it documents that are not state at all.
+
+### The assertions, decided before the tests were written
+
+"Still running" is not an assertion. A soak that only proves the process
+survived would pass while the instrument crept, drifted or quietly stopped
+responding. What these ask instead:
+
+- **Finite, every sample.** Not sampled — every block is scanned, because the
+  first infinity is the one that matters and it will not be in the last block.
+- **Bounded**, against a ceiling that is loose enough for a patch asking for
+  88 dB of deliberate gain (§5c) and tight enough to catch a runaway.
+- **Not trending upward.** The median window level of the last third against
+  the first. A *range* is the wrong statistic when the patch keeps changing —
+  a quiet patch and a loud one are both correct — while a trend upward is what
+  compounding feedback, a stuck envelope and accumulating filter state all look
+  like.
+- **Still able to stop.** Exact silence after the last release, with the rack
+  emptied first so the question is the engine's and not the reverb's.
+- **Memory comes back.** The resident footprint after settling against the
+  footprint at the end, across dozens of load-and-unload cycles.
+- **Nothing moved that should not have.** After a stream of malformed
+  documents, every parameter is compared against an untouched instance.
+
+Everything runs through a real VST3 host, because that is how the accumulation
+actually happens: state through `IBStream`, automation through
+`IParameterChanges`, a device change as a deactivate and reactivate.
+
+### `--soak N`
+
+The defaults are sized for CI: the whole reliability set is about twenty
+seconds. `--soak N` multiplies every case, so a real soak is one command and a
+deliberate act rather than something CI pays for on every push. The cases are
+written in units of work so the multiplier means the same thing to all of them.
+
+### What it caught in Apollo
+
+**An over-long block was silently skipped rather than processed.** A block
+longer than the processor was prepared for is a host contract violation, and
+Apollo's oversampler already refused one safely — it returns without touching
+the buffer. The consequence was that the oversampled effects did nothing: the
+audio came out *unprocessed* rather than wrong in any way a listener could
+attribute to a cause. An over-long block is now processed in pieces of the
+prepared size, which produces the same audio the same span produces in legal
+blocks — asserted by rendering both and comparing sample for sample. Without
+the fix that comparison is out by half of full scale.
+
+The test for it lives against the processor rather than in the host harness,
+because a VST3 host wrapper keeps its own buffers sized to the same promise and
+an over-long block corrupts those long before Apollo sees it. That crash is
+JUCE's, triggered by a host doing what no host does, and it is recorded here
+rather than worked around.
+
+### What it caught in the tests, which was more
+
+**Three of my own assertions were wrong before any of them was right**, and the
+shape of each is worth keeping.
+
+**Events placed by modular arithmetic never happened.** The first version
+scheduled MIDI with `start % 48000 == 0`, testing the block's first sample
+against a period. At 512 samples a block, 48000 is not a multiple of the block
+size, so most note-ons and *every* note-off silently never fired. One note was
+held for the whole run, the "tail" that followed was that note still playing,
+and it looked exactly like a stuck voice in Apollo — a defect that would have
+been reported against the engine. Events are now a schedule of absolute sample
+positions, dispatched into whichever block contains each one.
+
+**An impossible deadline, in the same place the project had already recorded
+making that mistake.** The first tail assertion demanded exact silence within
+fifty seconds of a patch whose delay feedback is 0.95 on a half-second line:
+about 830 repeats to the flush point, which is seven minutes. §5c records the
+identical error — "the settings are now chosen by that arithmetic" — and this
+repeated it. The decay is now asserted over a horizon the arithmetic supports,
+and exact silence is asserted on settings chosen so that it can happen.
+
+**A statistic that could not mean what it was asked to mean.** The long session
+compared its loudest window against its quietest, while changing patch every two
+seconds; a legitimately quiet patch made the ratio enormous. It compares medians
+of the first and last thirds now.
+
+The pattern in all three is the same: the test was measuring something other
+than what it claimed, and in two of the three the first reading looked like a
+defect in Apollo. A soak that reports a defect that does not exist costs more
+than no soak, because the next real one is read as another false alarm.
+
+### Two more that only a longer soak could find
+
+Running at `--soak 6` failed twice where `--soak 1` had passed, and both were
+the test again rather than Apollo.
+
+**"Nothing moved" is not true of arbitrary corruption.** The malformed-document
+test asserted that no parameter changed after a stream of damaged documents.
+Over a few hundred attempts, a flipped byte eventually lands inside a value and
+produces a document that is *still valid* — right root, right schema,
+well-formed, a different number — and a valid document is meant to be applied.
+It now asserts that every parameter still holds a legal value, and separately
+that the documents which *can* be refused are refused with nothing applied:
+empty, another product's XML, two kilobytes of noise, and truncations at five
+fractions, each checked exactly rather than by fuzzing. Those eight were
+verified to be refused before the assertion was written.
+
+**Exact silence is a function of how much went in.** The hostile patch reaches
+exact zero once the feedback effects cross their flush thresholds, and six
+times the energy takes longer to get there: the tail sat at 2.6e-37, which is
+-727 dBFS. Asserting exact zero would have made the test fail for running
+longer. It asserts inaudibility there, and the exact-zero claim is made where
+it is guaranteed and quick — the engine alone, rack emptied, in the long
+session.
+
+### What the memory figure is worth
+
+The load-and-unload case measures the resident footprint after settling against
+the footprint at the end. Across two runs of the identical 145 cycles it
+reported **1.1 MB** and **12.3 MB** of growth, so the figure is not stable
+enough to prove the absence of a leak. What it can do is catch the leak that
+matters: an instrument is about 2.6 MB (§5b), so leaking one per cycle would be
+some 380 MB. The bound is set to catch that class and is not evidence of
+anything finer.

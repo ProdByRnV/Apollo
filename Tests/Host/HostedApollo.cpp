@@ -181,6 +181,31 @@ juce::uint32 vst3ParameterId (const juce::AudioProcessorParameter& parameter)
 }
 
 //==============================================================================
+namespace
+{
+int& soakScaleStorage()
+{
+    static int scale = 1;
+    return scale;
+}
+} // namespace
+
+void setSoakScale (int scale)
+{
+    soakScaleStorage() = juce::jmax (1, scale);
+}
+
+int soakScale()
+{
+    return soakScaleStorage();
+}
+
+int soaked (int units)
+{
+    return juce::jmax (1, units * soakScale());
+}
+
+//==============================================================================
 juce::AudioBuffer<float> render (juce::AudioPluginInstance& instance,
                                  int numSamples,
                                  int blockSize,

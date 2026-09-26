@@ -77,6 +77,7 @@ public:
         testProcessingBeforePreparation();
         testResetIsAlwaysSafe();
         testBusLayoutPolicy();
+        testBlocksLongerThanPrepared();
         testMetadata();
     }
 
@@ -271,6 +272,92 @@ private:
         expect (! processor.isPrepared());
     }
 
+
+    void testBlocksLongerThanPrepared()
+    {
+        beginTest ("A block longer than the processor was prepared for is processed, not skipped");
+
+        // No host should send one: the maximum is what prepareToPlay was told.
+        // What happened when one arrived was not a crash — the oversampler
+        // refuses a block larger than it was prepared for, and returns without
+        // touching it — but the effects that use it were silently skipped, so
+        // the audio came out unprocessed rather than wrong-sounding in any way
+        // a listener could attribute.
+        //
+        // An over-long block is now processed in pieces of the prepared size,
+        // which produces the same audio the same span would in legal blocks.
+        // Found in Phase 12a by a reliability test that made the mistake
+        // itself (ADR-0080).
+        //
+        // This lives here rather than in the host harness because a VST3 host
+        // wrapper has its own buffers sized to the same promise, and an
+        // over-long block corrupts those long before Apollo sees it. The
+        // processor is where the defence can be tested at all.
+        const auto renderWith = [] (int blockSize, int totalSamples)
+        {
+            apollo::ApolloAudioProcessor processor;
+            processor.setPlayConfigDetails (0, 2, 48000.0, 256);
+            processor.prepareToPlay (48000.0, 256);
+
+            // The distortion, which is the oversampled effect that was being
+            // skipped, with enough drive that skipping it is obvious.
+            if (auto* slot = processor.getValueTreeState().getParameter ("fx_slot1"))
+                slot->setValueNotifyingHost (slot->convertTo0to1 (1.0f));
+
+            if (auto* drive = processor.getValueTreeState().getParameter ("fx_distortion_drive"))
+                drive->setValueNotifyingHost (drive->convertTo0to1 (30.0f));
+
+            if (auto* mix = processor.getValueTreeState().getParameter ("fx_distortion_mix"))
+                mix->setValueNotifyingHost (mix->convertTo0to1 (1.0f));
+
+            juce::AudioBuffer<float> output (2, totalSamples);
+            output.clear();
+
+            for (int start = 0; start < totalSamples; start += blockSize)
+            {
+                const auto length = juce::jmin (blockSize, totalSamples - start);
+
+                juce::AudioBuffer<float> block (2, length);
+                block.clear();
+
+                juce::MidiBuffer midi;
+
+                if (start == 0)
+                    midi.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+
+                processor.processBlock (block, midi);
+
+                for (int channel = 0; channel < 2; ++channel)
+                    output.copyFrom (channel, start, block, channel, 0, length);
+            }
+
+            processor.releaseResources();
+            return output;
+        };
+
+        const auto legal = renderWith (256, 4096);
+        const auto overLong = renderWith (4096, 4096);
+
+        auto largestDifference = 0.0f;
+        auto finite = true;
+
+        for (int channel = 0; channel < 2; ++channel)
+            for (int i = 0; i < 4096; ++i)
+            {
+                const auto sample = overLong.getSample (channel, i);
+                finite = finite && std::isfinite (sample);
+                largestDifference = juce::jmax (largestDifference,
+                                                std::abs (sample - legal.getSample (channel, i)));
+            }
+
+        expect (finite, "Every sample of the over-long block is finite");
+        expect (legal.getMagnitude (0, 0, 4096) > 0.001f, "The reference render made sound");
+
+        // Identical, because the pieces are exactly the blocks the legal
+        // render used: same size, same order, same parameter reads.
+        expectEquals (largestDifference, 0.0f,
+                      "The over-long block produced the same audio as the same span in legal blocks");
+    }
     void testBusLayoutPolicy()
     {
         beginTest ("Bus layouts are accepted and rejected as specified");

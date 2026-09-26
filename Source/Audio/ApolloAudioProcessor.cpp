@@ -299,6 +299,11 @@ void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpected
     setLatencySamples (effects.getLatencySamples());
     reportedLatencySamples.store (effects.getLatencySamples(), std::memory_order_relaxed);
 
+    // Room for the MIDI of one piece of an over-long block, taken here so that
+    // splitting one allocates nothing on the audio thread. 2048 events is far
+    // more than a block ever carries; it costs a few tens of kilobytes once.
+    chunkMidi.ensureSize (2048);
+
     // The meter's ballistics are expressed in seconds and its clip hold in
     // samples, so both have to be re-derived whenever the device changes.
     telemetry->prepare (sampleRate);
@@ -957,6 +962,42 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (numOutputChannels <= 0 || numSamples <= 0)
         return;
 
+    // A block longer than the one this processor was prepared for.
+    //
+    // No host should send one: the maximum is what prepareToPlay was told, and
+    // every buffer inside the rack is sized to it. Nothing was overrun — the
+    // oversampler refuses a block larger than it was prepared for and returns
+    // without touching it — but that meant the oversampled effects were
+    // silently *skipped*, so the audio came out unprocessed rather than wrong
+    // in any way a listener could attribute to a cause. Found in Phase 12a by
+    // a reliability test that made the mistake itself (ADR-0080).
+    //
+    // So an over-long block is processed in pieces of the prepared size, which
+    // produces the audio the same span produces in legal blocks. Each piece is
+    // a view onto the caller's own buffer and a slice of its MIDI, so nothing
+    // is allocated and nothing is copied.
+    if (const auto preparedSamples = preparedBlockSize.load (std::memory_order_relaxed);
+        preparedSamples > 0 && numSamples > preparedSamples)
+    {
+        auto* const* channels = buffer.getArrayOfWritePointers();
+
+        for (int start = 0; start < numSamples; start += preparedSamples)
+        {
+            const auto length = juce::jmin (preparedSamples, numSamples - start);
+
+            chunkMidi.clear();
+
+            for (const auto metadata : midiMessages)
+                if (metadata.samplePosition >= start && metadata.samplePosition < start + length)
+                    chunkMidi.addEvent (metadata.getMessage(), metadata.samplePosition - start);
+
+            juce::AudioBuffer<float> piece (channels, numOutputChannels, start, length);
+            processBlock (piece, chunkMidi);
+        }
+
+        return;
+    }
+
     // Apollo is an instrument: the engine is the origin of the signal and
     // overwrites the whole output. Any input is deliberately not passed through
     // — the input bus is reserved for the compressor's external sidechain
@@ -1105,9 +1146,17 @@ void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffe
         const auto numOutputChannels = getTotalNumOutputChannels();
         auto* const* outputs = buffer.getArrayOfWritePointers();
 
+        // Bounded by what this processor was prepared for, for the same reason
+        // processBlock splits an over-long block: the capture rings are sized
+        // to the promise, and a host that sends more than it promised must not
+        // reach past them.
+        const auto preparedSamples = preparedBlockSize.load (std::memory_order_relaxed);
+        const auto numSamples = preparedSamples > 0 ? juce::jmin (preparedSamples, buffer.getNumSamples())
+                                                    : buffer.getNumSamples();
+
         telemetry->scope (telemetry::ScopeSource::output)
-            .writeMixedToMono (outputs, numOutputChannels, 0, buffer.getNumSamples());
-        telemetry->outputMeter().process (outputs, numOutputChannels, 0, buffer.getNumSamples());
+            .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
+        telemetry->outputMeter().process (outputs, numOutputChannels, 0, numSamples);
     }
 }
 

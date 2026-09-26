@@ -247,3 +247,61 @@ Every defect the harness was written to find was first shown against a build
 from before its fix, with `--plugin` pointing at the older bundle. A test added
 here should be given the same chance: point it at a build that has the defect,
 and watch it fail.
+
+---
+
+## 9. The reliability suite
+
+`ApolloHostTests --category Reliability` asks whether Apollo stays correct
+rather than whether it is correct once: a long session, hundreds of state
+recalls under a sounding voice, automation moving every block, repeated device
+changes, a stream of malformed documents, and the worst patch the controls
+allow (ADR-0080).
+
+It runs through a real VST3 host, because that is how accumulation actually
+happens — state through `IBStream`, automation through `IParameterChanges`, a
+device change as a deactivate and reactivate.
+
+### What it asserts
+
+"Still running" is not an assertion. These are:
+
+| | |
+|---|---|
+| Finite | Every sample of every block, not a sample of them |
+| Bounded | Against a ceiling loose enough for a patch asking 88 dB of deliberate gain |
+| Not trending upward | Median window level of the last third against the first — a *range* is the wrong statistic when the patch keeps changing |
+| Still able to stop | Exact silence after the last release, with the rack emptied so the question is the engine's |
+| Memory comes back | Resident footprint after settling against the end, over dozens of load-and-unload cycles |
+| Nothing illegal | Every parameter still holds a finite value in range after a stream of corruption |
+
+### Running a real soak
+
+```sh
+ApolloHostTests --category Reliability --soak 20
+```
+
+The defaults are sized for CI — the whole set is about twenty seconds — and
+`--soak N` multiplies every case. The cases are written in units of work, so
+the multiplier means the same thing to all of them.
+
+**Run one before believing a release.** Two assertions in this suite passed at
+the default length and failed at six times it, and both were the test being
+wrong rather than Apollo; a third looked exactly like a stuck voice in the
+engine and was a scheduling bug in the test. A soak is as likely to find a
+fault in its own measurement as in the thing measured, which is a reason to run
+it early rather than a reason to distrust it.
+
+### Writing a case
+
+Two rules, both learned by breaking them (ADR-0080):
+
+- **Place MIDI by absolute sample position**, through `noteSchedule` and the
+  schedule argument of `soakRender`. Testing the block's first sample against a
+  period — `start % 48000 == 0` — only fires when the period is a multiple of
+  the block size, and at 512 samples a block, 48000 is not: most note-ons and
+  every note-off silently never happen.
+- **Work out how long the thing you are asserting actually takes.** A delay at
+  0.95 feedback on a half-second line needs about 830 repeats to reach its
+  flush point, which is seven minutes; asserting silence in fifty seconds
+  asserts something impossible. §5c records making the same mistake first.

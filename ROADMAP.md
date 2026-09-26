@@ -136,7 +136,7 @@ front of it is better understood, the way 8f was.
 | 11c | Linux — an ELF reader for the dependency check, tested against shared objects assembled in the test; three classes of dependency because Linux has no single answer; and the finding that what the binary links is not what it needs, since JUCE opens X11, GTK and WebKitGTK at run time. INSTALL.txt carries the real list and CI checks every name in it resolves (ADR-0078) | ✅ |
 | 11d | CPU architectures — an ARM64 Linux job that passed first time, because ADR-0073 and ADR-0074 left no intrinsics to port. The first evidence that the regression goldens travel across instruction sets: every render within 0.0005 dB of its reference on ARM64, against tolerances of 0.1 dB, while the renders are not bit-identical between platforms (ADR-0079) | ✅ |
 | **12** | **Release candidate & production hardening** | ⬜ |
-| 12a | Reliability — long-duration soak, repeated load and unload, preset changes, rapid automation, maximum polyphony, extreme modulation and feedback, repeated sample-rate changes, interface reload, malformed state | ⬜ |
+| 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review | ⬜ |
 | 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility | ⬜ |
 | 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
@@ -866,16 +866,19 @@ Convert the validated build into a stable release candidate.
 
 ### Reliability
 
-- [ ] Run long-duration stability tests.
-- [ ] Test repeated plugin load/unload cycles.
-- [ ] Test repeated preset changes.
-- [ ] Test rapid parameter automation.
-- [ ] Test maximum intended polyphony.
-- [ ] Test extreme modulation.
-- [ ] Test extreme feedback settings.
-- [ ] Test repeated sample-rate changes.
-- [ ] Test UI reload/recreation.
-- [ ] Test malformed state and resource conditions.
+A `Reliability` category in the host harness, driven through a real VST3 host,
+with `--soak N` to run any of it longer (12a, ADR-0080).
+
+- [x] Run long-duration stability tests. — notes, patch changes and a transport for as long as the scale says; every sample finite, bounded, and the median level of the last third against the first (12a)
+- [x] Test repeated plugin load/unload cycles. — dozens of load-prepare-play-unload cycles, each playing, with the resident footprint after settling compared against the end (12a)
+- [x] Test repeated preset changes. — hundreds of state recalls through the host under a sounding voice (12a)
+- [x] Test rapid parameter automation. — every parameter swept, thousands of moves, the rack rebuilt hundreds of times a second (12a)
+- [x] Test maximum intended polyphony. — the hostile patch is sixteen unison on both oscillators plus sub and noise, held for the length of the soak (12a)
+- [x] Test extreme modulation. — part of the long session's patch rotation; the modulation matrix at dominating depth is also a pinned regression render (§5d)
+- [x] Test extreme feedback settings. — maximum delay feedback, a twenty-second reverb and two resonant filters at once: bounded, not compounding, and decaying (12a)
+- [x] Test repeated sample-rate changes. — six rates against six block sizes, repeatedly, with the instrument still within half a hertz of 220 Hz after each (12a)
+- [ ] Test UI reload/recreation. — the headless harness cannot open an editor. The bridge's attach and detach are covered by `Tests/UI/ParameterBridgeTests.cpp`, and opening and closing the window was driven by hand on Windows (§5a); repeated recreation inside a host is not tested
+- [x] Test malformed state and resource conditions. — a stream of damaged documents mid-render, with every parameter still legal afterwards, and eight refusable documents each checked to be refused with nothing applied (12a)
 
 ### Audio quality
 

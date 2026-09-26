@@ -286,6 +286,14 @@ private:
     */
     bool bypassedLastBlock = false;
 
+    /** MIDI for one piece of an over-long block. Audio thread only.
+
+        Kept as a member and given its capacity in prepareToPlay, so splitting a
+        block a host should never have sent still allocates nothing on the audio
+        thread (CLAUDE.md §7.1).
+    */
+    juce::MidiBuffer chunkMidi;
+
     std::atomic<state::StateLoadResult> lastStateLoadResult { state::StateLoadResult::ok };
     std::atomic<int> stateReloadCounter { 0 };
 

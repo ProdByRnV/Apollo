@@ -108,6 +108,24 @@ bool setPlain (juce::AudioPluginInstance& instance, std::string_view registryId,
 [[nodiscard]] juce::uint32 vst3ParameterId (const juce::AudioProcessorParameter& parameter);
 
 //==============================================================================
+// Soak
+
+/** How much longer than its default length a reliability test should run.
+
+    1 by default, so an ordinary run and CI stay quick; `--soak 20` makes every
+    reliability test twenty times longer. The tests are written in units of
+    work rather than in seconds so that the multiplier means the same thing to
+    all of them (ADR-0080).
+*/
+void setSoakScale (int scale);
+
+/** @returns the multiplier set by `--soak`, at least 1. */
+[[nodiscard]] int soakScale();
+
+/** @returns @p units multiplied by the soak scale, at least 1. */
+[[nodiscard]] int soaked (int units);
+
+//==============================================================================
 // Rendering
 
 /** One MIDI event at an absolute sample position in a render. */

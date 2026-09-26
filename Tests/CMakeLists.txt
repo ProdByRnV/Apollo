@@ -179,8 +179,13 @@ if(TARGET Apollo_VST3)
         Host/ProcessingTests.cpp
         Host/BypassTests.cpp
         Host/PackageTests.cpp
+        Host/ReliabilityTests.cpp
         Package/BinaryImage.cpp
-        Package/BinaryImage.h)
+        Package/BinaryImage.h
+        # footprintBytes: the reliability soak asks whether memory comes back,
+        # and 10c already had a portable way to ask.
+        Performance/Machine.cpp
+        Performance/Machine.h)
 
     target_compile_definitions(ApolloHostTests PRIVATE
         JUCE_STANDALONE_APPLICATION=1
