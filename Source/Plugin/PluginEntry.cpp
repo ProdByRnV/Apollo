@@ -10,6 +10,7 @@
 
 #include "Audio/ApolloAudioProcessor.h"
 #include "StandaloneMidiAdoption.h"
+#include "StandaloneOutputDevice.h"
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
@@ -18,6 +19,12 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     // the settings dialog, so a keyboard plugged into the machine does nothing
     // (ADR-0081). Does nothing in a plugin build, where the host owns the MIDI.
     apollo::standalone::startMidiDeviceAdoption();
+
+    // And it has to follow the machine's output: JUCE reopens the device it
+    // saved, so plugging a laptop into speakers leaves the instrument playing
+    // out of the laptop (ADR-0082). Does nothing in a plugin, where the device
+    // belongs to the host.
+    apollo::standalone::startOutputDeviceFollowing();
 
     return new apollo::ApolloAudioProcessor();
 }

@@ -141,6 +141,7 @@ add_library(apollo::engine ALIAS apollo_engine)
 target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Audio/ApolloAudioProcessor.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Audio/OutputDeviceFollowing.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/MIDI/MidiControlManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MIDI/MidiControlManager.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.cpp"

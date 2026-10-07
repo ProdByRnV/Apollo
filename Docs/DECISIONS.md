@@ -4692,3 +4692,84 @@ rule says and what JUCE's own version does. If a device were to send the same
 notes on more than one port, they would arrive twice. Filtering by name would
 be hard-coding a device's layout, which §46 forbids, so this is left as it is
 until a real device is seen to do it.
+
+---
+
+## ADR-0082 — The standalone plays through the system's output
+
+**Phase 12 · Accepted**
+
+Reported by the developer, the day after the MIDI one: a laptop plugged into
+speakers through its headphone socket, and Apollo still playing out of the
+laptop.
+
+### Why
+
+JUCE's standalone wrapper saves the device it was last using and reopens it.
+The machine's settings named `Speakers (Realtek(R) Audio)`, and plugging the
+cable in did not take that endpoint away — it added `Headphones (Realtek(R)
+Audio)` and made it the system default. Apollo reopened exactly what it had
+been told to, which was the laptop.
+
+Measured before touching anything: Windows reported two active render
+endpoints and `Headphones` as the default, while Apollo's settings named
+`Speakers`.
+
+### The rule
+
+> **Apollo plays through the system's default output, until the user chooses
+> something else. Choosing the current default again goes back to following
+> it.**
+
+That needs one distinction made honestly, because the two cases look identical
+in a snapshot: a device that is not the default *because the user picked it*
+must be left alone for ever, and a device that is not the default *because the
+default moved* must be abandoned. So Apollo remembers which default it
+adopted, and compares — the decision is `Source/Audio/OutputDeviceFollowing.h`,
+plain strings, tested without any audio hardware.
+
+There is deliberately no setting for this. The way back to following the system
+is to pick the current default in the dialog, which is a thing a user can
+discover by doing it rather than a checkbox that needs explaining.
+
+### Two mistakes on the way, both worth keeping
+
+**`treatAsChosenDevice = false` looked principled and was wrong.** The thought
+was that Apollo following the system is not the user choosing, so JUCE should
+not record it as a choice. But that flag does not mean what the name suggests
+to a reader: it decides whether the device is *written to the settings file* at
+all. Passing false left the file naming the device Apollo had just moved away
+from, so the next launch opened the laptop speakers and corrected itself a
+second later — audibly. It passes true, and Apollo tracks whose decision it was
+in its own two keys.
+
+**A failed switch was indistinguishable from a user's choice.** The first
+version recorded the adoption before attempting the switch. When a device
+refuses to open — exclusive use, or unplugged between two statements — the next
+tick would see a device that was neither the default nor the adopted one, which
+is exactly the signature of a user's own selection, and Apollo would quietly
+decide the user had chosen the device it had failed to leave. The state is now
+written only after the switch succeeds, and a refused device is not retried
+until the system's answer changes.
+
+The second was found by reading the state Apollo had written after a restart —
+`apolloChosenOutputDevice = Speakers (Realtek(R) Audio)` — which was a
+sentence about the user that no user had said.
+
+### What was verified
+
+On the machine where it was reported, from a cleared state with the settings
+naming the laptop speakers:
+
+```text
+run 1   device = Headphones (Realtek(R) Audio)   chosen = ''   adopted = Headphones
+run 2   device = Headphones (Realtek(R) Audio)   chosen = ''   adopted = Headphones
+```
+
+It moves to the aux, persists it, and a restart neither drifts nor re-decides.
+The device type reported `Headphones | Speakers` with the default at index 0,
+and the switch returned no error.
+
+**Not verified here: that sound comes out of the speaker.** The device is open
+and is the one the system calls default; whether the cable carries it is the
+developer's half.
