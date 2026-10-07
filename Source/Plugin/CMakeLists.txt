@@ -44,7 +44,9 @@ juce_add_plugin(Apollo
     COPY_PLUGIN_AFTER_BUILD     FALSE)
 
 target_sources(Apollo PRIVATE
-    PluginEntry.cpp)
+    PluginEntry.cpp
+    StandaloneMidiAdoption.cpp
+    StandaloneMidiAdoption.h)
 
 # apollo::strict_warnings is deliberately absent: this target compiles JUCE
 # module sources, which are held to JUCE's warning standard rather than

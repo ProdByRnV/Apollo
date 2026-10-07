@@ -90,6 +90,7 @@ add_library(apollo_core STATIC
     MIDI/ControllerProfile.h
     MIDI/MidiMapping.cpp
     MIDI/MidiMapping.h
+    MIDI/MidiDeviceAdoption.h
     MIDI/MpeZone.h
     MIDI/RpnParser.cpp
     MIDI/RpnParser.h

@@ -4603,3 +4603,92 @@ enough to prove the absence of a leak. What it can do is catch the leak that
 matters: an instrument is about 2.6 MB (§5b), so leaking one per cycle would be
 some 380 MB. The bound is set to catch that class and is not evidence of
 anything finer.
+
+---
+
+## ADR-0081 — The standalone finds its own MIDI
+
+**Phase 12 · Accepted**
+
+Reported by the developer: a MIDI keyboard connected to the machine, and
+pressing a key did nothing in the standalone application.
+
+### Why it did nothing
+
+JUCE's standalone wrapper can open MIDI inputs by itself and is built not to.
+`StandalonePluginHolder`'s `shouldAutoOpenMidiDevices` defaults to true on iOS
+and Android and **false on desktop**, and the macro that changes it
+(`JUCE_DONT_AUTO_OPEN_MIDI_DEVICES_ON_MOBILE`) only applies to mobile — on
+desktop the value is a hard-coded `false` inside JUCE's own
+`StandaloneFilterApp`.
+
+So Apollo opened no MIDI input until somebody ticked one in
+Options -> Audio/MIDI Settings. The machine's saved settings showed exactly
+that: one input enabled, a leftover virtual port from another product, and the
+keyboard absent.
+
+That is a defect by Apollo's own terms rather than a missing feature. PRD §16
+asks for standard MIDI devices to work without requiring a particular
+controller, and an instrument that ignores a connected keyboard with no
+indication of why does not meet it.
+
+### The rule, and the half of it that matters
+
+- A device **seen for the first time is opened**. Plugging a keyboard in and
+  playing it is what a person expects.
+- A device that has **gone away is forgotten** and closed, so plugging it back
+  in opens it again, and the saved settings do not accumulate dead entries.
+- A device that is **still there and has been seen is left alone**.
+
+The third is the one worth stating. Apollo deliberately does not ask whether a
+seen device is currently enabled: if it did, a user who unticked a device in
+the settings dialog would have it switched back on half a second later, for
+ever. JUCE's own mobile implementation has the same property by accident, by
+acting only on changes to the device list; here it is the rule.
+
+Nothing asks what kind of device it is. Apollo does not know which port is a
+keyboard and must not guess (CLAUDE.md §46), so every input is opened and the
+engine ignores what it does not understand.
+
+### Where it lives, and why in two pieces
+
+The decision is `Source/MIDI/MidiDeviceAdoption.h` — plain strings, no JUCE —
+and is tested against a machine with no MIDI hardware at all. The glue is
+`Source/Plugin/StandaloneMidiAdoption.cpp`, a half-second timer that reads
+`MidiInput::getAvailableDevices()` and applies the decision through the
+holder's own device manager.
+
+**A plugin never reaches any of it.** There is no `StandalonePluginHolder` in a
+plugin build, so the timer returns on its first line. That is the behaviour a
+plugin must have: opening a controller for itself would take it away from the
+rest of the host's session.
+
+**JUCE's whole standalone application was not replaced.** The documented
+escape hatch (`JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP`) would have let Apollo
+pass `true` and use JUCE's own timer, at the price of owning a copy of their
+application class — some ninety lines of plumbing to keep in step across JUCE
+upgrades, and their code in Apollo's tree. Sixty lines beside it, through
+public API, was the smaller debt.
+
+### What was verified
+
+The settings file before and after launching the built standalone, on the
+machine where it was reported:
+
+```text
+before   Cymatics Pinch
+after    Cymatics Pinch, MPK mini IV, MIDIIN2 (MPK mini IV),
+         MIDIIN3 (MPK mini IV), MIDIIN4 (MPK mini IV)
+```
+
+Opened, and persisted, without anybody touching a dialog.
+
+**Not verified here: that pressing a key makes a sound.** Nothing on this
+machine can press one. The developer has that half, and it is the half that
+matters — the measurement above proves only that the port is open.
+
+**A controller with several ports has all of them opened**, which is what the
+rule says and what JUCE's own version does. If a device were to send the same
+notes on more than one port, they would arrive twice. Filtering by name would
+be hard-coding a device's layout, which §46 forbids, so this is left as it is
+until a real device is seen to do it.
