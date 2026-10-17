@@ -137,7 +137,7 @@ front of it is better understood, the way 8f was.
 | 11d | CPU architectures — an ARM64 Linux job that passed first time, because ADR-0073 and ADR-0074 left no intrinsics to port. The first evidence that the regression goldens travel across instruction sets: every render within 0.0005 dB of its reference on ARM64, against tolerances of 0.1 dB, while the renders are not bit-identical between platforms (ADR-0079) | ✅ |
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
-| 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review | ⬜ |
+| 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review. Closed on the developer's hands-on review from two MIDI keyboards, over the measurements 10a already made; a whole-keyboard aliasing sweep and attack timing against the envelope were not run, and issues found later are fixed as they arise | ✅ |
 | 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility | ⬜ |
 | 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
 | 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
@@ -883,10 +883,10 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 ### Audio quality
 
 - [x] Final listening tests. — the ten factory sounds and the four wavetables played by the developer from two MIDI keyboards, each producing the sound it is meant to (12b, 2026-10-18; PROJECT-STATE §5a)
-- [ ] Final aliasing review.
-- [ ] Final gain-staging review.
-- [ ] Final noise-floor review.
-- [ ] Final transient-response review.
+- [x] Final aliasing review. — reviewed by hand by the developer on two keyboards; measured at -98.5 dBc worst case at four notes in 10a (PROJECT-STATE §5c). A sweep across the whole keyboard was not run (12b)
+- [x] Final gain-staging review. — reviewed by hand by the developer; every factory preset measured audible and below full scale, and gain staging across five voicings, in the suite (12b)
+- [x] Final noise-floor review. — reviewed by hand by the developer; exact silence at rest, DC at -112.7 dBFS and inharmonic content at -121.9 dBc measured in 10a (12b)
+- [x] Final transient-response review. — reviewed by hand by the developer; the filter step response is measured in 10a. Attack timing against the envelope's own figures was not measured (12b)
 
 ### UX
 
