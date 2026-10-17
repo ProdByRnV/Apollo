@@ -882,7 +882,7 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 
 ### Audio quality
 
-- [ ] Final listening tests.
+- [x] Final listening tests. — the ten factory sounds and the four wavetables played by the developer from two MIDI keyboards, each producing the sound it is meant to (12b, 2026-10-18; PROJECT-STATE §5a)
 - [ ] Final aliasing review.
 - [ ] Final gain-staging review.
 - [ ] Final noise-floor review.
