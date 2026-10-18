@@ -58,7 +58,7 @@ import {
     useMetadataVersion,
 } from './state/parameters';
 import { applyPresetIndex, applyPresetStatus, usePresets } from './state/presets';
-import { deliverInstrumentFrame, deliverScopeFrames } from './state/telemetry';
+import { deliverInstrumentFrame, deliverScopeFrames, useSampleRate } from './state/telemetry';
 
 export function App(): JSX.Element {
     const workspaceRef = useRef<HTMLElement>(null);
@@ -70,9 +70,13 @@ export function App(): JSX.Element {
     const assigned = useAssignedRoutings();
     const metadataVersion = useMetadataVersion();
     const presets = usePresets();
+    const sampleRate = useSampleRate();
 
     /** The last thing the engine said, kept so a transient MIDI prompt can be
         shown over it and then cleared without losing it. */
+    /** What the connection established, for the readout's tooltip. */
+    const [binding, setBinding] = useState('');
+
     const [status, setStatus] = useState(
         bridgeAvailable
             ? 'Connecting to engine…'
@@ -112,9 +116,16 @@ export function App(): JSX.Element {
                 // been told something more useful. Announcing the parameter
                 // count again there wiped "Loaded Glass Bell." off the status
                 // line a fraction of a second after it appeared.
+                //
+                // And it says something a user can use. It used to read "227
+                // parameters bound · protocol v1", which is true and is a
+                // sentence about the bridge rather than about the instrument.
+                // The count stays available in the readout's tooltip, where
+                // somebody diagnosing a connection will look for it.
                 if (!boundRef.current) {
                     boundRef.current = true;
-                    setStatus(`${definitionCount()} parameters bound · protocol v${message.version}`);
+                    setStatus('Ready.');
+                    setBinding(`${definitionCount()} parameters · protocol v${message.version}`);
                 }
                 break;
 
@@ -285,7 +296,7 @@ export function App(): JSX.Element {
 
     const hint = midi.mode
         ? 'Click a control to assign it · Delete to release · Escape to cancel'
-        : 'Drag a knob · Shift for fine · Double-click or Delete to reset';
+        : 'Drag a knob · Shift for fine · Double-click to reset · Right-click or Enter to type a value';
 
     // Nothing can be laid out until the engine has said what exists.
     const ready = metadataVersion > 0;
@@ -376,8 +387,18 @@ export function App(): JSX.Element {
                     <span className="lamp" data-on={assigned > 0} aria-hidden="true" />
                     <span>MOD <strong>{assigned}</strong>/16</span>
                 </div>
-                <div className="readout">
-                    <span>SR <strong>v{PROTOCOL_VERSION}</strong></span>
+                {/*
+                    The sample rate the engine is actually running at, which is
+                    what "SR" means on every other piece of audio software. It
+                    used to show the bridge protocol version, "v1", under that
+                    label — a reading nobody could act on, labelled as one they
+                    could. The protocol is still here, in the tooltip.
+                */}
+                <div
+                    className="readout"
+                    title={`Sample rate the engine is running at${binding ? ` · ${binding}` : ` · protocol v${PROTOCOL_VERSION}`}`}
+                >
+                    <span>SR <strong>{formatSampleRate(sampleRate)}</strong></span>
                 </div>
             </header>
 
@@ -458,4 +479,11 @@ export function App(): JSX.Element {
             </footer>
         </>
     );
+}
+
+/** "48 kHz", "44.1 kHz", or a dash until the engine has said. */
+function formatSampleRate(rate: number): string {
+    if (!(rate > 0)) return '—';
+
+    return `${Number((rate / 1000).toFixed(1))} kHz`;
 }

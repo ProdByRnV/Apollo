@@ -598,6 +598,35 @@ body::before {
     line-height: 1;
 }
 
+/* The readout as a field, while a value is being typed. Same face and size as
+   the readout it replaces, so the knob does not jump; gold because it is the
+   thing being held. */
+.knob__entry {
+    width: 76px;
+    margin: -2px 0;
+    padding: 1px 2px;
+    font-family: var(--font-mono);
+    font-size: var(--t-value);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    text-align: center;
+    color: var(--accent-bright);
+    background: var(--display-ground);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-xs);
+    outline: none;
+}
+
+/* Refused: red, and the label below says "Not understood" in words, so the
+   state does not depend on seeing the colour (§24.2). */
+.knob__entry[aria-invalid="true"] {
+    border-color: var(--danger);
+}
+
+.knob__label[data-refused="true"] {
+    color: var(--danger);
+}
+
 /* Held: the readout takes the accent, so the control you are turning is
    unambiguous even out of the corner of an eye. */
 .knob[data-held="true"] .knob__value {
@@ -1576,12 +1605,19 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     overflow-y: auto;
     min-height: 96px;
     max-height: 40vh;
+
+    /* So a row the keyboard moves to is scrolled clear of the sticky column
+       headings rather than underneath them. */
+    scroll-padding-top: 26px;
     scrollbar-width: thin;
 }
 
 .presets__row {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    /* The last column is fixed rather than `auto`: an auto column is as wide
+       as what is in it, so the heading "Library" and the word "factory" under
+       it would each size their own column and the two would not line up. */
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 64px;
     align-items: baseline;
     gap: var(--s-3);
     width: 100%;
@@ -1617,6 +1653,30 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 
 .presets__row[data-loaded="true"] .presets__name {
     font-weight: 600;
+}
+
+/* What each column is. Inside the list, and sticky, so it scrolls with
+   nothing and lines up with the rows whatever the scrollbar is doing; hidden
+   from assistive technology, because each row says the same thing in its own
+   name. Before 12c-2 the list had no headings, and the bank "Factory" sat
+   beside the library "factory" with nothing to tell them apart. */
+.presets__columns {
+    position: sticky;
+    top: calc(-1 * var(--s-1));
+    z-index: 1;
+    cursor: default;
+    background: var(--display-ground);
+    border-bottom: 1px solid var(--line-faint);
+    border-radius: 0;
+    font-size: var(--t-label);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.presets__columns:hover {
+    background: var(--display-ground);
+    color: var(--text-dim);
 }
 
 .presets__name,

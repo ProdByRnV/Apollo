@@ -9,13 +9,20 @@
     strings and a text node, which React handles without complaint. The canvases
     elsewhere on the page are the ones that must not go through React, and they
     do not (state/telemetry.ts).
+
+    A VALUE CAN BE TYPED. Enter on a focused knob, or Enter value on its
+    right-click menu, turns the readout into a field holding what it showed.
+    Enter or clicking away sets it; Escape leaves the knob as it was. Text the
+    control cannot read keeps the field open and says so in the label, in words
+    rather than only in red (params/parse.ts, CLAUDE.md §24.2).
 */
 
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { ContextMenu } from './ContextMenu';
 import { formatPlain } from '../params/format';
 import { stepCount, toNormalized, toPlain } from '../params/mapping';
+import { parsePlain } from '../params/parse';
 import {
     commitValue,
     setHeld,
@@ -73,6 +80,28 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
 
     /** Where the right-click landed, or null when no menu is open. */
     const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+
+    /** The text being typed, or null when the readout is a readout. */
+    const [entry, setEntry] = useState<string | null>(null);
+    const [entryRefused, setEntryRefused] = useState(false);
+    const entryRef = useRef<HTMLInputElement>(null);
+
+    /** Set once the field has been closed, so it cannot close twice. Handing
+        focus back to the knob blurs the field, and the blur handler commits:
+        without this, Escape would set the very value it was cancelling. */
+    const entryClosed = useRef(false);
+
+    // Selected as it appears, so typing replaces the old value rather than
+    // being appended to it. A layout effect, so it runs after the menu that may
+    // have opened the field has handed focus back to the knob, not before.
+    const editing = entry !== null;
+
+    useLayoutEffect(() => {
+        if (!editing) return;
+
+        entryRef.current?.focus();
+        entryRef.current?.select();
+    }, [editing]);
 
     const chrome = useMidiChrome(id, definition?.name ?? id);
 
@@ -143,6 +172,55 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
 
     const resetToDefault = (): void => nudge(defaultNormalized);
 
+    const beginEntry = (): void => {
+        entryClosed.current = false;
+        setEntryRefused(false);
+        setEntry(text);
+    };
+
+    /** @param refocus true when the field closed from the keyboard, so focus
+        goes back to the knob. False on a click elsewhere, where focus belongs
+        to whatever was clicked. */
+    const finishEntry = (commit: boolean, refocus: boolean): void => {
+        if (entryClosed.current) return;
+
+        if (commit && entry !== null) {
+            const typed = parsePlain(definition.unit, entry);
+
+            // Kept open on Enter, so the text can be corrected rather than
+            // retyped. On a click away it is simply abandoned: a field that
+            // refused to close would hold the user hostage.
+            if (typed === null) {
+                if (refocus) {
+                    setEntryRefused(true);
+                    return;
+                }
+            } else {
+                nudge(toNormalized(definition, typed));
+            }
+        }
+
+        entryClosed.current = true;
+        setEntry(null);
+        setEntryRefused(false);
+
+        if (refocus) rootRef.current?.focus();
+    };
+
+    const onEntryKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+        // Every key belongs to the field. Left to bubble, the arrows would turn
+        // the knob and Backspace would reset it while somebody was typing.
+        event.stopPropagation();
+
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            finishEntry(true, true);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            finishEntry(false, true);
+        }
+    };
+
     // Right-click offers Reset. There were already two ways to do it — a
     // double-click and Delete — but neither announces itself, and a control
     // whose reset you have to be told about is a control most people never
@@ -169,6 +247,12 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
     // in hundredths, which is fine enough to be useful and coarse enough to
     // cross the range without holding the key down for a minute.
     const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            beginEntry();
+            return;
+        }
+
         const steps = stepCount(definition);
         const unit = steps > 1 ? 1 / (steps - 1) : 0.01;
         const current = valueOf(id);
@@ -239,8 +323,37 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
                 />
             </svg>
 
-            <div className="knob__value">{text}</div>
-            <div className="knob__label">{label}</div>
+            {editing ? (
+                <input
+                    ref={entryRef}
+                    className="knob__entry"
+                    type="text"
+                    inputMode="decimal"
+                    spellCheck={false}
+                    autoComplete="off"
+                    aria-label={`${definition.name} value`}
+                    aria-invalid={entryRefused}
+                    value={entry ?? ''}
+                    onChange={(event) => {
+                        setEntry(event.target.value);
+                        setEntryRefused(false);
+                    }}
+                    onKeyDown={onEntryKeyDown}
+                    onBlur={() => finishEntry(true, false)}
+
+                    // The knob is underneath: a press here must place the
+                    // caret, not start a drag, and a double-click must select a
+                    // word, not reset the parameter.
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    onContextMenu={(event) => event.stopPropagation()}
+                />
+            ) : (
+                <div className="knob__value">{text}</div>
+            )}
+            <div className="knob__label" data-refused={entryRefused ? 'true' : 'false'}>
+                {entryRefused ? 'Not understood' : label}
+            </div>
 
             <span
                 className="midi-badge"
@@ -256,6 +369,10 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
                     x={menuAt.x}
                     y={menuAt.y}
                     items={[
+                        {
+                            label: 'Enter value…',
+                            onChoose: beginEntry,
+                        },
                         {
                             label: `Reset to ${formatPlain (definition, definition.default)}`,
                             onChoose: resetToDefault,

@@ -4854,3 +4854,70 @@ WebView is still verified by driving the running application (PROJECT-STATE
 Tab stops went from 253 to 169. Most of what remains is 122 knobs, and a slider
 is correctly one stop each. Headings went from 0 to 19, and tab pages
 correctly linked to their tabs from 0 to 15.
+
+---
+
+## ADR-0084 — A value can be typed, and the interface says things a user can use
+
+**Phase 12c-2 · Accepted**
+
+The second part of 12c, taken from the same audit of the running interface as
+ADR-0083.
+
+### Typing a value
+
+A knob could be dragged, nudged and reset, but it could not be told a number.
+Setting a cutoff to exactly 440 Hz meant dragging until the readout happened to
+say so.
+
+**Two ways in.** Enter on a focused knob, or **Enter value…** on its
+right-click menu, turns the readout into a field holding what it showed, with
+the text selected. Enter or clicking away sets the value, and Escape leaves the
+knob as it was.
+
+**What is understood is the readout's own language.** `params/parse.ts` is the
+inverse of `format.ts`. What a control writes, it reads: "2.50 kHz", "1.50 s",
+"+3.0 dB", "-7 c". It also accepts the shorthand people type: "2.5k", "2s",
+"50" on a percentage meaning fifty per cent. A decimal comma is accepted when
+it is the only separator, and the readout's own minus sign can be pasted back.
+
+**A suffix the control does not use is refused, not guessed.** "5 s" typed into
+a frequency is not a frequency. A refused entry keeps the field open, outlines
+it red, and replaces the label with **Not understood** in words (§24.2).
+Clicking away from refused text abandons it rather than holding the user in
+the field. Out-of-range values clamp, and the readout shows where the value
+landed.
+
+**Writing it found two defects before anything shipped.** The first parser
+dropped every space, so "1 2" read as twelve; the test suite caught it. Then
+closing the field from the keyboard hands focus back to the knob, which blurs
+the field, and the blur commits. Without a guard, Escape would have set the
+value it was cancelling and Enter would have set it twice. The field now closes
+exactly once.
+
+### Saying things a user can use
+
+| Where | Was | Is |
+|---|---|---|
+| Status line on connecting | "227 parameters bound · protocol v1" | "Ready." The count and protocol moved into the readout's tooltip |
+| Masthead "SR" readout | `v1`, the bridge protocol version | the engine's sample rate, "48 kHz", or a dash until it is known |
+| Footer hint | "…Double-click or Delete to reset" | adds "Right-click or Enter to type a value" |
+| Preset list | five unlabelled columns, "Factory" beside "factory" | headed Name, Category, Bank, Author, Library |
+
+The column headings are a sticky row inside the list, so they line up with the
+cells whatever the scrollbar does. The last column became a fixed width, because
+an `auto` column sizes itself to its contents and "Library" and "factory" would
+otherwise have sized it differently. The headings are hidden from assistive
+technology; instead each row is named as a sentence ("Glass Bell, Keys, bank
+Factory, by ProdByRnV, factory library").
+
+### Decided, not done
+
+**The first screen keeps its layout, at the developer's direction.** The preset
+browser fills most of the opening view. A shorter list and a collapsed bar were
+both offered, and the developer chose to leave it as it is (CLAUDE.md §25).
+
+**No mouse wheel on knobs.** The page is a scrolling column of 122 knobs. If
+the wheel turned whatever knob it passed over, scrolling the page would change
+the sound. Drag, Shift-drag, the keyboard and typed values cover the precision
+a wheel would add.

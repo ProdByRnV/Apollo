@@ -234,12 +234,25 @@ export function Presets(): JSX.Element {
                 tabIndex={-1}
                 onKeyDown={onListKeyDown}
             >
+                {visible.length > 0 ? (
+                    <div className="presets__row presets__columns" aria-hidden="true">
+                        <span>Name</span>
+                        <span>Category</span>
+                        <span>Bank</span>
+                        <span>Author</span>
+                        <span>Library</span>
+                    </div>
+                ) : null}
+
                 {visible.map((entry) => (
                     <button
                         key={entry.id}
                         type="button"
                         role="option"
                         className="presets__row"
+                        // The headings are hidden from a screen reader, so the
+                        // row says what each of its words is.
+                        aria-label={presetRowName(entry)}
                         aria-selected={entry.id === presets.loaded}
                         data-loaded={entry.id === presets.loaded}
                         tabIndex={entry.id === stopId ? 0 : -1}
@@ -394,6 +407,18 @@ export function Presets(): JSX.Element {
             ) : null}
         </Module>
     );
+}
+
+/** @returns a row as a sentence: "Glass Bell, Keys, bank Factory, by ProdByRnV,
+    factory library". Empty fields are left out rather than read as blanks. */
+function presetRowName(entry: PresetEntry): string {
+    return [
+        entry.name,
+        entry.category,
+        entry.bank ? `bank ${entry.bank}` : '',
+        entry.author ? `by ${entry.author}` : '',
+        entry.factory ? 'factory library' : 'user library',
+    ].filter((part) => part !== '').join(', ');
 }
 
 /** @returns the bank of the loaded preset, or "" if it did not come from one. */
