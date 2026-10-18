@@ -18,12 +18,20 @@
     THE SEARCH BOX AND THE TWO MENUS NEVER SEND ANYTHING. They narrow a list the
     page already holds. A round trip per keystroke would be a round trip to
     compute something a microsecond of filtering answers.
+
+    THE LIST IS ONE TAB STOP, AND THE ARROWS ONLY MOVE. Up and down walk the
+    rows; Enter or a click loads one. Loading on the arrow — auditioning — was
+    rejected, because a load replaces the whole sound, and a list a keyboard
+    user cannot cross without discarding what they had built is a list they
+    cannot use. The stop is the row last focused, then the loaded one, then the
+    first, so Tab returns to where the user was.
 */
 
 import { useEffect, useState } from 'react';
 
 import { loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
 import { Module } from '../components/Module';
+import { hasCommandModifier, rovingTarget } from '../components/roving';
 import type { PresetEntry } from '../bridge/protocol';
 import type { PresetState } from '../state/presets';
 import {
@@ -59,6 +67,10 @@ export function Presets(): JSX.Element {
 
     const [draft, setDraft] = useState<Draft>(emptyDraft);
     const [saveOpen, setSaveOpen] = useState(false);
+
+    /** The row the keyboard was last on, so leaving the list and coming back
+        returns there rather than to the top. 0 until a row has had focus. */
+    const [focusedId, setFocusedId] = useState(0);
 
     // The form closes when the engine confirms the save, not when the button is
     // pressed. A save can still be refused at that point, and a form that had
@@ -114,6 +126,27 @@ export function Presets(): JSX.Element {
     // The prompt is the rendering of a status rather than a flag of its own, so
     // there is no way for the two to disagree about whether it is showing.
     const replacing = presets.status === 'ALREADY_EXISTS';
+
+    // Whichever of the three candidates is actually on screen. A search can
+    // filter the remembered row away, and a list with no stop in it could not
+    // be reached from the keyboard at all.
+    const isVisible = (id: number): boolean => visible.some((entry) => entry.id === id);
+    const stopId = isVisible(focusedId)
+        ? focusedId
+        : (isVisible(presets.loaded) ? presets.loaded : (visible[0]?.id ?? 0));
+
+    const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if (hasCommandModifier(event)) return;
+
+        const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+        const focused = rows.findIndex((row) => row === document.activeElement);
+        const target = rovingTarget(event.key, focused, rows.length, { orientation: 'vertical', wrap: false });
+
+        if (target === null) return;
+
+        event.preventDefault();
+        rows[target]?.focus();
+    };
 
     return (
         <Module
@@ -194,7 +227,13 @@ export function Presets(): JSX.Element {
                 </button>
             </div>
 
-            <div className="presets__list" role="listbox" aria-label="Presets" tabIndex={-1}>
+            <div
+                className="presets__list"
+                role="listbox"
+                aria-label="Presets"
+                tabIndex={-1}
+                onKeyDown={onListKeyDown}
+            >
                 {visible.map((entry) => (
                     <button
                         key={entry.id}
@@ -203,6 +242,8 @@ export function Presets(): JSX.Element {
                         className="presets__row"
                         aria-selected={entry.id === presets.loaded}
                         data-loaded={entry.id === presets.loaded}
+                        tabIndex={entry.id === stopId ? 0 : -1}
+                        onFocus={() => setFocusedId(entry.id)}
                         onClick={() => loadPreset(entry.id)}
                     >
                         <span className="presets__name">{entry.name}</span>

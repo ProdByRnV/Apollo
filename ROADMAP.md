@@ -138,7 +138,10 @@ front of it is better understood, the way 8f was.
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review. Closed on the developer's hands-on review from two MIDI keyboards, over the measurements 10a already made; a whole-keyboard aliasing sweep and attack timing against the envelope were not run, and issues found later are fixed as they arise | ✅ |
-| 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility | ⬜ |
+| 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility. Cut into three after an audit of the running interface over the DevTools protocol | ⬜ |
+| 12c-1 | Keyboard and accessibility — one Tab stop per group with the arrows moving inside it (switches, tab strips, the preset list, the reset menu), a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it and hands focus back, and the interface's first test suite. Tab stops 253 → 169 (ADR-0083) | ✅ |
+| 12c-2 | Discoverability and feedback — what the first screen shows, the preset list's unlabelled columns, the status line's developer wording, the "SR" readout that shows the protocol version, typing an exact value into a control, and the mouse half of keyboard and mouse | ⬜ |
+| 12c-3 | Workflows and errors — MIDI Learn and the preset workflow end to end, every error message read as a user would read it, and the masthead naming a preset the list does not mark as loaded after a restart | ⬜ |
 | 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
 | 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
 
@@ -882,7 +885,7 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 
 ### Audio quality
 
-- [x] Final listening tests. — the ten factory sounds and the four wavetables played by the developer from two MIDI keyboards, each producing the sound it is meant to (12b, 2026-10-18; PROJECT-STATE §5a)
+- [x] Final listening tests. — the nine factory sounds, Init and the four wavetables played by the developer from two MIDI keyboards, each producing the sound it is meant to (12b, 2026-10-18; PROJECT-STATE §5a)
 - [x] Final aliasing review. — reviewed by hand by the developer on two keyboards; measured at -98.5 dBc worst case at four notes in 10a (PROJECT-STATE §5c). A sweep across the whole keyboard was not run (12b)
 - [x] Final gain-staging review. — reviewed by hand by the developer; every factory preset measured audible and below full scale, and gain staging across five voicings, in the suite (12b)
 - [x] Final noise-floor review. — reviewed by hand by the developer; exact silence at rest, DC at -112.7 dBFS and inharmonic content at -121.9 dBc measured in 10a (12b)
@@ -891,12 +894,12 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 ### UX
 
 - [ ] Verify all controls are discoverable.
-- [ ] Verify keyboard/mouse interaction.
+- [ ] Verify keyboard/mouse interaction. — keyboard done in 12c-1: every control reachable, one stop per group, arrows inside it (ADR-0083). The mouse half is 12c-2
 - [ ] Verify MIDI Learn workflow.
 - [ ] Verify preset workflow.
 - [ ] Verify error messages.
 - [ ] Verify visual feedback.
-- [ ] Verify accessibility basics and focus behavior.
+- [x] Verify accessibility basics and focus behavior. — a heading and region per panel, valid tab and radio semantics, a focus ring visible on every control including a chosen chip, and focus returned after the reset menu closes (12c-1, ADR-0083)
 
 ### Documentation
 

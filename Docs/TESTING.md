@@ -305,3 +305,32 @@ Two rules, both learned by breaking them (ADR-0080):
   0.95 feedback on a half-second line needs about 830 repeats to reach its
   flush point, which is seven minutes; asserting silence in fifty seconds
   asserts something impossible. §5c records making the same mistake first.
+
+## 10. The interface
+
+The C++ suites are built headless (`APOLLO_WITH_WEBVIEW=0`), so nothing in them
+can open a page. The interface has a suite of its own in `WebUI/test/`, run by
+Node's built-in test runner. It needs no dependency, because Node 22.18 and
+later runs TypeScript modules directly.
+
+```sh
+cd WebUI
+npm test          # the interface tests alone
+npm run check     # type check, tests, then the bundle; this is what CMake runs
+```
+
+A failing interface test fails the build on every platform, because building the
+interface runs `check`.
+
+**What belongs here:** logic that can be written as a pure module, such as
+`src/components/roving.ts`, which decides where the arrow keys go. A test file
+is plain JavaScript (`*.test.mjs`) and imports the module it tests by its
+`.ts` path.
+
+**What does not:** behaviour that only exists in a running WebView, such as
+focus, layout and real key events. That is verified by driving the application
+(PROJECT-STATE §5a). Launched with
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>`, the
+Windows standalone exposes its page to the DevTools protocol, which can
+evaluate script in it, send real key and mouse events, and take screenshots.
+That is how Phase 12c-1 was checked (ADR-0083).

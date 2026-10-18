@@ -14,11 +14,11 @@
     when it becomes relevant is a control you have to find twice.
 */
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { EqCurve } from '../components/EqCurve';
 import { Knob } from '../components/Knob';
-import { Module, Tabs } from '../components/Module';
+import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Select } from '../components/Select';
 import { gesture } from '../bridge/bridge';
@@ -395,6 +395,7 @@ function commitPlain(id: string, plain: number): void {
 export function EqualiserEffect(): JSX.Element {
     const placed = useInChain(EFFECT_EQUALISER);
     const [selected, setSelected] = useState(0);
+    const idBase = useId();
 
     // One entry per band, in order. The hook count is fixed by the constant, so
     // this loop is as stable as writing the seven calls out.
@@ -450,6 +451,8 @@ export function EqualiserEffect(): JSX.Element {
                     prefix=""
                     selected={selected}
                     onSelect={setSelected}
+                    label="Equaliser band"
+                    idBase={idBase}
                 />
             )}
         >
@@ -469,7 +472,12 @@ export function EqualiserEffect(): JSX.Element {
                 const prefix = `fx_eq_band${index}_`;
 
                 return (
-                    <div key={index} className="cluster" hidden={index !== selected + 1}>
+                    <div
+                        key={index}
+                        className="cluster"
+                        hidden={index !== selected + 1}
+                        {...tabPanelProps(idBase, index - 1)}
+                    >
                         <div className="cluster cluster--banner">
                             <div className="cluster">
                                 <Segmented

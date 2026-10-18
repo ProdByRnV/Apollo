@@ -16,10 +16,19 @@
     IT IS KEPT ON SCREEN. A right-click near the right or bottom edge would
     otherwise put the menu half outside the window, where a plugin cannot scroll
     to reach it. The position is measured after layout and pulled back inside.
+
+    FOCUS GOES BACK WHERE IT CAME FROM. Shift+F10 and the Menu key open this
+    from the keyboard — Chromium turns both into a `contextmenu` event on the
+    focused control — and choosing Reset used to leave focus on the document
+    body, so the next Tab started again from the top of the page. On close, the
+    control that had focus when the menu opened gets it back, unless the user
+    has since put it somewhere else themselves.
 */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+import { rovingTarget } from './roving';
 
 export interface ContextMenuItem {
     label: string;
@@ -50,6 +59,28 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
     */
     const chosen = useRef(false);
 
+    // Declared before the positioning effect so that it runs first, and so
+    // records the opener before the menu takes focus away from it.
+    useLayoutEffect(() => {
+        const opener = document.activeElement;
+        const menu = ref.current;
+
+        return () => {
+            const active = document.activeElement;
+
+            // Only when focus has nowhere better to be. A click on another
+            // control closes the menu too, and focus belongs on that control,
+            // not dragged back to the one the menu was opened from.
+            const stranded = active === null
+                || active === document.body
+                || (menu !== null && menu.contains(active));
+
+            if (stranded && opener instanceof HTMLElement && opener.isConnected) {
+                opener.focus({ preventScroll: true });
+            }
+        };
+    }, []);
+
     const choose = (item: ContextMenuItem): void => {
         if (chosen.current || item.disabled === true) return;
 
@@ -76,9 +107,14 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
         // entirely from the keyboard: Enter or Space picks, the arrows move,
         // Escape leaves (CLAUDE.md §39). It also means the menu behaves like a
         // menu rather than like a small box that happens to contain buttons.
+        //
+        // When every item is disabled — Reset on a knob already at its default —
+        // the menu itself takes focus instead. Otherwise focus stayed behind on
+        // the control, and the arrows went on turning a knob underneath a menu
+        // that appeared to be the thing being driven.
         const first = element.querySelector<HTMLButtonElement>('button:not(:disabled)');
 
-        first?.focus();
+        (first ?? element).focus();
     }, [x, y]);
 
     useEffect(() => {
@@ -101,39 +137,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
             onClose();
         };
 
-        const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === 'Escape')
-            {
-                event.preventDefault();
-                onClose();
-                return;
-            }
-
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-
-            const buttons = Array.from(
-                ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
-            );
-
-            if (buttons.length === 0) return;
-
-            event.preventDefault();
-
-            const current = buttons.findIndex((button) => button === document.activeElement);
-            const step = event.key === 'ArrowDown' ? 1 : -1;
-
-            // Wraps, because a menu this short is faster to cycle than to
-            // reverse out of.
-            const next = (current + step + buttons.length) % buttons.length;
-
-            buttons[next]?.focus();
-        };
-
         // Capture-phase, so a click that lands on a control closes the menu
         // before that control acts on it — otherwise dismissing the menu would
         // also move whatever happened to be underneath.
         document.addEventListener('pointerdown', closeIfOutside, true);
-        document.addEventListener('keydown', onKeyDown);
         window.addEventListener('blur', close);
         window.addEventListener('resize', close);
 
@@ -143,12 +150,56 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
 
         return () => {
             document.removeEventListener('pointerdown', closeIfOutside, true);
-            document.removeEventListener('keydown', onKeyDown);
             window.removeEventListener('blur', close);
             window.removeEventListener('resize', close);
             document.removeEventListener('scroll', close, true);
         };
     }, [onClose]);
+
+    /** The menu's keys, handled on the menu and stopped there.
+
+        On the menu rather than on the document, for the same reason the
+        pointer events below are stopped: a portal moves the node and not the
+        component, so a key pressed in the menu goes on to the control that
+        opened it. On a knob that meant the arrows walked the menu *and* turned
+        the knob underneath it — two presses took Osc 1 Level from 99 % to 97 %
+        while the user was choosing Reset.
+    */
+    const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        // Nothing typed in a menu belongs to the control behind it. Enter and
+        // Space keep their default, which is what presses the focused item.
+        event.stopPropagation();
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+            return;
+        }
+
+        const buttons = Array.from(
+            ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+        );
+
+        const current = buttons.findIndex((button) => button === document.activeElement);
+
+        // Wraps, because a menu this short is faster to cycle than to reverse
+        // out of.
+        const target = rovingTarget(event.key, current, buttons.length, { orientation: 'vertical' });
+
+        if (target === null) return;
+
+        event.preventDefault();
+        buttons[target]?.focus();
+    };
+
+    /** Tab leaves the menu, and a menu nobody is in should not stay open. */
+    const onBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
+        const next = event.relatedTarget;
+
+        if (next instanceof Node && ref.current?.contains(next)) return;
+
+        onClose();
+    };
 
     // A PORTAL, AND THIS IS THE PART THAT MATTERS. Rendered where the component
     // sits in the tree, the menu is a *child of the control that opened it* —
@@ -166,6 +217,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
             ref={ref}
             className="context-menu"
             role="menu"
+            tabIndex={-1}
             style={{ left: `${position.left}px`, top: `${position.top}px` }}
 
             /* THE EVENTS STOP HERE, AND THIS IS THE FIX THAT MATTERS.
@@ -188,6 +240,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
             onClick={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
             onContextMenu={(event) => event.preventDefault()}
+            onKeyDown={onKeyDown}
+            onBlur={onBlur}
         >
             {items.map((item) => (
                 <button

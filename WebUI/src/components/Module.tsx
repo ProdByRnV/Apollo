@@ -16,9 +16,19 @@
     changed. Here the module reads the value it cares about and React does the
     rest — the single clearest saving of the migration, and the reason there is
     no watcher list in this codebase at all.
+
+    A SECTION WITH A HEADING, rather than a box with some bold text in it. The
+    page is nineteen panels long, and a screen reader moves through a page by
+    its headings and regions: without them the only way from the presets to the
+    filter was through every control in between (CLAUDE.md §39). The heading
+    says the index too — "Oscillator 2", not "Oscillator" twice — in text a
+    sighted reader does not need, because the chip beside it already says so.
 */
 
+import { useId } from 'react';
 import type { ReactNode } from 'react';
+
+import { hasCommandModifier, rovingTarget, tabStopIndex } from './roving';
 
 export interface ModuleProps {
     title: string;
@@ -35,12 +45,22 @@ export interface ModuleProps {
 export function Module(
     { title, index, bodyClassName, head, inactive, children }: ModuleProps,
 ): JSX.Element {
+    const headingId = useId();
+
     return (
-        <div className="module" data-inactive={inactive ? 'true' : 'false'}>
+        <section
+            className="module"
+            aria-labelledby={headingId}
+            data-inactive={inactive ? 'true' : 'false'}
+        >
             <div className="module__head">
-                <div className="module__title">{title}</div>
-                {index !== undefined ? <span className="module__index">{index}</span> : null}
-                {inactive ? <span className="module__off">off</span> : null}
+                <h2 className="module__title" id={headingId}>
+                    {title}
+                    {index !== undefined ? <span className="visually-hidden"> {index}</span> : null}
+                    {inactive ? <span className="visually-hidden">, off</span> : null}
+                </h2>
+                {index !== undefined ? <span className="module__index" aria-hidden="true">{index}</span> : null}
+                {inactive ? <span className="module__off" aria-hidden="true">off</span> : null}
                 <div className="module__spacer" />
                 {head}
             </div>
@@ -48,7 +68,7 @@ export function Module(
             <div className={bodyClassName ? `module__body ${bodyClassName}` : 'module__body'}>
                 {children}
             </div>
-        </div>
+        </section>
     );
 }
 
@@ -56,6 +76,11 @@ export function Module(
     Four envelopes and four LFOs are sixty controls. Shown at once they are a
     wall; behind a tab strip they are one instrument section that happens to have
     four of everything, which is how they are used.
+
+    A real tab strip, which is three things the first version was not: one Tab
+    stop with the arrows moving between tabs, each tab naming the page it shows,
+    and each page saying which tab it belongs to. Activation follows the arrow,
+    because showing a page costs nothing — every page stays mounted.
 */
 
 export interface TabsProps {
@@ -63,19 +88,67 @@ export interface TabsProps {
     prefix: string;
     selected: number;
     onSelect: (index: number) => void;
+    /** What the strip chooses between, for the reader that cannot see that it
+        sits in the Envelope heading. */
+    label: string;
+    /** Shared with the pages, from `useId` in the owning module, so a tab and
+        its page can name each other. */
+    idBase: string;
 }
 
-export function Tabs({ count, prefix, selected, onSelect }: TabsProps): JSX.Element {
+/** The attributes that make an element the page for tab `index`. */
+export function tabPanelProps(idBase: string, index: number): {
+    id: string;
+    role: 'tabpanel';
+    'aria-labelledby': string;
+} {
+    return {
+        id: `${idBase}-panel-${index}`,
+        role: 'tabpanel',
+        'aria-labelledby': `${idBase}-tab-${index}`,
+    };
+}
+
+export function Tabs({ count, prefix, selected, onSelect, label, idBase }: TabsProps): JSX.Element {
+    const stop = tabStopIndex(selected, count);
+
+    const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if (hasCommandModifier(event)) return;
+
+        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+        const focused = tabs.findIndex((tab) => tab === document.activeElement);
+
+        // Horizontal only: the strip sits in a heading row, and up and down are
+        // left for scrolling the page.
+        const target = rovingTarget(event.key, focused >= 0 ? focused : selected, count, {
+            orientation: 'horizontal',
+        });
+
+        if (target === null) return;
+
+        event.preventDefault();
+        onSelect(target);
+        tabs[target]?.focus();
+    };
+
     return (
-        <div className="segmented__options" role="tablist" style={{ marginLeft: 'auto' }}>
+        <div
+            className="segmented__options"
+            role="tablist"
+            aria-label={label}
+            style={{ marginLeft: 'auto' }}
+            onKeyDown={onKeyDown}
+        >
             {Array.from({ length: count }, (_, index) => (
                 <button
                     key={index}
+                    id={`${idBase}-tab-${index}`}
                     type="button"
                     className="segmented__option"
                     role="tab"
                     aria-selected={index === selected}
-                    aria-checked={index === selected}
+                    aria-controls={`${idBase}-panel-${index}`}
+                    tabIndex={index === stop ? 0 : -1}
                     onClick={() => onSelect(index)}
                 >
                     {prefix}{index + 1}

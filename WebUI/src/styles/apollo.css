@@ -432,6 +432,9 @@ body::before {
 }
 
 .module__title {
+    /* A real heading now, so the browser's own heading margin and weight are
+       taken back off it. */
+    margin: 0;
     font-size: var(--t-heading);
     font-weight: 600;
     letter-spacing: 0.16em;
@@ -659,14 +662,27 @@ body::before {
 }
 
 /* A filled gold chip with the ground's own colour as its label. Light text on
-   gold is unreadable at this size; dark text on gold is a struck coin. */
-.segmented__option[aria-checked="true"] {
+   gold is unreadable at this size; dark text on gold is a struck coin.
+
+   A radio says it is chosen with aria-checked and a tab with aria-selected;
+   the chip is the same either way. */
+.segmented__option[aria-checked="true"],
+.segmented__option[aria-selected="true"] {
     background: var(--accent);
     color: var(--surface-void);
 }
 
-.segmented__option[aria-checked="true"]:hover {
+.segmented__option[aria-checked="true"]:hover,
+.segmented__option[aria-selected="true"]:hover {
     background: var(--accent-bright);
+}
+
+/* Focus on the chosen chip needs a ring that stands off it. A gold ring on a
+   gold chip is no ring at all, and since a group's one Tab stop is its chosen
+   option, that is where keyboard focus always lands. */
+.segmented__option[aria-checked="true"]:focus-visible,
+.segmented__option[aria-selected="true"]:focus-visible {
+    box-shadow: 0 0 0 1px var(--surface-void), 0 0 0 2px var(--accent-bright);
 }
 
 /* ==========================================================================

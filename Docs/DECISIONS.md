@@ -4773,3 +4773,84 @@ and the switch returned no error.
 **Not verified here: that sound comes out of the speaker.** The device is open
 and is the one the system calls default; whether the cable carries it is the
 developer's half.
+
+---
+
+## ADR-0083 — One Tab stop per group, and the interface gets tests of its own
+
+**Phase 12c-1 · Accepted**
+
+The first part of 12c audited the running interface over WebView2's DevTools
+protocol rather than by reading the code. It counts and drives what is actually
+on screen, and it found four things the code did not make obvious.
+
+### What was wrong
+
+- **Every option of every switch was its own Tab stop.** 206 radio buttons, 253
+  stops in all, so crossing the page from the keyboard took over two hundred
+  presses and reaching Filter 1 from the presets took about a hundred.
+- **Nineteen panels and no headings.** A screen reader moves through a page by
+  its headings and regions, and the page had neither, only three landmarks.
+- **The tab strips were not tab strips.** They carried `aria-checked`, which a
+  tab does not have. No tab named the page it shows, no page named its tab, and
+  every tab was its own stop.
+- **The reset menu leaked keys into the control behind it.** Shift+F10 and the
+  Menu key already open it, because Chromium turns both into a `contextmenu`
+  event. But each arrow press inside the menu also turned the knob that opened
+  it (two presses took Osc 1 Level from 99 % to 97 %). Choosing an item left
+  focus on the document body, so the next Tab started from the top of the page.
+  A menu whose only item was disabled took no focus at all, and the arrows kept
+  turning the knob under it. It is the keyboard version of ADR-0064: a portal
+  moves the node, not the component, so events still travel along the React
+  tree.
+
+### What was decided
+
+**Roving focus, per WAI-ARIA, in one pure function.** A radio group, a tab
+strip, a list and a menu each have one Tab stop, and the arrows move within
+them. `WebUI/src/components/roving.ts` holds the arithmetic and nothing else.
+It knows which keys a group owns, wrapping or stopping at the ends,
+orientation, and where focus lands when it comes from outside the group. Each
+component decides what landing means:
+
+| Group | The stop | An arrow |
+|---|---|---|
+| Switch (radio group) | the checked option | selects the next option |
+| Tab strip | the selected tab | shows the next page; horizontal only, so Up and Down still scroll |
+| Preset list | the row last focused, else the loaded row, else the first | **moves focus only**; Enter or a click loads |
+| Reset menu | the first enabled item, else the menu | moves between items, wrapping |
+
+**The preset list does not load on the arrow.** Auditioning by arrow was
+considered and rejected. A load replaces the whole sound, so a list that a
+keyboard user cannot cross without losing their edits is a list they cannot
+use.
+
+**The menu handles its own keys and stops them there.** It no longer listens on
+the document. It hands focus back to the control that opened it when it closes,
+unless the user has since moved focus somewhere else. It also closes when Tab
+moves focus out of it.
+
+**Every module is a `<section>` named by an `<h2>`.** The heading includes the
+index and an "off" state in visually hidden text ("Oscillator 2, off"), because
+the chips beside it are hidden from assistive technology rather than read twice.
+
+**A focus ring that shows on the chosen chip.** The ring was 1 px of gold, and a
+chosen option is a gold chip. Now that focus always lands on the chosen option,
+the ring would have been invisible every time. On a chosen chip it now stands
+off with a dark gap.
+
+### The interface has tests now
+
+`WebUI/test/`, run by Node's own test runner. It needs no dependency, because
+Node runs the TypeScript module directly and both Node 22 in CI and Node 24
+here can do that. `npm run check` runs the tests between the type check and
+the bundle, and CMake runs `check`, so a failing interface test fails the
+build on every platform. It covers only the pure logic. Behaviour inside the
+WebView is still verified by driving the running application (PROJECT-STATE
+§5a), because the C++ suite is headless by design.
+
+### The numbers
+
+Tab stops went from 253 to 169. Most of what remains is 122 knobs, and a slider
+is correctly one stop each. Headings went from 0 to 19, and tab pages
+correctly linked to their tabs from 0 to 15.

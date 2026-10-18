@@ -11,10 +11,10 @@
     each one starting from an empty ring every time you looked at it.
 */
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { Knob } from '../components/Knob';
-import { Module, Tabs } from '../components/Module';
+import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
 import { LABELS } from '../params/labels';
@@ -23,18 +23,33 @@ const INDICES = [1, 2, 3, 4];
 
 export function Envelopes(): JSX.Element {
     const [selected, setSelected] = useState(0);
+    const idBase = useId();
 
     return (
         <Module
             title="Envelope"
             index={String(selected + 1)}
-            head={<Tabs count={4} prefix="ENV " selected={selected} onSelect={setSelected} />}
+            head={(
+                <Tabs
+                    count={4}
+                    prefix="ENV "
+                    selected={selected}
+                    onSelect={setSelected}
+                    label="Envelope"
+                    idBase={idBase}
+                />
+            )}
         >
             {INDICES.map((index) => {
                 const p = `env${index}_`;
 
                 return (
-                    <div key={index} className="cluster" hidden={index !== selected + 1}>
+                    <div
+                        key={index}
+                        className="cluster"
+                        hidden={index !== selected + 1}
+                        {...tabPanelProps(idBase, index - 1)}
+                    >
                         <Trace source={`env${index}`} label={`env ${index}`} />
 
                         <Knob id={`${p}delay`} label="Delay" />
@@ -53,18 +68,33 @@ export function Envelopes(): JSX.Element {
 
 export function Lfos(): JSX.Element {
     const [selected, setSelected] = useState(0);
+    const idBase = useId();
 
     return (
         <Module
             title="LFO"
             index={String(selected + 1)}
-            head={<Tabs count={4} prefix="LFO " selected={selected} onSelect={setSelected} />}
+            head={(
+                <Tabs
+                    count={4}
+                    prefix="LFO "
+                    selected={selected}
+                    onSelect={setSelected}
+                    label="LFO"
+                    idBase={idBase}
+                />
+            )}
         >
             {INDICES.map((index) => {
                 const p = `lfo${index}_`;
 
                 return (
-                    <div key={index} className="cluster" hidden={index !== selected + 1}>
+                    <div
+                        key={index}
+                        className="cluster"
+                        hidden={index !== selected + 1}
+                        {...tabPanelProps(idBase, index - 1)}
+                    >
                         <div className="cluster cluster--banner">
                             <div className="cluster">
                                 <Segmented id={`${p}shape`} label="Shape" table={LABELS.lfoShape} />

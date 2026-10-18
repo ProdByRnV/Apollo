@@ -45,7 +45,8 @@ function(apollo_build_webui out_files)
     file(GLOB_RECURSE webui_sources CONFIGURE_DEPENDS
         "${webui_source}/src/*.ts"
         "${webui_source}/src/*.tsx"
-        "${webui_source}/src/*.css")
+        "${webui_source}/src/*.css"
+        "${webui_source}/test/*.mjs")
 
     list(APPEND webui_sources
         "${webui_source}/index.html"

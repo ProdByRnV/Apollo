@@ -4,6 +4,12 @@
     Rendered as real radios rather than as a styled listbox, because that is what
     it is: several mutually exclusive options, all of them visible, all of them
     reachable with a keyboard (CLAUDE.md §39).
+
+    ONE TAB STOP PER GROUP, and the arrows choose within it — the radio pattern
+    every platform uses. The checked option is the stop; the arrows move to the
+    next option and select it, which is what an arrow does on a radio group.
+    Every option used to be its own stop, which made the keyboard path through
+    the page 253 presses long (roving.ts).
 */
 
 import { labelsFor } from '../params/labels';
@@ -11,6 +17,7 @@ import { stepCount } from '../params/mapping';
 import { commitValue, useParameterDefinition, useParameterValue } from '../state/parameters';
 import { gesture } from '../bridge/bridge';
 import { useMidiChrome } from './midiChrome';
+import { hasCommandModifier, rovingTarget, tabStopIndex } from './roving';
 
 export interface SegmentedProps {
     id: string;
@@ -37,6 +44,30 @@ export function Segmented({ id, label, table }: SegmentedProps): JSX.Element | n
         gesture(id, 'end');
     };
 
+    const stop = tabStopIndex(selected, steps);
+
+    const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if (hasCommandModifier(event)) return;
+
+        const options = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+        );
+
+        // Measured from the option that has focus rather than from the checked
+        // one. They are normally the same; when they are not, the arrow should
+        // move from where the user can see they are.
+        const focused = options.findIndex((option) => option === document.activeElement);
+        const target = rovingTarget(event.key, focused >= 0 ? focused : selected, steps);
+
+        if (target === null) return;
+
+        event.preventDefault();
+
+        if (target !== selected) choose(target);
+
+        options[target]?.focus();
+    };
+
     return (
         <div
             className="segmented"
@@ -49,7 +80,12 @@ export function Segmented({ id, label, table }: SegmentedProps): JSX.Element | n
                 need a second caption. */}
             {label ? <div className="segmented__label">{label}</div> : null}
 
-            <div className="segmented__options" role="radiogroup" aria-label={definition.name}>
+            <div
+                className="segmented__options"
+                role="radiogroup"
+                aria-label={definition.name}
+                onKeyDown={onKeyDown}
+            >
                 {Array.from({ length: steps }, (_, index) => (
                     <button
                         key={index}
@@ -57,6 +93,7 @@ export function Segmented({ id, label, table }: SegmentedProps): JSX.Element | n
                         className="segmented__option"
                         role="radio"
                         aria-checked={index === selected}
+                        tabIndex={index === stop ? 0 : -1}
                         onClick={() => choose(index)}
                     >
                         {names?.[index] ?? String(definition.min + index * definition.step)}
