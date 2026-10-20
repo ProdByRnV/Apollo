@@ -4988,3 +4988,70 @@ MIDI Learn: the mode, the LEARN badge and its instruction, Escape cancelling the
 learn and then the mode, a profile assigning eight controls, Delete releasing
 one, and Clear all. Saving: save, the replace prompt, Cancel, Replace it, and
 the new preset becoming the highlighted row.
+
+---
+
+## ADR-0086 — The documents say what was seen, and what was never built
+
+**Phase 12d-1 · Accepted**
+
+The README told anyone opening the repository that Apollo was at Phase 2 with no
+synthesis code. Ten phases later that was false, and it was the first thing a
+visitor read. 12d-1 rewrote it and added the two documents a person installing
+or building Apollo needs.
+
+### Verified, not only built
+
+[Docs/PLATFORMS.md](PLATFORMS.md) does not stop at a list of supported systems.
+It has a table of what has been **done** on each one: built, tested, loaded
+through a VST3 host, seen on screen, played by hand, used in a DAW. CI covers the
+first three rows on all four platforms. Only Windows has the next two. No
+platform has the last.
+
+"Supports macOS" would have been true and would have hidden that nobody has
+seen Apollo's interface on a Mac. A user deciding whether to try it deserves the
+table.
+
+### Four kinds of limitation, kept apart
+
+[Docs/KNOWN-LIMITATIONS.md](KNOWN-LIMITATIONS.md) separates four kinds:
+
+- **Not yet verified**, which may well work.
+- **Specified but not built**, which does not exist.
+- **Decided against**, which was considered and rejected for a stated reason.
+- **Distribution**, which concerns getting Apollo onto a machine rather than
+  Apollo itself.
+
+A single list would have put "untested in a DAW" beside "has no warp engine"
+as though they were the same kind of statement.
+
+### What writing it found
+
+Building the "specified but not built" table meant reading the PRD against the
+parameter registry, and the gap was larger than anything recorded:
+
+- **Warp:** the whole engine.
+- **Macros.**
+- **LFO tempo sync:** the conversion exists in the LFO code, but no parameter
+  reaches it.
+- **Filters:** no comb or formant types, and no filter mix or key tracking.
+- **Sub oscillator:** no waveforms besides sine.
+- **Noise:** no pink noise.
+- **Unison:** no detune curves.
+- **LFOs:** no drawn curves.
+
+Only the last was dropped by a decision (ADR-0034). The rest were never
+scheduled: each phase was ticked against its roadmap task list, and those lists
+were narrower than the PRD.
+
+They are recorded, not hidden, as PROJECT-STATE issue 26. They are not marked as
+out of scope, because which of them belong before a first release is the
+developer's decision, not one to make by editing a document.
+
+### The build now says what Node it needs
+
+The interface tests from 12c-1 import TypeScript directly, which Node does
+without a flag from 22.18. BUILD.md still said Node 20. A machine with Node 20
+would have failed partway through the build, with a module-loading error that
+read like a broken test. Configure now checks the version and names the one
+required. The comparison was checked against 20.11, 22.17, 22.18 and 24.

@@ -12,7 +12,7 @@ project is checked in (CLAUDE.md §31, ARCHITECTURE.md §10).
 | CMake | 3.22 or newer |
 | C++20 toolchain | MSVC 19.3x+ / Apple Clang 14+ / Clang 15+ / GCC 12+ |
 | Git | Required at configure time to fetch and verify the pinned JUCE revision |
-| Node.js 20+ | Required to **build the plugin**, which bundles the React/TypeScript interface. Not required for `apollo_core` or `ApolloTests`, and not required at all with `-DAPOLLO_ENABLE_WEBVIEW=OFF` |
+| Node.js 22.18+ | Required to **build the plugin**, which bundles the React/TypeScript interface and runs its tests on the way. 22.18 is the first release that runs TypeScript directly, which the interface tests rely on (TESTING.md §10); an older Node builds nothing, because the tests fail to load. Not required for `apollo_core` or `ApolloTests`, and not required at all with `-DAPOLLO_ENABLE_WEBVIEW=OFF` |
 | Network access | Required on the first configure only, unless `APOLLO_JUCE_SOURCE_DIR` is used, and on the first frontend build to install its twelve packages |
 
 Platform toolchains:
@@ -20,10 +20,21 @@ Platform toolchains:
 - **Windows** — Visual Studio with the "Desktop development with C++" workload,
   or Clang. A Windows 10/11 SDK is required.
 - **macOS** — Xcode command line tools.
-- **Linux** — a C++20 compiler plus the JUCE system dependencies. For the
-  current test-only build, ALSA headers are sufficient; the plugin and
-  standalone targets added in Phase 1 will need the wider set listed in
-  `.github/workflows/ci.yml`.
+- **Linux** — a C++20 compiler plus the development packages JUCE builds
+  against. On Debian and Ubuntu:
+
+  ```sh
+  sudo apt-get install libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
+      libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev \
+      libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
+      libglu1-mesa-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+  ```
+
+  Older distributions ship `libwebkit2gtk-4.0-dev` instead. This list is the one
+  CI installs, in `.github/actions/install-linux-deps/action.yml`, which picks
+  between the two WebKitGTK versions; if they disagree, that file is right. These
+  are what *building* needs. What a user needs to *run* Apollo is a shorter list,
+  carried in the package's `INSTALL.txt` (§7).
 
 Apollo pins **JUCE 8.0.15** (commit `91ad83ae…`). The configure step verifies the
 resolved commit and fails if it does not match, so the pin is enforced rather

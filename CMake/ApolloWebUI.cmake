@@ -34,6 +34,32 @@ function(apollo_build_webui out_files)
             "editor.")
     endif()
 
+    # THE INTERFACE TESTS NEED NODE 22.18, and an older Node does not say so.
+    # They import TypeScript directly, which Node does unflagged from 22.18; an
+    # older one fails partway through the build with a module-loading error
+    # that reads like a broken test. Checked here instead, where the message
+    # can say what to install (Docs/BUILD.md §1).
+    find_program(APOLLO_NODE_EXECUTABLE NAMES node)
+
+    if(APOLLO_NODE_EXECUTABLE)
+        execute_process(
+            COMMAND "${APOLLO_NODE_EXECUTABLE}" --version
+            OUTPUT_VARIABLE apollo_node_version
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+
+        string(REGEX REPLACE "^v" "" apollo_node_version "${apollo_node_version}")
+
+        if(apollo_node_version VERSION_LESS "22.18")
+            message(FATAL_ERROR
+                "Apollo's interface needs Node.js 22.18 or later, and this machine has "
+                "${apollo_node_version}. Its tests import TypeScript directly, which "
+                "older versions cannot do. Install a current Node.js, or configure with "
+                "-DAPOLLO_ENABLE_WEBVIEW=OFF to build the engine and tests without the "
+                "editor.")
+        endif()
+    endif()
+
     set(built
         "${webui_output}/index.html"
         "${webui_output}/apollo.css"

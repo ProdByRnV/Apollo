@@ -143,6 +143,9 @@ front of it is better understood, the way 8f was.
 | 12c-2 | Discoverability and feedback — a value can be typed into any knob (Enter, or Enter value… on its menu), read in the readout's own units and refused rather than guessed; the preset list has column headings; the status line says "Ready." and the "SR" readout shows the sample rate instead of the protocol version; and the mouse half of keyboard and mouse, driven control by control. The first screen keeps its layout at the developer's direction (ADR-0084) | ✅ |
 | 12c-3 | Workflows and errors — MIDI Learn and the preset workflow walked end to end. A replace prompt that survived a name change and could overwrite a file nobody was asked about; the list and masthead disagreeing about what was loaded after a restart or a reopened window; a MIDI panel marked OFF by default; and every message read as a user would read it, with refusals shown where the user is looking (ADR-0085) | ✅ |
 | 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
+| 12d-1 | The front door — README.md rewritten to what Apollo is; Docs/PLATFORMS.md, with what has been seen working per platform rather than only built; Docs/KNOWN-LIMITATIONS.md, which found specified features never built (PROJECT-STATE issue 26); Docs/BUILD.md corrected; and a configure check for the Node version the interface tests need | ✅ |
+| 12d-2 | The specification documents — PRD, ARCHITECTURE and UI_BINDINGS brought up to what was built, each unbuilt requirement marked rather than deleted | ⬜ |
+| 12d-3 | Compatibility and the roadmap — the preset and state compatibility policy, and the roadmap's own loose ends | ⬜ |
 | 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
 
 ### Carried forward
@@ -907,9 +910,9 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 - [ ] Update architecture documentation.
 - [ ] Update UI bindings.
 - [ ] Update roadmap.
-- [ ] Document known limitations.
-- [ ] Document supported platforms/formats.
-- [ ] Document build requirements.
+- [x] Document known limitations. — Docs/KNOWN-LIMITATIONS.md: not yet verified, specified but not built, decided against, and distribution, kept apart because they mean different things (12d-1)
+- [x] Document supported platforms/formats. — Docs/PLATFORMS.md, including a table of what has been *seen* working per platform rather than only built (12d-1)
+- [x] Document build requirements. — Docs/BUILD.md §1: Node 22.18 (which the interface tests need, now checked at configure time) and the real Linux package list (12d-1)
 - [ ] Document preset/state compatibility policy.
 
 ### Release

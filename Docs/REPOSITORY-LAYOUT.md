@@ -48,6 +48,9 @@ Apollo/
 │   ├── VERSIONING.md
 │   ├── PARAMETER-CONVENTIONS.md
 │   ├── REPOSITORY-LAYOUT.md
+│   ├── OVERSAMPLING.md
+│   ├── PLATFORMS.md            What runs where, and how much of it has been seen
+│   ├── KNOWN-LIMITATIONS.md    What Apollo does not do yet, and why
 │   └── DECISIONS.md
 │
 ├── Source/                     Native C++ (apollo_core and the target shells)
