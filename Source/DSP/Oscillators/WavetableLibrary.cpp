@@ -182,8 +182,54 @@ struct BuiltInTables
     std::array<std::shared_ptr<const Wavetable>,
                static_cast<std::size_t> (WavetableLibrary::numTables)> tables;
 
-    std::shared_ptr<const Wavetable> sub;
+    std::array<std::shared_ptr<const Wavetable>,
+               static_cast<std::size_t> (WavetableLibrary::numSubWaveforms)> subs;
 };
+
+/** The sub oscillator's waveforms as spectra: sine, triangle, square.
+
+    The textbook Fourier series, written as sine coefficients so all three start
+    at the same rising zero crossing:
+
+      triangle  (8/pi^2) * sum over odd k of (-1)^((k-1)/2) sin(kx) / k^2
+      square    (4/pi)   * sum over odd k of sin(kx) / k
+
+    The scale factors are for the reader; the level is set by the builder, which
+    normalises every frame so that its loudest mip level peaks at exactly 1
+    (WavetableBuilder.cpp). No waveform can therefore peak above the sine. A
+    band-limited square overshoots its edges by its Gibbs ringing, and the level
+    carrying the most of it is the one scaled to 1, so at an ordinary pitch the
+    square peaks a little under the sine — 0.93 of it at 220 Hz, measured in
+    Tests/Engine/SourceControlsTests.cpp.
+*/
+[[nodiscard]] FrameSpectrum makeSubFrame (int waveform)
+{
+    auto spectrum = makeSilentSpectrum (harmonics);
+
+    if (waveform == 0)
+    {
+        spectrum[0].sine = 1.0;
+        return spectrum;
+    }
+
+    for (int k = 1; k <= harmonics; k += 2)
+    {
+        const auto harmonic = static_cast<double> (k);
+        auto& bin = spectrum[static_cast<std::size_t> (k - 1)];
+
+        if (waveform == 1)
+        {
+            const auto sign = ((k - 1) / 2) % 2 == 0 ? 1.0 : -1.0;
+            bin.sine = sign * 8.0 / (pi * pi * harmonic * harmonic);
+        }
+        else
+        {
+            bin.sine = 4.0 / (pi * harmonic);
+        }
+    }
+
+    return spectrum;
+}
 
 /** Builds a table by asking @p makeFrame for each frame's spectrum. */
 template <typename MakeFrame>
@@ -235,19 +281,21 @@ void buildTable (Wavetable& table, int numFrames, MakeFrame&& makeFrame)
             built.tables[i] = std::move (table);
         }
 
-        // The sub oscillator. One frame, one harmonic: there is nothing to scan
-        // and nothing that can alias at any pitch or octave transposition.
-        auto sub = std::make_shared<Wavetable>();
-
-        buildTable (*sub, WavetableLibrary::subTableFrames, [] (double)
+        // The sub oscillator's waveforms. One frame each: there is nothing to
+        // scan. The sine is one harmonic and cannot alias at any pitch; the
+        // triangle and square are as band-limited as every other table, by the
+        // same mipmap.
+        for (int waveform = 0; waveform < WavetableLibrary::numSubWaveforms; ++waveform)
         {
-            auto spectrum = makeSilentSpectrum (harmonics);
-            spectrum[0].sine = 1.0;
+            auto sub = std::make_shared<Wavetable>();
 
-            return spectrum;
-        });
+            buildTable (*sub, WavetableLibrary::subTableFrames, [waveform] (double)
+            {
+                return makeSubFrame (waveform);
+            });
 
-        built.sub = std::move (sub);
+            built.subs[static_cast<std::size_t> (waveform)] = std::move (sub);
+        }
 
         return built;
     }();
@@ -268,7 +316,7 @@ WavetableLibrary::WavetableLibrary()
         current[i].store (builtIn[i].get(), std::memory_order_release);
     }
 
-    subTable = shared.sub;
+    subTables = shared.subs;
 }
 
 WavetableLibrary::~WavetableLibrary() = default;
@@ -278,9 +326,11 @@ int WavetableLibrary::clampIndex (int index) noexcept
     return index < 0 ? 0 : (index >= numTables ? numTables - 1 : index);
 }
 
-const Wavetable& WavetableLibrary::getSubTable() const noexcept
+const Wavetable& WavetableLibrary::getSubTable (int waveform) const noexcept
 {
-    return *subTable;
+    const auto index = waveform < 0 ? 0 : (waveform >= numSubWaveforms ? numSubWaveforms - 1 : waveform);
+
+    return *subTables[static_cast<std::size_t> (index)];
 }
 
 const Wavetable& WavetableLibrary::getTable (int index) const noexcept

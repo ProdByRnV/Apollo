@@ -24,8 +24,8 @@ Phase 12d-2 (ADR-0087).
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
 platforms are built. Not built: the warp engine (§12) and macros (§17)
 entirely; LFO tempo sync, drawn LFO curves, comb and formant filters,
-sub-oscillator waveforms, pink noise and unison detune curves within
-otherwise-built sections; wavetable management in the interface (§33); and
+and pink noise within otherwise-built
+sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
 The full list is Docs/KNOWN-LIMITATIONS.md.
 
@@ -242,7 +242,7 @@ PolyBLEP-style correction where appropriate.
 High-quality interpolation.
 The final implementation should choose the technique that provides the best quality/performance balance.
 
-> **Status, 0.1.0:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, and pitch modulation through the matrix for either oscillator. ◐ Coarse and fine tuning exist for oscillator 2 only; oscillator 1 plays at the note. ❌ Per-oscillator phase (voice start phases are fixed, ADR-0017) and ❌ warp and warp amount (§12) are not built. §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
+> **Status, 0.1.0 and 13a:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, pitch modulation through the matrix, and — since Phase 13a — coarse and fine tuning and a start phase on both oscillators. ❌ Warp and warp amount (§12) are not built yet (Phase 13b). §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
 
 ---
 9. Sub Oscillator
@@ -259,7 +259,7 @@ Phase
 Optional tracking mode
 The sub oscillator should be computationally inexpensive and suitable for reinforcing the fundamental frequency.
 
-> **Status, 0.1.0:** ◐ A sine, one or two octaves down, with a level. ❌ No triangle or square, no phase control, no tracking mode.
+> **Status, 0.1.0 and 13a:** ✅ Sine, triangle or square, one or two octaves down, with a level, a start phase, and tracking that follows the note or oscillator 1 (Phase 13a, ADR-0089). The triangle and square are band-limited like every other table.
 
 ---
 10. Noise Generator
@@ -294,7 +294,7 @@ Linear
 Exponential
 The implementation should avoid excessive CPU consumption when unison voice counts are high.
 
-> **Status, 0.1.0:** ◐ Up to sixteen voices per oscillator, with count, detune and spread, and measured CPU (ADR-0074). ❌ No detune curve, no phase randomisation (phases are fixed so a note renders identically each time, ADR-0017), no blend.
+> **Status, 0.1.0 and 13a:** ✅ Up to sixteen voices per oscillator, with count, detune and spread, and since Phase 13a a linear or exponential detune curve, phase randomisation that is reproducible per note, and a blend of the outer voices against the centre at constant energy (ADR-0089). CPU measured (ADR-0074).
 
 ---
 12. Warp Engine

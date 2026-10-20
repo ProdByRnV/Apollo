@@ -82,6 +82,12 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `osc1_spread` | Rotary Knob | Normalized `[0, 1]` | `0.5` | 4b | Unison stereo spread |
 | `osc1_level` | Rotary Knob | Normalized `[0, 1]` | `1` | 4b | Oscillator 1 output level |
 | `osc1_pan` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 4b | Oscillator 1 stereo balance |
+| `osc1_semitones` | Rotary Knob | Integer `[-24, 24]` | `0` | 13a | Oscillator 1 coarse transposition |
+| `osc1_fine` | Rotary Knob | `-100–100 cents` | `0` | 13a | Oscillator 1 fine tuning |
+| `osc1_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the cycle, as a fraction of it |
+| `osc1_phase_random` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | How much of a cycle each unison voice's start may be randomly moved; reproducible per note |
+| `osc1_detune_curve` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 linear, 1 exponential: the inner unison voices pulled towards the centre |
+| `osc1_unison_blend` | Rotary Knob | Normalized `[0, 1]` | `1` | 13a | The outer unison voices against the centre; 1 is every voice equal, at constant energy |
 | `osc2_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 4b | Wavetable selection for oscillator 2 |
 | `osc2_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Wavetable scan position for oscillator 2 |
 | `osc2_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 4b | Unison voice count |
@@ -91,8 +97,15 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `osc2_pan` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 4b | Oscillator 2 stereo balance |
 | `osc2_semitones` | Rotary Knob | Integer `[-24, 24]` | `0` | 4b | Oscillator 2 coarse transposition |
 | `osc2_fine` | Rotary Knob | `-100–100 cents` | `0` | 4b | Oscillator 2 fine tuning |
+| `osc2_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the cycle, as a fraction of it |
+| `osc2_phase_random` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | How much of a cycle each unison voice's start may be randomly moved; reproducible per note |
+| `osc2_detune_curve` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 linear, 1 exponential: the inner unison voices pulled towards the centre |
+| `osc2_unison_blend` | Rotary Knob | Normalized `[0, 1]` | `1` | 13a | The outer unison voices against the centre; 1 is every voice equal, at constant energy |
 | `sub_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Sub oscillator level (silent by default) |
 | `sub_octave` | Selector / Dropdown | Integer `[-2, -1]` | `-1` | 4b | Sub oscillator octave below the note |
+| `sub_waveform` | Segmented | Discrete `[0, 2]` | `0` | 13a | 0 sine, 1 triangle, 2 square; band-limited, peak-normalised |
+| `sub_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the sub's cycle |
+| `sub_tracking` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 follows the note; 1 follows oscillator 1, its tuning and pitch modulation included |
 | `noise_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Noise generator level (silent by default) |
 | `env1_delay` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 delay before the attack |
 | `env1_attack` | Rotary Knob | `0–10000 ms` | `5` | 5a | Envelope 1 attack time |

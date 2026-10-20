@@ -32,8 +32,9 @@ page is drawn from.
 Features the product requirements ([PRD.md](../PRD.md)) or the project
 instructions ([CLAUDE.md](../CLAUDE.md)) describe, which Apollo does not have.
 None of them was dropped by a recorded decision except where one is cited. They
-were simply never scheduled. Whether each belongs before a first release is the
-developer's decision, and is open.
+were simply never scheduled. **The developer has decided they all belong in the
+first release**, so they are now Phase 13 of the roadmap, and each row leaves
+this table when its sub-phase lands (ADR-0089).
 
 | Area | Not built | Spec |
 |---|---|---|
@@ -43,10 +44,8 @@ developer's decision, and is open.
 | **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
 | **Filter types** | Low-pass, high-pass, band-pass and notch only; no comb or formant | PRD §13.1, CLAUDE.md §13 |
 | **Filter parameters** | No per-filter mix and no key tracking. Routing is series or parallel; no split routing | PRD §13 |
-| **Oscillators** | No per-oscillator start phase (voice phases are fixed, ADR-0017) and no interpolation quality modes | PRD §8.1, §8.2 |
-| **Sub oscillator** | Sine only, an octave or two below; no triangle or square, no phase, no tracking mode | PRD §9 |
+| **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Noise** | White noise only; no pink noise, no transient samples, no loadable noise, no key tracking | PRD §10 |
-| **Unison** | Voice count, detune and spread; no detune curve, phase randomisation or blend | PRD §11 |
 | **Envelopes** | Shown as live traces, not edited by dragging them | PRD §15.1 |
 | **Modulation matrix** | No effect parameters or filter drive as destinations, and no modulation of a routing's depth. Host automation as a source and an envelope follower are carried but unscheduled (ROADMAP "Carried forward") | PRD §16 |
 | **Wavetables from files** | The engine reads, validates and plays a wavetable from a WAV file, replacing a slot while a note sounds (ADR-0066), but nothing in the interface can choose a file, and a preset cannot refer to one. A file chooser has to be native rather than a path sent across the bridge (CLAUDE.md §40) | PRD §33 |
@@ -73,7 +72,6 @@ developer's decision, and is open.
 | **Not signed for distribution on macOS** | The macOS bundles are signed ad hoc, which is enough to run where they were built. A downloaded copy is refused as coming from an unidentified developer until it is signed with a Developer ID and notarised, which needs an Apple developer account the project does not have |
 | **Unsigned on Windows** | A plugin is copied, not installed, so Windows does not object. The standalone may meet a SmartScreen prompt |
 | **No Windows on ARM64 build** | No CI runner, and JUCE builds it as a separate `arm64ec` target (ADR-0079) |
-| **The plugin's identity is not yet confirmed** | The manufacturer name and plugin codes (`ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo`) were inferred. They can change now and become permanent at the first release, because a DAW identifies a plugin in a saved project by them (PROJECT-STATE §6, issue 11) |
 
 ---
 

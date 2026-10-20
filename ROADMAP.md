@@ -51,7 +51,9 @@ Phase 8  → Effects Rack
 Phase 9  → Presets, Resources & State Migration
 Phase 10 → Performance, DSP Validation & Host Compatibility
 Phase 11 → Cross-Platform Release Engineering
-Phase 12 → Release Candidate & Production Hardening
+Phase 12 → Production Hardening
+Phase 13 → Completing the Specification
+Phase 14 → Release Candidate & Release
 ```
 
 The phases are sequential at the architectural level but may overlap during implementation. Dependencies should be respected even when work proceeds in parallel.
@@ -146,7 +148,17 @@ front of it is better understood, the way 8f was.
 | 12d-1 | The front door — README.md rewritten to what Apollo is; Docs/PLATFORMS.md, with what has been seen working per platform rather than only built; Docs/KNOWN-LIMITATIONS.md, which found specified features never built (PROJECT-STATE issue 26); Docs/BUILD.md corrected; and a configure check for the Node version the interface tests need | ✅ |
 | 12d-2 | The specification documents — the PRD keeps every requirement and gains a status note per section (45, marked built, partly built, not built or decided against); ARCHITECTURE gains §20, the structure as built; UI_BINDINGS records everything since 9c; REPOSITORY-LAYOUT shows the tree that exists (ADR-0087) | ✅ |
 | 12d-3 | Compatibility and the roadmap — Docs/COMPATIBILITY.md, each promise naming the test that holds it, with a preset 0.1.0 wrote frozen in the suite and two promises newly tested (an unmentioned parameter returns to its default; an unknown one is ignored), each shown failing against a deliberately broken loader. The roadmap brought up to date (ADR-0088) | ✅ |
-| 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
+| 12e | The release candidate — **moved to Phase 14** when the developer decided the specified features belong in the first release (PROJECT-STATE issue 26, ADR-0089) | → 14 |
+| **13** | **Completing the specification — every feature the PRD specifies and 0.1.0 did not have, in the first release at the developer's direction (ADR-0089)** | ⬜ |
+| 13a | The oscillators' missing controls — oscillator 1's coarse and fine tuning, a start phase per source, unison phase randomisation (reproducible per note), detune curve and blend, and the sub's triangle and square, phase and tracking. Thirteen parameters, every default reproducing the old sound, which the regression renders confirm | ✅ |
+| 13b | The warp engine — asymmetric sync, PWM, bend and mirror, an amount per oscillator, warp as a modulation destination, aliasing measured | ⬜ |
+| 13c | Filters — comb and formant types, per-filter mix, key tracking, split routing | ⬜ |
+| 13d | Noise — pink noise, key tracking, built-in transient samples | ⬜ |
+| 13e | Modulation — LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive as destinations, modulation of depth | ⬜ |
+| 13f | Drawn LFO curves, and envelopes edited by dragging | ⬜ |
+| 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
+| 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation, a spectrum analyser | ⬜ |
+| **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
 
 ### Carried forward
 
@@ -920,6 +932,9 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 
 ### Release
 
+**Moved to Phase 14** (ADR-0089). The tasks stay listed here, where they were
+written, and Phase 14 below takes them.
+
 - [ ] Create release candidate.
 - [ ] Perform clean-machine installation tests.
 - [ ] Verify plugin discovery.
@@ -931,6 +946,99 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 ## Exit Criteria
 
 Apollo is considered release-ready only when there are no unresolved P0/P1 issues and all supported-platform release criteria have passed.
+
+---
+
+# Phase 13 — Completing the Specification
+
+## Objective
+
+Build every feature the PRD specifies that 0.1.0 does not have, before the
+first release. Added after Phase 12d found them (PROJECT-STATE issue 26) and the
+developer decided they belong in it (ADR-0089). Docs/KNOWN-LIMITATIONS.md lists
+them; each sub-phase removes its rows from that list as it lands.
+
+## Rules every sub-phase follows
+
+- **A new parameter's default reproduces the sound from before it.** The
+  regression renders are the proof: they must pass unchanged, against
+  references recorded before the parameter existed (Docs/COMPATIBILITY.md §3).
+- **The pinned VST3 parameter numbers only grow** — regenerated with
+  `ApolloHostTests --parameter-ids`, and the diff must be additions.
+- **Every control reaches the sound**, tested through a processor rendering a
+  note, not only through the DSP module.
+
+## Tasks
+
+### Oscillators (13a)
+
+- [x] Coarse and fine tuning for oscillator 1, which only oscillator 2 had (PRD §8.1). — `osc1_semitones`, `osc1_fine`; measured a fifth and a quarter tone up to within 2 cents (13a)
+- [x] A start phase per source (PRD §8.1, §9). — `osc1_phase`, `osc2_phase`, `sub_phase`; half a cycle on the sine sub measures as its exact negative (13a)
+- [x] Unison phase randomisation (PRD §11). — `oscN_phase_random`; a hash of each voice's per-note random state, so it scatters differently per note and renders identically every time (13a)
+- [x] Unison detune curve, linear or exponential (PRD §11). — `oscN_detune_curve`; the inner voices at the square of their position (13a)
+- [x] Unison blend (PRD §11). — `oscN_unison_blend`; the outer voices against the centre at constant energy (13a)
+- [x] Sub oscillator triangle and square (PRD §9). — `sub_waveform`; built from their spectra and band-limited, harmonics measured at 1/k² and 1/k to within 0.1 dB (13a)
+- [x] Sub tracking (PRD §9). — `sub_tracking`; the note, or oscillator 1 including its tuning and pitch modulation (13a)
+- [ ] Interpolation quality modes (PRD §8.2, optional).
+
+### Warp (13b)
+
+- [ ] Asymmetric sync, PWM, bend and mirror (PRD §12), each with enable and amount, alias-measured.
+- [ ] Warp amount as a modulation destination (PRD §16).
+
+### Filters (13c)
+
+- [ ] Comb and formant types (PRD §13.1).
+- [ ] Per-filter mix and key tracking (PRD §13.2).
+- [ ] Split routing (PRD §13).
+
+### Noise (13d)
+
+- [ ] Pink noise, key tracking and built-in transient samples (PRD §10).
+
+### Modulation (13e)
+
+- [ ] LFO tempo sync (PRD §15.2).
+- [ ] Envelope retrigger options (PRD §15.1).
+- [ ] Macro controls: MIDI-learnable, several destinations, bipolar depth, ranges, curves, stored in presets (PRD §17).
+- [ ] Effect parameters and filter drive as modulation destinations, and modulation of a routing's depth (PRD §16).
+
+### Editors (13f)
+
+- [ ] Drawn LFO curves, stored in presets (PRD §15.2; ADR-0034 deferred them for this).
+- [ ] Envelopes edited by dragging (PRD §15.1).
+
+### Resources (13g)
+
+- [ ] Choose a wavetable or noise sample from a file, through a native chooser rather than a path across the bridge (PRD §33, CLAUDE.md §40).
+- [ ] Presets refer to user wavetables and samples, with a fallback when a file has moved (PRD §32, §33).
+
+### The rest (13h)
+
+- [ ] Independent left and right delay times, and delay modulation (PRD §20).
+- [ ] Program change (PRD §34).
+- [ ] Controller profiles that can be edited, exported and imported (PRD §35).
+- [ ] Drag-and-drop modulation (PRD §42.4).
+- [ ] A spectrum analyser (PRD §30, optional).
+
+## Exit Criteria
+
+Docs/KNOWN-LIMITATIONS.md has no "specified but not built" rows left, or each
+remaining one carries a decision of the developer's to leave it.
+
+---
+
+# Phase 14 — Release Candidate & Release
+
+## Objective
+
+The first release. Formerly 12e, moved here so that it follows Phase 13
+(ADR-0089). Its tasks are the ones listed under Phase 12 "Release", unchanged.
+
+## Exit Criteria
+
+As Phase 12's: no unresolved P0/P1 issues, and every supported platform's
+release criteria passed.
 
 ---
 

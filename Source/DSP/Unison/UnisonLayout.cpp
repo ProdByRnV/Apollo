@@ -31,25 +31,54 @@ UnisonLayout::UnisonLayout() noexcept
     update (1, 0.0f, 0.0f);
 }
 
-bool UnisonLayout::matches (int voiceCount, float detuneAmount, float stereoSpread) const noexcept
+bool UnisonLayout::matches (int voiceCount, float detuneAmount, float stereoSpread,
+                            DetuneCurve curve, float blend) const noexcept
 {
     return voiceCount == builtVoiceCount
         && detuneAmount == builtDetuneAmount
-        && stereoSpread == builtStereoSpread;
+        && stereoSpread == builtStereoSpread
+        && curve == builtCurve
+        && blend == builtBlend;
 }
 
-void UnisonLayout::update (int voiceCount, float detuneAmount, float stereoSpread) noexcept
+void UnisonLayout::update (int voiceCount, float detuneAmount, float stereoSpread,
+                           DetuneCurve curve, float blend) noexcept
 {
     ++generation;
 
     builtVoiceCount = voiceCount;
     builtDetuneAmount = detuneAmount;
     builtStereoSpread = stereoSpread;
+    builtCurve = curve;
+    builtBlend = blend;
 
     count = voiceCount < 1 ? 1 : (voiceCount > maxVoices ? maxVoices : voiceCount);
 
     const auto detune = clampUnitInterval (detuneAmount) * maxDetuneCents;
     const auto spread = clampUnitInterval (stereoSpread);
+    const auto outerWeight = clampUnitInterval (blend);
+
+    // THE CENTRE OF THE STACK, for the blend. With an odd count it is the one
+    // voice on the played pitch; with an even count there is no such voice, so
+    // it is the two either side of it. A stack of one or two is all centre,
+    // and the blend has nothing to do.
+    const auto isCentre = [this] (int i) noexcept
+    {
+        return count % 2 == 1 ? i == (count - 1) / 2
+                              : (i == count / 2 - 1 || i == count / 2);
+    };
+
+    // The weights' energy, for renormalising. Every weight is 1 at the default
+    // blend, so this is exactly N and the normalisation below is exactly the
+    // 1/sqrt(N) Apollo has always used — the same float operations on the same
+    // values, so the default layout is bit-identical rather than merely close.
+    float weightEnergy = 0.0f;
+
+    for (int i = 0; i < count; ++i)
+    {
+        const auto weight = isCentre (i) ? 1.0f : outerWeight;
+        weightEnergy += weight * weight;
+    }
 
     // 1/sqrt(N).
     //
@@ -65,7 +94,13 @@ void UnisonLayout::update (int voiceCount, float detuneAmount, float stereoSprea
     // The consequence is recorded rather than hidden: VoiceEngine's headroom
     // guarantee is stated for the default patch, and unison is explicitly
     // outside it (ARCHITECTURE.md, VoiceEngine::outputGain).
-    const auto normalisation = 1.0f / std::sqrt (static_cast<float> (count));
+    //
+    // With the blend below 1 it is 1/sqrt of the weights' energy instead, which
+    // is the same rule applied to voices that are no longer equal: the stack
+    // keeps its loudness as the outer voices fade, and the control changes the
+    // character rather than the level. The centre always weighs 1, so the
+    // energy is never below 1 and this never divides by zero.
+    const auto normalisation = 1.0f / std::sqrt (weightEnergy);
 
     for (int i = 0; i < maxVoices; ++i)
     {
@@ -101,7 +136,13 @@ void UnisonLayout::update (int voiceCount, float detuneAmount, float stereoSprea
         // Cents to a frequency ratio. Linear in cents, which is linear in
         // perceived interval — spacing the voices evenly in hertz instead would
         // make the stack lopsided, wider above the fundamental than below it.
-        const auto cents = position * static_cast<double> (detune);
+        //
+        // The exponential curve squares the position, keeping its sign: the
+        // edges stay at the full detune and the inner voices crowd the centre.
+        const auto shaped = curve == DetuneCurve::exponential ? position * std::abs (position)
+                                                              : position;
+
+        const auto cents = shaped * static_cast<double> (detune);
         frequencyRatio[index] = std::pow (2.0, cents / 1200.0);
 
         // Constant-power pan, normalised so that a centred voice is unity on
@@ -119,8 +160,13 @@ void UnisonLayout::update (int voiceCount, float detuneAmount, float stereoSprea
         const auto panPosition = position * static_cast<double> (spread);
         const auto angle = (panPosition + 1.0) * (pi * 0.25);
 
-        gainLeft[index] = rootTwo * static_cast<float> (std::cos (angle)) * normalisation;
-        gainRight[index] = rootTwo * static_cast<float> (std::sin (angle)) * normalisation;
+        // The weight multiplies the normalisation first, so at the default the
+        // product is normalisation * 1.0f — exact — and the gains are the same
+        // floats they were before the blend existed.
+        const auto weighted = normalisation * (isCentre (i) ? 1.0f : outerWeight);
+
+        gainLeft[index] = rootTwo * static_cast<float> (std::cos (angle)) * weighted;
+        gainRight[index] = rootTwo * static_cast<float> (std::sin (angle)) * weighted;
 
         startPhase[index] = static_cast<double> (i) / static_cast<double> (count);
     }

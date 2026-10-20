@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 12 — Release Candidate & Production Hardening, in progress; **12a (reliability), 12b (audio quality) and 12c (UX, in three parts) complete, and 12d (documentation, in three parts) complete**. Phase 11 is closed: 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64). Phase 10 is closed except 10e-2 and 10e-3, which are **deferred at the developer's direction**: testing inside a DAW is set aside for now |
-| **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — warp, macros and LFO tempo sync among them. How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
-| **Milestone** | Working toward **M11 — Release Candidate**. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 12e — the release candidate**: clean-machine installation, plugin discovery, standalone launch, uninstall and update, release artifacts, and the tag. 12d closed with 12d-3, which wrote the compatibility policy (Docs/COMPATIBILITY.md) and froze a preset 0.1.0 wrote into the suite (ADR-0088). Two decisions are the developer's before a release is cut: issue 26 (whether any unbuilt features belong in it) and issue 11 (the plugin's identity codes, permanent once released). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
+| **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — warp, macros and LFO tempo sync among them. The developer decided they all belong in the first release, so Phase 13 is building them before the release candidate (ADR-0089). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
+| **Milestone** | Working toward **M11 — Release Candidate**, which now follows Phase 13. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
+| **Next step** | **Phase 13b — the warp engine**: asymmetric sync, PWM, bend and mirror, an amount per oscillator, and warp as a modulation destination, with its aliasing measured. 13a gave both oscillators tuning and a start phase, the unison stack a detune curve, a blend and reproducible phase randomisation, and the sub a triangle, a square, a phase and tracking — thirteen parameters, every default reproducing the old sound, which the regression renders confirmed (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -1640,6 +1640,31 @@ open in which version of Apollo, and each promise names the test that holds it.
   schema change. One promise has no test and the page says so: that a stepped
   parameter's choices never change order (ADR-0088).
 
+### The oscillators' missing controls (Phase 13a)
+
+The first part of Phase 13, which builds every specified feature 0.1.0 lacked
+before the first release (ADR-0089). Thirteen parameters, taking the registry
+to **240**:
+
+- **Oscillator 1 can be tuned**, coarse and fine, as only oscillator 2 could.
+- **A start phase per source** — both oscillators and the sub — applied when a
+  note begins.
+- **Unison phase randomisation**, a hash of each voice's per-note random state:
+  a different scatter every note, and the same notes render identically every
+  time.
+- **Unison detune curve** (linear, or exponential: the inner voices at the
+  square of their position) and **blend** (the outer voices against the centre,
+  at constant energy).
+- **The sub oscillator** is sine, triangle or square, each band-limited from its
+  spectrum, and tracks the note or oscillator 1.
+
+**Every default reproduces the sound from before**, and the proof is the
+regression renders: all fifteen matched their references without being
+regenerated. The pinned VST3 parameter numbers grew by thirteen and changed
+none. Tested in `Tests/Engine/SourceControlsTests.cpp`: the layout's arithmetic
+directly, and every control through a processor rendering a note, each wiring
+test shown failing against a deliberately broken engine.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -1650,8 +1675,9 @@ open in which version of Apollo, and each promise names the test that holds it.
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
 | 11 | **Complete.** 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64): install rules and a CPack archive per platform, seven package tests including the dependency table of both binaries, and the staged package driven through the whole host suite on all four jobs (ADR-0076 to ADR-0079). macOS is universal and ad-hoc signed; Linux names its runtime libraries and CI checks each resolves; ARM64 passed first time. Absent: everything that needs a desktop — the editor rendering on macOS or Linux, Retina — plus Developer ID signing with notarisation, and Windows on ARM64 |
 | 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d (documentation) is done.** **12d-1 (the front door)**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. **12d-2 (the specification documents) is done**: a status note per PRD section, ARCHITECTURE.md §20 as built, UI_BINDINGS and REPOSITORY-LAYOUT current (ADR-0087). **12d-3 (compatibility and the roadmap) is done**: Docs/COMPATIBILITY.md, a frozen 0.1.0 preset every build must read, two promises newly tested, and the roadmap brought up to date (ADR-0088). Absent: 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
+| 13 | **13a (the oscillators' controls) is done** (ADR-0089). Absent: 13b warp, 13c filters, 13d noise, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
 
-**All 227 registered parameters now affect audio** — the whole source section,
+**All 240 registered parameters now affect audio** (227 until Phase 13a added thirteen) — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
 expression settings, `master_gain`, the rack's six slots, and all six effects in
 it. `fx_delay_time` was the last one that did not, inert since Phase 2 and
@@ -1740,7 +1766,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,320,960 assertions, 0 failures**, across 44 test classes, in `ApolloTests`; **18 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,322,133 assertions, 0 failures**, across 45 test classes, in `ApolloTests`; **18 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2534,6 +2560,28 @@ test preset and the folder its save created were removed.
 **Not covered here:** completing a learn by moving a hardware control, which
 needs a hand on one. It was driven by hand in Phase 6 (§5a, 2026-09-10), and the
 developer has played both keyboards since.
+
+---
+### The oscillators' controls (Phase 13a), 2026-10-21
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| Every new control on the page | All thirteen, each with its name; the "unplaced" panel, which lists any parameter without a control, is absent |
+| Layout | Both oscillators show tuning and phase on the first row and the unison group — count, detune, curve, spread, blend, random — together on the second; the sub shows its waveform, octave and tracking switches (screenshot) |
+| The developer's sound | Left as found, Wire Pluck. See the note below |
+
+Not checked here: hearing the new controls. Nothing on this machine can play a
+note into the standalone, so the sound of each control is held by the tests in
+`Tests/Engine/SourceControlsTests.cpp`. Those measure pitch to 2 cents,
+harmonics to 0.1 dB and the start phase as an exact negative. The developer has
+the keyboards.
+
+**A correction to 12d-3.** Saving the compatibility fixture had left the
+standalone's current sound named "Compatibility Fixture". The sound itself was
+still Wire Pluck, but the masthead showed the wrong name. 13a found it in a
+screenshot and reloaded Wire Pluck (ADR-0089).
 
 ---
 
@@ -3358,7 +3406,7 @@ of asserting nothing.
 | 8 | ~~`ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md`~~ | **Fixed** | Corrected in 12d-3; no document refers to the hyphenated name. |
 | 9 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
 | 10 | ~~`filter_*` parameters are un-indexed while the PRD specifies two filters~~ | **Closed** | Resolved in Phase 5b. They became `filter1_*`, joined by `filter2_*` and `filter_routing`, through a schema version 1 to 2 migration rather than a bare rename — the first real use of the migration path built in Phase 2 (ADR-0032). Done while Apollo is pre-1.0, which is the only window in which it is cheap. |
-| 11 | Company name and plugin codes are inferred | Low | `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo` were inferred from the GitHub organisation. Easy to change now, **permanent once released** — please confirm. |
+| 11 | ~~Company name and plugin codes are inferred~~ | **Closed** | Confirmed by the developer after 12d: `ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo`. Permanent from the first release (ADR-0089). |
 | 12 | Standalone showed "Navigation to the webpage was canceled" instead of the UI | **Fixed** | Found on 2026-09-08, the first time anyone ran the application. The editor never selected a WebView backend, so JUCE built the legacy Internet Explorer control despite `JUCE_USE_WIN_WEBVIEW2=1` and `NEEDS_WEBVIEW2` — necessary but not sufficient, per JUCE's own documentation. The IE control supports neither the resource provider nor the native integration, so the page could not load. Fixed by naming the backend per platform and by giving WebView2 a writable per-user data folder, which also prevents the same silent fallback in hosts whose program directory is read-only (ADR-0027). |
 | 13 | The heaviest patch cannot sustain full polyphony in real time | **Fixed** | Measured in Phase 4c, re-measured properly in 10c, and closed across **10d-1, 10d-2 and 10d-5**. 10c stated it in the terms that matter: the worst patch the controls can build, at full polyphony with a full rack and the modulation matrix running, missed its callback deadline one block in a hundred — median 90 %, p99 102 %. It no longer misses one and is no longer close to one. 10d-1 removed eight integer divisions and a duplicated cubic from the per-sample table read (ADR-0070); 10d-2 resolved the rest of the read once per modulation block instead of once per sample (ADR-0071); 10d-5 made the unison stack flat rather than sixteen oscillator objects (ADR-0074). Together the voice path is about **3.6x** cheaper than before Phase 10d — the product of three within-sitting ratios, 1.79x, 1.57x and 1.28x, rather than a comparison across sittings, which §5b explains this harness cannot support. **The heaviest patch in isolation now costs 41 % of one core at 32 voices, against roughly 195 % before Phase 10d**, so the ceiling of every control at once finally fits with headroom above it. ADR-0029 records why the ceilings were published rather than lowered, and that decision now costs nothing. |
 | 14 | ~~The MIDI Learn interface has not been driven by hand~~ | **Closed** | Verified 2026-09-10 (§5a). The learn mode, the badges, the tooltips, Escape, a real controller completing a learn, a mapping surviving a clean restart and still driving its parameter, and an MPE Configuration Message reconfiguring Apollo from the MIDI stream were all driven by hand against the running standalone. |
@@ -3373,7 +3421,7 @@ of asserting nothing.
 | 23 | ~~The editor opened taller than the screen at 150% scaling~~ | **Fixed** | Found in 11a by measuring the packaged standalone's window instead of looking at it: 1773x1182 physical pixels on a 1920x1080 display, 102 pixels below the bottom of the work area, with the status bar and lower panels unreachable. The editor asked for its designed 1180x760 unconditionally, and at 150% scaling the usable area is 1280x720 in layout units. Present since the interface was built, on the developer's own machine, through every manual pass. It now opens at what the display can show, and the rule lives in `Source/UI/EditorSizing.h` with tests, because inside the WebView editor no test could reach it (ADR-0076). |
 | 24 | ~~The replace prompt could overwrite a preset nobody was asked about~~ | **Fixed** | Found in 12c-3 by walking the save form. The prompt was drawn from the last save status and editing the name did not clear it, so "Replace it" stayed up naming the old preset while sending the new name with overwrite set. Editing the name or bank now withdraws it (ADR-0085). |
 | 25 | ~~The masthead named a preset the list did not mark as loaded~~ | **Fixed** | After a restart, a host project load or a reopened window, because the highlight lived only in the editor's bridge. It now resolves the state's own claim when it is unambiguous (ADR-0085). |
-| 26 | Features the specification describes were never built | **Open — the developer's call** | Found in 12d-1 by reading the PRD against the parameter registry. Warp (PRD §12), macros (§17), LFO tempo sync (the conversion exists, no parameter reaches it), comb and formant filters, sub-oscillator waveforms, pink noise, unison detune curves, filter mix and key tracking, and drawn LFO curves (deferred by ADR-0034). No phase scheduled them and no decision dropped them; earlier phases were ticked against narrower task lists. Listed in full in Docs/KNOWN-LIMITATIONS.md. Which belong before a first release is a scope decision. |
+| 26 | Features the specification describes were never built | **Scheduled — Phase 13** | The developer decided after 12d that every one belongs in the first release; they are Phase 13, cut into eight sub-phases, and 13a has built the oscillator, sub and unison controls (ADR-0089). Original note: | Found in 12d-1 by reading the PRD against the parameter registry. Warp (PRD §12), macros (§17), LFO tempo sync (the conversion exists, no parameter reaches it), comb and formant filters, sub-oscillator waveforms, pink noise, unison detune curves, filter mix and key tracking, and drawn LFO curves (deferred by ADR-0034). No phase scheduled them and no decision dropped them; earlier phases were ticked against narrower task lists. Listed in full in Docs/KNOWN-LIMITATIONS.md. Which belong before a first release is a scope decision. |
 
 ---
 
@@ -3410,23 +3458,19 @@ against each.
 
 ## 8. Recommended next action
 
-**Phase 12e — the release candidate.** 12d is done: the documents say what
-Apollo is, where it runs, what it does not do, and what it promises about the
-files it writes (ADR-0086 to ADR-0088).
+**Phase 13b — the warp engine.** Phase 13 builds every specified feature 0.1.0
+lacked, at the developer's direction, before the release moves on to Phase 14
+(ADR-0089). 13a did the oscillators' missing controls.
 
-12e is the roadmap's release list: create the candidate, install it on a clean
-machine, check discovery and the standalone, uninstall and update, produce the
-artifacts and tag the release.
+13b is the largest single piece of DSP left: PRD §12's four warp modes —
+asymmetric sync, PWM, bend and mirror — each with an amount, per oscillator, and
+warp as a modulation destination. Warp reshapes a waveform as it is read, and
+that can create harmonics the table's mipmap never band-limited, so the
+aliasing has to be measured, not assumed. That measurement decides whether a
+mode can run as it is or needs oversampling (Docs/OVERSAMPLING.md).
 
-**Two decisions come first, and both are the developer's.**
-
-1. **Issue 26** — whether any feature the specification describes but Apollo
-   does not have (warp, macros, LFO tempo sync, comb and formant filters, and the
-   rest of Docs/KNOWN-LIMITATIONS.md) belongs in the first release. If any does,
-   it is a phase of its own before 12e.
-2. **Issue 11** — the manufacturer name and plugin codes. They were inferred, and
-   from the first release a DAW identifies Apollo in every saved project by
-   them, so after 12e they cannot change.
+The rules from 13a hold: every default reproduces the old sound, the
+regression renders prove it, and the pinned VST3 numbers only grow.
 
 1. **Not run in 12b, and available if wanted later**: an aliasing sweep across
    the whole keyboard, and attack timing measured against the envelope's own

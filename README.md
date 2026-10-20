@@ -28,8 +28,8 @@ describes (warp, macros, LFO tempo sync) are not built.
 ## What it does
 
 **Sound.** Two wavetable oscillators, each with up to sixteen detuned,
-stereo-spread unison voices, plus a sine sub oscillator and a stereo noise
-generator. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
+stereo-spread unison voices with a choice of detune curve and blend, plus a sub
+oscillator (sine, triangle or square) and a stereo noise generator. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
 by position. The tables are band-limited mipmaps, and aliasing is measured, not
 assumed: worst case −98.5 dBc.
 

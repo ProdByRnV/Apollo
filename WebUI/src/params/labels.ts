@@ -37,7 +37,15 @@ export const LABELS: Record<string, readonly string[]> = {
     osc1_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
     osc2_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
 
+    // dsp::UnisonLayout::DetuneCurve.
+    osc1_detune_curve: ['LINEAR', 'EXP'],
+    osc2_detune_curve: ['LINEAR', 'EXP'],
+
     sub_octave: ['-2', '-1'],
+
+    // dsp::WavetableLibrary's sub waveforms, named as the LFO's shapes are.
+    sub_waveform: ['SINE', 'TRI', 'SQR'],
+    sub_tracking: ['NOTE', 'OSC 1'],
 
     // 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch.
     filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH'],

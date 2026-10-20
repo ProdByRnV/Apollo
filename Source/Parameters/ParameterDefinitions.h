@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 227> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -169,6 +169,57 @@ inline constexpr std::array<ParameterDefinition, 227> parameterDefinitions { {
       -1.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    // Added in Phase 13a. Oscillator 1 played at the note and nothing else
+    // until now; PRD §8.1 asks for pitch and fine tuning on each oscillator, and
+    // the engine had always carried a transposition for it. Same ranges as
+    // oscillator 2's, and defaults of zero, so no patch made before them moves.
+    { "osc1_semitones", "Osc 1 Semitones",
+      ParameterType::integer, ParameterUnit::semitones,
+      -24.0f, 24.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc1_fine", "Osc 1 Fine",
+      ParameterType::floatingPoint, ParameterUnit::cents,
+      -100.0f, 100.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    // Phase 13a (PRD §8.1, §11). Where a note starts in the cycle, as a fraction
+    // of it, and how far each unison voice may be randomly moved from there.
+    // Applied when a note begins, so neither is smoothed or modulated: there is
+    // nothing continuous to move. Both default to zero, which is the fixed
+    // start Apollo has always used (ADR-0017).
+    { "osc1_phase", "Osc 1 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "osc1_phase_random", "Osc 1 Phase Random",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    // 0 linear, 1 exponential (dsp::UnisonLayout::DetuneCurve). Linear is how
+    // a stack was always spread.
+    { "osc1_detune_curve", "Osc 1 Detune Curve",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // The outer voices against the centre. "Blend" because that is PRD §11's
+    // word and every unison control's; it is not a dry/wet mix, which
+    // Docs/PARAMETER-CONVENTIONS.md §3 keeps for "mix". 1 is every voice equal,
+    // the stack as it always was.
+    { "osc1_unison_blend", "Osc 1 Unison Blend",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
 
     // Oscillator 2 -----------------------------------------------------------
     // Structurally identical to oscillator 1 apart from its tuning controls and
@@ -236,6 +287,41 @@ inline constexpr std::array<ParameterDefinition, 227> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, true },
 
+    // Phase 13a (PRD §8.1, §11). Where a note starts in the cycle, as a fraction
+    // of it, and how far each unison voice may be randomly moved from there.
+    // Applied when a note begins, so neither is smoothed or modulated: there is
+    // nothing continuous to move. Both default to zero, which is the fixed
+    // start Apollo has always used (ADR-0017).
+    { "osc2_phase", "Osc 2 Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "osc2_phase_random", "Osc 2 Phase Random",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    // 0 linear, 1 exponential (dsp::UnisonLayout::DetuneCurve). Linear is how
+    // a stack was always spread.
+    { "osc2_detune_curve", "Osc 2 Detune Curve",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // The outer voices against the centre. "Blend" because that is PRD §11's
+    // word and every unison control's; it is not a dry/wet mix, which
+    // Docs/PARAMETER-CONVENTIONS.md §3 keeps for "mix". 1 is every voice equal,
+    // the stack as it always was.
+    { "osc2_unison_blend", "Osc 2 Unison Blend",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
     // Sub oscillator ---------------------------------------------------------
     { "sub_level", "Sub Level",
       ParameterType::floatingPoint, ParameterUnit::normalised,
@@ -246,6 +332,33 @@ inline constexpr std::array<ParameterDefinition, 227> parameterDefinitions { {
     { "sub_octave", "Sub Octave",
       ParameterType::integer, ParameterUnit::octaves,
       -2.0f, -1.0f, -1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Phase 13a (PRD §9). 0 sine, 1 triangle, 2 square
+    // (dsp::WavetableLibrary::numSubWaveforms). Sine first, because it is what
+    // the sub always was.
+    { "sub_waveform", "Sub Waveform",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Where a note starts in the sub's cycle, as for the primary oscillators.
+    { "sub_phase", "Sub Phase",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    // 0 follows the played note, as the sub always has; 1 follows oscillator 1,
+    // including its tuning and its pitch modulation, so a transposed oscillator
+    // keeps its sub an octave or two beneath it. PRD §9's "optional tracking
+    // mode", given the one meaning that became useful once oscillator 1 could
+    // be tuned.
+    { "sub_tracking", "Sub Tracking",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

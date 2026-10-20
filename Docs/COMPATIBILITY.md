@@ -49,7 +49,7 @@ plugin's identity. Both are permanent once released.
 | **Parameter IDs** (`filter1_cutoff`) | Never change meaning, never reused. A changed parameter gets a new ID, and the old one is migrated on load ([VERSIONING.md](VERSIONING.md) §5) | `Parameter identifier conventions`, `Parameter registry` |
 | **The numbers a VST3 host stores** | Pinned against a loaded plugin, because a JUCE upgrade could renumber them with every string ID intact (ADR-0075) | `ApolloHostTests` |
 | **Stepped parameters** (filter type, rack slot) | Their range and the order of their choices never change. A choice added later goes at the end. The rack slots listed all six effects from the start for this reason (ADR-0054) | **No test pins this.** The registry test checks ranges are consistent, not that they are unchanged, so for now it is held by review alone |
-| **The plugin's identity** (manufacturer and plugin codes) | **Not yet fixed.** They were inferred and can change now; from the first release a DAW identifies Apollo in a saved project by them, and changing them would orphan every project (PROJECT-STATE issue 11) | — |
+| **The plugin's identity** (`ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo`) | **Confirmed by the developer** (ADR-0089). From the first release a DAW identifies Apollo in every saved project by them, so they never change after it | — |
 
 ---
 
@@ -83,8 +83,9 @@ load.
 Apollo is at 0.1.0, and VERSIONING.md §2 allows breaking changes before 1.0
 provided they are recorded. In practice the rules in §3 have been followed from
 the start. The single schema change so far, the filter rename in Phase 5b, was
-migrated rather than broken. Nothing a 0.1.0 user saves is expected to stop
-opening. Only the plugin's identity (§2) is still open.
+migrated rather than broken, and Phase 13a added thirteen parameters without
+moving a single regression render. Nothing a 0.1.0 user saves is expected to
+stop opening.
 
 ---
 

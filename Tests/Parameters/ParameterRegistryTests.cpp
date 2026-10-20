@@ -72,10 +72,17 @@ using namespace apollo::params;
 // once by necessity: a band added afterwards could not be numbered without
 // renumbering the bands after it, and a parameter ID is permanent.
 //
+// Phase 13a added thirteen to complete the source section against PRD §8, §9
+// and §11: oscillator 1's coarse and fine tuning, which only oscillator 2 had;
+// a start phase, a phase randomisation, a detune curve and a unison blend for
+// each oscillator; and the sub's waveform, start phase and tracking. Every
+// default reproduces the sound from before, which the regression renders hold
+// it to.
+//
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 227, "the registry has two hundred and twenty-seven parameters");
+static_assert (parameterCount() == 240, "the registry has two hundred and forty parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

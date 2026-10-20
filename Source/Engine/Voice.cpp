@@ -426,7 +426,8 @@ void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
     // it is done only when something that changes pitch actually moved.
     const bool pitchChanged = newSources.osc1.tuneSemitones != sources.osc1.tuneSemitones
                            || newSources.osc2.tuneSemitones != sources.osc2.tuneSemitones
-                           || newSources.subOctave != sources.subOctave;
+                           || newSources.subOctave != sources.subOctave
+                           || newSources.subTracksOsc1 != sources.subTracksOsc1;
 
     sources = newSources;
 
@@ -552,17 +553,26 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // the note-on, as every one of them does.
     pressure = 0.0f;
 
-    // Every note restarts from this voice own fixed offset. Reproducible,
+    // Every note restarts from this voice's own fixed offset. Reproducible,
     // because the offset is fixed per voice rather than random, but decorrelated
-    // across voices so a chord attack does not sum coherently. Free-running and
-    // user-controlled phase remain open oscillator design choices.
+    // across voices so a chord attack does not sum coherently (ADR-0017).
+    //
+    // Phase 13a adds the user's start phase for each source on top, and for
+    // the primary oscillators a random scatter of their unison voices. Both
+    // default to zero: the phase added is exactly 0.0 and the scatter is skipped
+    // rather than multiplied by nothing, so a note starts exactly where it
+    // always did. The scatter is a hash of this voice's random state, which
+    // advances once per note, so it differs from note to note and still
+    // renders identically every time the same notes are played.
     //
     // The noise generator is deliberately not restarted: free-running noise has
     // no attack transient of its own, and re-seeding it per note would give
     // every note of a part the identical noise burst.
-    oscillator1.resetPhase (startPhase);
-    oscillator2.resetPhase (startPhase);
-    subOscillator.resetPhase (startPhase);
+    oscillator1.resetPhase (startPhase + static_cast<double> (sources.osc1.startPhase),
+                            sources.osc1.phaseRandom, randomState);
+    oscillator2.resetPhase (startPhase + static_cast<double> (sources.osc2.startPhase),
+                            sources.osc2.phaseRandom, randomState ^ 0x5BD1E995u);
+    subOscillator.resetPhase (startPhase + static_cast<double> (sources.subPhase));
 
     // A voice that has been idle may hold gains from before the last parameter
     // move. Snapping means a fresh note begins at the level the user has dialled
@@ -671,19 +681,24 @@ void Voice::updatePhaseIncrement() noexcept
                           + static_cast<double> (noteBendSemitones)
                           + commonPitch;
 
-    oscillator1.setFrequency (midiNoteToFrequency (
-        bentNote + static_cast<double> (sources.osc1.tuneSemitones)
-                 + static_cast<double> (destinationOffset (Destination::osc1Pitch))));
+    const double osc1Note = bentNote + static_cast<double> (sources.osc1.tuneSemitones)
+                          + static_cast<double> (destinationOffset (Destination::osc1Pitch));
+
+    oscillator1.setFrequency (midiNoteToFrequency (osc1Note));
 
     oscillator2.setFrequency (midiNoteToFrequency (
         bentNote + static_cast<double> (sources.osc2.tuneSemitones)
                  + static_cast<double> (destinationOffset (Destination::osc2Pitch))));
 
-    // The sub tracks the played note transposed by whole octaves. Clamped
-    // rather than trusted: the parameter offers -1 and -2, but a corrupt preset
-    // must not be able to place the sub outside the audible range.
+    // The sub tracks the played note — or, with its tracking set to oscillator
+    // 1, that oscillator's own pitch, tuning and pitch modulation included —
+    // transposed by whole octaves. Clamped rather than trusted: the parameter
+    // offers -1 and -2, but a corrupt preset must not be able to place the sub
+    // outside the audible range.
     const auto octave = sources.subOctave < -4 ? -4 : (sources.subOctave > 0 ? 0 : sources.subOctave);
-    subOscillator.setFrequency (midiNoteToFrequency (bentNote + 12.0 * static_cast<double> (octave)));
+    const double subBase = sources.subTracksOsc1 ? osc1Note : bentNote;
+
+    subOscillator.setFrequency (midiNoteToFrequency (subBase + 12.0 * static_cast<double> (octave)));
 }
 
 float Voice::nextAmplitude() noexcept

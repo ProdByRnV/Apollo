@@ -67,6 +67,9 @@ ApolloAudioProcessor::ApolloAudioProcessor()
 
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
+    subWaveformParameter = apvts.getRawParameterValue ("sub_waveform");
+    subPhaseParameter = apvts.getRawParameterValue ("sub_phase");
+    subTrackingParameter = apvts.getRawParameterValue ("sub_tracking");
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
 
     bendRangeParameter = apvts.getRawParameterValue ("midi_bend_range");
@@ -190,16 +193,20 @@ void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
     level = state.getRawParameterValue (base + "level");
     pan = state.getRawParameterValue (base + "pan");
 
-    // Absent for oscillator 1, which has no tuning controls of its own: it
-    // plays the note it was given. getRawParameterValue returns null for an
-    // unregistered ID, which is exactly the wanted result, but relying on that
-    // silently would also swallow a genuine typo — so the two that are expected
-    // to be absent are the only two not asserted.
+    // Both oscillators have tuning controls since Phase 13a; oscillator 1 had
+    // none before, and played the note it was given.
     semitones = state.getRawParameterValue (base + "semitones");
     fine = state.getRawParameterValue (base + "fine");
 
+    phase = state.getRawParameterValue (base + "phase");
+    phaseRandom = state.getRawParameterValue (base + "phase_random");
+    detuneCurve = state.getRawParameterValue (base + "detune_curve");
+    unisonBlend = state.getRawParameterValue (base + "unison_blend");
+
     jassert (wavetable != nullptr && position != nullptr && unison != nullptr
-             && detune != nullptr && spread != nullptr && level != nullptr && pan != nullptr);
+             && detune != nullptr && spread != nullptr && level != nullptr && pan != nullptr
+             && semitones != nullptr && fine != nullptr && phase != nullptr
+             && phaseRandom != nullptr && detuneCurve != nullptr && unisonBlend != nullptr);
 }
 
 void ApolloAudioProcessor::EnvelopeParameterPointers::resolve (
@@ -388,6 +395,13 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         result.tuneSemitones = readParameter (pointers.semitones, 0.0f)
                              + readParameter (pointers.fine, 0.0f) / 100.0f;
 
+        result.startPhase = readParameter (pointers.phase, 0.0f);
+        result.phaseRandom = readParameter (pointers.phaseRandom, 0.0f);
+        result.detuneCurve = readParameter (pointers.detuneCurve, 0.0f) >= 0.5f
+                               ? dsp::UnisonLayout::DetuneCurve::exponential
+                               : dsp::UnisonLayout::DetuneCurve::linear;
+        result.unisonBlend = readParameter (pointers.unisonBlend, 1.0f);
+
         return result;
     };
 
@@ -398,6 +412,9 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
     parameters.subLevel = readParameter (subLevelParameter, 0.0f);
     parameters.subOctave = static_cast<int> (readParameter (subOctaveParameter, -1.0f));
+    parameters.subWaveform = static_cast<int> (readParameter (subWaveformParameter, 0.0f));
+    parameters.subPhase = readParameter (subPhaseParameter, 0.0f);
+    parameters.subTracksOsc1 = readParameter (subTrackingParameter, 0.0f) >= 0.5f;
     parameters.noiseLevel = readParameter (noiseLevelParameter, 0.0f);
 
     voiceEngine.setSourceParameters (parameters);

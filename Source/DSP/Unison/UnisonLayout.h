@@ -52,20 +52,44 @@ struct UnisonLayout
     */
     static constexpr float maxDetuneCents = 50.0f;
 
+    /** How the voices are spread across the detune range (PRD §11).
+
+        LINEAR spaces them evenly in cents, which is what Apollo has always done.
+        EXPONENTIAL keeps the outermost voices at the full detune and pulls the
+        inner ones towards the centre, by the square of their position: a stack
+        that sounds wide at its edges and still has a clear pitch in the middle.
+        The values are the `oscN_detune_curve` parameter's, and permanent.
+    */
+    enum class DetuneCurve
+    {
+        linear = 0,
+        exponential = 1
+    };
+
     /** Rebuilds the layout.
 
         @param voiceCount     unison voices, clamped to [1, maxVoices].
         @param detuneAmount   normalised [0, 1], scaled by maxDetuneCents.
         @param stereoSpread   normalised [0, 1]; 0 stacks every voice at centre.
+        @param curve          how the detune is distributed across the voices.
+        @param blend          the level of the outer voices against the centre
+                              one, [0, 1]. At 1 every voice is equal, which is
+                              the layout Apollo had before the control existed;
+                              at 0 only the centre is heard. The stack is
+                              renormalised either way, so the control changes
+                              the character and not the loudness.
     */
-    void update (int voiceCount, float detuneAmount, float stereoSpread) noexcept;
+    void update (int voiceCount, float detuneAmount, float stereoSpread,
+                 DetuneCurve curve = DetuneCurve::linear, float blend = 1.0f) noexcept;
 
     /** @returns true if the layout was built from exactly these values.
 
         Lets the caller skip `update` on the overwhelmingly common block where
         nothing moved, without keeping a separate dirty flag that could go stale.
     */
-    [[nodiscard]] bool matches (int voiceCount, float detuneAmount, float stereoSpread) const noexcept;
+    [[nodiscard]] bool matches (int voiceCount, float detuneAmount, float stereoSpread,
+                                DetuneCurve curve = DetuneCurve::linear,
+                                float blend = 1.0f) const noexcept;
 
     [[nodiscard]] int getCount() const noexcept { return count; }
 
@@ -118,6 +142,8 @@ private:
     int builtVoiceCount = -1;
     float builtDetuneAmount = -1.0f;
     float builtStereoSpread = -1.0f;
+    DetuneCurve builtCurve = DetuneCurve::linear;
+    float builtBlend = -1.0f;
 
     std::array<double, static_cast<std::size_t> (maxVoices)> frequencyRatio {};
     std::array<float, static_cast<std::size_t> (maxVoices)> gainLeft {};

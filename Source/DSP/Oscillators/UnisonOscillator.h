@@ -25,6 +25,7 @@
 #include "DSP/Unison/UnisonLayout.h"
 
 #include <array>
+#include <cstdint>
 
 namespace apollo::dsp
 {
@@ -54,6 +55,19 @@ public:
 
     /** Restarts every unison voice from @p basePhase plus its layout offset. */
     void resetPhase (double basePhase) noexcept;
+
+    /** Restarts every unison voice, adding a random offset to each (PRD §11).
+
+        @param randomAmount  how much of a cycle the offset may span, [0, 1].
+                             Zero is exactly `resetPhase (basePhase)`.
+        @param seed          chosen per note by the caller. The offsets are a
+                             hash of it and the voice's index, not draws from a
+                             shared generator, so the same seed restarts the
+                             same stack the same way: a note renders
+                             identically every time it is rendered, which is
+                             what the regression renders and ADR-0017 rely on.
+    */
+    void resetPhase (double basePhase, float randomAmount, std::uint32_t seed) noexcept;
 
     /** Adds the next sample of the stack into @p left and @p right, advancing
         every active unison voice by one sample.

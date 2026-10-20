@@ -17,6 +17,7 @@ target_sources(ApolloTests PRIVATE
     Audio/ProcessorLifecycleTests.cpp
     Engine/VoiceEngineTests.cpp
     Engine/SourceMixTests.cpp
+    Engine/SourceControlsTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
     DSP/UnisonTests.cpp

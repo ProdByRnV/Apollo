@@ -531,31 +531,39 @@ void VoiceEngine::applySourceParameters() noexcept
     // Rebuilt only when their inputs actually moved: a layout costs a handful
     // of transcendental calls per unison voice, and the inputs are static for
     // the overwhelming majority of blocks.
-    if (! unison1.matches (parameters.osc1.unisonVoices, parameters.osc1.detune, parameters.osc1.spread))
-        unison1.update (parameters.osc1.unisonVoices, parameters.osc1.detune, parameters.osc1.spread);
+    const auto updateLayout = [] (dsp::UnisonLayout& layout, const OscillatorParameters& osc) noexcept
+    {
+        if (! layout.matches (osc.unisonVoices, osc.detune, osc.spread, osc.detuneCurve, osc.unisonBlend))
+            layout.update (osc.unisonVoices, osc.detune, osc.spread, osc.detuneCurve, osc.unisonBlend);
+    };
 
-    if (! unison2.matches (parameters.osc2.unisonVoices, parameters.osc2.detune, parameters.osc2.spread))
-        unison2.update (parameters.osc2.unisonVoices, parameters.osc2.detune, parameters.osc2.spread);
+    updateLayout (unison1, parameters.osc1);
+    updateLayout (unison2, parameters.osc2);
 
     VoiceSourceSettings settings;
 
-    settings.osc1.table = &library.getTable (parameters.osc1.wavetableIndex);
-    settings.osc1.unison = &unison1;
-    settings.osc1.position = parameters.osc1.position;
-    settings.osc1.level = parameters.osc1.level;
-    settings.osc1.pan = parameters.osc1.pan;
-    settings.osc1.tuneSemitones = parameters.osc1.tuneSemitones;
+    const auto resolveOscillator = [this] (OscillatorSourceSettings& resolved,
+                                           const OscillatorParameters& osc,
+                                           const dsp::UnisonLayout& layout) noexcept
+    {
+        resolved.table = &library.getTable (osc.wavetableIndex);
+        resolved.unison = &layout;
+        resolved.position = osc.position;
+        resolved.level = osc.level;
+        resolved.pan = osc.pan;
+        resolved.tuneSemitones = osc.tuneSemitones;
+        resolved.startPhase = osc.startPhase;
+        resolved.phaseRandom = osc.phaseRandom;
+    };
 
-    settings.osc2.table = &library.getTable (parameters.osc2.wavetableIndex);
-    settings.osc2.unison = &unison2;
-    settings.osc2.position = parameters.osc2.position;
-    settings.osc2.level = parameters.osc2.level;
-    settings.osc2.pan = parameters.osc2.pan;
-    settings.osc2.tuneSemitones = parameters.osc2.tuneSemitones;
+    resolveOscillator (settings.osc1, parameters.osc1, unison1);
+    resolveOscillator (settings.osc2, parameters.osc2, unison2);
 
-    settings.subTable = &library.getSubTable();
+    settings.subTable = &library.getSubTable (parameters.subWaveform);
     settings.subLevel = parameters.subLevel;
     settings.subOctave = parameters.subOctave;
+    settings.subPhase = parameters.subPhase;
+    settings.subTracksOsc1 = parameters.subTracksOsc1;
 
     settings.noiseLevel = parameters.noiseLevel;
 

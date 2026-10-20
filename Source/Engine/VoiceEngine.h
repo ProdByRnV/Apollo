@@ -76,6 +76,17 @@ struct OscillatorParameters
     */
     float tuneSemitones = 0.0f;
 
+    /** Where each note starts in the cycle, as a fraction of it. */
+    float startPhase = 0.0f;
+
+    /** How much of a cycle each unison voice's start may be randomly moved. */
+    float phaseRandom = 0.0f;
+
+    dsp::UnisonLayout::DetuneCurve detuneCurve = dsp::UnisonLayout::DetuneCurve::linear;
+
+    /** The outer unison voices against the centre; 1 is every voice equal. */
+    float unisonBlend = 1.0f;
+
     [[nodiscard]] bool operator== (const OscillatorParameters&) const = default;
 };
 
@@ -93,6 +104,15 @@ struct SourceParameters
 
     float subLevel = 0.0f;
     int subOctave = -1;
+
+    /** 0 sine, 1 triangle, 2 square (dsp::WavetableLibrary::numSubWaveforms). */
+    int subWaveform = 0;
+
+    /** Where each note starts in the sub's cycle, as a fraction of it. */
+    float subPhase = 0.0f;
+
+    /** True when the sub follows oscillator 1's pitch rather than the note. */
+    bool subTracksOsc1 = false;
 
     float noiseLevel = 0.0f;
 

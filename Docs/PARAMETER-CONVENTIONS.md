@@ -107,7 +107,10 @@ support burden for the life of the product.
 Use one word for one concept across the whole instrument:
 
 - `level` for a per-source output amount; `gain` only for a global stage.
-- `mix` for dry/wet balance, never `blend` or `wet`.
+- `mix` for dry/wet balance, never `blend` or `wet`. `blend` is used once, for
+  `oscN_unison_blend`, because it is not a dry/wet balance: it weighs a unison
+  stack's outer voices against its centre, and "blend" is PRD §11's word and
+  every unison control's (13a).
 - `amount` for a modulation quantity; `depth` for a routing depth in the matrix.
 - `position` for wavetable scanning, matching PRD §8.1.
 

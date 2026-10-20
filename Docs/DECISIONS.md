@@ -5189,3 +5189,93 @@ than letting the table imply otherwise.
   against what was built. Two of its eighteen criteria stay open: real-time
   safety is not enforced by a tool, and no DAW has been tried.
 - **The hyphenated filename** (PROJECT-STATE issue 8) is fixed.
+
+---
+
+## ADR-0089 — The specification is finished before the first release, starting with the oscillators
+
+**Phase 13a · Accepted**
+
+### The two decisions behind it
+
+At the end of 12d the developer settled the two questions that were theirs:
+
+- **Every specified feature 0.1.0 lacks goes into the first release**
+  (PROJECT-STATE issue 26). This is the whole "specified but not built" table in
+  Docs/KNOWN-LIMITATIONS.md: warp, macros, LFO tempo sync, drawn curves, comb
+  and formant filters, the sub and noise variants, the unison controls, user
+  wavetables, and the rest.
+- **The plugin's identity is confirmed as it stands**: `ProdByRnV`, `Prnv`,
+  `Apol`, `com.prodbyrnv.apollo` (issue 11). They become permanent at the first
+  release.
+
+### Where the work goes
+
+The new work becomes **Phase 13**, and the release candidate (12e) moves to
+**Phase 14**. Building features is not "production hardening", and the release
+has to follow them. Phase 13 is cut into eight sub-phases, foundations first:
+
+1. the oscillators' controls (13a);
+2. warp (13b), which builds on the oscillators;
+3. filters (13c);
+4. noise (13d);
+5. modulation (13e), which needs the destinations the earlier sub-phases add;
+6. the two drawing editors (13f);
+7. user files through a native chooser (13g);
+8. the remainder (13h).
+
+### One rule for every sub-phase
+
+**A new control's default reproduces the old sound,** and the regression
+renders prove it by passing unchanged against references recorded before the
+control existed. 13a added 13 parameters, and all 15 renders matched without
+being regenerated. The pinned VST3 parameter numbers must only grow: 13a's
+regeneration added 13 lines and changed none.
+
+### 13a's interpretations
+
+The PRD names these controls without defining them, so here is what each one
+means.
+
+- **Detune curve.** *Exponential* squares each voice's position in the stack,
+  keeping its sign. The outermost voices stay at the full detune and the inner
+  ones crowd the pitch. *Linear* is the spacing Apollo always had.
+- **Blend.** The outer voices' level against the centre: the one voice on the
+  pitch, or for an even stack the pair either side of it. The stack is
+  renormalised by the energy of its weights, so the control changes the
+  character and not the loudness. At 1 every voice is equal and the arithmetic
+  is bit-identical to before, which a test asserts for every voice count.
+- **Phase randomisation.** It must be random to the ear and reproducible to the
+  test suite (ADR-0017). Each unison voice's offset is a hash of the voice's
+  per-note random state and its own index. That state already advances once per
+  note for the matrix's Random source, and the hash reads it without drawing
+  from it, so that source's values are unchanged. Different notes scatter
+  differently; the same notes render identically every time.
+- **Sub waveforms.** Triangle and square are built from their Fourier series,
+  like every other table, so they are band-limited at every pitch for nothing.
+  All three start at the same rising zero crossing. The table builder
+  normalises every frame to peak at 1, so no waveform is louder at its peak than
+  the sine. The square measures 0.93 of it at 220 Hz, because its loudest mip
+  level, the one scaled to 1, carries the Gibbs overshoot.
+- **Sub tracking.** The PRD's "optional tracking mode" became the one meaning
+  that became useful in this sub-phase: following oscillator 1, including its
+  tuning and pitch modulation, so that a transposed oscillator keeps its sub
+  beneath it.
+- **Start phase** applies when a note begins, so it is neither smoothed nor
+  modulatable.
+
+### Two mistakes on the way
+
+**The sub-waveform test first reported a wrong triangle and a wrong square.**
+Both read about 0.7 dB low at the fifth harmonic, while the third harmonic
+matched exactly. The fault was the measurement, not the waveforms: 1100 Hz
+falls half a bin from the nearest FFT bin, where a Blackman-Harris window reads
+about 0.8 dB low. The test now evaluates each harmonic at its exact frequency,
+and the waveforms pass to 0.1 dB.
+
+**12d-3 left the developer's standalone named after the compatibility
+fixture.** Saving the fixture from the running application made "Compatibility
+Fixture" the name of the current sound, and the file was deleted without
+reloading Wire Pluck. 13a found it in a screenshot and put it right. Any future
+capture of that kind must restore the sound it started from, not only remove the
+file.

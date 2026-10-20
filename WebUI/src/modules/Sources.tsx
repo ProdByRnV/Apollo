@@ -45,12 +45,30 @@ export function Oscillator({ index }: { index: number }): JSX.Element {
             <Knob id={`${p}position`} label="Position" />
             <Knob id={`${p}level`} label="Level" />
             <Knob id={`${p}pan`} label="Pan" />
-            <Knob id={`${p}unison`} label="Unison" />
-            <Knob id={`${p}detune`} label="Detune" />
-            <Knob id={`${p}spread`} label="Spread" />
 
-            {index === 2 ? <Knob id="osc2_semitones" label="Semitones" /> : null}
-            {index === 2 ? <Knob id="osc2_fine" label="Fine" /> : null}
+            {/*
+                Both oscillators have the same controls since Phase 13a. Only
+                oscillator 2 could be tuned before; oscillator 1 played the note.
+            */}
+            <Knob id={`${p}semitones`} label="Semitones" />
+            <Knob id={`${p}fine`} label="Fine" />
+            <Knob id={`${p}phase`} label="Phase" />
+
+            {/*
+                The unison stack, together: how many, how far apart and how they
+                are spread across that distance, how wide, how loud the outer
+                voices are against the centre, and how scattered their starts.
+            */}
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Knob id={`${p}unison`} label="Unison" />
+                    <Knob id={`${p}detune`} label="Detune" />
+                    <Segmented id={`${p}detune_curve`} label="Curve" table={LABELS[`${p}detune_curve`]} />
+                    <Knob id={`${p}spread`} label="Spread" />
+                    <Knob id={`${p}unison_blend`} label="Blend" />
+                    <Knob id={`${p}phase_random`} label="Random" />
+                </div>
+            </div>
         </Module>
     );
 }
@@ -59,8 +77,11 @@ export function SubOscillator(): JSX.Element {
     return (
         <Module title="Sub Oscillator" inactive={useSilent('sub_level')}>
             <Scope source="sub" />
-            <Knob id="sub_level" label="Level" />
+            <Segmented id="sub_waveform" label="Wave" table={LABELS.sub_waveform} />
             <Segmented id="sub_octave" label="Octave" table={LABELS.sub_octave} />
+            <Segmented id="sub_tracking" label="Tracks" table={LABELS.sub_tracking} />
+            <Knob id="sub_level" label="Level" />
+            <Knob id="sub_phase" label="Phase" />
         </Module>
     );
 }

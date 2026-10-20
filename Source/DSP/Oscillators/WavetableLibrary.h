@@ -76,6 +76,19 @@ public:
     */
     static constexpr int subTableFrames = 1;
 
+    /** The sub oscillator's waveforms, in the order of the `sub_waveform`
+        parameter: sine, triangle, square (PRD §9). Sine is first because it is
+        what the sub was before the choice existed, so every patch made before
+        it is unchanged.
+
+        All three are built from their spectra like every other table, so the
+        triangle and the square are band-limited at every pitch for nothing.
+        They are peak-normalised to the sine and start at the same rising zero
+        crossing, so changing the waveform does not change the level of a peak
+        or click the start of a note.
+    */
+    static constexpr int numSubWaveforms = 3;
+
     /** How many blocks a retired table is kept alive before it is freed.
 
         Two. A swap can land in the middle of a block that has already taken the
@@ -100,14 +113,15 @@ public:
     */
     [[nodiscard]] const Wavetable& getTable (int index) const noexcept;
 
-    /** @returns the sub oscillator's table.
+    /** @returns the sub oscillator's table for @p waveform, clamped into
+        [0, numSubWaveforms).
 
         Separate from the indexed set on purpose: `numTables` is the range of
         the `oscN_wavetable` parameter, and the sub must not appear as a
-        selectable primary waveform. It is also never replaced — a sine is a
-        sine — so it needs none of the machinery above.
+        selectable primary waveform. Its tables are never replaced, so they need
+        none of the machinery above.
     */
-    [[nodiscard]] const Wavetable& getSubTable() const noexcept;
+    [[nodiscard]] const Wavetable& getSubTable (int waveform = 0) const noexcept;
 
     /** Marks the start of an audio block.
 
@@ -219,7 +233,7 @@ private:
     /** Tables the audio thread may still be reading. Message thread only. */
     std::vector<Retired> retired;
 
-    std::shared_ptr<const Wavetable> subTable;
+    std::array<std::shared_ptr<const Wavetable>, static_cast<std::size_t> (numSubWaveforms)> subTables;
 
     std::atomic<std::uint64_t> blockCounter { 0 };
 

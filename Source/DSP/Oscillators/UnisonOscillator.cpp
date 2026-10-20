@@ -131,11 +131,38 @@ void UnisonOscillator::refreshVoice (int index) noexcept
 
 void UnisonOscillator::resetPhase (double basePhase) noexcept
 {
+    resetPhase (basePhase, 0.0f, 0u);
+}
+
+void UnisonOscillator::resetPhase (double basePhase, float randomAmount, std::uint32_t seed) noexcept
+{
     const auto& active = currentLayout();
+
+    // NaN and negatives mean none; past 1 means a whole cycle, which is the
+    // most a phase offset can mean.
+    const auto amount = randomAmount > 0.0f ? (randomAmount < 1.0f ? randomAmount : 1.0f) : 0.0f;
 
     for (int i = 0; i < maxVoices; ++i)
     {
         auto wrapped = basePhase + active.getStartPhase (i);
+
+        // Skipped entirely at zero rather than multiplied by it, so a stack with
+        // no randomisation is computed exactly as it was before the control
+        // existed.
+        if (amount > 0.0f)
+        {
+            // A 32-bit integer hash of the seed and the voice index — a step of
+            // the PCG output function — so each voice gets its own offset from
+            // one per-note seed with nothing stored between notes.
+            auto x = seed + static_cast<std::uint32_t> (i + 1) * 0x9E3779B9u;
+            x = (x ^ (x >> 16)) * 0x7FEB352Du;
+            x = (x ^ (x >> 15)) * 0x846CA68Bu;
+            x ^= x >> 16;
+
+            const auto unit = static_cast<double> (x) / 4294967296.0;
+
+            wrapped += static_cast<double> (amount) * unit;
+        }
 
         wrapped -= std::floor (wrapped);
 

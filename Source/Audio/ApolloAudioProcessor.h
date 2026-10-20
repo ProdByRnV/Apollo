@@ -335,9 +335,15 @@ private:
         std::atomic<float>* level = nullptr;
         std::atomic<float>* pan = nullptr;
 
-        /** Null for oscillator 1, which tracks the played note exactly. */
         std::atomic<float>* semitones = nullptr;
         std::atomic<float>* fine = nullptr;
+
+        // Phase 13a: where a note starts, how far unison voices are scattered
+        // from it, how the detune is spread, and the outer voices' level.
+        std::atomic<float>* phase = nullptr;
+        std::atomic<float>* phaseRandom = nullptr;
+        std::atomic<float>* detuneCurve = nullptr;
+        std::atomic<float>* unisonBlend = nullptr;
 
         /** Resolves every pointer for the oscillator with this ID prefix.
 
@@ -502,6 +508,9 @@ private:
 
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
+    std::atomic<float>* subWaveformParameter = nullptr;
+    std::atomic<float>* subPhaseParameter = nullptr;
+    std::atomic<float>* subTrackingParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;
 
     /** MIDI expression setup: bend ranges and the MPE zone. */

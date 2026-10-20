@@ -58,6 +58,13 @@ struct OscillatorSourceSettings
     */
     float tuneSemitones = 0.0f;
 
+    /** Where each note starts in the cycle, as a fraction of it. Read when a
+        note begins, never while one is sounding. */
+    float startPhase = 0.0f;
+
+    /** How much of a cycle each unison voice's start may be randomly moved. */
+    float phaseRandom = 0.0f;
+
     [[nodiscard]] bool operator== (const OscillatorSourceSettings&) const = default;
 };
 
@@ -67,14 +74,22 @@ struct VoiceSourceSettings
     OscillatorSourceSettings osc1;
     OscillatorSourceSettings osc2;
 
-    /** The sub oscillator's table — a single-frame sine. Null silences it. */
+    /** The sub oscillator's table — one frame of the chosen waveform. Null
+        silences it. */
     const dsp::Wavetable* subTable = nullptr;
 
     /** Sub level, 0 to 1. Exactly zero skips it entirely. */
     float subLevel = 0.0f;
 
-    /** Octaves below the played note. -1 or -2. */
+    /** Octaves below the pitch it tracks. -1 or -2. */
     int subOctave = -1;
+
+    /** Where each note starts in the sub's cycle, as a fraction of it. */
+    float subPhase = 0.0f;
+
+    /** True when the sub follows oscillator 1's pitch, tuning and pitch
+        modulation included, rather than the played note. */
+    bool subTracksOsc1 = false;
 
     /** Noise level, 0 to 1. Exactly zero skips it entirely. */
     float noiseLevel = 0.0f;
