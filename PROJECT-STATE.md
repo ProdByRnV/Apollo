@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | Phase 12 — Release Candidate & Production Hardening, in progress; **12a (reliability), 12b (audio quality) and 12c (UX, in three parts) complete, and 12d-1 (the front door) of the documentation**. Phase 11 is closed: 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64). Phase 10 is closed except 10e-2 and 10e-3, which are **deferred at the developer's direction**: testing inside a DAW is set aside for now |
+| **Phase** | Phase 12 — Release Candidate & Production Hardening, in progress; **12a (reliability), 12b (audio quality) and 12c (UX, in three parts) complete, and 12d-1 and 12d-2 of the documentation**. Phase 11 is closed: 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64). Phase 10 is closed except 10e-2 and 10e-3, which are **deferred at the developer's direction**: testing inside a DAW is set aside for now |
 | **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — warp, macros and LFO tempo sync among them. How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | Working toward **M11 — Release Candidate**. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 12d-2 — the specification documents**: PRD.md, ARCHITECTURE.md and UI_BINDINGS.md brought up to what was built. 12d-1 rewrote README.md and added PLATFORMS.md and KNOWN-LIMITATIONS.md, and in doing so found several specified features that were never built (issue 26) — which of them belong before a release is the developer's call. Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Next step** | **Phase 12d-3 — compatibility and the roadmap**: the preset and state compatibility policy, and the roadmap's loose ends (Phases 9 and 10 still listed under "Left", issue 8). 12d-2 annotated the PRD section by section with what was built, added ARCHITECTURE.md §20, and brought UI_BINDINGS and REPOSITORY-LAYOUT up to date (ADR-0087). Issue 26 — which unbuilt features belong before a release — remains the developer's call. Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -1631,7 +1631,7 @@ DevTools protocol rather than by reading its code (ADR-0083).
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); nine factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
 | 11 | **Complete.** 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64): install rules and a CPack archive per platform, seven package tests including the dependency table of both binaries, and the staged package driven through the whole host suite on all four jobs (ADR-0076 to ADR-0079). macOS is universal and ad-hoc signed; Linux names its runtime libraries and CI checks each resolves; ARM64 passed first time. Absent: everything that needs a desktop — the editor rendering on macOS or Linux, Retina — plus Developer ID signing with notarisation, and Windows on ARM64 |
-| 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d-1 (the front door) is done**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. Absent: 12d-2 the specification documents, 12d-3 compatibility policy and the roadmap, 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
+| 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d-1 (the front door) is done**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. **12d-2 (the specification documents) is done**: a status note per PRD section, ARCHITECTURE.md §20 as built, UI_BINDINGS and REPOSITORY-LAYOUT current (ADR-0087). Absent: 12d-3 compatibility policy and the roadmap, 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
 
 **All 227 registered parameters now affect audio** — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
@@ -3392,21 +3392,22 @@ against each.
 
 ## 8. Recommended next action
 
-**Phase 12d-2 — the specification documents.** 12d-1 rewrote the front door:
-README.md says what Apollo is now, and Docs/PLATFORMS.md and
-Docs/KNOWN-LIMITATIONS.md say what runs where and what does not exist yet.
+**Phase 12d-3 — compatibility and the roadmap.** The last of 12d.
 
-12d-2 brings PRD.md, ARCHITECTURE.md and UI_BINDINGS.md up to what was built.
-The PRD is the largest job: it was written before any of the code, and reading
-it against the parameter registry in 12d-1 found features it specifies that
-were never scheduled (issue 26). The PRD cannot be "updated to match" by
-deleting them, because whether they are still wanted is the developer's
-decision, so 12d-2 will mark each one as built, not built, or decided against,
-and put the open ones to the developer.
+1. **The preset and state compatibility policy.** Docs/VERSIONING.md describes
+   the version axes; what it does not yet say plainly is the promise: which
+   presets and projects a later Apollo will open, what happens to one from a
+   newer Apollo, and what a parameter ID change costs. The machinery exists —
+   versioned state, migration, the pinned VST3 IDs (ADR-0075) — so 12d-3 is
+   writing the policy down and checking each claim against a test.
+2. **The roadmap's loose ends.** Phases 9 and 10 are still listed under "Left",
+   issue 8 (the roadmap names UI-BINDINGS.md with a hyphen) is open, and the
+   exit criteria of the earlier phases have not been re-read against what was
+   built.
 
-12d-3 then takes the preset and state compatibility policy, and the roadmap
-tidy: Phases 9 and 10 still sit under "Left", and issue 8 (UI-BINDINGS.md named
-with a hyphen) is still open.
+After 12d comes 12e, the release candidate. Issue 26 — whether any of the
+unbuilt features belong before it — is the developer's decision and is still
+open.
 
 1. **Not run in 12b, and available if wanted later**: an aliasing sweep across
    the whole keyboard, and attack timing measured against the envelope's own

@@ -53,24 +53,28 @@ Apollo/
 │   ├── KNOWN-LIMITATIONS.md    What Apollo does not do yet, and why
 │   └── DECISIONS.md
 │
-├── Source/                     Native C++ (apollo_core and the target shells)
+├── Source/                     Native C++: three libraries and the target shells
 │   ├── ApolloVersion.h.in      Configured by CMake
 │   ├── Parameters/             Parameter definitions, IDs, metadata
-│   ├── Audio/                  AudioProcessor, engine entry points        [Phase 1/3]
-│   ├── Engine/                 Voice management, synthesis engine         [Phase 3]
-│   ├── DSP/                    Oscillators, Filters, Envelopes, LFO,      [Phase 4+]
-│   │                           Modulation, Unison, Distortion, Delay,
-│   │                           Reverb, Dynamics, EQ, Oversampling,
-│   │                           Effects (the rack and the contract every
-│   │                           effect obeys — the one directory here that
-│   │                           holds no DSP of its own)
-│   ├── State/                  Serialization, presets, migration          [Phase 2/9]
-│   ├── MIDI/                   MIDI handling, MIDI Learn, profiles        [Phase 6]
-│   ├── Resources/              Wavetable and resource management          [Phase 9]
-│   ├── UI/                     WebView editor and bridge                  [Phase 2/7]
-│   ├── Platform/               Platform-specific adapters                 [as needed]
-│   ├── Plugin/                 VST3 wrapper shell                         [Phase 1]
-│   └── Standalone/             Standalone application shell               [Phase 1]
+│   ├── Audio/                  AudioProcessor, standalone device following
+│   ├── Engine/                 Voices, the voice engine, source mixing
+│   ├── DSP/                    Oscillators, Unison, Noise, Filters,
+│   │                           Envelopes, LFO, Modulation, Distortion,
+│   │                           Delay, Reverb, Dynamics, EQ, Oversampling,
+│   │                           Utilities (FFT, smoothing), and Effects
+│   │                           (the rack and the contract every effect
+│   │                           obeys — the one directory here that holds
+│   │                           no DSP of its own)
+│   ├── Telemetry/              Scope rings, modulation traces, the meter
+│   ├── State/                  State and preset documents, migration
+│   ├── MIDI/                   Mapping, MPE, RPN, MIDI Learn, profiles,
+│   │                           device adoption
+│   ├── Resources/              Preset library, factory presets,
+│   │                           wavetable files and loading
+│   ├── UI/                     WebView editor, bridge protocol, bridges
+│   └── Plugin/                 VST3 and standalone shells, and the
+│                               standalone-only behaviour (MIDI and output
+│                               device adoption)
 │
 ├── WebUI/                      React / TypeScript frontend                [Phase 7d]
 │   ├── package.json            react, react-dom, esbuild, typescript
@@ -86,25 +90,30 @@ Apollo/
 │       ├── modules/            the layout, in signal order
 │       └── styles/
 │
-├── Assets/                     Shipped resources                          [Phase 9]
-│   ├── Wavetables/
-│   ├── Noise/
-│   ├── Presets/
-│   └── UI/
-│
 ├── Tests/
 │   ├── CMakeLists.txt
-│   ├── TestMain.cpp
+│   ├── TestMain.cpp            ApolloTests: the unit and integration suite
 │   ├── Foundation/             Build system, conventions, invariants
-│   ├── DSP/                                                              [Phase 3+]
-│   ├── State/                                                            [Phase 2]
-│   ├── MIDI/                                                             [Phase 6]
-│   └── Integration/                                                      [Phase 10]
+│   ├── Parameters/  Audio/  Engine/  DSP/  Telemetry/
+│   ├── State/  MIDI/  Resources/  UI/
+│   │                           Each mirrors the Source/ directory it tests
+│   ├── Validation/             The assembled instrument, measured
+│   ├── Regression/             Fifteen renders against references
+│   ├── Analysis/               Spectral tools the two above share
+│   ├── Performance/            The benchmark, and the machine it runs on
+│   ├── Host/                   ApolloHostTests: the VST3 loaded through a
+│   │                           host, including the reliability soak
+│   └── Package/                Readers for PE, Mach-O and ELF binaries
 │
-└── .github/workflows/          CI
+└── .github/                    CI: the workflow, and the Linux
+                                dependency action it shares
 ```
 
-Bracketed phases indicate the roadmap phase that creates the directory.
+**No `Assets/` directory**, though all three source documents proposed one.
+Factory presets are compiled into the plugin as the parameters they change
+(ADR-0065) and the built-in wavetables as spectra (ADR-0066), so Apollo ships
+no loose resources. If a future feature needs files beside the plugin, they go
+under `Assets/` as §1 decided.
 
 ---
 
@@ -112,13 +121,17 @@ Bracketed phases indicate the roadmap phase that creates the directory.
 
 1. **Every source file must be listed in a `CMakeLists.txt`.** CMake is the
    authoritative build system; an unlisted file does not exist (CLAUDE.md §31).
-2. **Apollo code lives in libraries, not in target shells.** `Source/Plugin/` and
-   `Source/Standalone/` stay thin wrappers over `apollo_core`. This is what keeps
+2. **Apollo code lives in libraries, not in target shells.** `Source/Plugin/`
+   stays a thin wrapper over `apollo_core`, `apollo_engine` and
+   `apollo_editor` (ARCHITECTURE.md §20.1). This is what keeps
    the DSP engine independent of the plugin format (ARCHITECTURE.md §5.1) and it
    is also what allows the strict warning set to apply to Apollo code without
    drowning in third-party diagnostics — see [CODING-STANDARDS.md](CODING-STANDARDS.md) §2.
-3. **Platform-specific code is isolated in `Source/Platform/`** behind an
-   interface, never inlined into DSP or engine code (CLAUDE.md §3.3, §46).
+3. **Platform-specific code stays out of DSP and engine code** (CLAUDE.md §3.3,
+   §46). In practice there is almost none to isolate: one conditional, in the
+   editor, choosing the WebView backend, with everything else that differs by
+   platform in CMake. `Source/Platform/` is where an adapter goes if one is ever
+   needed; it has not been so far.
 4. **No hard-coded absolute or developer-machine paths anywhere**, in source or
    in CMake (CLAUDE.md §31.2). Paths come from CMake targets or cache variables.
 5. **Test directories mirror the code they test**, and the `juce::UnitTest`

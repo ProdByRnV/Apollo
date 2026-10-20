@@ -2,6 +2,12 @@
 
 > **Developer Clause:** This architecture document is the foundational technical blueprint for Apollo. It is intentionally iterative: implementation details may evolve as DSP, performance, platform, accessibility, and host-integration requirements are validated. Changes must preserve the architectural priorities of audio correctness, real-time safety, portability, maintainability, and host compatibility.
 
+> **Reading this in Phase 12 or later.** Sections 1–19 are the blueprint the
+> project started from, and most of it is phrased as what Apollo *should* do.
+> **§20 describes what was built**: the libraries, where each concern lives,
+> the threads and the paths between them. Where the two disagree, §20 is right,
+> and the decision that made the difference is cited there (ADR-0087).
+
 ## 1. System Overview & Design Philosophy
 
 Apollo is a hybrid-architecture software synthesizer composed of:
@@ -496,7 +502,10 @@ CMake is the authoritative build system.
 - Compiler warnings should be enabled at an appropriate project level.
 - Third-party dependencies should be minimized and version-pinned where practical.
 
-Recommended structure:
+Recommended structure — **superseded**. This was the starting proposal; the
+layout that was built, with `WebUI/` rather than `Web/` and effects under
+`Source/DSP/`, is in [Docs/REPOSITORY-LAYOUT.md](Docs/REPOSITORY-LAYOUT.md) and
+summarised in §20.2.
 
 ```text
 Apollo/
@@ -740,3 +749,113 @@ An architectural feature is considered complete only when:
 - Documentation reflects the implemented design.
 
 > **Final Engineering Directive:** Build Apollo as a portable, host-agnostic, real-time-safe software instrument. Hardware, operating-system, audio-driver, DAW, and controller specifics may be used as optional test configurations, but they must never become hidden architectural dependencies.
+
+---
+
+## 20. As built (0.1.0)
+
+What the sections above turned into. Written in Phase 12d-2 from the code and
+the build files, not from the plan; ADR numbers point to the reasoning in
+[Docs/DECISIONS.md](Docs/DECISIONS.md).
+
+### 20.1 Three libraries, split by what they depend on
+
+The layers in §1 are enforced by the build, not by convention: a file in the
+wrong library fails to compile or link. `Source/CMakeLists.txt`:
+
+| Library | Kind | Depends on | Holds |
+|---|---|---|---|
+| `apollo_core` | static | **nothing** — no JUCE | All DSP (oscillators, unison, filters, envelopes, LFOs, modulation, every effect, the rack, oversampling, FFT), the voice engine, MIDI mapping and MPE logic, the parameter registry, and the telemetry buffers. Held to the strict warning set |
+| `apollo_engine` | interface | `apollo_core`, JUCE audio | The `AudioProcessor`, APVTS layout, state and preset documents, the preset library, wavetable files and loading, MIDI Learn's manager, and the UI bridge's protocol and parameter layers |
+| `apollo_editor` | interface | `apollo_engine`, JUCE GUI | The WebView editor and the embedded React bundle. The test runner never links it, which is how the suite stays headless (ADR-0011, ADR-0016) |
+
+`Source/Plugin/` wraps these into the VST3 and the standalone. Two pieces of
+standalone-only behaviour live there — opening every MIDI input, and following
+the system's output device — each switched on by finding a standalone host at
+run time, not by a compile-time flag (ADR-0081, ADR-0082).
+
+**Platform code.** There is exactly one platform conditional in `Source/`: the
+editor selects WebView2 on Windows (ADR-0027). Everything else that differs by
+platform is in CMake. `Source/Platform/`, which §10 and the layout document
+anticipated, was never needed.
+
+`apollo_engine` and `apollo_editor` are *interface* libraries rather than static
+ones, because JUCE adds its module sources to whatever links it: a static
+library linking JUCE would compile JUCE into itself, the plugin would compile it
+again, and the link would fail on duplicate symbols.
+
+### 20.2 Where things are
+
+| Concern | Directory |
+|---|---|
+| Parameter registry (227 parameters, stable IDs) | `Source/Parameters/` |
+| Processor, standalone device following | `Source/Audio/` |
+| Voices, the voice engine, per-source mixing | `Source/Engine/` |
+| DSP, one directory per module, effects included | `Source/DSP/<Module>/` |
+| Scope rings, modulation traces, the level meter | `Source/Telemetry/` |
+| MIDI mapping, MPE zones, RPN parsing, Learn, device adoption | `Source/MIDI/` |
+| State and preset documents, migration | `Source/State/` |
+| Preset library, factory presets, wavetable files and loading | `Source/Resources/` |
+| WebView editor, bridge protocol, parameter and telemetry bridges | `Source/UI/` |
+| VST3 and standalone shells | `Source/Plugin/` |
+| The interface: React and TypeScript | `WebUI/src/` |
+
+There is no `Assets/` directory. Factory presets are compiled in as the
+parameters they change (ADR-0065), and the four built-in wavetables are
+compiled in as spectra (ADR-0066), so nothing has to be installed beside the
+plugin.
+
+### 20.3 The signal path
+
+Per voice, from a 32-voice pool: two wavetable oscillators of up to sixteen
+unison voices each, a sine sub oscillator and white noise; the per-source
+level and pan mix; two state-variable filters in series or parallel, each with
+its own gentle drive (ADR-0033); then the amplitude envelope. Voices sum into a
+stereo bus, which passes through the six-slot effects rack in whatever order its
+slots name, and then the master gain.
+
+Modulation is resolved once every 16 samples per voice, not every sample. A
+modulated cutoff therefore moves in 16-sample steps, measured to be no rougher
+than an unmodulated one (ADR-0035). Wavetable reads are resolved once per
+modulation block for the same reason (ADR-0071), and a unison stack is stored as
+flat parallel arrays rather than sixteen oscillator objects (ADR-0074).
+
+Only the distortion is oversampled, at 4×. The rack reports that latency to the
+host, and everything else adds none (ADR-0028, Docs/OVERSAMPLING.md).
+
+### 20.4 Threads, and what crosses between them
+
+| Thread | Runs | Talks to the audio thread through |
+|---|---|---|
+| **Audio** | `processBlock`: MIDI, voices, the rack | — |
+| **Message** | The editor, the bridge, MIDI Learn's manager, state save and load | APVTS atomics for parameters; a lock-free publication ring for MIDI mappings, updated at 60 Hz; an atomic pointer exchange for wavetables |
+| **Preset scan** | Walking the library folders, bounded three ways (ADR-0062) | Nothing. It publishes an index to the message thread |
+| **Wavetable loader** | Reading, validating, analysing and rendering a table (ADR-0066) | The slot pointer is exchanged atomically and the audio thread is told there is something new. The old table is retired, and freed only after the audio thread has started two more blocks |
+
+Data from the audio thread to the interface goes into preallocated rings per
+source — six scopes, eight modulator traces and a meter — captured only while
+an editor is open (ADR-0048). The message thread reads them and sends frames to
+the page at 30 Hz, and parameter changes are coalesced to the same rate.
+
+### 20.5 The interface
+
+A React and TypeScript application, bundled by esbuild through CMake and
+embedded in the binary (ADR-0050). It is served from memory, never from a path,
+and talks to the engine only through the bridge's closed, versioned message set
+([UI_BINDINGS.md](UI_BINDINGS.md)). It states no parameter range itself: every
+control is built from the metadata the engine sends. The page asks for a preset
+by a number the engine assigned, and cannot express a filename (ADR-0063).
+
+### 20.6 Where the blueprint and the build differ
+
+| Blueprint | As built |
+|---|---|
+| Envelope followers as modulation sources (§2.6, §3.2) | Not built; carried as unscheduled (ROADMAP "Carried forward") |
+| Host automation as a modulation source (§3.2) | Not built; needs modulation of modulation |
+| Spectrum visualisation (§5.3) | Not built; optional |
+| `Source/Platform/` behind interfaces (§9, §10) | Not needed: one conditional in the editor, the rest in CMake (§20.1) |
+| Effects under `Source/Effects/`, frontend under `Web/` (§10) | `Source/DSP/<Effect>/` and `WebUI/` (Docs/REPOSITORY-LAYOUT.md) |
+| Testing against a representative range of hosts (§8, §15) | Against the VST3 interfaces through a host implementation on every platform (ADR-0075); no DAW yet |
+
+The features the PRD specifies and which were not built are a separate question
+from architecture, recorded in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md).

@@ -1,11 +1,34 @@
 Apollo Synthesizer — Product Requirements Document
-Document Status: Living Blueprint / Non-Final  
+Document Status: Living Blueprint / Non-Final — annotated with what was built, as of 0.1.0  
 Product: Apollo  
 Target Formats: VST3 Plugin + Standalone Application  
 Primary UI Technology: JUCE 8 WebView + HTML/CSS/JavaScript/React  
 Primary DSP Language: C++  
 Platform Goal: Cross-platform and hardware-agnostic  
 Version: 1.0 (Universalized PRD)
+
+## Implementation status
+
+This document is the requirements. What was built against it is recorded at the
+end of each section in a **Status, 0.1.0** note, so the requirement and the
+answer sit together; nothing that was not built has been deleted. Added in
+Phase 12d-2 (ADR-0087).
+
+| Mark | Meaning |
+|---|---|
+| ✅ | Built and verified as described |
+| ◐ | Partly built: the note says which parts |
+| ❌ | Not built. Whether it belongs before a first release is the developer's decision, open as PROJECT-STATE issue 26 unless the note says otherwise |
+| ⊘ | Considered and decided against, with the decision cited |
+
+**In summary:** the instrument, its effects, presets, MIDI, visualisers and
+platforms are built. Not built: the warp engine (§12) and macros (§17)
+entirely; LFO tempo sync, drawn LFO curves, comb and formant filters,
+sub-oscillator waveforms, pink noise and unison detune curves within
+otherwise-built sections; wavetable management in the interface (§33); and
+user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
+The full list is Docs/KNOWN-LIMITATIONS.md.
+
 ---
 1. Executive Summary
 Apollo is a flagship-grade, multi-oscillator wavetable synthesizer designed for professional music production, sound design, live performance, and experimentation. It combines a high-performance C++ DSP engine with a modern web-based user interface hosted through JUCE 8 WebView.
@@ -15,6 +38,9 @@ VST3 plugin for use inside compatible digital audio workstations (DAWs).
 Standalone application for independent sound design, MIDI performance, recording, and audio monitoring.
 The architecture must be platform-independent and hardware-agnostic. No core feature may depend on a specific computer manufacturer, operating system, audio interface, MIDI controller, headphone connector, or DAW.
 Where hardware-specific mappings are useful, Apollo should provide configurable MIDI mapping and optional controller profiles rather than hard-coded dependencies.
+
+> **Status, 0.1.0:** ✅ Both forms exist: a VST3 plugin and a standalone application, built, tested and packaged on Windows, macOS, Linux and Linux ARM64. Nothing in the engine depends on a machine, DAW or controller.
+
 ---
 2. Product Vision
 Apollo should provide:
@@ -53,6 +79,9 @@ Allow future CLAP/AU/AAX or other formats to be added without rewriting the DSP 
 Allow future hardware/controller profiles without changing core synthesis code.
 Make the UI independently evolvable from the DSP engine.
 Support user-created wavetables, presets, modulation shapes, and noise samples.
+
+> **Status, 0.1.0:** ✅ The primary goals are met, except that state preservation has been shown through a VST3 host implementation and not yet in any DAW (§6.2). Of §3.2: other formats remain possible because the engine is independent of the wrapper (ARCHITECTURE.md §5); user presets are built; user wavetables are supported by the engine but not reachable from the interface (§33); user modulation shapes and noise samples ❌ are not built.
+
 ---
 4. Non-Goals
 The initial release does not need to:
@@ -113,6 +142,9 @@ Configurable controller mappings.
 Saveable MIDI mapping profiles.
 No synthesizer parameter may depend on a specific physical controller.
 Controller profiles may be supplied as optional presets.
+
+> **Status, 0.1.0:** ✅ §5.1 Windows, macOS and Linux, with platform code isolated. ✅ §5.2 x86-64 and ARM64 (Linux and macOS); Windows on ARM64 ❌ is not built (ADR-0079). SIMD ⊘ was priced and declined: data layout gave most of the gain (ADR-0073, ADR-0074). ✅ §5.3 the standalone uses whatever devices the system offers and follows the default output (ADR-0082). §5.4: ✅ device selection, with every input opened automatically (ADR-0081); ✅ MIDI Learn, CC, notes, bend, the mod wheel, channel and polyphonic aftertouch, MPE; ◐ mappings are saved with each project, and controller profiles are built in — a user cannot yet save a profile of their own (§35).
+
 ---
 6. Plugin and Host Integration
 6.1 Plugin Format
@@ -151,6 +183,9 @@ Serialize preset metadata where appropriate.
 Restore state accurately.
 Handle version migrations.
 Remain backward compatible with older preset/project states where practical.
+
+> **Status, 0.1.0:** ✅ §6.1 VST3, with the engine independent of the format. ◐ §6.2 tested against the VST3 interfaces through a host implementation on every platform, which found and fixed four defects (ADR-0075); not yet in any DAW ❌ — Phase 10e-2, deferred by the developer. ✅ §6.3 APVTS, versioned and migrated state, safe rejection that changes nothing.
+
 ---
 7. Core Sound Engine
 7.1 Signal Flow
@@ -166,6 +201,9 @@ Sub Oscillator ┤
 Noise ─────────┘
 ```
 The actual routing architecture may be expanded to support additional modulation and signal-routing configurations.
+
+> **Status, 0.1.0:** ✅ As drawn, with a reorderable six-slot effects rack between the filters and the master.
+
 ---
 8. Wavetable Oscillators
 8.1 Primary Oscillators
@@ -203,6 +241,9 @@ Oversampling.
 PolyBLEP-style correction where appropriate.
 High-quality interpolation.
 The final implementation should choose the technique that provides the best quality/performance balance.
+
+> **Status, 0.1.0:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, and pitch modulation through the matrix for either oscillator. ◐ Coarse and fine tuning exist for oscillator 2 only; oscillator 1 plays at the note. ❌ Per-oscillator phase (voice start phases are fixed, ADR-0017) and ❌ warp and warp amount (§12) are not built. §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
+
 ---
 9. Sub Oscillator
 Apollo shall include a dedicated sub oscillator.
@@ -217,6 +258,9 @@ Waveform
 Phase
 Optional tracking mode
 The sub oscillator should be computationally inexpensive and suitable for reinforcing the fundamental frequency.
+
+> **Status, 0.1.0:** ◐ A sine, one or two octaves down, with a level. ❌ No triangle or square, no phase control, no tracking mode.
+
 ---
 10. Noise Generator
 Apollo shall include a stereo noise generator.
@@ -232,6 +276,9 @@ Optional envelope control.
 User-loadable noise samples where feasible.
 Deterministic behavior when required for preset recall.
 Noise generation must avoid unnecessary allocations on the real-time audio thread.
+
+> **Status, 0.1.0:** ◐ Stereo white noise with its own level, deterministic for recall, and modulatable through the matrix. ❌ No pink noise, no transient samples, no loadable samples, no key tracking.
+
 ---
 11. Unison Engine
 Each primary oscillator shall support up to 16 unison voices.
@@ -246,6 +293,9 @@ Detune algorithms:
 Linear
 Exponential
 The implementation should avoid excessive CPU consumption when unison voice counts are high.
+
+> **Status, 0.1.0:** ◐ Up to sixteen voices per oscillator, with count, detune and spread, and measured CPU (ADR-0074). ❌ No detune curve, no phase randomisation (phases are fixed so a note renders identically each time, ADR-0017), no blend.
+
 ---
 12. Warp Engine
 Apollo shall provide real-time waveform manipulation.
@@ -259,6 +309,9 @@ Enable/disable.
 Amount.
 Appropriate modulation support.
 Warp algorithms must be implemented in a way that minimizes aliasing.
+
+> **Status, 0.1.0:** ❌ Not built. No warp mode exists, and warp is neither a parameter nor a modulation destination. Open: PROJECT-STATE issue 26.
+
 ---
 13. Filter Architecture
 Apollo shall provide two state-variable filters:
@@ -284,6 +337,9 @@ Drive
 Mix
 Key tracking
 Filters should support modulation from the modulation matrix.
+
+> **Status, 0.1.0:** ◐ Two state-variable filters, ✅ in series or in parallel; ❌ no split routing. §13.1: ✅ low-pass, high-pass, band-pass and notch; ❌ no comb or formant. §13.2: ✅ cutoff, resonance and drive, all modulatable; ❌ no per-filter mix and no key-tracking control, though key tracking can be routed to cutoff through the matrix.
+
 ---
 14. Drive and Saturation
 Drive stages should be available before and/or after filtering.
@@ -297,6 +353,9 @@ where:
 (y) = processed signal
 Additional waveshaping models may be added.
 The nonlinear processing architecture must support oversampling.
+
+> **Status, 0.1.0:** ✅ Drive inside each filter, deliberately gentle because its aliasing was measured (ADR-0033), and a distortion in the effects rack with soft, hard and diode curves at 4× oversampling.
+
 ---
 15. Modulation System
 Apollo's modulation architecture is a core differentiating feature.
@@ -341,6 +400,9 @@ Smoothing
 Retrigger
 Polarity
 LFOs should support both free-running and note-triggered operation.
+
+> **Status, 0.1.0:** §15.1: ✅ four DAHDSR envelopes with adjustable curve tension between linear and exponential, run per note. ❌ No visual editing — an envelope is shown as a live trace, not dragged — and no retrigger options. §15.2: ✅ four LFOs with rate, phase, fade-in, smoothing, retrigger and polarity, free-running or note-triggered, in seven shapes. ❌ No tempo sync: the conversion exists in the LFO code but no parameter reaches it. ❌ No drawn curves, deferred because they need an editor and a place in the preset format (ADR-0034).
+
 ---
 16. Modulation Matrix
 Apollo shall provide a flexible modulation matrix.
@@ -377,6 +439,9 @@ Example:
 LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
+
+> **Status, 0.1.0:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre. ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, and amplitude. ❌ Not built: macros as sources, warp and effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
+
 ---
 17. Macro Controls
 Apollo should provide user-configurable macro controls.
@@ -388,6 +453,9 @@ Minimum/maximum ranges.
 Curve shaping.
 Preset storage.
 The default macro mapping must never assume a particular MIDI controller.
+
+> **Status, 0.1.0:** ❌ Not built. Open: PROJECT-STATE issue 26.
+
 ---
 18. Multi-FX Rack
 Apollo shall provide a reorderable effects rack.
@@ -399,6 +467,9 @@ Reorder effects.
 Bypass effects.
 Adjust effect parameters.
 Save effect-chain configurations with presets.
+
+> **Status, 0.1.0:** ✅ Six slots: effects added, removed, reordered and bypassed, saved with presets. Every one of the 720 orderings is tested.
+
 ---
 19. Distortion
 The distortion unit should provide multiple modes:
@@ -411,6 +482,9 @@ Bitcrushing
 Rectification
 Custom waveshaping
 All nonlinear modes must consider oversampling requirements.
+
+> **Status, 0.1.0:** ✅ Hard, soft and diode-style curves, 4× oversampled, with drive compensation.
+
 ---
 20. Delay
 Apollo shall provide stereo delay.
@@ -427,6 +501,9 @@ The delay should support:
 Free time.
 Tempo-synced time.
 Modulation where CPU budget allows.
+
+> **Status, 0.1.0:** ◐ ✅ Stereo, ping-pong, bounded feedback, mix, damping and low-cut in the loop, milliseconds or fourteen note values synced to the host, with 120 BPM when the host gives no tempo. ❌ One time for both sides rather than independent left and right times, and no modulation.
+
 ---
 21. Reverb
 Apollo shall provide algorithmic reverb.
@@ -441,6 +518,9 @@ Pre-delay
 Width
 Mix
 The implementation should avoid unnecessary latency.
+
+> **Status, 0.1.0:** ✅ Room and hall, an eight-line feedback delay network whose decay measures as RT60, with every listed parameter and no latency.
+
 ---
 22. Noise Gate
 The dynamics section shall include a noise gate.
@@ -451,6 +531,9 @@ Hold
 Release
 Range
 The gate should be suitable for reducing unwanted noise while avoiding audible pumping where practical.
+
+> **Status, 0.1.0:** ✅ Every listed parameter.
+
 ---
 23. Compressor
 Apollo shall include an RMS-based compressor.
@@ -465,6 +548,9 @@ Optional future features:
 Peak detection.
 Sidechain input.
 External sidechain routing.
+
+> **Status, 0.1.0:** ✅ RMS detection, feed-forward, with every listed parameter. The optional future features are not built.
+
 ---
 24. Equalizer
 Apollo shall include a parametric 7-band EQ.
@@ -486,6 +572,9 @@ Band-pass
 Notch
 The equaliser shall also provide an output trim, so gain taken by a boost can be given back without moving the master.
 The response curve shall be displayed, drawn at the rate the engine is actually running at rather than an assumed one.
+
+> **Status, 0.1.0:** ✅ Seven bands as specified, with the response curve drawn at the engine's rate.
+
 ---
 25. Oversampling
 Oversampling shall be used where required to control nonlinear aliasing.
@@ -503,6 +592,9 @@ Latency.
 Audio quality.
 Stability.
 Oversampling should not be enabled indiscriminately if it provides no meaningful audio-quality benefit.
+
+> **Status, 0.1.0:** ✅ 2× and 4× polyphase halfband filters, applied where measured to matter: the distortion runs at 4×. Not applied to the filter drive, whose aliasing was measured and kept low by design (ADR-0033). The 8× and user-selectable modes are not built.
+
 ---
 26. Real-Time Audio Architecture
 The real-time audio thread is a critical system boundary.
@@ -534,6 +626,9 @@ Atomic values where appropriate.
 Lock-free queues where appropriate.
 APVTS/host parameter mechanisms.
 Double-buffered state where necessary.
+
+> **Status, 0.1.0:** ✅ Followed by construction and review. ❌ There is no automated allocation or lock detector (PROJECT-STATE issue 6).
+
 ---
 27. UI Architecture
 Apollo shall use JUCE 8 WebView integration.
@@ -544,6 +639,9 @@ JavaScript
 React
 The frontend should be component-based and structured for rapid iteration.
 Where possible, development should support hot reloading in development builds without compromising release performance or stability.
+
+> **Status, 0.1.0:** ✅ React and TypeScript, bundled by CMake and embedded in the binary (ADR-0050). ❌ No hot reloading: the page is served from inside the plugin.
+
 ---
 28. UI Design Language
 The default visual identity should use:
@@ -558,6 +656,9 @@ Icons.
 Numerical values.
 Tooltips.
 Visual shape/animation differences.
+
+> **Status, 0.1.0:** ✅ Gold on gunmetal (ADR-0051), and every state carries a word, number, shape or sign as well as a colour (ADR-0083 to ADR-0085).
+
 ---
 29. UI Layout
 Suggested high-level layout:
@@ -577,6 +678,9 @@ Suggested high-level layout:
 └─────────────────────────────────────────────┘
 ```
 The exact layout may evolve during implementation.
+
+> **Status, 0.1.0:** ◐ A single scrolling column in signal-flow order, with the preset browser above it, rather than the grid drawn here. The developer chose to keep the opening layout as it is (ADR-0084).
+
 ---
 30. Visualizers
 Apollo shall provide real-time visual feedback.
@@ -619,6 +723,9 @@ Parameter activity indicators.
 LFO movement.
 Envelope progression.
 Visualizer calculations must occur outside the real-time audio thread.
+
+> **Status, 0.1.0:** ✅ A scope for the output and for each source, a live trace for every envelope and LFO, the wave each oscillator is reading, and an output meter, all captured only while an editor is watching (ADR-0048). Warp state is not shown because there is no warp. Modulated controls light green; depth is not animated.
+
 ---
 31. UI ↔ DSP Communication
 The UI and DSP must communicate through a well-defined bridge.
@@ -632,6 +739,9 @@ Transport information.
 MIDI state where appropriate.
 The UI must not poll expensive DSP structures directly.
 Metering and visualization data should be downsampled or buffered to an appropriate UI rate.
+
+> **Status, 0.1.0:** ✅ A validated, versioned bridge carrying parameters, meters, scopes, wavetable frames, preset state and MIDI state, rate-limited to the interface (UI_BINDINGS.md). ❌ Host transport information is not sent.
+
 ---
 32. Preset System
 Apollo shall support a structured preset system.
@@ -663,6 +773,9 @@ Example:
 }
 ```
 The exact serialization format may be changed during implementation.
+
+> **Status, 0.1.0:** ✅ Versioned `.rnv` files carrying every parameter, the effects chain and metadata, read by the same validator as host state (ADR-0053, ADR-0061). The file is XML text rather than the JSON sketched here. ❌ Macros and references to user wavetables are not stored, because neither exists yet.
+
 ---
 33. Wavetable Management
 Users should be able to:
@@ -678,6 +791,9 @@ User content.
 Embedded content.
 External referenced content.
 Where practical, presets should avoid breaking when a user moves their content directory.
+
+> **Status, 0.1.0:** ◐ The engine reads a wavetable from a WAV file, validates it, and can replace a playing slot without a click, falling back to the built-in table on any failure (ADR-0066). ❌ Nothing in the interface can browse, preview, load or organise a wavetable, and a preset cannot refer to one: a file chooser has to be native rather than a path across the bridge (CLAUDE.md §40).
+
 ---
 34. MIDI System
 Apollo shall support standard MIDI functionality.
@@ -701,6 +817,9 @@ Apollo identifies the MIDI source.
 Parameter mapping is created.
 Mapping is saved.
 Mappings should be removable and editable.
+
+> **Status, 0.1.0:** ✅ Notes, velocity, pitch bend, the mod wheel, sustain, CC, channel and polyphonic aftertouch, and MPE. ❌ No program change. §34.1: ✅ MIDI Learn on any automatable control, saved with the project, released one at a time or all at once (ADR-0085).
+
 ---
 35. Controller Profiles
 Apollo may provide optional controller profiles.
@@ -711,6 +830,9 @@ Exportable/importable.
 Independent from the DSP engine.
 A controller profile must never be required to operate Apollo.
 The application must work fully with a mouse, keyboard, touchscreen where supported, or arbitrary MIDI hardware.
+
+> **Status, 0.1.0:** ◐ Built-in profiles, applied by replacing or merging, never required. ❌ Profiles cannot be edited as profiles, exported or imported.
+
 ---
 36. Automation
 Plugin parameters exposed to the host must support host automation.
@@ -722,6 +844,9 @@ Normalized values where required by the host API.
 Smooth parameter transitions where necessary.
 Correct state restoration.
 Parameter IDs should remain stable between releases whenever possible.
+
+> **Status, 0.1.0:** ✅ Stable string IDs, VST3 parameter IDs pinned against a loaded plugin, integer parameters published as discrete, and smoothing where it matters (ADR-0075).
+
 ---
 37. Transport Synchronization
 When running as a plugin, Apollo should be able to access host transport information where available.
@@ -731,6 +856,9 @@ Tempo-synced delay.
 Sequenced modulation.
 Host play/stop synchronization.
 The plugin must continue functioning sensibly when transport information is unavailable.
+
+> **Status, 0.1.0:** ◐ ✅ The delay follows the host's tempo, with a fallback when there is none. ❌ LFOs cannot (§15.2), and there is no sequenced modulation or play/stop behaviour.
+
 ---
 38. Audio Quality Requirements
 Apollo should target professional production quality.
@@ -743,6 +871,9 @@ Remain stable during rapid parameter changes.
 Avoid audible discontinuities during preset changes where practical.
 Maintain phase consistency where required.
 Prevent runaway feedback in effects.
+
+> **Status, 0.1.0:** ✅ Measured rather than assumed: tuning, THD+N, silence at rest, DC, inharmonic content, denormals, sample-rate and block-size changes, rapid automation, bounded feedback (PROJECT-STATE §5c, 12a). Discontinuities on a preset change have not been measured.
+
 ---
 39. Performance Requirements
 Apollo must be optimized for real-time operation.
@@ -772,6 +903,9 @@ Host.
 Operating system.
 Buffer size.
 Sample rate.
+
+> **Status, 0.1.0:** ✅ Measured as a distribution over individual callbacks, not an average, including the worst patch the controls allow (ADR-0069 to ADR-0074). Wavetables are built once per process and shared (ADR-0066). Latency is zero unless the distortion is in the rack, and is then reported.
+
 ---
 40. Error Handling
 Apollo must fail gracefully.
@@ -786,6 +920,9 @@ MIDI Device Disconnect
 Continue operating without crashing and reconnect when the device becomes available.
 WebView Failure
 Provide a controlled fallback/error state rather than corrupting DSP state.
+
+> **Status, 0.1.0:** ◐ ✅ A missing or unreadable wavetable falls back and is named; ✅ a MIDI device that disappears is forgotten and reopened when it returns (ADR-0081); ✅ a malformed preset or state changes nothing. Unsupported audio configurations are handled by JUCE's standalone settings, and a WebView that fails at run time has no fallback beyond the build-time generic editor.
+
 ---
 41. Security and Stability
 The UI must not have unrestricted access to the local system.
@@ -793,6 +930,9 @@ WebView integration should use a controlled communication bridge.
 External resources should not be loaded unnecessarily.
 User-provided files must be validated before processing.
 Malformed preset/wavetable files must not crash the application.
+
+> **Status, 0.1.0:** ✅ The bridge accepts a closed set of validated messages and cannot express a path (ADR-0063); presets and wavetables are validated; malformed documents are refused while playing (12a).
+
 ---
 42. Testing Requirements
 Testing should occur at multiple levels.
@@ -841,6 +981,9 @@ Responsive layout.
 Error states.
 42.5 Host Compatibility Tests
 Test multiple standards-compliant DAWs rather than optimizing exclusively for one DAW.
+
+> **Status, 0.1.0:** ✅ §42.1–§42.3, in over two million assertions, regression renders and a host harness. ◐ §42.4 the interface has unit tests for its logic and is otherwise driven in the running application (Docs/TESTING.md §10); drag-and-drop modulation does not exist. ❌ §42.5 no DAW yet.
+
 ---
 43. Accessibility
 Apollo should provide:
@@ -851,6 +994,9 @@ Tooltips.
 Numeric parameter displays.
 Non-color-only status communication.
 Scalable UI where practical.
+
+> **Status, 0.1.0:** ✅ One Tab stop per group, a heading and region per panel, typed values, focus that is returned, and nothing signalled by colour alone (ADR-0083 to ADR-0085). ◐ Scaling is the window and full screen, with no zoom control. Not yet heard through a screen reader.
+
 ---
 44. Architecture Principles
 The project should follow these architectural principles:
@@ -940,6 +1086,9 @@ Apollo/
     └── Integration/
 ```
 This structure is a reference architecture rather than a mandatory implementation.
+
+> **Status, 0.1.0:** Superseded by the structure that was built: Docs/REPOSITORY-LAYOUT.md.
+
 ---
 46. Development Phases
 Phase 1 — Foundation
@@ -1010,6 +1159,9 @@ Resource validation.
 Installer/package testing.
 Documentation.
 Final QA.
+
+> **Status, 0.1.0:** Superseded by ROADMAP.md, which split the work into thirteen phases and their sub-phases.
+
 ---
 47. Acceptance Criteria
 Apollo is considered functionally ready for an initial production release when:
@@ -1033,6 +1185,9 @@ Missing resources fail gracefully.
 Audio configuration changes do not crash the application.
 CPU usage is profiled and documented.
 The application does not require proprietary hardware.
+
+> **Status, 0.1.0:** ✅ Every criterion is met except the first: the VST3 has not yet been loaded in a DAW, only through a VST3 host implementation (§6.2).
+
 ---
 48. Future Expansion
 The architecture should leave room for:
@@ -1066,6 +1221,9 @@ MIDI controller support is profile-based rather than hard-coded.
 Real-time audio processing is strictly isolated from UI processing.
 Oversampling is applied selectively to alias-sensitive processing.
 APVTS or an equivalent robust parameter architecture is used for host automation and state management.
+
+> **Status, 0.1.0:** ✅ Every one of these held.
+
 ---
 50. Living PRD / Developer Clause
 This document is intentionally non-final.

@@ -759,6 +759,9 @@ that curve is designed with the same bilinear transform the filter is. The same
 so a curve drawn at an assumed rate would be a picture the sound does not agree
 with (ADR-0059).
 
+Since 12c-2 the masthead's **SR** readout shows it as well. It had shown the
+protocol version under that label, which no user could act on (ADR-0084).
+
 **Modulators.** `source` is a stable token — `env1`-`env4`, `lfo1`-`lfo4`. A
 modulator nothing has traced is omitted entirely, exactly as an uncaptured scope
 source is.
@@ -881,10 +884,40 @@ and `statusMessage` is its displayable form, naming no path (§13). An empty
 `statusMessage` means "this is the current state, not news".
 
 `loaded` is the index id of the preset currently in front of the user, or 0 for
-a sound that did not come from the library. It is **derived from the file each
-time** rather than remembered as a number, because a scan renumbers the index.
-A finished scan therefore pushes `presetStatus` alongside `presetIndex`: after a
-save the id does not become knowable until the scan that assigns it completes.
+a sound that did not come from the library. It is **derived each time** rather
+than remembered as a number, because a scan renumbers the index. A finished scan
+therefore pushes `presetStatus` alongside `presetIndex`: after a save the id
+does not become knowable until the scan that assigns it completes.
+
+It is derived from one of two things (12c-3, ADR-0085):
+
+1. **The file this bridge loaded or saved**, while it remembers one.
+2. Otherwise **the preset the state names**: the one index entry whose name,
+   author and category match the state's metadata. If two entries match, the
+   answer is 0. A wrong highlight would be worse than none.
+
+The second is the common case, not the fallback it sounds like. The bridge
+belongs to the editor, so its memory is gone after a restart, after a host
+project load and whenever a host closes the plugin's window. Before 12c-3,
+`loaded` was 0 in all three while `name` still said what the sound was, and the
+page showed a masthead and a list that contradicted each other.
+
+#### Refusals the page shows in the save form
+
+A save can be refused three ways, and the page shows each one in the save form
+as well as on the status line, because the form is where the user is looking:
+
+| Refusal | Arrives as |
+|---|---|
+| A preset of that name is already there | `presetStatus`, `ALREADY_EXISTS`: the replace prompt |
+| Writing failed | `presetStatus`, `SAVE_FAILED` |
+| The name or bank has nothing usable in it | `error`, `INVALID_PRESET_NAME` (§13) |
+
+**Editing the name or the bank withdraws any of them.** A different name is a
+different file, so an answer about the old one no longer applies. This matters
+most for the replace prompt: left up after the name changed, "Replace it" sent
+the new name with `overwrite: true`, replacing a preset nobody had been asked
+about (ADR-0085).
 
 Searching and filtering happen entirely on the page. They narrow a list it
 already holds, and nothing typed into the search box is ever sent.
@@ -988,6 +1021,28 @@ Errors must not expose memory addresses, sensitive filesystem paths, internal ob
 
 Recoverable UI errors must remain isolated from the audio engine.
 
+**As built.** The codes, from `BridgeProtocol.cpp`. A `message` is written for
+the user, not for a developer, since the page displays it as given:
+
+| Code | Raised when | Can a user cause it? |
+|---|---|---|
+| `MESSAGE_TOO_LARGE` | A message exceeds the size bound | No: only a broken or hostile page |
+| `MALFORMED_MESSAGE` | Not JSON, not an object, or a field of the wrong type | No |
+| `UNKNOWN_MESSAGE_TYPE` | A type the protocol does not have, or a command for a subsystem that is not attached | No |
+| `UNSUPPORTED_PROTOCOL_VERSION` | A version other than this one | No |
+| `UNKNOWN_PARAMETER` | An ID the registry does not have | No |
+| `INVALID_PARAMETER_VALUE` | Non-finite, or outside `[0, 1]` | No |
+| `INVALID_GESTURE_STATE` | A gesture that is neither `begin` nor `end` | No |
+| `UNKNOWN_PRESET` | A preset id the current index does not have | **Yes**: a list on screen from before a preset was deleted |
+| `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
+
+**How the page shows them (12c-3).** The status line shows an error with a
+warning sign as well as a colour, and a screen reader hears "Error:" before it
+(`WebUI/src/state/status.ts`). It used to show every error prefixed "Engine
+reported:", which read as a message from the plumbing rather than from the
+instrument. A caution, such as the replace prompt, is drawn the same way in the
+caution colour.
+
 ---
 
 ## 14. Security Boundary
@@ -1075,8 +1130,8 @@ ParameterDefinition
 ```
 
 **As built** (Phase 7d). The store is not React state and this is the whole
-design: parameter values arrive at 30 Hz and a hundred and forty-three of them
-change at once when a project loads, so a `useState` at the top of the tree would
+design: parameter values arrive at 30 Hz and all 227 of them can change at once
+when a project loads, so a `useState` at the top of the tree would
 re-render the page on every echo. `state/parameters.ts` keeps one listener set
 **per parameter id**, read through `useSyncExternalStore`; a knob re-renders when
 its own value moves and at no other time.
@@ -1092,6 +1147,18 @@ source, and the canvas is drawn imperatively.
 The metadata shape above is the wire shape, typed in `bridge/protocol.ts` — so a
 component that reads a field the native side does not send no longer compiles
 (ADR-0050).
+
+Two stores were added later. **`state/presets.ts`** (9c) holds the index and
+what the engine last said about the current sound; the page draws it and never
+edits it to match what it asked for (§10.6). **`state/status.ts`** (12c-3)
+holds the status line, so that a part of the page that finishes something can
+say so. Before it, only `App` could write the line, and cancelling a save left
+the refusal that caused it on screen.
+
+The interface also has its own tests now (12c-1, `WebUI/test/`), run inside
+every build. They cover logic that can be written as a pure module: where the
+arrow keys go in a group (`components/roving.ts`) and how a typed value is read
+back in a control's units (`params/parse.ts`). Docs/TESTING.md §10.
 
 ---
 
@@ -1156,8 +1223,10 @@ of inferring a preset load from a burst of individual changes. Both paths call
 itself.
 
 The bridge marks its own loads, so a reload it did not cause is recognisable as
-the host opening a project — at which point it forgets which preset was loaded,
-because the sound in front of the user is now the project's (§10.6).
+the host opening a project. At that point it forgets the file it loaded,
+because the sound in front of the user is now the project's, and reports
+whichever preset the project itself names, if exactly one does (§10.6,
+ADR-0085).
 
 ---
 

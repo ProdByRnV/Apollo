@@ -5055,3 +5055,65 @@ without a flag from 22.18. BUILD.md still said Node 20. A machine with Node 20
 would have failed partway through the build, with a module-loading error that
 read like a broken test. Configure now checks the version and names the one
 required. The comparison was checked against 20.11, 22.17, 22.18 and 24.
+
+---
+
+## ADR-0087 — The specification documents keep their requirements and say what was built
+
+**Phase 12d-2 · Accepted**
+
+PRD.md, ARCHITECTURE.md and UI_BINDINGS.md were written before most of Apollo
+existed. 12d-2 brought them up to what was built, and the main decision was how.
+
+### Annotate the PRD; do not rewrite it
+
+The easy way to "update the PRD to match" is to delete what was not built.
+That would turn the requirements document into a description of the code,
+and would quietly decide that warp, macros and LFO tempo sync are no longer
+wanted. That decision belongs to the developer (PROJECT-STATE issue 26).
+
+So every section keeps its requirement and gains a **Status, 0.1.0** note at its
+end — 45 in all — marked ✅ built, ◐ partly built, ❌ not built, or ⊘ decided
+against. A summary table sits at the top. The requirement and the answer are on
+the same screen, and anyone deciding what to build next reads both.
+
+Writing the notes from the code rather than from memory corrected the record
+twice. Only oscillator 2 has coarse and fine tuning; oscillator 1 plays at the
+note. And the distortion *does* filter before its curve, so a difference the
+architecture section was about to record did not exist.
+
+### ARCHITECTURE.md gets an "as built" section
+
+Its first nineteen sections are a blueprint written as "should". They stay,
+because they explain the reasoning. A new **§20** describes what exists:
+
+- **The libraries.** Three of them, split by dependency, so the layering is a
+  build failure, not a convention. `apollo_core` has no JUCE at all.
+- **Where each concern lives.** Including that there is no `Assets/` directory,
+  because factory content is compiled in.
+- **The signal path.** A 32-voice pool, modulation resolved every 16 samples,
+  and only the distortion oversampled.
+- **The threads,** and exactly what crosses between them.
+- **The places the build differs from the blueprint.**
+
+One finding is architectural. The `Source/Platform/` layer both documents
+planned was never needed: there is one platform conditional in the whole of
+`Source/`, choosing the WebView backend.
+
+### REPOSITORY-LAYOUT.md described directories that do not exist
+
+It listed `Assets/`, `Source/Platform/` and `Source/Standalone/`, none of which
+exist. It also omitted `Source/Telemetry/` and seven of the test directories.
+It now shows the tree as it is.
+
+### UI_BINDINGS.md
+
+The contract was current up to Phase 9c. It now records what changed since:
+
+- **The loaded preset.** How `loaded` is derived since 12c-3 — the remembered
+  file, or else the one preset the state names.
+- **Refusals in the save form,** and that editing a name withdraws them.
+- **Every error code**, and which of them a user can cause.
+- **The two new interface stores.**
+- **The interface tests.**
+- **The SR readout's source.**
