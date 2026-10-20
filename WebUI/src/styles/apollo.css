@@ -935,6 +935,16 @@ body::before {
     color: var(--text-dim);
 }
 
+/* A caution or an error on the status line: a warning sign in the text as
+   well as the colour, so the tone survives not seeing it (§24.2). */
+.footer__status[data-tone="caution"] {
+    color: var(--caution);
+}
+
+.footer__status[data-tone="error"] {
+    color: var(--danger);
+}
+
 .footer strong {
     color: var(--text);
     font-weight: 500;

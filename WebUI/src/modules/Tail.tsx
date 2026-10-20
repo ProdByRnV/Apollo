@@ -12,7 +12,6 @@ import { Segmented } from '../components/Segmented';
 import { LABELS } from '../params/labels';
 import { applyControllerProfile } from '../bridge/bridge';
 import { useMidi } from '../state/midi';
-import { plainOf, useParameterValue } from '../state/parameters';
 
 export function Output(): JSX.Element {
     return (
@@ -104,14 +103,13 @@ function ProfilePicker(): JSX.Element {
     as part of the patch.
 */
 export function Expression(): JSX.Element {
-    // Everything but the bend range is inert until a zone is chosen, and saying
-    // so with the same OFF chip the silent sources carry is cheaper than
-    // explaining it (ADR-0039).
-    useParameterValue('mpe_zone');
-    const zoneOff = plainOf('mpe_zone') < 0.5;
-
+    // NO OFF CHIP ON THIS PANEL, though there was one. It lit whenever MPE was
+    // off — which is the default — and a panel called MIDI marked OFF reads as
+    // "MIDI input is disabled", while the bend range and the profiles in it
+    // work regardless (12c-3). The MPE Zone switch already shows OFF where it
+    // applies, which is the only place it is true.
     return (
-        <Module title="MIDI" inactive={zoneOff}>
+        <Module title="MIDI">
             <ProfilePicker />
 
             <Knob id="midi_bend_range" label="Bend Range" />

@@ -4921,3 +4921,70 @@ both offered, and the developer chose to leave it as it is (CLAUDE.md §25).
 the wheel turned whatever knob it passed over, scrolling the page would change
 the sound. Drag, Shift-drag, the keyboard and typed values cover the precision
 a wheel would add.
+
+---
+
+## ADR-0085 — The workflows, walked as a user, and what they said
+
+**Phase 12c-3 · Accepted**
+
+The last part of 12c covered MIDI Learn, saving presets, and every message the
+interface shows. All three were driven end to end in the running standalone, and
+each was read as a user would read it. One defect could destroy data. The rest
+were messages that told the user something untrue.
+
+### The replace prompt could replace a file nobody was asked about
+
+Saving under an existing name raises "A preset called X is already there" and
+a **Replace it** button. The prompt was drawn from the last save status, and
+editing the name did not clear that status. Change the name after the prompt and
+the button stayed, still naming X, while it sent the *new* name with `overwrite`
+set. If that name also existed, its file was replaced without anyone being
+asked. That breaks CLAUDE.md §29.2: a save never silently replaces a preset.
+Editing the name or the bank now withdraws the prompt and any refusal, because
+a different name is a different file. The failure was reproduced in the running
+application before it was fixed.
+
+### The list and the masthead disagreed about what was loaded
+
+The masthead names the preset the state carries. The list highlighted the file
+the bridge had loaded, a key held in memory by the bridge, and the bridge
+belongs to the editor. So after a restart, after a host project load, and every
+time a host closed and reopened Apollo's window, the masthead said "Wire Pluck"
+and the list marked nothing.
+
+When the bridge has no key, the highlight now resolves the state's own claim:
+the library entry whose name, author and category match. It does this only
+when exactly one entry matches. A user copy saved under a factory name gives
+two candidates, and no highlight is better than the wrong one. The test that
+pinned the old behaviour kept its original promise: a project that names no
+preset still clears the highlight. Two new cases, a project that names its
+preset and a reopened editor, each fail against the build from before the fix.
+
+### Messages that said something untrue, or nothing useful
+
+| Where | Was | Is |
+|---|---|---|
+| The MIDI panel | Marked **OFF** whenever MPE was off, which is the default. Read aloud, its heading was "MIDI, off" | No chip. The MPE Zone switch shows OFF where it applies |
+| After Clear all | "Applied 8 of 8 assignments…" beside a masthead reading MIDI 0 | "Released 7 MIDI assignments." Releasing one control says which |
+| Cancelling a save | The refusal that led there stayed on the footer | "Save cancelled. Nothing was written." |
+| A refused name | Only on the footer, behind the form | In the form as an alert, and on the footer |
+| What was refused | "That is not a usable preset name." | "That name cannot be saved. Use at least one letter or number, in under 128 characters." |
+| Every error | Prefixed "Engine reported:" | A warning sign and an error colour; screen readers hear "Error:" |
+| Editing a factory sound, then Save… | Bank pre-filled "Factory", so the copy went into a user folder of that name and sat in the Factory bank | Bank empty: the top of the user library |
+
+The footer moved from App's local state into a store (`state/status.ts`), so
+the part of the page that finishes something can say so. Release and clear
+became their own outcomes in the protocol, `RELEASED` and `CLEARED`
+(UI_BINDINGS.md). They used to repeat the last *assignment's* outcome, which is
+how the footer came to announce an assignment that had been undone.
+
+The save form's fields stop at the engine's own limits, so a length refusal
+cannot be reached from the interface.
+
+### What was found to work
+
+MIDI Learn: the mode, the LEARN badge and its instruction, Escape cancelling the
+learn and then the mode, a profile assigning eight controls, Delete releasing
+one, and Clear all. Saving: save, the replace prompt, Cancel, Replace it, and
+the new preset becoming the highlighted row.

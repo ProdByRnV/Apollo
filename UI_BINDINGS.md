@@ -619,6 +619,13 @@ reads `PROFILE_APPLIED` and whose `statusMessage` says how much of the profile
 was applied and what it displaced — one code path for "the mapping state is now
 this", as in §10.1.
 
+`midiMappingRemove` and `midiMappingClearAll` reply the same way, with `status`
+reading `RELEASED` or `CLEARED` and a `statusMessage` naming what was released
+("Released the MIDI control on Filter 1 Cutoff.", "Released 8 MIDI
+assignments."). A release that found nothing to release carries the previous
+status unchanged. Before 12c-3 both carried the last *assignment's* outcome, so
+the page went on announcing an assignment after it had been undone.
+
 ```json
 {
   "type": "controllerProfiles",

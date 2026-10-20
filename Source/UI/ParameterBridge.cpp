@@ -233,14 +233,35 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
             midiControl->cancelLearn();
             break;
 
+        // A release and a clear say what they did. Both used to reply with the
+        // last *assignment's* outcome, so after Clear all the footer went on
+        // reading "Applied 8 of 8 assignments" beside a masthead reading MIDI 0
+        // (12c-3).
         case BridgeCommandType::midiMappingRemove:
-            (void) midiControl->removeParameterMapping (
-                params::indexOfParameter (command.parameterId.toStdString()));
-            break;
+        {
+            const auto index = params::indexOfParameter (command.parameterId.toStdString());
+
+            if (! midiControl->removeParameterMapping (index))
+                break;
+
+            const auto& definition = params::parameterDefinitions[static_cast<std::size_t> (index)];
+
+            return createMidiMappings ("RELEASED",
+                                       "Released the MIDI control on "
+                                           + params::toJuceString (definition.name) + ".");
+        }
 
         case BridgeCommandType::midiMappingClearAll:
+        {
+            const auto released = midiControl->getMappings().size();
+
             midiControl->clearAllMappings();
-            break;
+
+            return createMidiMappings ("CLEARED",
+                                       released == 1 ? juce::String ("Released 1 MIDI assignment.")
+                                                     : "Released " + juce::String (released)
+                                                           + " MIDI assignments.");
+        }
 
         case BridgeCommandType::applyControllerProfile:
         {
@@ -309,19 +330,54 @@ juce::String ParameterBridge::describeProfileResult (const juce::String& profile
 
 int ParameterBridge::idOfLoadedPreset() const
 {
-    if (presetLibrary == nullptr || loadedPresetKey.isEmpty())
+    if (presetLibrary == nullptr)
         return 0;
 
     const auto index = presetLibrary->getIndex();
 
-    for (const auto& entry : index.entries)
-        if (entry.key() == loadedPresetKey)
-            return entry.id;
+    if (loadedPresetKey.isNotEmpty())
+    {
+        for (const auto& entry : index.entries)
+            if (entry.key() == loadedPresetKey)
+                return entry.id;
 
-    // Loaded from a file the library no longer lists: deleted, moved, or saved
-    // somewhere outside the two roots. The sound is still correct; it is simply
-    // no longer a row in the browser, and 0 is the honest answer.
-    return 0;
+        // Loaded from a file the library no longer lists: deleted, moved, or
+        // saved somewhere outside the two roots. The sound is still correct; it
+        // is simply no longer a row in the browser, and 0 is the honest answer.
+        return 0;
+    }
+
+    // NO KEY, WHICH IS THE COMMON CASE RATHER THAN THE RARE ONE. The key lives
+    // in this bridge and the bridge lives in the editor, so it is gone after a
+    // restart, after a host project load, and every time a host closes the
+    // plugin's window. The state still names its preset — that is what the
+    // masthead shows — so the list used to say nothing while the masthead said
+    // "Wire Pluck", and the two contradicted each other (ADR-0085).
+    //
+    // So the state's own claim is resolved against the library: the preset
+    // whose name, author and category it carries, if exactly ONE does. Two
+    // candidates — a user copy saved under the factory name — is a question
+    // this cannot answer, and no highlight is better than the wrong one.
+    const auto metadata = presets::getMetadata (apvts);
+
+    if (metadata.name.isEmpty())
+        return 0;
+
+    int match = 0;
+
+    for (const auto& entry : index.entries)
+    {
+        if (entry.name != metadata.name || entry.author != metadata.author
+            || entry.category != metadata.category)
+            continue;
+
+        if (match != 0)
+            return 0;
+
+        match = entry.id;
+    }
+
+    return match;
 }
 
 juce::String ParameterBridge::createPresetIndex() const

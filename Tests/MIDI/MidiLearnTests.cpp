@@ -621,6 +621,21 @@ private:
             const auto reply = bridge.handleMessage (
                 bridgeMessage ("midiMappingRemove", mappedParameterId));
             expectEquals (countMappings (reply), 0);
+
+            // It says what it did, rather than repeating the last assignment's
+            // outcome — which left "Control assigned." on the footer after
+            // the control had been released (12c-3).
+            expect (reply.contains ("\"RELEASED\""), "a release reports itself");
+            expect (reply.contains ("Released the MIDI control on"),
+                    "and names the parameter it released");
+        }
+
+        {
+            // Releasing a control that has none changes nothing, and says
+            // nothing new either.
+            const auto reply = bridge.handleMessage (
+                bridgeMessage ("midiMappingRemove", mappedParameterId));
+            expect (! reply.contains ("\"RELEASED\""), "nothing was released, so nothing is claimed");
         }
 
         expect (succeeded (processor.getMidiControl().assign (mapping)));
@@ -628,6 +643,9 @@ private:
         {
             const auto reply = bridge.handleMessage (bridgeMessage ("midiMappingClearAll"));
             expectEquals (countMappings (reply), 0);
+            expect (reply.contains ("\"CLEARED\""), "a clear reports itself");
+            expect (reply.contains ("Released 1 MIDI assignment."),
+                    "and counts what it released, in the singular for one");
         }
 
         // Detaching must be safe, and must put the bridge back to refusing.

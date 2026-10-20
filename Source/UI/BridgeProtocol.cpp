@@ -69,7 +69,13 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::invalidParameterValue:      return "Parameter value was outside the permitted range.";
         case BridgeErrorCode::invalidGestureState:        return "The gesture state is not recognised.";
         case BridgeErrorCode::unknownPreset:              return "That preset is no longer in the library.";
-        case BridgeErrorCode::invalidPresetName:          return "That is not a usable preset name.";
+        // Says what would make it usable. "Not a usable name" left the user
+        // guessing, and the answer — some letter or number, within the bound —
+        // is short enough to give. It covers the bank as well as the name,
+        // because the same refusal applies to both.
+        case BridgeErrorCode::invalidPresetName:
+            return "That name cannot be saved. Use at least one letter or number, in under "
+                 + juce::String (presets::maximumNameLength) + " characters.";
     }
 
     return "The message could not be read.";

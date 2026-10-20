@@ -183,6 +183,11 @@ private:
         library — a sound that has never been saved, or one restored from a host
         project by a build that has not scanned yet.
 
+        The file this bridge loaded or saved, when it knows one. Otherwise the
+        preset the state itself names, if exactly one entry in the library
+        carries its name, author and category — which is what makes the list
+        agree with the masthead after a restart or a reopened window (ADR-0085).
+
         Resolved through the file each time rather than remembered as a number,
         because a scan renumbers the index: an id kept across one would point at
         whatever preset had inherited it.

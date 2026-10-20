@@ -32,6 +32,12 @@ import { useEffect, useState } from 'react';
 import { loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
 import { Module } from '../components/Module';
 import { hasCommandModifier, rovingTarget } from '../components/roving';
+import { announce } from '../state/status';
+
+/** The engine's bounds on a preset's text, from State/PresetDocument.h. A field
+    stops at them rather than letting a save be refused for its length. */
+const PRESET_NAME_MAX = 128;
+const PRESET_COMMENT_MAX = 1024;
 import type { PresetEntry } from '../bridge/protocol';
 import type { PresetState } from '../state/presets';
 import {
@@ -91,6 +97,13 @@ export function Presets(): JSX.Element {
 
     const update = (field: keyof Draft, value: string): void => {
         setDraft((current) => ({ ...current, [field]: value }));
+
+        // A changed name or bank is a different file, so an answer about the
+        // old one no longer applies. Above all the replace prompt: left up, it
+        // named the preset it was asked about while "Replace it" sent the new
+        // name with overwrite set — replacing a file nobody had been asked
+        // about, which is the one thing a save must never do (CLAUDE.md §29.2).
+        if ((field === 'name' || field === 'bank') && presets.status !== '') clearPresetStatus();
     };
 
     /** Opens the save form, filled in from the sound currently loaded.
@@ -126,6 +139,12 @@ export function Presets(): JSX.Element {
     // The prompt is the rendering of a status rather than a flag of its own, so
     // there is no way for the two to disagree about whether it is showing.
     const replacing = presets.status === 'ALREADY_EXISTS';
+
+    // Every answer to a save that is not "saved" is shown in the form, where
+    // the user is looking, and not only on the footer behind it.
+    const refusal = replacing || presets.status === 'SAVE_FAILED' || presets.status === 'INVALID_NAME'
+        ? presets.statusMessage
+        : '';
 
     // Whichever of the three candidates is actually on screen. A search can
     // filter the remembered row away, and a list with no stop in it could not
@@ -313,6 +332,7 @@ export function Presets(): JSX.Element {
                             <span>Name</span>
                             <input
                                 type="text"
+                                maxLength={PRESET_NAME_MAX}
                                 value={draft.name}
                                 autoFocus
                                 onChange={(event) => update('name', event.target.value)}
@@ -323,6 +343,7 @@ export function Presets(): JSX.Element {
                             <span>Author</span>
                             <input
                                 type="text"
+                                maxLength={PRESET_NAME_MAX}
                                 value={draft.author}
                                 onChange={(event) => update('author', event.target.value)}
                             />
@@ -333,6 +354,7 @@ export function Presets(): JSX.Element {
                             <input
                                 type="text"
                                 list="apollo-preset-categories"
+                                maxLength={PRESET_NAME_MAX}
                                 value={draft.category}
                                 onChange={(event) => update('category', event.target.value)}
                             />
@@ -343,6 +365,7 @@ export function Presets(): JSX.Element {
                             <input
                                 type="text"
                                 list="apollo-preset-banks"
+                                maxLength={PRESET_NAME_MAX}
                                 value={draft.bank}
                                 onChange={(event) => update('bank', event.target.value)}
                             />
@@ -367,15 +390,19 @@ export function Presets(): JSX.Element {
                         <span>Comment</span>
                         <input
                             type="text"
+                            maxLength={PRESET_COMMENT_MAX}
                             value={draft.comment}
                             onChange={(event) => update('comment', event.target.value)}
                         />
                     </label>
 
                     <div className="presets__save-actions">
+                        {refusal ? (
+                            <span className="presets__warning" role="alert">{refusal}</span>
+                        ) : null}
+
                         {replacing ? (
                             <>
-                                <span className="presets__warning">{presets.statusMessage}</span>
                                 <button
                                     className="presets__action presets__action--danger"
                                     type="button"
@@ -398,7 +425,14 @@ export function Presets(): JSX.Element {
                         <button
                             className="presets__action presets__action--quiet"
                             type="button"
-                            onClick={() => { clearPresetStatus(); setSaveOpen(false); }}
+                            onClick={() => {
+                                clearPresetStatus();
+                                setSaveOpen(false);
+
+                                // Said, because the footer may still be showing
+                                // the refusal that led here.
+                                announce('Save cancelled. Nothing was written.');
+                            }}
                         >
                             Cancel
                         </button>
@@ -421,9 +455,17 @@ function presetRowName(entry: PresetEntry): string {
     ].filter((part) => part !== '').join(', ');
 }
 
-/** @returns the bank of the loaded preset, or "" if it did not come from one. */
+/** @returns the bank of the loaded preset, or "" if it did not come from one.
+
+    Also "" when it came from the factory library. A save always goes to the
+    user library, so pre-filling "Factory" made a user folder of that name, and
+    an edited Wire Pluck then sat in the Factory bank beside the real one,
+    looking like a factory preset that was not one (12c-3).
+*/
 function currentBank(entries: readonly PresetEntry[], loaded: number): string {
-    return entries.find((entry) => entry.id === loaded)?.bank ?? '';
+    const entry = entries.find((candidate) => candidate.id === loaded);
+
+    return entry && !entry.factory ? entry.bank : '';
 }
 
 /** @returns why the list is empty, in the terms that are actually true.

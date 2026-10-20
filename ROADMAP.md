@@ -138,10 +138,10 @@ front of it is better understood, the way 8f was.
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review. Closed on the developer's hands-on review from two MIDI keyboards, over the measurements 10a already made; a whole-keyboard aliasing sweep and attack timing against the envelope were not run, and issues found later are fixed as they arise | ✅ |
-| 12c | UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility. Cut into three after an audit of the running interface over the DevTools protocol | ⬜ |
+| **12c** | **UX — discoverability, keyboard and mouse, MIDI Learn, the preset workflow, error messages, visual feedback, accessibility. Cut into three after an audit of the running interface over the DevTools protocol** | ✅ |
 | 12c-1 | Keyboard and accessibility — one Tab stop per group with the arrows moving inside it (switches, tab strips, the preset list, the reset menu), a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it and hands focus back, and the interface's first test suite. Tab stops 253 → 169 (ADR-0083) | ✅ |
 | 12c-2 | Discoverability and feedback — a value can be typed into any knob (Enter, or Enter value… on its menu), read in the readout's own units and refused rather than guessed; the preset list has column headings; the status line says "Ready." and the "SR" readout shows the sample rate instead of the protocol version; and the mouse half of keyboard and mouse, driven control by control. The first screen keeps its layout at the developer's direction (ADR-0084) | ✅ |
-| 12c-3 | Workflows and errors — MIDI Learn and the preset workflow end to end, every error message read as a user would read it, and the masthead naming a preset the list does not mark as loaded after a restart | ⬜ |
+| 12c-3 | Workflows and errors — MIDI Learn and the preset workflow walked end to end. A replace prompt that survived a name change and could overwrite a file nobody was asked about; the list and masthead disagreeing about what was loaded after a restart or a reopened window; a MIDI panel marked OFF by default; and every message read as a user would read it, with refusals shown where the user is looking (ADR-0085) | ✅ |
 | 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
 | 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
 
@@ -895,10 +895,10 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 
 - [x] Verify all controls are discoverable. — every interaction a knob has is offered in its right-click menu or named in the footer hint; the preset list says what its columns are; the status line and readout say things a user can act on (12c-2, ADR-0084). The first screen's layout is unchanged at the developer's direction
 - [x] Verify keyboard/mouse interaction. — keyboard in 12c-1: every control reachable, one stop per group, arrows inside it (ADR-0083). Mouse in 12c-2: drag, Shift-drag, double-click, both menu items, switches, tabs, the depth rail and the preset list, each driven with real pointer events (ADR-0084). No mouse wheel on knobs, deliberately
-- [ ] Verify MIDI Learn workflow.
-- [ ] Verify preset workflow.
-- [ ] Verify error messages.
-- [ ] Verify visual feedback.
+- [x] Verify MIDI Learn workflow. — the mode, the LEARN badge and instruction, Escape twice, a profile, Delete to release one, Clear all; release and clear now report what they did (12c-3, ADR-0085)
+- [x] Verify preset workflow. — save, the replace prompt, Cancel, Replace it, a refused name, the highlight after a restart; found and fixed a replace prompt that survived a name change (12c-3, ADR-0085)
+- [x] Verify error messages. — every message the engine can show was read in place; refusals now appear where the user is looking, say what would make the request work, and carry a warning sign as well as a colour (12c-3, ADR-0085)
+- [x] Verify visual feedback. — a focus ring on every control including a chosen chip (12c-1), a typed-value field that says Not understood (12c-2), status tones with a shape as well as a colour, and a MIDI panel no longer marked off when it is not (12c-3)
 - [x] Verify accessibility basics and focus behavior. — a heading and region per panel, valid tab and radio semantics, a focus ring visible on every control including a chosen chip, and focus returned after the reset menu closes (12c-1, ADR-0083)
 
 ### Documentation

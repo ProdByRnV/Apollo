@@ -623,7 +623,7 @@ private:
 
     void testAHostReloadForgetsTheBrowsersPreset()
     {
-        beginTest ("A project load stops the browser claiming the old preset is playing");
+        beginTest ("A project load highlights the preset the project names, and only that one");
 
         TemporaryLibrary temporary;
 
@@ -640,15 +640,58 @@ private:
         temporary.scan();
 
         const auto afterSave = bridge.createPresetStatus ("CURRENT", {});
-        expect (fieldOf (afterSave, "loaded") != "0",
-                "the saved preset is the sound in front of the user");
+        const auto bellId = fieldOf (afterSave, "loaded");
+        expect (bellId != "0", "the saved preset is the sound in front of the user");
+
+        juce::MemoryBlock namesBell;
+        processor.getStateInformation (namesBell);
+
+        // A project that names no preset: the state of an untouched instance.
+        juce::MemoryBlock namesNothing;
+        {
+            ApolloAudioProcessor untouched;
+            untouched.getStateInformation (namesNothing);
+        }
 
         // A reload the bridge did not cause came from the host: the sound is now
         // the project's, whatever the browser last loaded.
+        processor.setStateInformation (namesNothing.getData(), static_cast<int> (namesNothing.getSize()));
         const auto afterReload = bridge.handleStateReload();
 
         expectEquals (fieldOf (afterReload, "loaded"), juce::String ("0"),
                       "a host project load must clear the browser highlight");
+
+        // ADR-0085. A project that names Bell is Bell's, and the list says so,
+        // as the masthead does. Before, the highlight lived only in the bridge
+        // and this came back 0 while the masthead read "Bell".
+        processor.setStateInformation (namesBell.getData(), static_cast<int> (namesBell.getSize()));
+
+        expectEquals (fieldOf (bridge.handleStateReload(), "loaded"), bellId,
+                      "a project naming a preset in the library highlights it");
+
+        // A window closed and opened again is a new bridge with no memory of
+        // what it loaded. It must still find Bell, which is what a host does to
+        // a plugin every time somebody shuts its editor.
+        {
+            ui::ParameterBridge reopened (processor.getValueTreeState());
+            reopened.setPresetLibrary (&temporary.library);
+
+            expectEquals (fieldOf (reopened.createPresetStatus ("CURRENT", {}), "loaded"), bellId,
+                          "a reopened editor highlights the preset the state names");
+
+            reopened.setPresetLibrary (nullptr);
+        }
+
+        // Two presets the state's name, author and category could both mean: no
+        // highlight, rather than a guess at one of them.
+        expectEquals (fieldOf (bridge.handleMessage (
+                          R"({"type":"savePreset","version":1,"name":"Bell","bank":"Copies"})"), "status"),
+                      juce::String ("SAVED"));
+
+        temporary.scan();
+
+        expectEquals (fieldOf (bridge.handleStateReload(), "loaded"), juce::String ("0"),
+                      "an ambiguous name highlights nothing");
 
         bridge.setPresetLibrary (nullptr);
     }

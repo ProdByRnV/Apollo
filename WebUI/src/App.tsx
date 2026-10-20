@@ -5,8 +5,9 @@
     moves it, then what leaves. A parameter list sorted alphabetically is a
     database; this is an instrument.
 
-    App owns exactly three things — the status line, the inbound message routing,
-    and the MIDI assignment mode — and nothing else. Every value on the page
+    App owns exactly two things — the inbound message routing and the MIDI
+    assignment mode — and draws the status line, which anything may write to
+    (state/status.ts). Every value on the page
     reaches its control through a store rather than through props, which is why
     moving a knob does not re-render this component and a project load does not
     re-render the page.
@@ -57,7 +58,9 @@ import {
     setDefinitions,
     useMetadataVersion,
 } from './state/parameters';
-import { applyPresetIndex, applyPresetStatus, usePresets } from './state/presets';
+import { applyPresetIndex, applyPresetRefusal, applyPresetStatus, usePresets } from './state/presets';
+import { announce, useAnnouncement } from './state/status';
+import type { StatusTone } from './state/status';
 import { deliverInstrumentFrame, deliverScopeFrames, useSampleRate } from './state/telemetry';
 
 export function App(): JSX.Element {
@@ -72,18 +75,20 @@ export function App(): JSX.Element {
     const presets = usePresets();
     const sampleRate = useSampleRate();
 
-    /** The last thing the engine said, kept so a transient MIDI prompt can be
-        shown over it and then cleared without losing it. */
     /** What the connection established, for the readout's tooltip. */
     const [binding, setBinding] = useState('');
 
-    const [status, setStatus] = useState(
-        bridgeAvailable
-            ? 'Connecting to engine…'
-            // Opened outside the plugin. Say so plainly rather than sitting on
-            // "Connecting" for ever (CLAUDE.md §33, §39).
-            : 'No engine connection — this page is running outside Apollo.',
-    );
+    // The status line lives in a store (state/status.ts), so that the parts of
+    // the page that finish something can say so. What it says first depends on
+    // whether there is an engine to talk to at all: opened outside the plugin,
+    // it says so plainly rather than sitting on "Connecting" for ever
+    // (CLAUDE.md §33, §39).
+    useEffect(() => {
+        if (bridgeAvailable) announce('Connecting to engine…');
+        else announce('No engine connection — this page is running outside Apollo.', 'caution');
+    }, []);
+
+    const announcement = useAnnouncement();
 
     //--------------------------------------------------------------------------
     // Inbound messages.
@@ -124,7 +129,7 @@ export function App(): JSX.Element {
                 // somebody diagnosing a connection will look for it.
                 if (!boundRef.current) {
                     boundRef.current = true;
-                    setStatus('Ready.');
+                    announce('Ready.');
                     setBinding(`${definitionCount()} parameters · protocol v${message.version}`);
                 }
                 break;
@@ -151,9 +156,12 @@ export function App(): JSX.Element {
                 // assigning a control that was already in use silently takes it
                 // away from whatever had it (CLAUDE.md §33).
                 if (message.status === 'PROFILE_APPLIED'
+                    || message.status === 'RELEASED'
+                    || message.status === 'CLEARED'
                     || message.status.startsWith('REPLACED')
                     || message.status.startsWith('REJECTED')) {
-                    setStatus(message.statusMessage);
+                    announce(message.statusMessage,
+                             message.status.startsWith('REJECTED') ? 'error' : 'info');
                 }
                 break;
 
@@ -172,11 +180,15 @@ export function App(): JSX.Element {
                 // load, a save and a refusal are all things the user just asked
                 // for and is owed an answer about; the current name arriving at
                 // startup, or after a project load, is not news.
-                if (message.statusMessage) setStatus(message.statusMessage);
+                if (message.statusMessage) announce(message.statusMessage, presetTone(message.status));
                 break;
 
             case 'error':
-                setStatus(`Engine reported: ${message.message}`);
+                // A save refused for its name is shown in the save form as
+                // well, which is where the user is looking when it happens.
+                if (message.code === 'INVALID_PRESET_NAME') applyPresetRefusal(message.message);
+
+                announce(message.message, 'error');
                 break;
 
             default:
@@ -292,7 +304,10 @@ export function App(): JSX.Element {
 
     const statusText = learningName
         ? `Move a MIDI control to assign it to ${learningName} — Escape to cancel`
-        : status;
+        : announcement.text;
+
+    // Learning is an instruction, not a warning, whatever came before it.
+    const statusTone = learningName ? 'info' : announcement.tone;
 
     const hint = midi.mode
         ? 'Click a control to assign it · Delete to release · Escape to cancel'
@@ -473,7 +488,17 @@ export function App(): JSX.Element {
             </main>
 
             <footer className="footer">
-                <span role="status">{statusText}</span>
+                <span role="status" className="footer__status" data-tone={statusTone}>
+                    {statusTone !== 'info' ? (
+                        <>
+                            <span aria-hidden="true">⚠ </span>
+                            <span className="visually-hidden">
+                                {statusTone === 'error' ? 'Error: ' : 'Warning: '}
+                            </span>
+                        </>
+                    ) : null}
+                    {statusText}
+                </span>
                 <span className="footer__spacer" />
                 <span>{hint}</span>
             </footer>
@@ -486,4 +511,12 @@ function formatSampleRate(rate: number): string {
     if (!(rate > 0)) return '—';
 
     return `${Number((rate / 1000).toFixed(1))} kHz`;
+}
+
+/** How loudly a preset outcome is shown. A refusal that destroyed nothing is a
+    caution; a load or save that failed is an error; the rest is news. */
+function presetTone(status: string): StatusTone {
+    if (status === 'LOAD_FAILED' || status === 'SAVE_FAILED') return 'error';
+    if (status === 'ALREADY_EXISTS') return 'caution';
+    return 'info';
 }

@@ -123,6 +123,14 @@ export function applyPresetStatus(message: PresetStatusMessage): void {
     });
 }
 
+/** A save the engine refused before it reached the library — a name with
+    nothing usable in it. It arrives as a protocol error rather than a preset
+    status, and is folded in here so the save form can show it where the user
+    is looking, rather than only on the footer behind it. */
+export function applyPresetRefusal(message: string): void {
+    set({ status: 'INVALID_NAME', statusMessage: message });
+}
+
 /** Clears a status the user has dealt with, without touching anything else.
 
     Used when a replace prompt is answered: the prompt is the rendering of a
