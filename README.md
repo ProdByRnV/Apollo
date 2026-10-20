@@ -96,6 +96,7 @@ platform, the build options, sanitizer builds and packaging.
 |---|---|
 | [Docs/PLATFORMS.md](Docs/PLATFORMS.md) | Supported platforms and formats, and how much of each has been verified |
 | [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md) | What Apollo does not do yet, and why |
+| [Docs/COMPATIBILITY.md](Docs/COMPATIBILITY.md) | Which presets and projects open in which version of Apollo |
 
 ### Specification
 

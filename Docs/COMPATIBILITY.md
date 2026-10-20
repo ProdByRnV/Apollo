@@ -1,0 +1,102 @@
+# Preset and Project Compatibility
+
+What happens when a preset or a DAW project made with one version of Apollo is
+opened in another, and the rules a change to Apollo must follow to keep that
+true. Each promise below names the test that holds it to its word. A promise
+without one is marked as such.
+
+[VERSIONING.md](VERSIONING.md) defines the version numbers this page refers to.
+
+---
+
+## 1. The promise
+
+A preset (`.rnv`) and a DAW project store the same thing: a versioned state
+document, read by the same validator (ADR-0061). So everything here applies to
+both.
+
+| You open… | In… | What happens | Held by |
+|---|---|---|---|
+| A preset or project from **Apollo 0.1.0 or later** | A later Apollo | It opens and sounds as it was saved. Settings that did not exist yet take their defaults, and a new setting's default is the one that reproduces the old sound (§3) | A preset 0.1.0 wrote, frozen in the test suite and read by every build (`State compatibility`) |
+| One from a **later Apollo**, same schema | An earlier Apollo | It opens. Settings this version does not have are ignored, so the sound may differ if it used them | `State compatibility`: an unknown parameter is ignored and the rest loads |
+| One from a later Apollo with a **newer schema** | An earlier Apollo | Refused: "The state data was saved by an incompatible version of Apollo." **The sound already loaded is untouched** | `State serialization`: unsupported versions are refused; refusal changes nothing |
+| A file that is **not Apollo's**, or is damaged | Any | Refused, with the current sound untouched. A `.rnv` extension proves nothing about the contents | `State serialization`, `Preset document`, and the reliability suite's stream of damaged documents (12a) |
+
+**A preset is a complete sound.** Loading one sets every setting. Whatever the
+document does not mention returns to its default rather than keeping what was
+there before, so the same preset always sounds the same, whatever was loaded
+before it. *Held by `State compatibility`: every parameter is moved away from
+its default, a one-parameter document is loaded, and all the others must be
+back at their defaults.*
+
+**Two things a preset deliberately does not carry**, because they describe your
+setup rather than the sound (ADR-0061):
+
+- your **MIDI Learn assignments**;
+- the **pitch-bend range** and **MPE zone** settings.
+
+A DAW project carries both. Loading a preset leaves yours as they were.
+
+---
+
+## 2. Automation and the DAW
+
+A DAW stores automation against a plugin's parameters, and a project against the
+plugin's identity. Both are permanent once released.
+
+| | Promise | Held by |
+|---|---|---|
+| **Parameter IDs** (`filter1_cutoff`) | Never change meaning, never reused. A changed parameter gets a new ID, and the old one is migrated on load ([VERSIONING.md](VERSIONING.md) §5) | `Parameter identifier conventions`, `Parameter registry` |
+| **The numbers a VST3 host stores** | Pinned against a loaded plugin, because a JUCE upgrade could renumber them with every string ID intact (ADR-0075) | `ApolloHostTests` |
+| **Stepped parameters** (filter type, rack slot) | Their range and the order of their choices never change. A choice added later goes at the end. The rack slots listed all six effects from the start for this reason (ADR-0054) | **No test pins this.** The registry test checks ranges are consistent, not that they are unchanged, so for now it is held by review alone |
+| **The plugin's identity** (manufacturer and plugin codes) | **Not yet fixed.** They were inferred and can change now; from the first release a DAW identifies Apollo in a saved project by them, and changing them would orphan every project (PROJECT-STATE issue 11) | — |
+
+---
+
+## 3. Making a change without breaking this
+
+For anyone changing Apollo: what each kind of change costs.
+
+| Change | What it needs |
+|---|---|
+| **Add a parameter** | No schema change. Choose the default that **reproduces the sound before the parameter existed**, because that default is what every older preset and project will get. Filter 2 is off by default for this reason (5b) |
+| **Change a parameter's default** | Changes every document that does not mention it — including every factory preset that does not set it, since those are stored as changes from the defaults (ADR-0065). The regression renders will fail; regenerate them only if the change was meant (Docs/TESTING.md §7) |
+| **Rename or remove a parameter, or change what its value means** | A migration step in `State/StateSerialization.cpp`, a schema version increment, and a test. The only one so far is version 1 → 2, which renamed the filter parameters and carried their values across (ADR-0032) |
+| **Change the document's layout** | The same: a migration step and a schema increment. Never reinterpret an existing key |
+| **Raise the oldest version still read** (`minimumSupportedSchemaVersion`) | Drops every document older than it. Do not do it after 1.0 without a major version (VERSIONING.md §2) |
+
+**The fixtures are the contract.** `Tests/State/CompatibilityFixtures.h` holds
+documents earlier builds actually wrote, captured from the running application.
+A later build must keep reading them, so a change that breaks one needs a
+migration, never an edited fixture. When a version is released, add a fixture
+it wrote.
+
+*This was shown to work, not assumed (12d-3).* A loader that kept the user's
+values for unmentioned parameters made the defaults test fail on every one of
+them. A schema change shipped without a migration made the 0.1.0 preset fail to
+load.
+
+---
+
+## 4. Before 1.0
+
+Apollo is at 0.1.0, and VERSIONING.md §2 allows breaking changes before 1.0
+provided they are recorded. In practice the rules in §3 have been followed from
+the start. The single schema change so far, the filter rename in Phase 5b, was
+migrated rather than broken. Nothing a 0.1.0 user saves is expected to stop
+opening. Only the plugin's identity (§2) is still open.
+
+---
+
+## 5. What this does not cover
+
+- **The interface and the engine always come from the same build**, so the
+  bridge protocol between them (UI_BINDINGS.md §15) never meets a different
+  version and has no compatibility promise to keep. It is versioned anyway, so a
+  mismatch is refused, not misread.
+- **Wavetables loaded from files** are not referred to by presets at all yet
+  (Docs/KNOWN-LIMITATIONS.md). When they are, a preset will need a rule for a
+  file that has moved.
+- **Other DAWs' behaviour.** What a host does with a refused state is the
+  host's business. Apollo's part is to refuse it cleanly, keep playing, and say
+  why.

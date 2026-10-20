@@ -5117,3 +5117,75 @@ The contract was current up to Phase 9c. It now records what changed since:
 - **The two new interface stores.**
 - **The interface tests.**
 - **The SR readout's source.**
+
+---
+
+## ADR-0088 — Compatibility is a list of promises, each with a test
+
+**Phase 12d-3 · Accepted**
+
+The roadmap asked for a "preset/state compatibility policy". The machinery
+already existed: versioned state, a migration step, refusal that leaves the
+sound alone, and pinned VST3 IDs. What did not exist was the promise itself,
+stated so a user could rely on it and a developer could see what a change
+costs. [Docs/COMPATIBILITY.md](COMPATIBILITY.md) is that, and every line of it
+names the test that holds it, or says plainly that none does.
+
+### Two promises that had never been tested
+
+**An unmentioned parameter returns to its default.** This is what makes a
+preset a sound: a preset from before a parameter existed must load it at its
+default, not at whatever the user had before, or the same preset would sound
+different depending on what was loaded ahead of it. JUCE's `replaceState` does
+this. The serialization tests said so in a comment, and nothing tested it.
+
+**An unknown parameter is ignored.** A preset from a later Apollo, at the same
+schema version, carries parameters this build has never heard of. It must load
+and apply everything it can.
+
+Both are now tested.
+
+### A document an earlier Apollo wrote, frozen
+
+[VERSIONING.md](VERSIONING.md) §3 required "a test that loads a captured file of
+each previously supported version", and there was none. The version 1
+migration test builds its document in code, which tests the migration step but
+not the promise.
+
+`Tests/State/CompatibilityFixtures.h` now holds a preset Apollo 0.1.0 wrote. It
+was **captured from the running standalone, not typed** to look like one. Every
+later build must load it and give back the sound it describes, through both the
+preset reader and the host's. The fixtures are never edited. A build that cannot
+read one needs a migration step, and each release adds a fixture of its own.
+
+### Shown to fail
+
+Each new test was run against a deliberately broken build:
+
+- **A loader that keeps unmentioned values.** The defaults test failed on every
+  parameter.
+- **A schema change without a migration.** The 0.1.0 preset was refused and its
+  sound did not come back.
+
+The first attempt at the first mutation proved nothing. It copied APVTS's tree,
+which is updated lazily, so the "kept" values were still the defaults and the
+test correctly passed. The mutation had to flush the current values first to be
+a real fault. A mutation can be broken in the same way a test can.
+
+### One promise without a test, said so
+
+The range and order of a stepped parameter's choices must never change
+(ADR-0054). Nothing pins that: the registry test checks ranges are consistent,
+not that they are unchanged. The page says it is held by review alone, rather
+than letting the table imply otherwise.
+
+### The roadmap
+
+- **Index.** Phases 9 and 11 moved to "Done"; Phase 10 is marked as complete
+  but for the deferred DAW work.
+- **Tasks finished elsewhere.** Ten tasks that later phases had completed were
+  ticked, each with its evidence.
+- **Definition of done.** The project's own definition of done was read
+  against what was built. Two of its eighteen criteria stay open: real-time
+  safety is not enforced by a tool, and no DAW has been tried.
+- **The hyphenated filename** (PROJECT-STATE issue 8) is fixed.

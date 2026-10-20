@@ -105,18 +105,23 @@ front of it is better understood, the way 8f was.
 | 8d | The gate and the compressor | ✅ |
 | 8e | The parametric equaliser | ✅ |
 | 8f | Whole-chain validation | ✅ |
-
-### Left
-
-| | | |
-|---|---|---|
-| **9** | **Presets, resources & state migration** | ⬜ |
+| **9** | **Presets, resources & state migration** | ✅ |
 | 9a | The preset document — the `.rnv` reader and writer, its metadata, its version and its migration, and safe rejection of anything that is not Apollo state | ✅ |
 | 9b | The library on disk — platform-appropriate user and factory locations, asynchronous scanning and indexing, and every filesystem failure mode | ✅ |
 | 9c | The browser in the interface — listing, categories, search, load, save, save-as, and the bridge commands behind them | ✅ |
 | 9d | Factory presets — content that demonstrates the instrument, and the init patch | ✅ |
 | 9e | Wavetable resources — real tables in place of the four mathematical placeholders, a validated loader, asynchronous loading, and the fallback when one is missing | ✅ |
-| **10** | **Performance, DSP validation & host compatibility** | ⬜ |
+| **11** | **Cross-platform release engineering** | ✅ |
+| 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
+| 11b | macOS — deployment target and a universal binary, both of which fail silently when unset; a Mach-O reader tested against binaries built byte by byte on Windows; ad-hoc signing; and the staged universal package driven through the whole host suite in CI. What needs a Mac — the editor rendering, Retina, Developer ID signing and notarisation — is named rather than ticked (ADR-0077) | ✅ |
+| 11c | Linux — an ELF reader for the dependency check, tested against shared objects assembled in the test; three classes of dependency because Linux has no single answer; and the finding that what the binary links is not what it needs, since JUCE opens X11, GTK and WebKitGTK at run time. INSTALL.txt carries the real list and CI checks every name in it resolves (ADR-0078) | ✅ |
+| 11d | CPU architectures — an ARM64 Linux job that passed first time, because ADR-0073 and ADR-0074 left no intrinsics to port. The first evidence that the regression goldens travel across instruction sets: every render within 0.0005 dB of its reference on ARM64, against tolerances of 0.1 dB, while the renders are not bit-identical between platforms (ADR-0079) | ✅ |
+
+### Left
+
+| | | |
+|---|---|---|
+| **10** | **Performance, DSP validation & host compatibility** — complete but for the DAW work, 10e-2 and 10e-3, deferred at the developer's direction | ⏸ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ✅ |
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ✅ |
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ✅ |
@@ -130,11 +135,6 @@ front of it is better understood, the way 8f was.
 | 10e-1 | The host harness — the built VST3 bundle loaded through a VST3 host implementation and driven as a DAW drives it, in CI on all three platforms. Found and fixed four defects no direct test could see: every integer parameter published to hosts as continuous, mono output refused, a note or pedal released during a host bypass never ending, and the default bypass asserting under latency. The VST3 parameter IDs a saved project stores are now pinned (ADR-0075) | ✅ |
 | 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it. **Deferred at the developer's direction**: DAW testing is set aside for now | ⏸ |
 | 10e-3 | What 10e-2 finds, and the harness extended to cover it. **Deferred with 10e-2** | ⏸ |
-| **11** | **Cross-platform release engineering** | ✅ |
-| 11a | Windows — release build validated in Release, install rules and a CPack archive, five package tests including the import table of both binaries, and the staged package driven through the whole host suite. Found and fixed a Visual C++ Redistributable dependency and an editor that opened taller than the screen (ADR-0076) | ✅ |
-| 11b | macOS — deployment target and a universal binary, both of which fail silently when unset; a Mach-O reader tested against binaries built byte by byte on Windows; ad-hoc signing; and the staged universal package driven through the whole host suite in CI. What needs a Mac — the editor rendering, Retina, Developer ID signing and notarisation — is named rather than ticked (ADR-0077) | ✅ |
-| 11c | Linux — an ELF reader for the dependency check, tested against shared objects assembled in the test; three classes of dependency because Linux has no single answer; and the finding that what the binary links is not what it needs, since JUCE opens X11, GTK and WebKitGTK at run time. INSTALL.txt carries the real list and CI checks every name in it resolves (ADR-0078) | ✅ |
-| 11d | CPU architectures — an ARM64 Linux job that passed first time, because ADR-0073 and ADR-0074 left no intrinsics to port. The first evidence that the regression goldens travel across instruction sets: every render within 0.0005 dB of its reference on ARM64, against tolerances of 0.1 dB, while the renders are not bit-identical between platforms (ADR-0079) | ✅ |
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review. Closed on the developer's hands-on review from two MIDI keyboards, over the measurements 10a already made; a whole-keyboard aliasing sweep and attack timing against the envelope were not run, and issues found later are fixed as they arise | ✅ |
@@ -142,10 +142,10 @@ front of it is better understood, the way 8f was.
 | 12c-1 | Keyboard and accessibility — one Tab stop per group with the arrows moving inside it (switches, tab strips, the preset list, the reset menu), a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it and hands focus back, and the interface's first test suite. Tab stops 253 → 169 (ADR-0083) | ✅ |
 | 12c-2 | Discoverability and feedback — a value can be typed into any knob (Enter, or Enter value… on its menu), read in the readout's own units and refused rather than guessed; the preset list has column headings; the status line says "Ready." and the "SR" readout shows the sample rate instead of the protocol version; and the mouse half of keyboard and mouse, driven control by control. The first screen keeps its layout at the developer's direction (ADR-0084) | ✅ |
 | 12c-3 | Workflows and errors — MIDI Learn and the preset workflow walked end to end. A replace prompt that survived a name change and could overwrite a file nobody was asked about; the list and masthead disagreeing about what was loaded after a restart or a reopened window; a MIDI panel marked OFF by default; and every message read as a user would read it, with refusals shown where the user is looking (ADR-0085) | ✅ |
-| 12d | Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy | ⬜ |
+| **12d** | **Documentation — PRD, architecture, UI bindings, roadmap, known limitations, supported platforms, build requirements, state compatibility policy** | ✅ |
 | 12d-1 | The front door — README.md rewritten to what Apollo is; Docs/PLATFORMS.md, with what has been seen working per platform rather than only built; Docs/KNOWN-LIMITATIONS.md, which found specified features never built (PROJECT-STATE issue 26); Docs/BUILD.md corrected; and a configure check for the Node version the interface tests need | ✅ |
 | 12d-2 | The specification documents — the PRD keeps every requirement and gains a status note per section (45, marked built, partly built, not built or decided against); ARCHITECTURE gains §20, the structure as built; UI_BINDINGS records everything since 9c; REPOSITORY-LAYOUT shows the tree that exists (ADR-0087) | ✅ |
-| 12d-3 | Compatibility and the roadmap — the preset and state compatibility policy, and the roadmap's own loose ends | ⬜ |
+| 12d-3 | Compatibility and the roadmap — Docs/COMPATIBILITY.md, each promise naming the test that holds it, with a preset 0.1.0 wrote frozen in the suite and two promises newly tested (an unmentioned parameter returns to its default; an unknown one is ignored), each shown failing against a deliberately broken loader. The roadmap brought up to date (ADR-0088) | ✅ |
 | 12e | The release candidate — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag | ⬜ |
 
 ### Carried forward
@@ -156,7 +156,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 |---|---|---|
 | 1 | Resource embedding and packaging | 9d, 9e |
 | 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in a DAW in 10e-2 |
-| 2 | Thread-safety tests — an allocation and lock detector on the audio thread | 10a |
+| 2 | Thread-safety tests — an allocation and lock detector on the audio thread | unscheduled; 10a did not take it, because the obvious detector would miss the allocations most likely to happen (PROJECT-STATE issue 6) |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
 | 7 | Optional spectrum analyser | optional in both PRD and this file; unscheduled |
@@ -177,7 +177,7 @@ Establish the repository, engineering rules, documentation, and source-of-truth 
   - [x] `CLAUDE.md`
   - [x] `ARCHITECTURE.md`
   - [x] `ROADMAP.md`
-  - [x] `UI-BINDINGS.md` — present as `UI_BINDINGS.md`; see `PROJECT-STATE.md` §6
+  - [x] `UI_BINDINGS.md`
 - [x] Establish CMake as the authoritative build system.
 - [x] Select and pin the intended JUCE 8 revision. — 8.0.15, pinned by commit and verified at configure time (ADR-0002)
 - [x] Define supported build configurations. — Debug, Release, RelWithDebInfo (default), MinSizeRel
@@ -214,8 +214,8 @@ Create the smallest functional Apollo application capable of running as both a p
 - [x] Configure the VST3 target.
 - [x] Configure the standalone target.
 - [x] Establish shared source modules between plugin and standalone builds. — one `juce_add_plugin` target produces both formats from one engine
-- [ ] Configure resource embedding/packaging. — deferred to Phase 9; no resources exist yet
-- [ ] Configure frontend asset packaging. — deferred to Phase 7; no frontend exists yet
+- [x] Configure resource embedding/packaging. — deferred to Phase 9; factory presets and wavetables are compiled into the plugin (9d, 9e, ADR-0065, ADR-0066) and packaging is 11a (ticked in 12d-3)
+- [x] Configure frontend asset packaging. — deferred to Phase 7; the bundle is built by CMake and embedded in the binary (7d, ADR-0050; ticked in 12d-3)
 - [x] Avoid Projucer dependencies.
 - [x] Add platform-specific code only behind appropriate abstraction boundaries. — none required so far
 
@@ -572,11 +572,11 @@ visualizers followed in 7a-7c.
 - [x] LFO controls. — all four, behind a tab strip
 - [x] Modulation matrix. — sixteen slots in two banks, bipolar depth rails, with
       assigned routings marked and their destination knobs lit
-- [ ] FX rack. — the two FX parameters that exist are in the Output module;
-      the rack itself is Phase 8
+- [x] FX rack. — the two FX parameters that exist are in the Output module;
+      the rack itself is Phase 8, which built its interface with it (8a; ticked in 12d-3)
 - [x] Master/output controls.
-- [ ] Preset browser. — Phase 9 owns the preset system
-- [ ] MIDI Learn interface. — Phase 6 owns the mapping engine
+- [x] Preset browser. — Phase 9 owns the preset system; built in 9c (ticked in 12d-3)
+- [x] MIDI Learn interface. — Phase 6 owns the mapping engine; its interface was built in 6a and walked end to end in 12c-3 (ticked in 12d-3)
 
 ### Visual system
 
@@ -587,14 +587,17 @@ visualizers followed in 7a-7c.
       through Phase 7d, then replaced when the developer said it had never been
       the intent
 - [x] Implement green active-state indicators. — modulation and activity only
-- [ ] Implement red warning/error indicators. — the token and its meaning are
-      defined; nothing yet produces a clipping or overload state to show
+- [x] Implement red warning/error indicators. — the token and its meaning are
+      defined; the output meter's clip indicator uses it (7c), and so does an
+      error on the status line, with a warning sign beside it (12c-3; ticked in 12d-3)
 - [x] Define typography. — UI sans for labels, tabular monospace for every
       number so a readout cannot jitter as it counts
 - [x] Define spacing. — a 4 px scale, with every value taken from a token
 - [x] Define control states. — hover, focus-visible, held, modulated, inactive
-- [ ] Define disabled/error/focus states. — focus and inactive are done;
-      disabled and error need states the engine does not yet report
+- [x] Define disabled/error/focus states. — focus and inactive are done;
+      focus made visible on every control including a chosen chip (12c-1), a
+      disabled menu item greyed rather than hidden, and error and caution states
+      on the status line and in the save form (12c-3; ticked in 12d-3)
 - [x] Support appropriate display scaling and window sizes. — verified at
       1920x1080 with 150 % scaling; modules reflow and the matrix falls back
       from two banks to one
@@ -723,7 +726,7 @@ Turn Apollo's parameter system into a reliable production preset/state architect
 - [x] Implement user preset locations using platform-appropriate paths. — JUCE's special-location lookup supplies the per-user and shared roots; Apollo names only the two folders beneath them, so nothing spells out a platform's path (ADR-0062) (9b)
 - [~] Implement resource validation. — done for presets: the extension is not evidence, every file is validated, and what cannot be read is counted rather than hidden. Wavetable resources are 9e (9b)
 - [x] Implement wavetable resource management. — tables are built from spectra rather than compiled in as constants, so the four built-ins and anything read from a file take one road into the engine; built once per process and shared, because they are immutable and a host makes forty instruments; and a slot can be replaced while a note sounds, with the pointer exchanged atomically, the audio thread told to take the new one, and the old one retired rather than freed (ADR-0066) (9e)
-- [ ] Preload or prepare large DSP resources outside the audio callback.
+- [x] Preload or prepare large DSP resources outside the audio callback. — wavetables are built once per process and shared, and a loaded one is prepared on its own thread and handed over by an atomic exchange (9e, ADR-0066; ticked in 12d-3)
 - [x] Implement state versioning. — built in Phase 2 and inherited by presets rather than reimplemented: a `.rnv` carries the same `schemaVersion` a project does (9a)
 - [x] Implement state migration. — likewise inherited. A version 1 preset migrates through the same code a version 1 project does, asserted end to end in `Tests/State/PresetDocumentTests.cpp` (9a)
 - [x] Test older state versions. — a version 1 preset, written as Apollo would have written it before Phase 5b indexed the filters, opens with its cutoff intact under the new name (9a)
@@ -753,10 +756,10 @@ Perform rigorous engineering validation before release hardening.
 - [x] Aliasing measurements. — per oscillator since Phase 4; 10a measures the assembled voice, scanning every bin that is not a harmonic rather than checking named frequencies (10a)
 - [x] THD/THD+N measurements where relevant. — on the sub oscillator, the one source whose output is meant to be a sine and therefore the only one where the figure means anything (10a)
 - [x] Noise-floor measurements. — an instrument at rest produces **exact** silence, with every source at full level and after a release, rather than merely something quiet (10a)
-- [ ] Impulse/step-response tests.
+- [x] Impulse/step-response tests. — the step response of a cutoff swept across its range between two blocks (10a), and each feedback effect's response to a burst in its own tests (8b, 8c; ticked in 12d-3)
 - [x] Numerical stability tests. — a minute of the worst patch the controls allow, measured per ten-second window to prove nothing compounds (10a)
 - [x] Regression audio renders. — fifteen renders, ten of them the factory presets, each compared against a reference compiled in beside it. A reference is a *description* of the audio rather than a wave file, because bit-exact samples are not something four compilers agree on (10b, ADR-0068)
-- [ ] Denormal testing.
+- [x] Denormal testing. — measured by its consequence: a chain with two feedback effects reaches exact zero after a release, as do the reverb and equaliser tails, rather than grinding on as denormals (10a, 8c, 8e; ticked in 12d-3)
 - [x] NaN/Inf protection tests. — every registered parameter driven to both ends and the middle of its range with a note held; output stays finite and bounded (10a)
 
 ## Performance
@@ -909,11 +912,11 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 - [x] Update PRD. — a status note at the end of each section, from the code; requirements kept, not deleted, because which unbuilt ones are still wanted is the developer's decision (12d-2, ADR-0087)
 - [x] Update architecture documentation. — ARCHITECTURE.md §20 "As built", and REPOSITORY-LAYOUT.md redrawn from the real tree (12d-2)
 - [x] Update UI bindings. — the loaded-preset rule, refusals in the save form, every error code, the new stores and the interface tests (12d-2)
-- [ ] Update roadmap.
+- [x] Update roadmap. — closed phases moved to Done in the index, tasks later phases finished ticked with their evidence, and the project definition of done read against what was built (12d-3)
 - [x] Document known limitations. — Docs/KNOWN-LIMITATIONS.md: not yet verified, specified but not built, decided against, and distribution, kept apart because they mean different things (12d-1)
 - [x] Document supported platforms/formats. — Docs/PLATFORMS.md, including a table of what has been *seen* working per platform rather than only built (12d-1)
 - [x] Document build requirements. — Docs/BUILD.md §1: Node 22.18 (which the interface tests need, now checked at configure time) and the real Linux package list (12d-1)
-- [ ] Document preset/state compatibility policy.
+- [x] Document preset/state compatibility policy. — Docs/COMPATIBILITY.md, each promise naming the test that holds it; a preset 0.1.0 wrote is frozen in the suite and every later build must read it (12d-3, ADR-0088)
 
 ### Release
 
@@ -1119,24 +1122,24 @@ Apollo is not considered complete merely because every planned feature exists.
 
 A production-ready build must satisfy all of the following:
 
-- [ ] Core DSP is real-time safe.
-- [ ] DSP has passed appropriate numerical and spectral validation.
-- [ ] Wavetable synthesis has acceptable anti-aliasing behavior.
-- [ ] Polyphony and unison perform within defined CPU budgets.
-- [ ] APVTS is the authoritative parameter system.
-- [ ] UI bindings are validated, asynchronous, and versioned.
-- [ ] Host automation works correctly.
-- [ ] Preset/project state restores correctly.
-- [ ] State migration is implemented where required.
-- [ ] MIDI and MIDI Learn are controller-agnostic.
-- [ ] FX modules are stable and reorderable.
-- [ ] UI telemetry cannot block DSP.
-- [ ] No core subsystem depends on a specific DAW, OS, controller, driver, audio device, or physical connector.
-- [ ] Supported platforms have reproducible builds.
-- [ ] Representative hosts have been tested.
-- [ ] Long-duration stability testing has passed.
-- [ ] Known limitations are documented.
-- [ ] Release artifacts can be produced from a clean environment.
+- [ ] Core DSP is real-time safe. — by construction and by review, but not enforced by a tool: there is no allocation or lock detector on the audio thread (PROJECT-STATE issue 6) (read in 12d-3)
+- [x] DSP has passed appropriate numerical and spectral validation. — tuning, THD+N, silence, DC, inharmonic content, step response, stability, regression renders (10a, 10b) (read in 12d-3)
+- [x] Wavetable synthesis has acceptable anti-aliasing behavior. — −98.5 dBc worst case against a −60 dBc budget (4a, 10a) (read in 12d-3)
+- [x] Polyphony and unison perform within defined CPU budgets. — the worst patch the controls allow keeps up, measured per callback (10c, 10d) (read in 12d-3)
+- [x] APVTS is the authoritative parameter system. — 227 parameters, every one affecting the sound (2, 8) (read in 12d-3)
+- [x] UI bindings are validated, asynchronous, and versioned. — UI_BINDINGS.md; every message validated, refused cleanly, and versioned (2, 9c, 12c) (read in 12d-3)
+- [x] Host automation works correctly. — through the VST3 interfaces on every platform (10e-1). Not yet in a DAW — see "Representative hosts" (read in 12d-3)
+- [x] Preset/project state restores correctly. — every parameter round-trips; a preset 0.1.0 wrote is read by every build (2, 9a, 12d-3) (read in 12d-3)
+- [x] State migration is implemented where required. — version 1 to 2 (ADR-0032), with the policy in Docs/COMPATIBILITY.md (12d-3) (read in 12d-3)
+- [x] MIDI and MIDI Learn are controller-agnostic. — any CC, any controller, profiles optional; played from two different keyboards (6, 12b) (read in 12d-3)
+- [x] FX modules are stable and reorderable. — all 720 orderings, rearranged every block (8f) (read in 12d-3)
+- [x] UI telemetry cannot block DSP. — lock-free rings, and audio sample-for-sample identical with capture on and off (7a, 7b) (read in 12d-3)
+- [x] No core subsystem depends on a specific DAW, OS, controller, driver, audio device, or physical connector. — one platform conditional in the whole engine, choosing the WebView (ARCHITECTURE.md §20.1) (read in 12d-3)
+- [x] Supported platforms have reproducible builds. — pinned JUCE and a locked frontend, built on four platforms in CI (0, 11) (read in 12d-3)
+- [ ] Representative hosts have been tested. — only through a VST3 host implementation; no DAW yet (10e-2, deferred by the developer) (read in 12d-3)
+- [x] Long-duration stability testing has passed. — the reliability soak (12a) (read in 12d-3)
+- [x] Known limitations are documented. — Docs/KNOWN-LIMITATIONS.md (12d-1) (read in 12d-3)
+- [x] Release artifacts can be produced from a clean environment. — every CI run packages Apollo on a fresh runner for each platform (11) (read in 12d-3)
 
 ---
 

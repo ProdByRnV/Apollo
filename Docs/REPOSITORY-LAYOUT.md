@@ -51,6 +51,7 @@ Apollo/
 │   ├── OVERSAMPLING.md
 │   ├── PLATFORMS.md            What runs where, and how much of it has been seen
 │   ├── KNOWN-LIMITATIONS.md    What Apollo does not do yet, and why
+│   ├── COMPATIBILITY.md        Which presets and projects open where
 │   └── DECISIONS.md
 │
 ├── Source/                     Native C++: three libraries and the target shells

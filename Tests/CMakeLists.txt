@@ -66,6 +66,8 @@ target_sources(ApolloTests PRIVATE
     Regression/GoldenRenders.cpp
     Regression/GoldenGenerator.cpp
     Regression/RegressionTests.cpp
+    State/CompatibilityFixtures.h
+    State/CompatibilityTests.cpp
     State/PresetDocumentTests.cpp
     State/StateSerializationTests.cpp
     UI/EditorSizingTests.cpp

@@ -8,17 +8,16 @@ version moved, or hide a breaking schema change behind an unchanged number.
 
 ## 1. Version axes
 
-| Axis | Source of truth | Changes when | Status |
+| Axis | Source of truth | Changes when | Now |
 |---|---|---|---|
-| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | **Implemented** — `0.1.0` |
-| **Plugin version** | Derived from the product version by the plugin targets | With the product version | Phase 1 |
-| **State / preset schema version** | The state layer | The serialized layout changes incompatibly | Phase 2 (state), Phase 9 (presets) |
-| **UI bridge protocol version** | The bridge layer | A bridge message shape changes incompatibly | Phase 2 |
-| **Parameter IDs** | The parameter registry | *Never* — see below | Phase 2 |
+| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `0.1.0` |
+| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `0.1.0` |
+| **State / preset schema version** | `currentSchemaVersion` in `Source/State/StateSerialization.h` | The serialized layout changes incompatibly | `2`; reads `1` and `2` |
+| **UI bridge protocol version** | `PROTOCOL_VERSION`, on both sides of the bridge | A bridge message shape changes incompatibly | `1` |
+| **Parameter IDs** | The parameter registry | *Never* — see below | 227 |
 
-Only the product version exists in code today. The others are defined here as
-conventions and will be introduced in code by the phases that own them, rather
-than planted now as unused constants.
+What these promise a user — which presets and projects open in which version —
+is [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -53,7 +52,9 @@ Rules:
   misinterpret. Adding an optional field with a safe default is not such a change.
 - Never reinterpret an existing key's meaning. Introduce a new key and migrate.
 - Every increment ships with an explicit migration path and a test that loads a
-  captured file of each previously supported version.
+  captured file of each previously supported version. The captured files are
+  `Tests/State/CompatibilityFixtures.h`, starting with a preset 0.1.0 wrote
+  (12d-3). Version 1 predates them and is tested from a document built in code.
 - Loading must validate, and must fail without destroying the current state
   (CLAUDE.md §33).
 
