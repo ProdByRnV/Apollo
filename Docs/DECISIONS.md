@@ -5577,3 +5577,94 @@ the worst patch the controls can build. Its worst block was 76.4 %.
   formants shape a particular singer, which a synthesiser does not have.
 - A second dimension for the vowel. One control gives five vowels in a line;
   a vowel *pad* would need a parameter the PRD does not name.
+
+---
+
+## ADR-0092 — A filter's mix is its own input against its output, and key tracking follows what was played
+
+**Phase 13c-2 · Accepted**
+
+### What was built
+
+Four parameters, taking the registry to 248: `filterN_mix` (0 to 1, default 1)
+and `filterN_keytrack` (−1 to 1, default 0). Both defaults reproduce the sound
+from before the controls existed. All fifteen regression renders passed
+unregenerated, and the pinned VST3 parameter numbers grew by four and changed
+none.
+
+### Mix
+
+**What is mixed is the slot's input against the slot's output**, drive included.
+So in series, filter 2's dry signal is filter 1's output, and in parallel each
+slot crossfades against the shared input.
+
+- **At mix 0** the slot returns its input exactly. A low-pass at 300 Hz with
+  drive, at mix 0, is sample for sample the sound of the filter switched off,
+  and a test asserts that.
+- **At 0.5** it sits at the midpoint to within 7.5e-9.
+- **At exactly 1 and not moving**, the slot runs the code it ran before 13c-2.
+  `dry + 1·(wet − dry)` is not always `wet` in floating point, and the
+  regression renders would notice.
+- **It is smoothed per sample**, over the same 20 ms as the source levels,
+  because a mix stepped once per block is a click. Measured, 1 ms after a move
+  it is 2.9 % of the way, after 10 ms 48.6 %, and after 30 ms there.
+
+The voice's smoother started at zero, which would have left a voice fully dry
+until its first parameter update. That was caught while writing the member, not
+by a test. `LinearSmoothedValue` gained a constructor that starts it on a value,
+and the mix starts at 1.
+
+### Key tracking
+
+**The cutoff moves `keyTrack` octaves per octave of played pitch, about middle
+C.** At 1, a cutoff of 261.6 Hz follows the fundamental, which tunes a comb to
+every note. At −1 the filter closes as the notes rise.
+
+**"Played pitch" means the note and both bends** (the channel's and, under
+MPE, the note's own). It does not include the oscillators' tuning or the
+matrix's pitch modulation. A comb tuned to the note should stay on it through a
+bend, and it does: bent a tone, a tracked comb measured 0.05 dB from its unbent
+level and 18.5 dB above an untracked one. A vibrato modulates the pitch rather
+than playing a different note, and a filter that followed it would turn the
+vibrato into a wah.
+
+The matrix already has a key-tracking source (`(note − 60)/48`, routable to
+cutoff). This does not replace it: that source is scaled to the playable range
+for every destination, while this is a filter's own control, in octaves.
+
+**A voice that is not tracking pays nothing.** Coefficients are resolved per
+voice only when something moves that voice's cutoff: the matrix, or a non-zero
+tracking amount. Otherwise the voice uses the engine's shared set, as before. A
+tracking voice resolves at the note's start, when either bend moves, and when a
+filter parameter changes. With a routing active it also resolves every
+modulation block, as before. At middle C a tracking voice uses the shared set
+too, and the test there is sample for sample.
+
+**A fix on the way.** `setFilters` used to hand every voice the shared
+coefficients. So a parameter move on a modulated filter dropped the modulation
+for up to a control block, until the next block put it back. It now goes
+through the same per-voice resolution, which keeps both the modulation and the
+tracking across a move.
+
+Measured through the processor, a tracked comb stands 20.5 to 21.9 dB above a
+fixed one on notes off middle C. That holds on the plain path and on the
+matrix's.
+
+### What it costs
+
+The worst-case row gained "+ mix and key tracking": the two-formant worst patch
+(ADR-0091) with both slots at half mix and full tracking. In two quiet sittings
+(2.1 % and 2.8 % contention), its median was 72.1 % and 72.3 % against 71.9 %
+and 71.7 % for the row without them. That is 0.3 to 0.6 points, and the worst
+blocks of both rows are about 80 %. The whole sitting ran about 2 points slower
+than 13c-1's on every row, including rows nothing here touches, so the
+comparison is made within a sitting and not across sittings.
+
+### Given up
+
+- Mix and key tracking as matrix destinations. They belong with filter drive in
+  13e, which takes on the filter controls the matrix cannot reach yet.
+  Appending destinations one sub-phase at a time would shift normalised
+  automation of the destination parameters each time (ADR-0090).
+- A choice of centre note. Middle C is the convention, and the cutoff control
+  already sets where the filter sits at that note.

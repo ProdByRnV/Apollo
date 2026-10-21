@@ -137,6 +137,12 @@ struct FilterSlotParameters
     /** Saturation in front of the filter, 0 to 1. */
     float drive = 0.0f;
 
+    /** Wet against dry, 0 to 1. */
+    float mix = 1.0f;
+
+    /** Key tracking, -1 to 1: cutoff octaves per octave of played pitch. */
+    float keyTrack = 0.0f;
+
     [[nodiscard]] bool operator== (const FilterSlotParameters&) const = default;
 };
 

@@ -14,7 +14,7 @@ version moved, or hide a breaking schema change behind an unchanged number.
 | **Plugin version** | Derived from the product version by the plugin targets | With the product version | `0.1.0` |
 | **State / preset schema version** | `currentSchemaVersion` in `Source/State/StateSerialization.h` | The serialized layout changes incompatibly | `2`; reads `1` and `2` |
 | **UI bridge protocol version** | `PROTOCOL_VERSION`, on both sides of the bridge | A bridge message shape changes incompatibly | `1` |
-| **Parameter IDs** | The parameter registry | *Never* — see below | 244 |
+| **Parameter IDs** | The parameter registry | *Never* — see below | 248 |
 
 What these promise a user — which presets and projects open in which version —
 is [COMPATIBILITY.md](COMPATIBILITY.md).

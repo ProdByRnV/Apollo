@@ -426,6 +426,8 @@ private:
         std::atomic<float>* cutoff = nullptr;
         std::atomic<float>* resonance = nullptr;
         std::atomic<float>* drive = nullptr;
+        std::atomic<float>* mix = nullptr;
+        std::atomic<float>* keyTrack = nullptr;
 
         /**  prefix  "filter1_" or "filter2_". */
         void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);

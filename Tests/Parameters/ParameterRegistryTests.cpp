@@ -86,7 +86,10 @@ using namespace apollo::params;
 // also grew every modNN_destination's range by two, appending each oscillator's
 // warp as a destination at the end, so every existing destination keeps its
 // number (ADR-0090).
-static_assert (parameterCount() == 244, "the registry has two hundred and forty-four parameters");
+//
+// Phase 13c-2 added four: a mix and a key tracking amount for each filter
+// (ADR-0092).
+static_assert (parameterCount() == 248, "the registry has two hundred and forty-eight parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

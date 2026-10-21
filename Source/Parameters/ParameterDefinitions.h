@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 248> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -502,6 +502,23 @@ inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, true },
 
+    // Phase 13c-2 (PRD §13.2). Mix is how much of the slot — drive and filter
+    // together — is heard against what came into it; full by default, which is
+    // the sound before the control existed. Key tracking moves the cutoff with
+    // the played pitch, an octave per octave at full, about middle C; zero by
+    // default for the same reason (ADR-0092).
+    { "filter1_mix", "Filter 1 Mix",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "filter1_keytrack", "Filter 1 Key Track",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
     // Filter 2 is off by default, for the same reason oscillator 2 is silent:
     // adding it must not change how an existing patch sounds.
     { "filter2_type", "Filter 2 Type",
@@ -527,6 +544,18 @@ inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    { "filter2_mix", "Filter 2 Mix",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
+    { "filter2_keytrack", "Filter 2 Key Track",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
 
     // 0 series, 1 parallel. Un-indexed because it describes how the two filters
     // are connected rather than belonging to either of them.

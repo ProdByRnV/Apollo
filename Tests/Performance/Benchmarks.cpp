@@ -1478,6 +1478,30 @@ void benchmarkCallbacks()
         processor.releaseResources();
     }
 
+    // Phase 13c-2: both slots part-wet, which adds a ramp and a crossfade per
+    // sample, and key-tracked, which gives every voice its own coefficients
+    // even where the matrix does not reach (ADR-0092).
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        applyModulation (processor);
+        applyFullRack (processor);
+        setPlain (processor, "osc1_warp_mode", 5.0f);
+        setPlain (processor, "osc1_warp_amount", 1.0f);
+        setPlain (processor, "osc2_warp_mode", 5.0f);
+        setPlain (processor, "osc2_warp_amount", 1.0f);
+        setPlain (processor, "filter1_type", 6.0f);
+        setPlain (processor, "filter2_type", 6.0f);
+        setPlain (processor, "filter_routing", 1.0f);
+        setPlain (processor, "filter1_mix", 0.5f);
+        setPlain (processor, "filter2_mix", 0.5f);
+        setPlain (processor, "filter1_keytrack", 1.0f);
+        setPlain (processor, "filter2_keytrack", 1.0f);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("+ mix and key tracking, 32 held", traceCallbacks (processor, blocks, 32, true));
+        processor.releaseResources();
+    }
+
     std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
                  "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
               << std::endl;

@@ -60,6 +60,8 @@ export function Filter({ index }: { index: number }): JSX.Element {
             <Knob id={`${p}cutoff`} label={cutoffLabel} />
             <Knob id={`${p}resonance`} label="Resonance" />
             <Knob id={`${p}drive`} label="Drive" />
+            <Knob id={`${p}keytrack`} label="Key Track" />
+            <Knob id={`${p}mix`} label="Mix" />
         </Module>
     );
 }

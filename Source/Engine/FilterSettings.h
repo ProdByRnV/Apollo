@@ -59,6 +59,14 @@ struct FilterSlotSettings
     /** Saturation in front of the filter, 0 to 1. Exactly zero skips it. */
     float drive = 0.0f;
 
+    /** How much of the slot is heard against its input, 0 to 1. Exactly 1 —
+        the default — runs the slot as it ran before the control existed. */
+    float mix = 1.0f;
+
+    /** Cutoff octaves per octave of played pitch, about middle C, -1 to 1.
+        Zero leaves a voice on the shared coefficients above. */
+    float keyTrack = 0.0f;
+
     [[nodiscard]] bool operator== (const FilterSlotSettings&) const = default;
 };
 

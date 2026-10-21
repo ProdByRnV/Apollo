@@ -511,6 +511,8 @@ void VoiceEngine::applyFilterParameters() noexcept
 
         resolved.mode = slot.mode;
         resolved.drive = slot.drive;
+        resolved.mix = slot.mix;
+        resolved.keyTrack = slot.keyTrack;
         resolved.cutoffHz = slot.cutoffHz;
         resolved.q = slot.q;
         resolved.coefficients.set (slot.mode, slot.cutoffHz, slot.q, preparedSampleRate);

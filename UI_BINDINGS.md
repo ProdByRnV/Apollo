@@ -122,10 +122,14 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `filter1_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 1 cutoff frequency |
 | `filter1_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 1 resonance as Q; 0.707 is Butterworth |
 | `filter1_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 1 input saturation |
+| `filter1_mix` | Rotary Knob | Normalized `[0, 1]` | `1` | 13c-2 | How much of filter 1 — drive and filter — is heard against its input. Smoothed per sample; at exactly 1 the slot runs as it did before the control existed (ADR-0092) |
+| `filter1_keytrack` | Rotary Knob | Normalized `[-1, 1]` | `0` | 13c-2 | Cutoff octaves per octave of played pitch (note and bend), about middle C. At 1 a cutoff of 261.6 Hz follows the fundamental, which tunes a comb to every note |
 | `filter2_type` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5b, 13c | Filter 2 type, the same seven; off by default |
 | `filter2_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 2 cutoff frequency |
 | `filter2_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 2 resonance as Q |
 | `filter2_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 2 input saturation |
+| `filter2_mix` | Rotary Knob | Normalized `[0, 1]` | `1` | 13c-2 | Filter 2's wet amount, as for filter 1 |
+| `filter2_keytrack` | Rotary Knob | Normalized `[-1, 1]` | `0` | 13c-2 | Filter 2's key tracking, as for filter 1 |
 | `filter_routing` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 5b | 0 series, 1 parallel |
 | `env2_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 2 delay |
 | `env2_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 2 attack |

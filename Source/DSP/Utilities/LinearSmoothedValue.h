@@ -28,6 +28,14 @@ class LinearSmoothedValue
 public:
     LinearSmoothedValue() = default;
 
+    /** Starts at rest on @p initialValue — for a control whose default is not
+        zero, such as a filter's mix, which must be fully wet before anything
+        has told it so. */
+    explicit LinearSmoothedValue (float initialValue) noexcept
+        : current (initialValue), target (initialValue)
+    {
+    }
+
     /** Sets the ramp length. Safe on the audio thread; allocates nothing.
 
         A non-positive sample rate or ramp length degrades to "instant" rather

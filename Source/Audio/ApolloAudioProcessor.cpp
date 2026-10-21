@@ -239,8 +239,11 @@ void ApolloAudioProcessor::FilterParameterPointers::resolve (
     cutoff = state.getRawParameterValue (base + "cutoff");
     resonance = state.getRawParameterValue (base + "resonance");
     drive = state.getRawParameterValue (base + "drive");
+    mix = state.getRawParameterValue (base + "mix");
+    keyTrack = state.getRawParameterValue (base + "keytrack");
 
-    jassert (type != nullptr && cutoff != nullptr && resonance != nullptr && drive != nullptr);
+    jassert (type != nullptr && cutoff != nullptr && resonance != nullptr && drive != nullptr
+             && mix != nullptr && keyTrack != nullptr);
 }
 
 void ApolloAudioProcessor::LfoParameterPointers::resolve (
@@ -544,6 +547,8 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         slot.cutoffHz = readParameter (pointers.cutoff, 20000.0f);
         slot.q = readParameter (pointers.resonance, 0.707f);
         slot.drive = readParameter (pointers.drive, 0.0f);
+        slot.mix = readParameter (pointers.mix, 1.0f);
+        slot.keyTrack = readParameter (pointers.keyTrack, 0.0f);
 
         return slot;
     };

@@ -104,6 +104,9 @@ void Voice::prepare (double newSampleRate) noexcept
 
     stealDecrement = static_cast<float> (rampIncrement (stealSeconds, sampleRate));
 
+    filter1Mix.reset (sampleRate, gainRampSeconds);
+    filter2Mix.reset (sampleRate, gainRampSeconds);
+
     filter1Left.prepare (sampleRate);
     filter1Right.prepare (sampleRate);
     filter2Left.prepare (sampleRate);
@@ -140,13 +143,16 @@ void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
 
     filter1Left.setType (filters.filter1.mode);
     filter1Right.setType (filters.filter1.mode);
-    filter1Left.setCoefficients (filters.filter1.coefficients);
-    filter1Right.setCoefficients (filters.filter1.coefficients);
-
     filter2Left.setType (filters.filter2.mode);
     filter2Right.setType (filters.filter2.mode);
-    filter2Left.setCoefficients (filters.filter2.coefficients);
-    filter2Right.setCoefficients (filters.filter2.coefficients);
+
+    filter1Mix.setTargetValue (filters.filter1.mix);
+    filter2Mix.setTargetValue (filters.filter2.mix);
+
+    // Through the voice's own resolution rather than straight to the shared
+    // set, so a voice being modulated or key-tracked keeps its offset across a
+    // parameter move instead of spending a control block without it.
+    resolveFilterCoefficients();
 }
 
 void Voice::applyFilters (float& left, float& right) noexcept
@@ -154,9 +160,13 @@ void Voice::applyFilters (float& left, float& right) noexcept
     const auto runSlot = [] (const FilterSlotSettings& slot,
                              dsp::VoiceFilter& leftFilter,
                              dsp::VoiceFilter& rightFilter,
+                             dsp::LinearSmoothedValue& mix,
                              float& l,
                              float& r)
     {
+        const auto dryLeft = l;
+        const auto dryRight = r;
+
         if (slot.drive > 0.0f)
         {
             const auto gain = dsp::driveGain (slot.drive);
@@ -168,23 +178,34 @@ void Voice::applyFilters (float& left, float& right) noexcept
 
         l = leftFilter.processSample (l);
         r = rightFilter.processSample (r);
+
+        // Fully wet and not moving is the slot as it was before mix existed,
+        // and is left exactly so: `dry + 1 * (wet - dry)` is not always `wet`
+        // in floating point, and the regression renders would notice.
+        if (mix.isSmoothing() || mix.getTargetValue() < 1.0f)
+        {
+            const auto wet = mix.getNextValue();
+
+            l = dryLeft + wet * (l - dryLeft);
+            r = dryRight + wet * (r - dryRight);
+        }
     };
 
     if (filters.routing == FilterRouting::series)
     {
-        runSlot (filters.filter1, filter1Left, filter1Right, left, right);
-        runSlot (filters.filter2, filter2Left, filter2Right, left, right);
+        runSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
+        runSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, left, right);
         return;
     }
 
     // Parallel: both slots see the same input.
     auto leftA = left;
     auto rightA = right;
-    runSlot (filters.filter1, filter1Left, filter1Right, leftA, rightA);
+    runSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, leftA, rightA);
 
     auto leftB = left;
     auto rightB = right;
-    runSlot (filters.filter2, filter2Left, filter2Right, leftB, rightB);
+    runSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, leftB, rightB);
 
     // Halved, so two identical filters in parallel are as loud as one rather
     // than twice as loud — which would put the engine's headroom measurements
@@ -404,29 +425,47 @@ void Voice::applyModulation() noexcept
     subGain.setTargets (sources.subLevel + destinationOffset (Destination::subLevel), 0.0f);
     noiseGain.setTargets (sources.noiseLevel + destinationOffset (Destination::noiseLevel), 0.0f);
 
+    resolveFilterCoefficients();
+}
+
+void Voice::resolveFilterCoefficients() noexcept
+{
+    using Destination = dsp::ModDestination;
+
+    // The played pitch, in octaves from middle C: the note and both bends, and
+    // not the oscillators' own tuning or the matrix's pitch modulation. Key
+    // tracking follows what was played, so a comb tuned to the note stays on
+    // it through a bend; a vibrato is a modulation of the pitch, not a
+    // different note. An idle voice has no note, and keeps the shared set.
+    const auto playedOctaves = stage == VoiceStage::idle
+                                 ? 0.0f
+                                 : (static_cast<float> (note - 60) + pitchBendSemitones + noteBendSemitones) / 12.0f;
+
     // Filters re-resolve their own coefficients only when something actually
-    // reaches them. Otherwise the engine's shared set is used unchanged, and the
-    // unmodulated path never computes a tangent.
-    const auto resolveFilter = [this] (const FilterSlotSettings& slot,
-                                       Destination cutoffTarget,
-                                       Destination resonanceTarget,
-                                       dsp::VoiceFilter& left,
-                                       dsp::VoiceFilter& right)
+    // reaches them — the matrix or key tracking. Otherwise the engine's shared
+    // set is used unchanged, and the unmodulated path never computes a tangent.
+    const auto resolveFilter = [this, playedOctaves] (const FilterSlotSettings& slot,
+                                                      Destination cutoffTarget,
+                                                      Destination resonanceTarget,
+                                                      dsp::VoiceFilter& left,
+                                                      dsp::VoiceFilter& right)
     {
         const auto cutoffOffset = destinationOffset (cutoffTarget);
         const auto resonanceOffset = destinationOffset (resonanceTarget);
+        const auto trackedOctaves = slot.keyTrack * playedOctaves;
 
-        if (cutoffOffset == 0.0f && resonanceOffset == 0.0f)
+        if (cutoffOffset == 0.0f && resonanceOffset == 0.0f && trackedOctaves == 0.0f)
         {
             left.setCoefficients (slot.coefficients);
             right.setCoefficients (slot.coefficients);
             return;
         }
 
-        // Cutoff moves in octaves. A fixed number of hertz would be a huge
-        // interval at the bottom of the range and inaudible at the top, so the
-        // same depth would mean something different at every cutoff setting.
-        const auto cutoff = slot.cutoffHz * std::exp2 (cutoffOffset);
+        // Cutoff moves in octaves, from the matrix and from the keyboard alike.
+        // A fixed number of hertz would be a huge interval at the bottom of the
+        // range and inaudible at the top, so the same depth would mean something
+        // different at every cutoff setting.
+        const auto cutoff = slot.cutoffHz * std::exp2 (cutoffOffset + trackedOctaves);
         const auto q = slot.q + resonanceOffset;
 
         dsp::VoiceFilterCoefficients coefficients;
@@ -493,6 +532,9 @@ void Voice::snapGainsToTargets() noexcept
     gain2.snap();
     subGain.snap();
     noiseGain.snap();
+
+    filter1Mix.settle();
+    filter2Mix.settle();
 }
 
 void Voice::reset() noexcept
@@ -640,6 +682,11 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     else
     {
         updatePhaseIncrement();
+
+        // A key-tracked filter needs this note's pitch before the first sample;
+        // with a routing, applyModulation above has already done it.
+        if (isKeyTracking())
+            resolveFilterCoefficients();
     }
 }
 
@@ -682,7 +729,12 @@ void Voice::setPitchBendSemitones (float semitones) noexcept
     pitchBendSemitones = semitones;
 
     if (stage != VoiceStage::idle)
+    {
         updatePhaseIncrement();
+
+        if (isKeyTracking())
+            resolveFilterCoefficients();
+    }
 }
 
 void Voice::setNoteBendSemitones (float semitones) noexcept
@@ -690,7 +742,12 @@ void Voice::setNoteBendSemitones (float semitones) noexcept
     noteBendSemitones = semitones;
 
     if (stage != VoiceStage::idle)
+    {
         updatePhaseIncrement();
+
+        if (isKeyTracking())
+            resolveFilterCoefficients();
+    }
 }
 
 void Voice::updatePhaseIncrement() noexcept

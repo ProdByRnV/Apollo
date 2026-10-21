@@ -443,6 +443,18 @@ private:
     /** Runs one stereo sample through the filter section, in place. */
     void applyFilters (float& left, float& right) noexcept;
 
+    /** Gives each filter slot its coefficients: the engine's shared set when
+        nothing reaches it, or this voice's own when the matrix or key tracking
+        moves its cutoff or resonance. */
+    void resolveFilterCoefficients() noexcept;
+
+    /** Whether either slot follows the played pitch, which is what makes a
+        bend or a new note a reason to re-resolve the filters. */
+    [[nodiscard]] bool isKeyTracking() const noexcept
+    {
+        return filters.filter1.keyTrack != 0.0f || filters.filter2.keyTrack != 0.0f;
+    }
+
     /** A smoothed stereo gain pair for one source, and whether it is worth
         rendering.
 
@@ -556,6 +568,12 @@ private:
     dsp::VoiceFilter filter1Right;
     dsp::VoiceFilter filter2Left;
     dsp::VoiceFilter filter2Right;
+
+    /** Each slot's wet amount, smoothed per sample like the source levels, so a
+        moved mix control does not step. Fully wet until told otherwise, which
+        is every patch from before the control existed. */
+    dsp::LinearSmoothedValue filter1Mix { 1.0f };
+    dsp::LinearSmoothedValue filter2Mix { 1.0f };
 
     /** Multiplies the envelope while a voice is being stolen, and is 1 at every
         other time. Kept apart from the envelope so the anti-click fade and the
