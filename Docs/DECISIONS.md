@@ -5987,3 +5987,81 @@ too. Hosts allocate a plugin on the heap, so nothing that ships was affected.
 - **Recorded realism.** A synthesised pick is not a recorded one. It is what
   can be shipped without a licence, and 13g will let somebody load the real
   thing.
+
+---
+
+## ADR-0096 — A synced LFO takes its rate from the tempo and, free-running, its phase from the bar
+
+**Phase 13e-1 · Accepted**
+
+### What was built
+
+Eight parameters, taking the registry to 262: per LFO, `lfoN_sync` (0 a rate
+in hertz, 1 synced; default 0) and `lfoN_division` (seventeen note values,
+default a quarter note). At the defaults nothing changes. All fifteen
+regression renders passed unregenerated, and the pinned VST3 parameter numbers
+grew by eight and changed none.
+
+The conversion from a tempo to a rate had existed since Phase 5d
+(`tempoSyncedRateHz`), with nothing to reach it. This is the parameter that
+reaches it.
+
+### The divisions
+
+8/1, 4/1, 2/1 and 1/1, then 1/2, 1/4, 1/8 and 1/16, each dotted, straight and
+triplet, then 1/32. In beats, from 32 down to an eighth. They are longer at the
+slow end than the delay's divisions (1/1 to 1/32), because an LFO sweeping a
+filter over two or eight bars is ordinary, and a delay repeating after eight
+bars is not.
+
+### The rate
+
+**The processor reads the host's tempo at the top of the block now**, before
+the LFOs are configured. It used to read it after the voices had rendered, for
+the effects alone. Once read, the synced rate is the division at that tempo,
+or at 120 when the host reports none. The standalone has no host, so a synced
+LFO there runs at 120 bpm, as the synced delay always has (CLAUDE.md §38).
+
+Measured on a sounding voice, from the LFO's own output: 1/4 at 120 bpm is
+2.0000 Hz; 1/8 at 90 is 3.0000; 1/4T at 120 is 3.0000; 1/4. is 1.3333; 1/1 is
+0.5000; and 1/16 at 140 is 9.3333. Unsynced, 1.5 Hz stays 1.5000 Hz at 60 bpm
+and at 174.
+
+### The phase
+
+**A synced free-running LFO takes its phase from the bar while the transport
+runs.** A free-running LFO's phase is shared by the engine and adopted by each
+note as it starts. When the LFO is synced and the host's transport is running,
+that shared phase is set every block from the host's beat position, the beat
+divided by the division's length, so a note adopts the phase that keeps it on
+the bar. Two notes started a bar apart get the same LFO, sample for sample.
+Two started half a bar apart do not, and a note one beat into a 1/1 cycle
+starts its saw a quarter of the way up, as measured.
+
+Stopped, or without a beat position, the phase runs on by itself at the synced
+rate, as free-running phases always have. A retriggered LFO restarts with each
+note whatever the transport is doing. Sync changes its rate, not where it
+begins.
+
+A note that is already sounding is not pulled into line when the transport
+moves. Its LFO runs on from the phase it took when it started, so a jump in the
+host's position reaches new notes, and correcting a held one mid-note would be
+an audible step.
+
+### What it costs
+
+Nothing measurable is expected, and nothing was measured. No per-sample code
+changed. Per block, the processor reads the transport once, as it already
+did, and the engine sets at most four phases.
+
+### Given up
+
+- **Sync for envelopes.** PRD §15.1 lists tempo-synced envelopes as an optional
+  future feature. They would need a sync per stage time, and that is a second
+  set of controls on every envelope for something the specification does not
+  ask for yet.
+- **Matrix modulation of a synced rate.** The LFO rate is not a destination,
+  synced or free.
+- **A tempo for the standalone.** It has no transport, so a synced LFO there
+  runs at 120. A tempo control belongs with any transport the standalone might
+  grow, and none is planned.

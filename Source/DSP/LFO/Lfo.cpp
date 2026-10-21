@@ -64,6 +64,23 @@ float tempoSyncedRateHz (double bpm, double beatsPerCycle) noexcept
     return clampRange (static_cast<float> (hz), minimumRateHz, maximumRateHz);
 }
 
+double lfoDivisionBeats (int index) noexcept
+{
+    // In beats, a beat being a quarter note: dotted is half as long again,
+    // triplet two thirds.
+    static constexpr double beats[numLfoDivisions] {
+        32.0, 16.0, 8.0, 4.0,
+        3.0, 2.0, 4.0 / 3.0,
+        1.5, 1.0, 2.0 / 3.0,
+        0.75, 0.5, 1.0 / 3.0,
+        0.375, 0.25, 1.0 / 6.0,
+        0.125
+    };
+
+    const auto clamped = index < 0 ? 0 : (index >= numLfoDivisions ? numLfoDivisions - 1 : index);
+    return beats[clamped];
+}
+
 void Lfo::prepare (double newSampleRate) noexcept
 {
     sampleRate = newSampleRate > 0.0 ? newSampleRate : 44100.0;

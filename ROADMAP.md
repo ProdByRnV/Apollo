@@ -159,7 +159,12 @@ front of it is better understood, the way 8f was.
 | 13d | Noise, in two parts | ✅ |
 | 13d-1 | Pink noise and key tracking — a type and a tracking amount, both defaulting to the white noise that was there (ADR-0094) | ✅ |
 | 13d-2 | Built-in transient samples — click, pick, thump and chiff, synthesised once per process, played at each note's start and pitched by the key tracking without aliasing (ADR-0095) | ✅ |
-| 13e | Modulation — LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive as destinations, modulation of depth | ⬜ |
+| 13e | Modulation, in five parts | ◐ |
+| 13e-1 | LFO tempo sync — a rate in hertz or a division of the host's tempo, a free-running synced LFO locked to the bar (ADR-0096) | ✅ |
+| 13e-2 | Envelope retrigger options | ⬜ |
+| 13e-3 | Macros — controls that are matrix sources, with a range and a curve each, learnable and stored in presets | ⬜ |
+| 13e-4 | Filter drive, mix and key tracking as destinations, and modulation of a routing's depth | ⬜ |
+| 13e-5 | Effect parameters as destinations | ⬜ |
 | 13f | Drawn LFO curves, and envelopes edited by dragging | ⬜ |
 | 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
 | 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation, a spectrum analyser | ⬜ |
@@ -1005,7 +1010,7 @@ them; each sub-phase removes its rows from that list as it lands.
 
 ### Modulation (13e)
 
-- [ ] LFO tempo sync (PRD §15.2).
+- [x] LFO tempo sync (PRD §15.2). — seventeen divisions from 8/1 to 1/32 at the host's tempo, 120 without one; a free-running synced LFO takes its phase from the bar while the transport runs (13e-1, ADR-0096)
 - [ ] Envelope retrigger options (PRD §15.1).
 - [ ] Macro controls: MIDI-learnable, several destinations, bipolar depth, ranges, curves, stored in presets (PRD §17).
 - [ ] Effect parameters and filter drive as modulation destinations, and modulation of a routing's depth (PRD §16).

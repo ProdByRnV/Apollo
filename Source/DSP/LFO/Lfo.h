@@ -66,6 +66,18 @@ enum class LfoShape
 */
 [[nodiscard]] float tempoSyncedRateHz (double bpm, double beatsPerCycle) noexcept;
 
+/** The note values an LFO can be synced to, longest first: 8/1, 4/1, 2/1,
+    1/1, then 1/2, 1/4, 1/8 and 1/16 each dotted, straight and triplet, then
+    1/32. The order is the `lfoN_division` parameter's and is permanent.
+*/
+inline constexpr int numLfoDivisions = 17;
+
+/** The division an LFO syncs to by default: a quarter note, one beat. */
+inline constexpr int defaultLfoDivision = 8;
+
+/** @returns the beats in one cycle of division @p index, clamped into range. */
+[[nodiscard]] double lfoDivisionBeats (int index) noexcept;
+
 /** One LFO's configuration, as plain data. */
 struct LfoSettings
 {
@@ -104,6 +116,12 @@ struct LfoSettings
 
     /** Steps in a cycle of the `step` shape. Clamped to at least two. */
     int stepCount = 8;
+
+    /** Beats per cycle when the rate was taken from the host's tempo, and 0
+        when it is free. Carried so that the engine can also lock a synced,
+        free-running LFO's phase to where the host is in the bar; the LFO
+        itself runs on `rateHz` either way. */
+    double tempoBeats = 0.0;
 
     [[nodiscard]] bool operator== (const LfoSettings&) const = default;
 };

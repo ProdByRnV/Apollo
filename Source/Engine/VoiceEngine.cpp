@@ -447,6 +447,23 @@ void VoiceEngine::setEnvelopeSettings (int index, const dsp::EnvelopeSettings& n
         voice.setEnvelopeSettings (index, newSettings);
 }
 
+void VoiceEngine::setTransportPosition (double beat, bool playing) noexcept
+{
+    if (! playing || ! std::isfinite (beat))
+        return;
+
+    for (std::size_t i = 0; i < lfoSettings.size(); ++i)
+    {
+        const auto beats = lfoSettings[i].tempoBeats;
+
+        if (lfoSettings[i].retrigger || ! (beats > 0.0))
+            continue;
+
+        const auto cycles = beat / beats;
+        freeRunningLfoPhase[i] = cycles - std::floor (cycles);
+    }
+}
+
 void VoiceEngine::setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept
 {
     if (index < 0 || index >= Voice::numLfos)

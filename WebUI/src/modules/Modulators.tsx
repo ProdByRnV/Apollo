@@ -18,6 +18,7 @@ import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
 import { LABELS } from '../params/labels';
+import { plainOf, useParameterValue } from '../state/parameters';
 
 const INDICES = [1, 2, 3, 4];
 
@@ -66,6 +67,55 @@ export function Envelopes(): JSX.Element {
     );
 }
 
+/** `lfoN_sync`'s value when the rate is taken from the host's tempo. */
+const SYNCED = 1;
+
+function LfoPage({ index, hidden, idBase }: { index: number; hidden: boolean; idBase: string }): JSX.Element {
+    const p = `lfo${index}_`;
+
+    // Synced, the division replaces the rate rather than sitting beside a
+    // control that does nothing. Both stay in the page and the one not in use
+    // is hidden, because a control that is not rendered at all is reported as
+    // having no home (Unplaced.tsx).
+    useParameterValue(`${p}sync`);
+    const synced = Math.round(plainOf(`${p}sync`)) === SYNCED;
+
+    return (
+        <div className="cluster" hidden={hidden} {...tabPanelProps(idBase, index - 1)}>
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Segmented id={`${p}shape`} label="Shape" table={LABELS.lfoShape} />
+                    <Segmented
+                        id={`${p}retrigger`}
+                        label="Trigger"
+                        table={LABELS.lfoRetrigger}
+                    />
+                    <Segmented
+                        id={`${p}polarity`}
+                        label="Polarity"
+                        table={LABELS.lfoPolarity}
+                    />
+                    <Segmented id={`${p}sync`} label="Rate" table={LABELS.lfoSync} />
+                </div>
+
+                <div className="cluster" hidden={!synced}>
+                    <Segmented id={`${p}division`} label="Division" table={LABELS.lfoDivision} />
+                </div>
+            </div>
+
+            <Trace source={`lfo${index}`} label={`lfo ${index}`} />
+
+            <div hidden={synced}>
+                <Knob id={`${p}rate`} label="Rate" />
+            </div>
+            <Knob id={`${p}phase`} label="Phase" />
+            <Knob id={`${p}fade`} label="Fade In" />
+            <Knob id={`${p}smoothing`} label="Smoothing" />
+            <Knob id={`${p}steps`} label="Steps" />
+        </div>
+    );
+}
+
 export function Lfos(): JSX.Element {
     const [selected, setSelected] = useState(0);
     const idBase = useId();
@@ -85,42 +135,9 @@ export function Lfos(): JSX.Element {
                 />
             )}
         >
-            {INDICES.map((index) => {
-                const p = `lfo${index}_`;
-
-                return (
-                    <div
-                        key={index}
-                        className="cluster"
-                        hidden={index !== selected + 1}
-                        {...tabPanelProps(idBase, index - 1)}
-                    >
-                        <div className="cluster cluster--banner">
-                            <div className="cluster">
-                                <Segmented id={`${p}shape`} label="Shape" table={LABELS.lfoShape} />
-                                <Segmented
-                                    id={`${p}retrigger`}
-                                    label="Trigger"
-                                    table={LABELS.lfoRetrigger}
-                                />
-                                <Segmented
-                                    id={`${p}polarity`}
-                                    label="Polarity"
-                                    table={LABELS.lfoPolarity}
-                                />
-                            </div>
-                        </div>
-
-                        <Trace source={`lfo${index}`} label={`lfo ${index}`} />
-
-                        <Knob id={`${p}rate`} label="Rate" />
-                        <Knob id={`${p}phase`} label="Phase" />
-                        <Knob id={`${p}fade`} label="Fade In" />
-                        <Knob id={`${p}smoothing`} label="Smoothing" />
-                        <Knob id={`${p}steps`} label="Steps" />
-                    </div>
-                );
-            })}
+            {INDICES.map((index) => (
+                <LfoPage key={index} index={index} hidden={index !== selected + 1} idBase={idBase} />
+            ))}
         </Module>
     );
 }

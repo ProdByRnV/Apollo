@@ -351,6 +351,16 @@ public:
     /** Replaces one LFO's configuration on every voice. */
     void setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept;
 
+    /** Where the host is, at the top of a block: @p beat in quarter notes, NaN
+        when it says nothing, and whether its transport is running.
+
+        While it runs, a free-running LFO synced to the tempo takes its shared
+        phase from the beat, so a note started at any time adopts the phase
+        that keeps it on the bar. Stopped, or with no beat, the phase runs on
+        by itself at the synced rate, as a free-running LFO always has.
+    */
+    void setTransportPosition (double beat, bool playing) noexcept;
+
     /** Replaces the modulation routing on every voice. */
     void setModulationRouting (const dsp::ModulationRouting& newRouting) noexcept;
 

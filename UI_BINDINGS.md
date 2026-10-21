@@ -160,6 +160,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env4_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 4 curve tension |
 | `lfo1_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 1: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo1_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 1 rate |
+| `lfo1_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | 0 the rate in hertz, 1 a division of the host's tempo (120 when it gives none). Synced, the Rate knob is hidden and the division shown, and a free-running LFO is locked to the bar while the transport runs (ADR-0096) |
+| `lfo1_division` | Selector / Dropdown | Discrete `[0, 16]` | `8` | 13e-1 | The note value a synced LFO cycles at: 8/1, 4/1, 2/1, 1/1, then 1/2, 1/4, 1/8 and 1/16 each dotted, straight and triplet, then 1/32. 8 is a quarter note |
 | `lfo1_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 1 start phase |
 | `lfo1_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 1: 0 free-running, 1 retrigger per note |
 | `lfo1_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 1 fade-in |
@@ -168,6 +170,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `lfo1_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 1 steps, for the step shape |
 | `lfo2_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 2: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo2_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 2 rate |
+| `lfo2_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | LFO 2's sync, as for LFO 1 |
+| `lfo2_division` | Selector / Dropdown | Discrete `[0, 16]` | `8` | 13e-1 | LFO 2's division, as for LFO 1 |
 | `lfo2_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 2 start phase |
 | `lfo2_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 2: 0 free-running, 1 retrigger per note |
 | `lfo2_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 2 fade-in |
@@ -176,6 +180,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `lfo2_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 2 steps, for the step shape |
 | `lfo3_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 3: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo3_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 3 rate |
+| `lfo3_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | LFO 3's sync, as for LFO 1 |
+| `lfo3_division` | Selector / Dropdown | Discrete `[0, 16]` | `8` | 13e-1 | LFO 3's division, as for LFO 1 |
 | `lfo3_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 3 start phase |
 | `lfo3_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 3: 0 free-running, 1 retrigger per note |
 | `lfo3_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 3 fade-in |
@@ -184,6 +190,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `lfo3_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 3 steps, for the step shape |
 | `lfo4_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 4: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo4_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 4 rate |
+| `lfo4_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | LFO 4's sync, as for LFO 1 |
+| `lfo4_division` | Selector / Dropdown | Discrete `[0, 16]` | `8` | 13e-1 | LFO 4's division, as for LFO 1 |
 | `lfo4_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 4 start phase |
 | `lfo4_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 4: 0 free-running, 1 retrigger per note |
 | `lfo4_fade` | Rotary Knob | `0–10000 ms` | `0` | 5d | LFO 4 fade-in |

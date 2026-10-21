@@ -26,6 +26,7 @@
 #include "Telemetry/TelemetryHub.h"
 
 #include <atomic>
+#include <limits>
 #include <memory>
 
 namespace apollo
@@ -251,6 +252,13 @@ private:
     */
     void applyHostTempo() noexcept;
 
+    /** What applyHostTempo found at the top of this block: the tempo, or the
+        fallback; the beat position in quarter notes, or NaN when the host
+        gives none; and whether the transport is running. */
+    double hostBpm = dsp::Delay::fallbackBpm;
+    double hostBeat = std::numeric_limits<double>::quiet_NaN();
+    bool hostPlaying = false;
+
     /** Tells the host that the rack's latency changed.
 
         Message thread, woken by the audio thread only when the number actually
@@ -397,6 +405,8 @@ private:
         std::atomic<float>* smoothing = nullptr;
         std::atomic<float>* polarity = nullptr;
         std::atomic<float>* steps = nullptr;
+        std::atomic<float>* sync = nullptr;
+        std::atomic<float>* division = nullptr;
 
         /** @param prefix  "lfo1_" through "lfo4_". */
         void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);

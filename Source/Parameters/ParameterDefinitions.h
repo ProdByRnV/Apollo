@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -764,6 +764,21 @@ inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
       0.13f, 0.0f,
       true, true, true },
 
+    // 0 free, at the rate above; 1 synced to the host's tempo, at the division
+    // below. Phase 13e-1 (ADR-0096).
+    { "lfo1_sync", "LFO 1 Sync",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // dsp::lfoDivisionBeats, 8/1 down to 1/32; 8 is a quarter note.
+    { "lfo1_division", "LFO 1 Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
     { "lfo1_phase", "LFO 1 Phase",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
@@ -811,6 +826,21 @@ inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
       0.01f, 400.0f, 1.0f,
       0.13f, 0.0f,
       true, true, true },
+
+    // 0 free, at the rate above; 1 synced to the host's tempo, at the division
+    // below. Phase 13e-1 (ADR-0096).
+    { "lfo2_sync", "LFO 2 Sync",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // dsp::lfoDivisionBeats, 8/1 down to 1/32; 8 is a quarter note.
+    { "lfo2_division", "LFO 2 Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
 
     { "lfo2_phase", "LFO 2 Phase",
       ParameterType::floatingPoint, ParameterUnit::normalised,
@@ -860,6 +890,21 @@ inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
       0.13f, 0.0f,
       true, true, true },
 
+    // 0 free, at the rate above; 1 synced to the host's tempo, at the division
+    // below. Phase 13e-1 (ADR-0096).
+    { "lfo3_sync", "LFO 3 Sync",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // dsp::lfoDivisionBeats, 8/1 down to 1/32; 8 is a quarter note.
+    { "lfo3_division", "LFO 3 Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
     { "lfo3_phase", "LFO 3 Phase",
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
@@ -907,6 +952,21 @@ inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
       0.01f, 400.0f, 1.0f,
       0.13f, 0.0f,
       true, true, true },
+
+    // 0 free, at the rate above; 1 synced to the host's tempo, at the division
+    // below. Phase 13e-1 (ADR-0096).
+    { "lfo4_sync", "LFO 4 Sync",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // dsp::lfoDivisionBeats, 8/1 down to 1/32; 8 is a quarter note.
+    { "lfo4_division", "LFO 4 Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 16.0f, 8.0f,
+      1.0f, 1.0f,
+      true, false, false },
 
     { "lfo4_phase", "LFO 4 Phase",
       ParameterType::floatingPoint, ParameterUnit::normalised,

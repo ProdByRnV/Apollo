@@ -39,7 +39,6 @@ this table when its sub-phase lands (ADR-0089).
 | Area | Not built | Spec |
 |---|---|---|
 | **Macros** | Macro controls, as matrix sources or destinations, and in presets | PRD §17, CLAUDE.md §15 |
-| **LFO tempo sync** | An LFO cannot follow the host's tempo. The conversion exists in the LFO code (`tempoSyncedRateHz`) but no parameter selects it, so it is unreachable | PRD §15.2, CLAUDE.md §14.2 |
 | **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Noise** | No loadable noise samples (13g). *Built in 13d: pink noise, key tracking, and four built-in transients* | PRD §10 |

@@ -265,6 +265,8 @@ void ApolloAudioProcessor::LfoParameterPointers::resolve (
     smoothing = state.getRawParameterValue (base + "smoothing");
     polarity = state.getRawParameterValue (base + "polarity");
     steps = state.getRawParameterValue (base + "steps");
+    sync = state.getRawParameterValue (base + "sync");
+    division = state.getRawParameterValue (base + "division");
 
     jassert (shape != nullptr && rate != nullptr && phase != nullptr && retrigger != nullptr
              && fadeMs != nullptr && smoothing != nullptr && polarity != nullptr
@@ -510,6 +512,16 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         lfo.bipolar = readParameter (pointers.polarity, 1.0f) >= 0.5f;
         lfo.stepCount = static_cast<int> (readParameter (pointers.steps, 8.0f));
 
+        // Synced, the rate is the division at the host's tempo, read at the
+        // top of this block, and the hertz control is set aside rather than
+        // combined with it.
+        if (readParameter (pointers.sync, 0.0f) >= 0.5f)
+        {
+            lfo.tempoBeats = dsp::lfoDivisionBeats (static_cast<int> (std::lround (
+                readParameter (pointers.division, static_cast<float> (dsp::defaultLfoDivision)))));
+            lfo.rateHz = dsp::tempoSyncedRateHz (hostBpm, lfo.tempoBeats);
+        }
+
         voiceEngine.setLfoSettings (static_cast<int> (i), lfo);
     }
 
@@ -590,8 +602,9 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
 void ApolloAudioProcessor::applyHostTempo() noexcept
 {
-    // Read once per block, before the effects are configured, so everything
-    // synced this block is synced to the same tempo.
+    // Read once per block, at its top, before the LFOs and the effects are
+    // configured, so everything synced this block is synced to the same tempo
+    // and the same beat.
     //
     // Every step of this is optional at the host's discretion: there may be no
     // playhead at all (the standalone has none), the position may be
@@ -600,17 +613,24 @@ void ApolloAudioProcessor::applyHostTempo() noexcept
     // than to zero, so a synced delay keeps repeating musically wherever it is
     // running (CLAUDE.md §38).
     auto bpm = dsp::Delay::fallbackBpm;
+    hostBeat = std::numeric_limits<double>::quiet_NaN();
+    hostPlaying = false;
 
     if (auto* transport = getPlayHead())
     {
         if (const auto position = transport->getPosition())
         {
-            if (const auto hostBpm = position->getBpm())
-                bpm = *hostBpm;
+            if (const auto reported = position->getBpm())
+                bpm = *reported;
+
+            const auto ppq = position->getPpqPosition();
+            hostBeat = ppq ? *ppq : std::numeric_limits<double>::quiet_NaN();
+            hostPlaying = position->getIsPlaying();
         }
     }
 
     effects.setTempo (bpm);
+    hostBpm = bpm;
 }
 
 void ApolloAudioProcessor::applyEffectParameters() noexcept
@@ -1072,7 +1092,12 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // a listener can resolve. The two that would step audibly — source level and
     // balance — are smoothed per sample inside the voice, so nothing here has to
     // be read in the render loop.
+    //
+    // The host's tempo and beat first, because a synced LFO's rate is taken
+    // from them there, and a synced free-running LFO's phase after.
+    applyHostTempo();
     applySourceParameters();
+    voiceEngine.setTransportPosition (hostBeat, hostPlaying);
 
     // Picked up once per block, before any message is handled, so every MIDI
     // event in this buffer is matched against the same mapping table. A table
@@ -1107,7 +1132,6 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // chain that changed halfway through a block would be a difference no one
     // could hear and everyone would have to reason about — while the controls
     // that would step audibly are smoothed per sample inside the effect itself.
-    applyHostTempo();
     applyEffectParameters();
     effects.process (outputs, numOutputChannels, numSamples);
 

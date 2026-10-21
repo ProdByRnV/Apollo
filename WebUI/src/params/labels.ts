@@ -107,6 +107,13 @@ export const LABELS: Record<string, readonly string[]> = {
     lfoRetrigger: ['FREE', 'RETRIG'],
     lfoPolarity: ['UNI', 'BI'],
 
+    // `lfoN_sync`: the rate in hertz, or a division of the host's tempo.
+    lfoSync: ['HZ', 'SYNC'],
+
+    // dsp::lfoDivisionBeats. A dot is dotted and a T is a triplet.
+    lfoDivision: ['8/1', '4/1', '2/1', '1/1', '1/2.', '1/2', '1/2T', '1/4.', '1/4', '1/4T',
+                  '1/8.', '1/8', '1/8T', '1/16.', '1/16', '1/16T', '1/32'],
+
     // Matches dsp::ModSource.
     modSource: ['—', 'ENV 1', 'ENV 2', 'ENV 3', 'ENV 4',
                 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4',
