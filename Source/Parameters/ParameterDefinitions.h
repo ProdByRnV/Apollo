@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -479,6 +479,16 @@ inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, false },
 
+    // 0 restarts every note from silence; 1, the default because it is how
+    // Apollo always behaved, continues from wherever the envelope is. Only a
+    // voice reused while sounding can hear the difference. Phase 13e-2
+    // (ADR-0097).
+    { "env1_retrigger", "Env 1 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
     // Filters ----------------------------------------------------------------
     // Indexed from Phase 5b. These began life as un-indexed `filter_cutoff`,
     // `filter_resonance` and `filter_drive`, which predated the second filter
@@ -659,6 +669,16 @@ inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, false },
 
+    // 0 restarts every note from silence; 1, the default because it is how
+    // Apollo always behaved, continues from wherever the envelope is. Only a
+    // voice reused while sounding can hear the difference. Phase 13e-2
+    // (ADR-0097).
+    { "env2_retrigger", "Env 2 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
     { "env3_delay", "Env 3 Delay",
       ParameterType::floatingPoint, ParameterUnit::milliseconds,
       0.0f, 2000.0f, 0.0f,
@@ -701,6 +721,16 @@ inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, false },
 
+    // 0 restarts every note from silence; 1, the default because it is how
+    // Apollo always behaved, continues from wherever the envelope is. Only a
+    // voice reused while sounding can hear the difference. Phase 13e-2
+    // (ADR-0097).
+    { "env3_retrigger", "Env 3 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
     { "env4_delay", "Env 4 Delay",
       ParameterType::floatingPoint, ParameterUnit::milliseconds,
       0.0f, 2000.0f, 0.0f,
@@ -742,6 +772,16 @@ inline constexpr std::array<ParameterDefinition, 262> parameterDefinitions { {
       -1.0f, 1.0f, 0.5f,
       1.0f, 0.0f,
       true, true, false },
+
+    // 0 restarts every note from silence; 1, the default because it is how
+    // Apollo always behaved, continues from wherever the envelope is. Only a
+    // voice reused while sounding can hear the difference. Phase 13e-2
+    // (ADR-0097).
+    { "env4_retrigger", "Env 4 Retrigger",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
 
     // LFOs 1-4 ---------------------------------------------------------------
     // Shape is a discrete choice: 0 sine, 1 triangle, 2 saw, 3 reverse saw,

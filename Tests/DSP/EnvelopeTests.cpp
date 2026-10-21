@@ -83,6 +83,7 @@ public:
         testCurveShape();
         testReleaseFromAnyStage();
         testRetriggerDoesNotJumpToZero();
+        testRestartBeginsFromSilence();
         testSustainFollowsItsControl();
         testSettingsChangeRetimesInFlight();
         testSampleRateIndependence();
@@ -369,13 +370,14 @@ private:
 
     void testRetriggerDoesNotJumpToZero()
     {
-        beginTest ("Retriggering a sounding envelope continues from its level");
+        beginTest ("Retriggering a continuing envelope, the default, picks up from its level");
 
         Envelope envelope;
         envelope.prepare (testSampleRate);
 
         auto settings = plainSettings();
         settings.attackSeconds = 0.050f;
+        settings.continueOnRetrigger = true;
         envelope.setSettings (settings);
 
         envelope.noteOn();
@@ -390,6 +392,37 @@ private:
         expect (std::abs (after - before) < 0.02f,
                 "a retrigger dropped the level from " + juce::String (before, 4)
                     + " to " + juce::String (after, 4) + ", which is a click");
+    }
+
+    void testRestartBeginsFromSilence()
+    {
+        beginTest ("Retriggering a restarting envelope begins again from silence");
+
+        // The option Phase 13e-2 added. An envelope on its own would step here;
+        // in the voice the only retrigger is a steal, which fades to silence
+        // first, so the restart begins where the voice already is (ADR-0097).
+        Envelope envelope;
+        envelope.prepare (testSampleRate);
+
+        auto settings = plainSettings();
+        settings.attackSeconds = 0.050f;
+        settings.continueOnRetrigger = false;
+        envelope.setSettings (settings);
+
+        envelope.noteOn();
+        static_cast<void> (render (envelope, static_cast<int> (0.025 * testSampleRate)));
+        expect (envelope.getCurrentValue() > 0.2f, "the setup should leave the envelope part-way up");
+
+        envelope.noteOn();
+        const auto first = envelope.getNextValue();
+        const auto attackStep = 1.0f / static_cast<float> (0.050 * testSampleRate);
+
+        expect (first <= 2.0f * attackStep,
+                "a restart began at " + juce::String (first, 4) + " rather than from silence");
+
+        // And it takes its whole attack again: half way through, about half.
+        static_cast<void> (render (envelope, static_cast<int> (0.025 * testSampleRate) - 1));
+        expect (envelope.getCurrentValue() < 0.9f, "a restart skipped its attack");
     }
 
     void testSustainFollowsItsControl()

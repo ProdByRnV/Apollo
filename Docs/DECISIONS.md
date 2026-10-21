@@ -6065,3 +6065,96 @@ did, and the engine sets at most four phases.
 - **A tempo for the standalone.** It has no transport, so a synced LFO there
   runs at 120. A tempo control belongs with any transport the standalone might
   grow, and none is planned.
+
+---
+
+## ADR-0097 — An envelope continues or restarts when its voice is reused, and continuing no longer steps
+
+**Phase 13e-2 · Accepted**
+
+### What was built
+
+Four parameters, taking the registry to 266: `envN_retrigger`, 0 RESTART or
+1 CONTINUE, defaulting to CONTINUE. All fifteen regression renders passed
+unregenerated, and the pinned VST3 parameter numbers grew by four and changed
+none.
+
+### When it matters
+
+**Only a voice reused while it sounds can tell the options apart, and in Apollo
+that means a stolen voice.** Every note takes a free voice if there is one, and
+a free voice's envelopes are at rest, so they start from silence either way. A
+voice is reused only when the polyphony runs out and the note steals it. The
+steal fades the voice to silence over 2 ms with its envelopes frozen, and then
+starts the new note.
+
+Before this, the new note started every envelope at the level the old one had
+been frozen at. That is CONTINUE. With a slow attack, a stolen voice's note
+skipped it: a pad that ran out of voices let new notes in at full level instead
+of swelling.
+
+- **RESTART** starts every envelope of the note from silence, so the note gets
+  its whole attack. Measured on one voice: 20 ms into a 200 ms attack after a
+  steal, the level is 0.100, and 100 ms in, 0.500.
+- **CONTINUE** picks the level up where the last note left it, the default.
+
+### The default reproduces the old sound
+
+COMPATIBILITY.md §3 says a new parameter's default must reproduce the sound
+from before it existed, because that default is what every older preset and
+project gets. CONTINUE is that behaviour, so it is the default, although
+RESTART is arguably the better choice for a polyphonic patch. The skipped
+attack is recorded in Docs/KNOWN-LIMITATIONS.md, beside how to avoid it.
+Changing the default would change every older preset that steals voices, and
+that is the developer's decision rather than a sub-phase's.
+
+### One thing that did change: continuing no longer steps
+
+The old CONTINUE had a defect. After the steal had faded the voice to silence,
+the new note's amplitude went straight back to the frozen level in one sample,
+a step from silence to wherever the last note was. On a waveform that does not
+begin at zero, that is a click. Now, when the amplitude envelope continues, the
+voice comes back up over the same 2 ms ramp that took it down.
+
+Measured sample by sample through a steal, the largest step in the amplitude is
+0.0104 in both modes, which is the ramp's own increment at 48 kHz. Ten
+milliseconds after a continuing steal the level is back at 1.000. No reference
+render steals voices, so none moved. A voice that was free is the same in both
+modes, sample for sample, and a test says so.
+
+A modulation envelope chooses for itself. One millisecond into a stolen voice's
+new note, envelope 2 read 0.005 when restarting and 1.000 when continuing, with
+the amplitude envelope restarting in both.
+
+### What it costs
+
+**Measured only in a disturbed sitting.** The new code is one comparison per
+sample in the voice's amplitude path, taken only after a continuing steal.
+Timed alternately against 13d-2's build, the sitting had 6 to 17 % contention,
+and everything ran about 40 % slower than in quiet sittings, the old build
+included. The default patch's median moved by +0.02, 0 and −0.14 points at 8
+voices, and by −0.02, +0.28 and −0.13 at 32. That shows no direction, but it
+cannot rule out a small cost, and it is recorded as inconclusive (CLAUDE.md
+§35.3).
+
+### Found on the way: one test was measuring denormals
+
+While this sub-phase was being tested, the unit suite went from 74 seconds to
+444. The 13c-3 build, re-run, took as long as this one, so this was not the
+code. All of the difference was in one test, which leaves a full effects chain
+ringing out for a minute. It called the rack without the `ScopedNoDenormals`
+that `processBlock` gives it on every block, so the tail spent its minute in
+the subnormal range. It now runs under that protection, as the rack does in the
+product. The DSP category takes 38 seconds and reports the same figures. It
+was committed separately (ecdaee8). Why the same binary took 74 seconds the day
+before was not established.
+
+### Given up
+
+- **A mono or legato mode**, in which a new note takes over a sounding voice
+  without the steal's fade and without restarting the oscillators. CONTINUE on
+  every envelope comes close at a polyphony of one, apart from the 4 ms dip.
+  True legato needs pitch glide and a way to keep a velocity change from
+  stepping, and the specification does not ask for it.
+- **More modes**, such as an envelope that ignores a new note while one is
+  held. With a voice per note there is nothing for it to ignore.

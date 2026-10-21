@@ -51,6 +51,14 @@ export function Envelopes(): JSX.Element {
                         hidden={index !== selected + 1}
                         {...tabPanelProps(idBase, index - 1)}
                     >
+                        <div className="cluster cluster--banner">
+                            <Segmented
+                                id={`${p}retrigger`}
+                                label="Retrigger"
+                                table={LABELS.envRetrigger}
+                            />
+                        </div>
+
                         <Trace source={`env${index}`} label={`env ${index}`} />
 
                         <Knob id={`${p}delay`} label="Delay" />

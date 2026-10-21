@@ -42,7 +42,7 @@ this table when its sub-phase lands (ADR-0089).
 | **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Noise** | No loadable noise samples (13g). *Built in 13d: pink noise, key tracking, and four built-in transients* | PRD §10 |
-| **Envelopes** | Shown as live traces, not edited by dragging them | PRD §15.1 |
+| **Envelopes** | Shown as live traces, not edited by dragging them. By default a stolen voice's note starts its envelopes at the level the last note left, so a slow attack is skipped when voices run out; Retrigger set to RESTART gives it the whole attack (13e-2, ADR-0097) | PRD §15.1 |
 | **Modulation matrix** | No effect parameters or filter drive as destinations, and no modulation of a routing's depth (warp amount became one in 13b). Host automation as a source and an envelope follower are carried but unscheduled (ROADMAP "Carried forward") | PRD §16 |
 | **Wavetables from files** | The engine reads, validates and plays a wavetable from a WAV file, replacing a slot while a note sounds (ADR-0066), but nothing in the interface can choose a file, and a preset cannot refer to one. A file chooser has to be native rather than a path sent across the bridge (CLAUDE.md §40) | PRD §33 |
 | **Spectrum analyser** | Optional in the PRD and not built | PRD §30 |

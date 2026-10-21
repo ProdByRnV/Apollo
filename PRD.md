@@ -22,8 +22,8 @@ Phase 12d-2 (ADR-0087).
 | ⊘ | Considered and decided against, with the decision cited |
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
-platforms are built. Not built: macros (§17) entirely; drawn LFO curves,
-envelope retrigger options and some matrix destinations within otherwise-built
+platforms are built. Not built: macros (§17) entirely; drawn LFO curves
+and some matrix destinations within otherwise-built
 sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
 The full list is Docs/KNOWN-LIMITATIONS.md.
@@ -400,7 +400,7 @@ Retrigger
 Polarity
 LFOs should support both free-running and note-triggered operation.
 
-> **Status, 0.1.0 to 13e-1:** §15.1: ✅ four DAHDSR envelopes with adjustable curve tension between linear and exponential, run per note. ❌ No visual editing — an envelope is shown as a live trace, not dragged — and no retrigger options. §15.2: ✅ four LFOs with rate, phase, fade-in, smoothing, retrigger and polarity, free-running or note-triggered, in seven shapes. ✅ Since Phase 13e-1, tempo sync: a rate in hertz or one of seventeen divisions from 8/1 to 1/32 at the host's tempo (120 when it gives none), a free-running synced LFO locked to the bar while the transport runs (ADR-0096). ❌ No drawn curves, deferred because they need an editor and a place in the preset format (ADR-0034).
+> **Status, 0.1.0 to 13e-2:** §15.1: ✅ four DAHDSR envelopes with adjustable curve tension between linear and exponential, run per note; ✅ since Phase 13e-2 a retrigger option on each, continuing from the level a stolen voice's last note left (the default, as before) or restarting from silence (ADR-0097). ❌ No visual editing — an envelope is shown as a live trace, not dragged. §15.2: ✅ four LFOs with rate, phase, fade-in, smoothing, retrigger and polarity, free-running or note-triggered, in seven shapes. ✅ Since Phase 13e-1, tempo sync: a rate in hertz or one of seventeen divisions from 8/1 to 1/32 at the host's tempo (120 when it gives none), a free-running synced LFO locked to the bar while the transport runs (ADR-0096). ❌ No drawn curves, deferred because they need an editor and a place in the preset format (ADR-0034).
 
 ---
 16. Modulation Matrix

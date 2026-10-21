@@ -16,7 +16,7 @@ written in React and shown through the platform's own WebView.
 released.** There are no downloads yet. Apollo is built from source, below, and
 every CI run also packages it for each platform.
 
-It is a complete instrument: it plays, every one of its 262 parameters affects
+It is a complete instrument: it plays, every one of its 266 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. What is
 not yet true is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md). The
 largest gaps are that it has not been tried inside a DAW, that its interface has

@@ -83,6 +83,17 @@ struct EnvelopeSettings
     */
     float curve = 0.5f;
 
+    /** What a note does to an envelope that is not at rest (Phase 13e-2).
+
+        True, the default because it is how every envelope behaved before the
+        option existed, starts it from wherever it is, so a note that follows
+        another on the same voice picks the envelope up where the last one left
+        it. False restarts it from silence, so every note gets its whole attack.
+        Only a voice that is reused while sounding can tell the two apart: a
+        voice that was free starts at silence either way.
+    */
+    bool continueOnRetrigger = true;
+
     [[nodiscard]] bool operator== (const EnvelopeSettings&) const = default;
 };
 
@@ -109,9 +120,9 @@ public:
 
     /** Starts the envelope from the beginning of its delay stage.
 
-        The attack begins from the envelope's *current* level rather than from
-        zero. For a fresh voice that is zero anyway; for a voice retriggered
-        while still sounding it is what stops the note restarting with a click.
+        From silence, unless the settings ask it to continue, in which case the
+        delay holds and the attack begins from the envelope's current level. For
+        a fresh voice the two are the same, because a voice at rest is silent.
     */
     void noteOn() noexcept;
 

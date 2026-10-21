@@ -103,6 +103,10 @@ export const LABELS: Record<string, readonly string[]> = {
     fx_eq_band_mute: ['IN', 'MUTE'],
 
     // Matches dsp::LfoShape.
+    // `envN_retrigger`: a note restarts the envelope from silence, or continues
+    // it from wherever it is (dsp::EnvelopeSettings::continueOnRetrigger).
+    envRetrigger: ['RESTART', 'CONTINUE'],
+
     lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],
     lfoRetrigger: ['FREE', 'RETRIG'],
     lfoPolarity: ['UNI', 'BI'],

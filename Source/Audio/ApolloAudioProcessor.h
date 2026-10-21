@@ -383,6 +383,7 @@ private:
         std::atomic<float>* sustain = nullptr;
         std::atomic<float>* releaseMs = nullptr;
         std::atomic<float>* curve = nullptr;
+        std::atomic<float>* retrigger = nullptr;
 
         /** Resolves every pointer for the envelope with this ID prefix.
 

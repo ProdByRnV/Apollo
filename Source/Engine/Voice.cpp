@@ -1,5 +1,6 @@
 #include "Engine/Voice.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace apollo::engine
@@ -862,6 +863,13 @@ float Voice::nextAmplitude() noexcept
 
                 pendingNote = -1;
                 beginNote (nextNote, nextVelocity, nextOrder, nextChannel);
+
+                // An amplitude envelope that continues picks up at the level the
+                // last note left, and the voice is silent here, so going straight
+                // there would be a step. The same ramp that took it down brings
+                // it back up instead. One that restarts begins at silence anyway.
+                if (envelopes[0].getSettings().continueOnRetrigger)
+                    stealGain = 0.0f;
             }
             else
             {
@@ -885,6 +893,14 @@ float Voice::nextAmplitude() noexcept
     {
         reset();
         return 0.0f;
+    }
+
+    // Coming back up after a steal into a continuing envelope (above). Below
+    // one only then, so every other note takes the line after unchanged.
+    if (stealGain < 1.0f)
+    {
+        stealGain = std::min (1.0f, stealGain + stealDecrement);
+        return value * stealGain;
     }
 
     return value;

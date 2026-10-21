@@ -120,6 +120,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env1_sustain` | Rotary Knob | Normalized `[0, 1]` | `1` | 5a | Envelope 1 sustain level |
 | `env1_release` | Rotary Knob | `0–10000 ms` | `50` | 5a | Envelope 1 release time |
 | `env1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5a | Envelope 1 curve tension; 0 is linear, positive is the analog shape |
+| `env1_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | What a note does to envelope 1 when its voice is reused while sounding, which in Apollo means stolen: 0 restarts from silence, so the note gets its whole attack; 1, the default because it is how Apollo always behaved, continues from the level the last note left, the voice fading back up over the steal's 2 ms rather than stepping as it used to. A voice that was free sounds the same either way (ADR-0097) |
 | `filter1_type` | Selector / Dropdown | Discrete `[0, 6]` | `1` | 5b, 13c | Filter 1 type: 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch, 5 comb, 6 formant. Comb and formant were appended in 13c, so the first five keep their numbers (ADR-0091). Under formant the cutoff knob is labelled with the vowel it chooses |
 | `filter1_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 1 cutoff frequency |
 | `filter1_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 1 resonance as Q; 0.707 is Butterworth |
@@ -144,6 +145,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env2_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 2 sustain; zero by default so an unrouted modulator does nothing |
 | `env2_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 2 release |
 | `env2_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 2 curve tension |
+| `env2_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 2's retrigger, as for envelope 1, chosen independently of it |
 | `env3_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 delay |
 | `env3_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 3 attack |
 | `env3_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 hold |
@@ -151,6 +153,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env3_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 3 sustain; zero by default so an unrouted modulator does nothing |
 | `env3_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 3 release |
 | `env3_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 3 curve tension |
+| `env3_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 3's retrigger, as for envelope 1, chosen independently of it |
 | `env4_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 delay |
 | `env4_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 4 attack |
 | `env4_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 hold |
@@ -158,6 +161,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env4_sustain` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | Envelope 4 sustain; zero by default so an unrouted modulator does nothing |
 | `env4_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 4 release |
 | `env4_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 4 curve tension |
+| `env4_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 4's retrigger, as for envelope 1, chosen independently of it |
 | `lfo1_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 1: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo1_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 1 rate |
 | `lfo1_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | 0 the rate in hertz, 1 a division of the host's tempo (120 when it gives none). Synced, the Rate knob is hidden and the division shown, and a free-running LFO is locked to the bar while the transport runs (ADR-0096) |

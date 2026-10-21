@@ -230,10 +230,11 @@ void ApolloAudioProcessor::EnvelopeParameterPointers::resolve (
     sustain = state.getRawParameterValue (base + "sustain");
     releaseMs = state.getRawParameterValue (base + "release");
     curve = state.getRawParameterValue (base + "curve");
+    retrigger = state.getRawParameterValue (base + "retrigger");
 
     jassert (delayMs != nullptr && attackMs != nullptr && holdMs != nullptr
              && decayMs != nullptr && sustain != nullptr && releaseMs != nullptr
-             && curve != nullptr);
+             && curve != nullptr && retrigger != nullptr);
 }
 
 void ApolloAudioProcessor::FilterParameterPointers::resolve (
@@ -489,6 +490,7 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         envelope.releaseSeconds = readParameter (pointers.releaseMs, isAmplitude ? 50.0f : 300.0f) * 0.001f;
         envelope.sustainLevel = readParameter (pointers.sustain, isAmplitude ? 1.0f : 0.0f);
         envelope.curve = readParameter (pointers.curve, 0.5f);
+        envelope.continueOnRetrigger = readParameter (pointers.retrigger, 1.0f) >= 0.5f;
 
         voiceEngine.setEnvelopeSettings (static_cast<int> (i), envelope);
     }

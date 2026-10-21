@@ -161,7 +161,7 @@ front of it is better understood, the way 8f was.
 | 13d-2 | Built-in transient samples — click, pick, thump and chiff, synthesised once per process, played at each note's start and pitched by the key tracking without aliasing (ADR-0095) | ✅ |
 | 13e | Modulation, in five parts | ◐ |
 | 13e-1 | LFO tempo sync — a rate in hertz or a division of the host's tempo, a free-running synced LFO locked to the bar (ADR-0096) | ✅ |
-| 13e-2 | Envelope retrigger options | ⬜ |
+| 13e-2 | Envelope retrigger options — continue from the level the last note left, the default and Apollo's behaviour before, or restart from silence so a stolen voice's note gets its attack (ADR-0097) | ✅ |
 | 13e-3 | Macros — controls that are matrix sources, with a range and a curve each, learnable and stored in presets | ⬜ |
 | 13e-4 | Filter drive, mix and key tracking as destinations, and modulation of a routing's depth | ⬜ |
 | 13e-5 | Effect parameters as destinations | ⬜ |
@@ -462,7 +462,7 @@ Build the expressive sound-design architecture around the oscillator core.
 - [x] Implement sustain. (5a)
 - [x] Implement release. (5a)
 - [x] Implement delay if included in the final envelope definition. — included; PRD §15.1 specifies DAHDSR (5a)
-- [x] Validate retrigger behavior. — a retriggered envelope continues from its current level rather than restarting at zero, which is what keeps the restart click-free; asserted in `Tests/DSP/EnvelopeTests.cpp` (5a)
+- [x] Validate retrigger behavior. — a retriggered envelope continues from its current level rather than restarting at zero, which is what keeps the restart click-free; asserted in `Tests/DSP/EnvelopeTests.cpp` (5a) *Since 13e-2 that is the CONTINUE option, still the default; RESTART begins from silence (ADR-0097).*
 - [x] Validate note-off behavior. — release begins from wherever the envelope is, from any stage, with no step; asserted across four note-off points (5a)
 
 ### LFOs
@@ -1011,7 +1011,7 @@ them; each sub-phase removes its rows from that list as it lands.
 ### Modulation (13e)
 
 - [x] LFO tempo sync (PRD §15.2). — seventeen divisions from 8/1 to 1/32 at the host's tempo, 120 without one; a free-running synced LFO takes its phase from the bar while the transport runs (13e-1, ADR-0096)
-- [ ] Envelope retrigger options (PRD §15.1).
+- [x] Envelope retrigger options (PRD §15.1). — per envelope, CONTINUE (the default, as before) or RESTART; only a stolen voice can tell them apart, and restarting gives its note the whole attack it otherwise skips (13e-2, ADR-0097)
 - [ ] Macro controls: MIDI-learnable, several destinations, bipolar depth, ranges, curves, stored in presets (PRD §17).
 - [ ] Effect parameters and filter drive as modulation destinations, and modulation of a routing's depth (PRD §16).
 

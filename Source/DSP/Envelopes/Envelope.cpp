@@ -86,6 +86,9 @@ void Envelope::setSettings (const EnvelopeSettings& newSettings) noexcept
 
 void Envelope::noteOn() noexcept
 {
+    if (! settings.continueOnRetrigger)
+        level = 0.0f;
+
     enterStage (EnvelopeStage::delay);
 }
 
@@ -134,9 +137,9 @@ float Envelope::targetForStage (EnvelopeStage query) const noexcept
 {
     switch (query)
     {
-        // Delay holds wherever the envelope already is. For a fresh note that
-        // is silence; for a retrigger it is whatever the previous note left,
-        // which is what keeps the restart click-free.
+        // Delay holds wherever the envelope already is: silence for a fresh
+        // note or a restarted one, and for one that continues, whatever the
+        // previous note left.
         case EnvelopeStage::delay:   return level;
         case EnvelopeStage::attack:  return 1.0f;
         case EnvelopeStage::hold:    return 1.0f;
