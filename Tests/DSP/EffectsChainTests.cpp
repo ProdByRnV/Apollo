@@ -24,6 +24,7 @@
     `testSeriesTailsAdd`, and ADR-0060 records the fix.
 */
 
+#include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_core/juce_core.h>
 
 #include <algorithm>
@@ -462,6 +463,15 @@ private:
     void testTheFullChainSettlesToSilence()
     {
         beginTest ("a full chain at the top of its ranges settles to silence with nothing going in");
+
+        // Under the denormal protection the processor gives the rack on every
+        // block (ApolloAudioProcessor::processBlock), because that is the
+        // condition the rack runs in. Without it, a minute of tail decaying
+        // through the subnormal range made this one test take 354 of the
+        // suite's 444 seconds on the development machine, when the same binary
+        // had run the whole suite in 74 a day before; the test was measuring
+        // the processor's denormal assists rather than the chain.
+        const juce::ScopedNoDenormals noDenormals;
 
         // "Feedback effects remain stable" at chain scale. The delay and the
         // reverb each prove this alone; what is new here is that they are in
