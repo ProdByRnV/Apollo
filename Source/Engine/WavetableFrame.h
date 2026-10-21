@@ -15,9 +15,9 @@
     resource that was built once and is immutable for the life of the instrument
     (ARCHITECTURE.md — it is shared unsynchronised between voices precisely
     because of that). So the message thread reads it directly, and the only thing
-    the audio thread has to publish is the two numbers that say which frame to
-    draw. Rendering 128 points at 15 Hz on the message thread costs less than
-    sending them would.
+    the audio thread has to publish is the numbers that say which frame to draw
+    and how it is being warped. Rendering 128 points at 15 Hz on the message
+    thread costs less than sending them would.
 
     MIP LEVEL 0, always: the finest table, whatever the note. The mipmap exists
     so that a high note does not alias, and a picture has no pitch — showing a

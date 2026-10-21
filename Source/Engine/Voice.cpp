@@ -257,6 +257,18 @@ float Voice::getOscillatorPosition (int index) const noexcept
                         0.0f, 1.0f);
 }
 
+float Voice::getOscillatorWarpAmount (int index) const noexcept
+{
+    using Destination = dsp::ModDestination;
+
+    if (index == 2)
+        return clampFinite (sources.osc2.warpAmount + destinationOffset (Destination::osc2Warp),
+                            0.0f, 1.0f);
+
+    return clampFinite (sources.osc1.warpAmount + destinationOffset (Destination::osc1Warp),
+                        0.0f, 1.0f);
+}
+
 void Voice::setModulationSeed (std::uint32_t seed) noexcept
 {
     // Zero would lock a xorshift at zero for ever, so it is mapped away rather
@@ -366,6 +378,16 @@ void Voice::applyModulation() noexcept
     oscillator1.setPosition (position1);
     oscillator2.setPosition (position2);
 
+    // The warp amount, offset by its routings, every modulation block like the
+    // position. setWarp returns at once when nothing moved, which with no
+    // routing on warp is every block.
+    oscillator1.setWarp (sources.osc1.warpMode,
+                         clampFinite (sources.osc1.warpAmount + destinationOffset (Destination::osc1Warp),
+                                      0.0f, 1.0f));
+    oscillator2.setWarp (sources.osc2.warpMode,
+                         clampFinite (sources.osc2.warpAmount + destinationOffset (Destination::osc2Warp),
+                                      0.0f, 1.0f));
+
     // Levels and balances go to the smoothers rather than straight to a gain, so
     // a modulation arriving every sixteen samples still interpolates per sample.
     gain1.setTargets (sources.osc1.level + destinationOffset (Destination::osc1Level),
@@ -434,10 +456,12 @@ void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
     oscillator1.setTable (sources.osc1.table);
     oscillator1.setLayout (sources.osc1.unison);
     oscillator1.setPosition (sources.osc1.position);
+    oscillator1.setWarp (sources.osc1.warpMode, sources.osc1.warpAmount);
 
     oscillator2.setTable (sources.osc2.table);
     oscillator2.setLayout (sources.osc2.unison);
     oscillator2.setPosition (sources.osc2.position);
+    oscillator2.setWarp (sources.osc2.warpMode, sources.osc2.warpAmount);
 
     subOscillator.setTable (sources.subTable);
 

@@ -86,6 +86,11 @@ struct WavetableFrame
     /** Which table, by index into the built-in library. */
     int tableIndex = 0;
 
+    /** The warp the points were drawn through: the mode's number and the
+        effective amount. Mode 0, or an amount of 0, is the table's own frame. */
+    int warpMode = 0;
+    float warpAmount = 0.0f;
+
     bool valid = false;
 };
 

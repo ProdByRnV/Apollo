@@ -111,15 +111,23 @@ export const LABELS: Record<string, readonly string[]> = {
                      'Sub Level', 'Noise Level',
                      'Filter 1 Cutoff', 'Filter 1 Resonance',
                      'Filter 2 Cutoff', 'Filter 2 Resonance',
-                     'Amplitude'],
+                     'Amplitude',
+                     // Appended in 13b, so every destination before them keeps
+                     // its number (ADR-0090).
+                     'Osc 1 Warp', 'Osc 2 Warp'],
+
+    // dsp::UnisonOscillator::WarpMode.
+    osc1_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],
+    osc2_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],
 };
 
 /** Which knob a modulation destination points at, so an assigned routing can
     light up the control it actually moves. Destinations with no single parameter
-    of their own — All Pitch, Osc 1 Pitch, voice Amplitude — are absent rather
-    than guessed at.
+    of their own — All Pitch and voice Amplitude — are absent rather than guessed
+    at. Osc 1 Pitch joined in 13a, when oscillator 1 gained a tuning control.
 */
 export const DESTINATION_PARAMETER: Record<number, string> = {
+    2: 'osc1_semitones',
     3: 'osc2_semitones',
     4: 'osc1_position',
     5: 'osc2_position',
@@ -133,6 +141,8 @@ export const DESTINATION_PARAMETER: Record<number, string> = {
     13: 'filter1_resonance',
     14: 'filter2_cutoff',
     15: 'filter2_resonance',
+    17: 'osc1_warp_amount',
+    18: 'osc2_warp_amount',
 };
 
 /** `dsp::EnvelopeStage`, in its own numeric order. Shown as a word because a

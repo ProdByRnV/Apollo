@@ -55,6 +55,18 @@ export function Oscillator({ index }: { index: number }): JSX.Element {
             <Knob id={`${p}phase`} label="Phase" />
 
             {/*
+                The warp: how the cycle is reshaped as it is read (PRD §12), and
+                how far. Together, because an amount means nothing without the
+                mode beside it.
+            */}
+            <div className="cluster cluster--banner">
+                <div className="cluster">
+                    <Segmented id={`${p}warp_mode`} label="Warp" table={LABELS[`${p}warp_mode`]} />
+                    <Knob id={`${p}warp_amount`} label="Amount" />
+                </div>
+            </div>
+
+            {/*
                 The unison stack, together: how many, how far apart and how they
                 are spread across that distance, how wide, how loud the outer
                 voices are against the centre, and how scattered their starts.

@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -221,6 +221,22 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
       1.0f, 0.0f,
       true, false, false },
 
+    // Phase 13b (PRD §12). The warp mode — 0 off, 1 sync, 2 asym, 3 pwm,
+    // 4 bend, 5 mirror (dsp::UnisonOscillator::WarpMode) — and how far it goes.
+    // Off by default, which is the unwarped oscillator exactly. The amount is a
+    // modulation destination, so it is smoothed and modulatable like position.
+    { "osc1_warp_mode", "Osc 1 Warp Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 5.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc1_warp_amount", "Osc 1 Warp Amount",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
+
     // Oscillator 2 -----------------------------------------------------------
     // Structurally identical to oscillator 1 apart from its tuning controls and
     // its default level. It is silent by default: adding a second oscillator
@@ -321,6 +337,22 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
       0.0f, 1.0f, 1.0f,
       1.0f, 0.0f,
       true, false, false },
+
+    // Phase 13b (PRD §12). The warp mode — 0 off, 1 sync, 2 asym, 3 pwm,
+    // 4 bend, 5 mirror (dsp::UnisonOscillator::WarpMode) — and how far it goes.
+    // Off by default, which is the unwarped oscillator exactly. The amount is a
+    // modulation destination, so it is smoothed and modulatable like position.
+    { "osc2_warp_mode", "Osc 2 Warp Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 5.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc2_warp_amount", "Osc 2 Warp Amount",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, true, true },
 
     // Sub oscillator ---------------------------------------------------------
     { "sub_level", "Sub Level",
@@ -852,7 +884,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod01_destination", "Mod 1 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -870,7 +902,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod02_destination", "Mod 2 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -888,7 +920,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod03_destination", "Mod 3 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -906,7 +938,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod04_destination", "Mod 4 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -924,7 +956,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod05_destination", "Mod 5 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -942,7 +974,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod06_destination", "Mod 6 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -960,7 +992,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod07_destination", "Mod 7 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -978,7 +1010,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod08_destination", "Mod 8 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -996,7 +1028,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod09_destination", "Mod 9 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1014,7 +1046,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod10_destination", "Mod 10 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1032,7 +1064,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod11_destination", "Mod 11 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1050,7 +1082,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod12_destination", "Mod 12 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1068,7 +1100,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod13_destination", "Mod 13 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1086,7 +1118,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod14_destination", "Mod 14 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1104,7 +1136,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod15_destination", "Mod 15 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1122,7 +1154,7 @@ inline constexpr std::array<ParameterDefinition, 240> parameterDefinitions { {
 
     { "mod16_destination", "Mod 16 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 16.0f, 0.0f,
+      0.0f, 18.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

@@ -132,8 +132,11 @@ private:
         ApolloAudioProcessor processor;
         auto& apvts = processor.getValueTreeState();
 
+        // A third oscillator, which no plan includes. This was osc1_warp_amount
+        // until Phase 13b built warp and made the stranger a resident — which
+        // is the scenario itself, seen from the other side.
         const auto xml = juce::parseXML (documentWith (
-            "  <PARAM id=\"osc1_warp_amount\" value=\"0.5\"/>\n"
+            "  <PARAM id=\"osc3_level\" value=\"0.5\"/>\n"
             "  <PARAM id=\"master_gain\" value=\"-3.0\"/>\n"
             "  <PARAM id=\"filter1_cutoff\" value=\"880.0\"/>\n"
             "  <SOMETHING_NEWER kind=\"not yet invented\"/>\n"));
@@ -149,7 +152,7 @@ private:
         expectWithinAbsoluteError (plainValue (apvts, "master_gain"), -3.0f, 1.0e-4f);
         expectWithinAbsoluteError (plainValue (apvts, "filter1_cutoff"), 880.0f, 0.5f);
 
-        expect (apvts.getParameter ("osc1_warp_amount") == nullptr,
+        expect (apvts.getParameter ("osc3_level") == nullptr,
                 "an unknown identifier does not become a parameter");
 
         // And the instrument can still save itself and load what it saved, with

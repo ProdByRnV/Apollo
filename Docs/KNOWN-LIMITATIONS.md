@@ -38,7 +38,6 @@ this table when its sub-phase lands (ADR-0089).
 
 | Area | Not built | Spec |
 |---|---|---|
-| **Warp** | The whole warp engine: asymmetric sync, PWM, bend and mirror, a warp amount per oscillator, and warp as a modulation destination | PRD §8.1, §12 |
 | **Macros** | Macro controls, as matrix sources or destinations, and in presets | PRD §17, CLAUDE.md §15 |
 | **LFO tempo sync** | An LFO cannot follow the host's tempo. The conversion exists in the LFO code (`tempoSyncedRateHz`) but no parameter selects it, so it is unreachable | PRD §15.2, CLAUDE.md §14.2 |
 | **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
@@ -47,7 +46,7 @@ this table when its sub-phase lands (ADR-0089).
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Noise** | White noise only; no pink noise, no transient samples, no loadable noise, no key tracking | PRD §10 |
 | **Envelopes** | Shown as live traces, not edited by dragging them | PRD §15.1 |
-| **Modulation matrix** | No effect parameters or filter drive as destinations, and no modulation of a routing's depth. Host automation as a source and an envelope follower are carried but unscheduled (ROADMAP "Carried forward") | PRD §16 |
+| **Modulation matrix** | No effect parameters or filter drive as destinations, and no modulation of a routing's depth (warp amount became one in 13b). Host automation as a source and an envelope follower are carried but unscheduled (ROADMAP "Carried forward") | PRD §16 |
 | **Wavetables from files** | The engine reads, validates and plays a wavetable from a WAV file, replacing a slot while a note sounds (ADR-0066), but nothing in the interface can choose a file, and a preset cannot refer to one. A file chooser has to be native rather than a path sent across the bridge (CLAUDE.md §40) | PRD §33 |
 | **Spectrum analyser** | Optional in the PRD and not built | PRD §30 |
 
@@ -60,6 +59,7 @@ this table when its sub-phase lands (ADR-0089).
 | **The mouse wheel does not turn knobs** | The page is a scrolling column of 122 knobs, so a wheel that turned whatever it passed over would change the sound while the page was being scrolled. Drag, Shift-drag, the arrow keys and typed values cover the precision a wheel would add (ADR-0084) |
 | **Arrow keys in the preset list do not load presets** | A load replaces the whole sound. A list that could not be crossed from the keyboard without losing an unsaved edit would be a list that could not be used (ADR-0083) |
 | **An ambiguous preset name highlights nothing** | After a restart the list marks the preset the sound names, but only if exactly one preset has that name, author and category. A user copy saved under a factory name gives two candidates, and no highlight is better than the wrong one (ADR-0085) |
+| **The warp is not oversampled** | A warp reshapes where the cycle is read, and like FM that spreads the waveform's spectrum without limit. Apollo treats it three ways — a mip level chosen for the warp's fastest read with a margin, polyBLEP and polyBLAMP corrections at its jumps and corners, and DC removal — which took the worst mode at 1 kHz from −25 to −40 dBc. What remains is above the plain oscillator's −60 dBc budget: on the brightest saw at amount 0.6, sync and PWM measure about −54 dBc at middle C and −35 dBc at C7; bend stays under −60 to C6. Oversampling would close the gap and would cost a warped stack three to five times an unwarped one, which the worst patch the controls allow cannot afford (ADR-0090). The measured figures are pinned by the test suite, so a change that makes warp alias more fails the build |
 | **No SIMD intrinsics** | Measured: most of what vector code would have gained came from data layout alone, which Apollo took instead (ADR-0073, ADR-0074). It is also why ARM64 needed no porting |
 
 ---

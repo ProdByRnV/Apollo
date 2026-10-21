@@ -284,6 +284,11 @@ public:
     */
     [[nodiscard]] float getOscillatorPosition (int index) const noexcept;
 
+    /** A primary oscillator's effective warp amount, 0 to 1, found the same way.
+        @param index  1 or 2.
+    */
+    [[nodiscard]] float getOscillatorWarpAmount (int index) const noexcept;
+
     /** Starts a note.
 
         @param midiNote     0-127.

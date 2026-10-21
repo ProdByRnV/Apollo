@@ -554,6 +554,8 @@ void VoiceEngine::applySourceParameters() noexcept
         resolved.tuneSemitones = osc.tuneSemitones;
         resolved.startPhase = osc.startPhase;
         resolved.phaseRandom = osc.phaseRandom;
+        resolved.warpMode = osc.warpMode;
+        resolved.warpAmount = osc.warpAmount;
     };
 
     resolveOscillator (settings.osc1, parameters.osc1, unison1);
@@ -752,6 +754,15 @@ void VoiceEngine::publishModulation() noexcept
             voice != nullptr ? voice->getOscillatorPosition (oscillator)
                              : (oscillator == 2 ? parameters.osc2.position
                                                 : parameters.osc1.position),
+            std::memory_order_relaxed);
+
+        // The warp, the same way: the picture is of the cycle being played.
+        const auto& osc = oscillator == 2 ? parameters.osc2 : parameters.osc1;
+
+        instrument.wavetableWarpMode[i].store (static_cast<int> (osc.warpMode),
+                                               std::memory_order_relaxed);
+        instrument.wavetableWarpAmount[i].store (
+            voice != nullptr ? voice->getOscillatorWarpAmount (oscillator) : osc.warpAmount,
             std::memory_order_relaxed);
     }
 }

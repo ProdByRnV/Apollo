@@ -87,6 +87,11 @@ struct OscillatorParameters
     /** The outer unison voices against the centre; 1 is every voice equal. */
     float unisonBlend = 1.0f;
 
+    dsp::UnisonOscillator::WarpMode warpMode = dsp::UnisonOscillator::WarpMode::off;
+
+    /** How far the warp goes, [0, 1], before modulation. */
+    float warpAmount = 0.0f;
+
     [[nodiscard]] bool operator== (const OscillatorParameters&) const = default;
 };
 

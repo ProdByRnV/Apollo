@@ -134,6 +134,13 @@ enum class ModDestination
     /** The voice's output amplitude, multiplying the amplitude envelope. */
     amplitude,
 
+    /** Each oscillator's warp amount (Phase 13b, PRD §16). Appended rather than
+        placed beside the other oscillator destinations: a destination is stored
+        in presets as its number, and inserting would renumber every
+        destination after it (ADR-0090). */
+    osc1Warp,
+    osc2Warp,
+
     count
 };
 
@@ -165,6 +172,8 @@ enum class ModDestination
         case ModDestination::subLevel:
         case ModDestination::noiseLevel:
         case ModDestination::amplitude:
+        case ModDestination::osc1Warp:
+        case ModDestination::osc2Warp:
             return 1.0f;
 
         // Cutoff is modulated in octaves rather than hertz, because that is how

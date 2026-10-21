@@ -345,6 +345,10 @@ private:
         std::atomic<float>* detuneCurve = nullptr;
         std::atomic<float>* unisonBlend = nullptr;
 
+        // Phase 13b: the warp.
+        std::atomic<float>* warpMode = nullptr;
+        std::atomic<float>* warpAmount = nullptr;
+
         /** Resolves every pointer for the oscillator with this ID prefix.
 
             @param prefix  "osc1_" or "osc2_".

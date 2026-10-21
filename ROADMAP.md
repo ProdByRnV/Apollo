@@ -151,7 +151,7 @@ front of it is better understood, the way 8f was.
 | 12e | The release candidate — **moved to Phase 14** when the developer decided the specified features belong in the first release (PROJECT-STATE issue 26, ADR-0089) | → 14 |
 | **13** | **Completing the specification — every feature the PRD specifies and 0.1.0 did not have, in the first release at the developer's direction (ADR-0089)** | ⬜ |
 | 13a | The oscillators' missing controls — oscillator 1's coarse and fine tuning, a start phase per source, unison phase randomisation (reproducible per note), detune curve and blend, and the sub's triangle and square, phase and tracking. Thirteen parameters, every default reproducing the old sound, which the regression renders confirm | ✅ |
-| 13b | The warp engine — asymmetric sync, PWM, bend and mirror, an amount per oscillator, warp as a modulation destination, aliasing measured | ⬜ |
+| 13b | The warp engine — sync, asym, PWM, bend and mirror (the PRD's "Asymmetric Sync" names two techniques, built as a mode each), an amount per oscillator, warp as a modulation destination, and the wave display drawing the warp. Aliasing treated by mip selection for the fastest read, polyBLEP/polyBLAMP at the edges and DC removal, measured and pinned; oversampling priced and declined for CPU (ADR-0090) | ✅ |
 | 13c | Filters — comb and formant types, per-filter mix, key tracking, split routing | ⬜ |
 | 13d | Noise — pink noise, key tracking, built-in transient samples | ⬜ |
 | 13e | Modulation — LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive as destinations, modulation of depth | ⬜ |
@@ -983,8 +983,8 @@ them; each sub-phase removes its rows from that list as it lands.
 
 ### Warp (13b)
 
-- [ ] Asymmetric sync, PWM, bend and mirror (PRD §12), each with enable and amount, alias-measured.
-- [ ] Warp amount as a modulation destination (PRD §16).
+- [x] Asymmetric sync, PWM, bend and mirror (PRD §12), each with enable and amount, alias-measured. — five modes, off by default; aliasing measured at four notes and pinned 3 dB above the figures. Every mode is above the plain oscillator's −60 dBc budget by C7 — bend stays under it to C6 — and sync, PWM and mirror are above it from middle C (Docs/KNOWN-LIMITATIONS.md) (13b)
+- [x] Warp amount as a modulation destination (PRD §16). — destinations 17 and 18, appended so every existing destination keeps its number (13b)
 
 ### Filters (13c)
 

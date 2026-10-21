@@ -16,12 +16,13 @@ written in React and shown through the platform's own WebView.
 released.** There are no downloads yet. Apollo is built from source, below, and
 every CI run also packages it for each platform.
 
-It is a complete instrument: it plays, every one of its 227 parameters affects
+It is a complete instrument: it plays, every one of its 244 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. What is
 not yet true is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md). The
 largest gaps are that it has not been tried inside a DAW, that its interface has
 only ever been seen on Windows, and that several features the specification
-describes (warp, macros, LFO tempo sync) are not built.
+describes (macros, LFO tempo sync, drawn curves) are not built yet. They are
+being built before the first release (Phase 13).
 
 ---
 
@@ -31,7 +32,9 @@ describes (warp, macros, LFO tempo sync) are not built.
 stereo-spread unison voices with a choice of detune curve and blend, plus a sub
 oscillator (sine, triangle or square) and a stereo noise generator. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
 by position. The tables are band-limited mipmaps, and aliasing is measured, not
-assumed: worst case −98.5 dBc.
+assumed: worst case −98.5 dBc. Each oscillator can warp its wave five ways —
+sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;
+warp aliases more than the plain oscillator, and the figures are published.
 
 **Shaping and movement.** Two state-variable filters (low-pass, high-pass,
 band-pass, notch) in series or parallel. Four DAHDSR envelopes with adjustable

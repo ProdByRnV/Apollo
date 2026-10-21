@@ -22,8 +22,7 @@ Phase 12d-2 (ADR-0087).
 | ⊘ | Considered and decided against, with the decision cited |
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
-platforms are built. Not built: the warp engine (§12) and macros (§17)
-entirely; LFO tempo sync, drawn LFO curves, comb and formant filters,
+platforms are built. Not built: macros (§17) entirely; LFO tempo sync, drawn LFO curves, comb and formant filters,
 and pink noise within otherwise-built
 sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
@@ -242,7 +241,7 @@ PolyBLEP-style correction where appropriate.
 High-quality interpolation.
 The final implementation should choose the technique that provides the best quality/performance balance.
 
-> **Status, 0.1.0 and 13a:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, pitch modulation through the matrix, and — since Phase 13a — coarse and fine tuning and a start phase on both oscillators. ❌ Warp and warp amount (§12) are not built yet (Phase 13b). §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
+> **Status, 0.1.0 to 13b:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, pitch modulation through the matrix, and — since Phase 13a — coarse and fine tuning and a start phase on both oscillators. ✅ Warp and warp amount since Phase 13b (§12; ADR-0090). §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
 
 ---
 9. Sub Oscillator
@@ -310,7 +309,7 @@ Amount.
 Appropriate modulation support.
 Warp algorithms must be implemented in a way that minimizes aliasing.
 
-> **Status, 0.1.0:** ❌ Not built. No warp mode exists, and warp is neither a parameter nor a modulation destination. Open: PROJECT-STATE issue 26.
+> **Status, 0.1.0 and 13b:** ✅ Built in Phase 13b (ADR-0090): sync, asym, PWM, bend and mirror — "Asymmetric Sync" names two techniques, and each is a mode of its own — each with an amount per oscillator, off by default, and warp amount as a modulation destination. ◐ Aliasing is minimised by mip selection for the warp's fastest read, polyBLEP/polyBLAMP at its edges and DC removal, but not to the plain oscillator's −60 dBc: sync and PWM measure about −54 dBc at middle C on the brightest saw. Oversampling was priced and declined for CPU; the figures are in Docs/KNOWN-LIMITATIONS.md.
 
 ---
 13. Filter Architecture
@@ -440,7 +439,7 @@ LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
 
-> **Status, 0.1.0:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre. ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, and amplitude. ❌ Not built: macros as sources, warp and effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
+> **Status, 0.1.0 to 13b:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre. ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, and since Phase 13b each oscillator's warp amount. ❌ Not built: macros as sources, effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
 
 ---
 17. Macro Controls
@@ -724,7 +723,7 @@ LFO movement.
 Envelope progression.
 Visualizer calculations must occur outside the real-time audio thread.
 
-> **Status, 0.1.0:** ✅ A scope for the output and for each source, a live trace for every envelope and LFO, the wave each oscillator is reading, and an output meter, all captured only while an editor is watching (ADR-0048). Warp state is not shown because there is no warp. Modulated controls light green; depth is not animated.
+> **Status, 0.1.0 to 13b:** ✅ A scope for the output and for each source, a live trace for every envelope and LFO, the wave each oscillator is reading, and an output meter, all captured only while an editor is watching (ADR-0048). ✅ Warp state since Phase 13b: the wave display draws the cycle as the warp is playing it, modulation included (ADR-0090). Modulated controls light green; depth is not animated.
 
 ---
 31. UI ↔ DSP Communication

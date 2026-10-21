@@ -5279,3 +5279,168 @@ Fixture" the name of the current sound, and the file was deleted without
 reloading Wire Pluck. 13a found it in a screenshot and put it right. Any future
 capture of that kind must restore the sound it started from, not only remove the
 file.
+
+---
+
+## ADR-0090 — Warp is a reshaping of where the table is read, corrected at its edges, and not oversampled
+
+**Phase 13b · Accepted**
+
+### What was built
+
+Each primary oscillator has a **warp mode** and a **warp amount**
+(`oscN_warp_mode`, `oscN_warp_amount`). The amount is smoothed and is a
+modulation destination. The PRD's first mode, "Asymmetric Sync", names two
+techniques, and each was built as a mode of its own. With the PRD's other three
+that makes five:
+
+| Mode | What it does to the cycle | At amount 1 |
+|---|---|---|
+| **Sync** | Reads it `1 + 7a` times per period, restarting with the period: hard sync | 8 cycles per period |
+| **Asym** | Squeezes the first half and stretches the second, moving the midpoint to `0.5 − 0.45a` | The midpoint at 5 % |
+| **PWM** | Plays the whole cycle in a width of `1 − 0.9a`, then holds its starting value | A tenth of the period |
+| **Bend** | `x(1 − k + kx²)` on [−1, 1]: slows the middle and speeds the ends, with both ends fixed | Slope 0 at the middle, 3 at the ends |
+| **Mirror** | The first half forwards, then backwards, crossfaded with the original by the amount | Only the mirrored half |
+
+**Every mode except mirror changes *where* the cycle is read, never the
+samples.** So an amount of zero is exactly no warp, and the table's own
+band-limiting still applies. **Mirror is a crossfade of outputs rather than of
+read positions**, because blending the two positions jumps at the end of the
+cycle for any amount strictly between the ends. **Bend is a cubic rather than a
+power curve** because it costs three multiplies per voice per sample, and `pow`
+costs a great deal more.
+
+**At an amount of zero the warped path is not run at all.** The plain path is
+the code that existed before 13b, at its old cost, and a test checks every mode
+at zero against it to 1e-6. All 15 regression renders passed without being
+regenerated.
+
+### Aliasing, and the three things that address it
+
+A warp is a nonlinear map of the read position. Like FM, it spreads a
+band-limited spectrum without limit, so the table's mipmap alone cannot keep it
+under Nyquist. The figures were measured through the whole processor, on the
+brightest saw, at warp amount 0.6. Before any treatment the worst inharmonic
+component at 1 kHz was **−25 to −47 dBc**, depending on the mode.
+
+1. **The mip level is chosen for the warp's fastest read, times a margin of
+   `1 + amount`.** A warp that reads three times faster at its steepest point
+   plays every harmonic three times higher there. The margin is there because
+   the spectrum spreads beyond that fastest read. A fixed margin of 2 bought 7
+   to 15 dB, and it also took everything above 12 kHz off a middle C as soon
+   as any warp was applied. Scaling the margin with the amount costs nothing at
+   a gentle warp and a full octave at a hard one. (Margins of 1.5 and 2 measured
+   identically, because mip levels are an octave apart.)
+2. **The edges are corrected where they happen.** Most of the spread comes from
+   a few points per cycle:
+   - a **jump** in the output, where sync restarts the cycle, which gets a
+     polyBLEP residual;
+   - a **corner**, where the read speed changes abruptly (asym's knee, PWM's
+     edge, mirror's turns), which gets a polyBLAMP residual (Esqueda, Välimäki
+     and Bilbao, DAFx 2016).
+
+   Each edge is sized from the table at the current read position, and the
+   sizes are recomputed per voice whenever that position or the warp changes.
+   This was worth 2 to 5 dB. That is less than the margin, but it is the only
+   treatment that acts at the edges themselves.
+3. **A DC blocker** (one pole at 5 Hz) on the warped stack. Warping a zero-mean
+   cycle changes its average: mirroring a saw reads only its rising half, which
+   averages a quarter of full scale. The blocker's state is primed from the
+   warped waveform's own mean when a note starts, so the note does not open
+   with a decaying step. It is primed again when warp rises from zero
+   mid-note.
+
+The result, in dBc. The `Warp` tests pin each figure with 3 dB of headroom:
+
+| Mode | C4 | C5 | C6 | C7 |
+|---|---|---|---|---|
+| none (the measurement's own floor) | −84 | −93 | −97 | −109 |
+| sync | −54 | −51 | −40 | −35 |
+| asym | −65 | −58 | −52 | −47 |
+| pwm | −54 | −48 | −40 | −35 |
+| bend | −85 | −76 | −64 | −52 |
+| mirror | −58 | −52 | −45 | −40 |
+
+**These figures are not the oscillator's −60 dBc budget (ADR-0020), and that
+was a decision rather than a lowered bar.** Oversampling would remove most of
+what is left. But the warped stack already costs 1.5 to 2.4 times the plain
+one, and oversampling it would put it at roughly three to five times. The
+benchmark below shows that the worst patch the controls allow cannot afford
+that. So the decision is recorded in Docs/KNOWN-LIMITATIONS.md, and the
+figures are pinned so that any change which makes a warp alias more fails the
+build.
+
+### Three of the measurements were wrong first
+
+- **The first figures, −3 to 0 dBc for asym and mirror, were DC rather than
+  aliasing**: mirror's "worst component" sat at 0.1 Hz. That finding is what
+  added the DC blocker. The analysis now also excludes DC.
+- **At middle C every mode read −18 dBc, including no warp at all.** A ±2 %
+  window around each harmonic is narrower there than a Blackman-Harris window's
+  own spread, so the window was being counted as aliasing. The tolerance is now
+  `max(2 %, 20 Hz)`, and the unwarped oscillator is measured alongside as the
+  floor.
+- **The first benchmark run was taken on a busy machine** (described below).
+
+### What it costs
+
+`ApolloTests --benchmark` gained a worst-case callback row: the heaviest patch,
+the full matrix and the full rack, with **both oscillators at mirror, amount 1,
+32 notes held**. Mirror is the most expensive mode, because it reads the table
+twice per voice.
+
+- **Run 1, the first version of the code, with 10.5 % contention:** median
+  75.7 % of the deadline, p99 102 %, worst 124 %. The same run inflated the
+  unwarped row's p99 to 62 %, so how much of this was the code and how much
+  was the machine cannot be separated (CLAUDE.md §35.3). The code was
+  restructured anyway:
+  - one specialised render per mode, so nothing inside the voice loop asks
+    which mode it is;
+  - two passes, in the order the plain path proved cheaper;
+  - reciprocals instead of divisions;
+  - no `floor`.
+- **Run 2, 1.3 % contention:** median **65.8 %**, p99 **71.3 %**, worst
+  **72.9 %**, against 31.5 / 33.6 / 35.5 % for the same patch unwarped. The
+  warped-to-plain ratio fell from 2.35 to 2.09, a 1.12× gain from the
+  restructure.
+
+That is the worst patch the controls allow, and it keeps up with a quarter of
+its deadline to spare. A warp that cost three to five times the plain path would
+not.
+
+### The wave display draws the warp
+
+PRD §30.2 asks for warp state where it is useful, and a wave display that kept
+drawing the unwarped frame while the oscillator played eight synced cycles would
+be a picture of the patch rather than of the instrument. So the engine now
+publishes each oscillator's warp mode and **effective** amount (the parameter
+plus the matrix), alongside the effective position it already published. The
+display draws the cycle through `UnisonOscillator::drawWarpedCycle`, which is
+the voices' own mapping rather than a copy of it. The warped picture is
+centred, because the DC blocker centres what is heard. With no warp the picture
+is the table's frame, point for point what it was before; a test asserts that
+exactly.
+
+### Destinations appended, and what that moves
+
+`Osc 1 Warp` and `Osc 2 Warp` are matrix destinations **17 and 18**. They are
+appended at the end of the list, so every stored destination number keeps its
+meaning. But the sixteen `modNN_destination` parameters' range grew from
+[0, 16] to [0, 18], and **a host automating one of them stores a normalised
+position, which now points somewhere slightly different.** That is permitted
+before 1.0 and recorded here and in Docs/COMPATIBILITY.md §2. After 1.0 it would
+be a breaking change. Presets and projects store the number, not the
+normalised value, and are unaffected.
+
+`State compatibility` used `osc1_warp_amount` as its example of a parameter
+this build does not have, and 13b made it a real one. It now uses
+`osc3_level`, which names an oscillator Apollo does not have.
+
+### Given up
+
+- Oversampling the warp. The aliasing that remains is pinned and documented
+  rather than removed.
+- A combined "asymmetric sync" mode. The PRD's phrase is built as its two
+  halves, sync and asym, which can be heard and modulated separately.
+- Warp on the sub oscillator. The PRD lists warp among the primary
+  oscillators' controls (§8.1).

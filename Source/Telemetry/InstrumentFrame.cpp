@@ -45,6 +45,8 @@ bool buildInstrumentFrame (const TelemetryHub& hub, InstrumentFrame& frame)
 
         wavetable.tableIndex = instrument.wavetableIndex[i].load (std::memory_order_relaxed);
         wavetable.position = instrument.wavetablePosition[i].load (std::memory_order_relaxed);
+        wavetable.warpMode = instrument.wavetableWarpMode[i].load (std::memory_order_relaxed);
+        wavetable.warpAmount = instrument.wavetableWarpAmount[i].load (std::memory_order_relaxed);
 
         // Left invalid here. The points are the engine's to fill, and a frame
         // whose points were never filled must not be drawn as a flat wave.

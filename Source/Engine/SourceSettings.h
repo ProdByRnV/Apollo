@@ -24,6 +24,7 @@
     them in the same callback.
 */
 
+#include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/Wavetable.h"
 #include "DSP/Unison/UnisonLayout.h"
 
@@ -64,6 +65,10 @@ struct OscillatorSourceSettings
 
     /** How much of a cycle each unison voice's start may be randomly moved. */
     float phaseRandom = 0.0f;
+
+    /** The warp, and its amount before modulation (Phase 13b). */
+    dsp::UnisonOscillator::WarpMode warpMode = dsp::UnisonOscillator::WarpMode::off;
+    float warpAmount = 0.0f;
 
     [[nodiscard]] bool operator== (const OscillatorSourceSettings&) const = default;
 };

@@ -82,7 +82,11 @@ using namespace apollo::params;
 // This assertion is deliberately exact: growing the registry is a permanent
 // change to the automation and preset contract, so it should never happen by
 // accident (Docs/PARAMETER-CONVENTIONS.md §1).
-static_assert (parameterCount() == 240, "the registry has two hundred and forty parameters");
+// Phase 13b added four: a warp mode and a warp amount for each oscillator. It
+// also grew every modNN_destination's range by two, appending each oscillator's
+// warp as a destination at the end, so every existing destination keeps its
+// number (ADR-0090).
+static_assert (parameterCount() == 244, "the registry has two hundred and forty-four parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

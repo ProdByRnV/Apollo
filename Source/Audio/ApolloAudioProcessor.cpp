@@ -202,11 +202,14 @@ void ApolloAudioProcessor::OscillatorParameterPointers::resolve (
     phaseRandom = state.getRawParameterValue (base + "phase_random");
     detuneCurve = state.getRawParameterValue (base + "detune_curve");
     unisonBlend = state.getRawParameterValue (base + "unison_blend");
+    warpMode = state.getRawParameterValue (base + "warp_mode");
+    warpAmount = state.getRawParameterValue (base + "warp_amount");
 
     jassert (wavetable != nullptr && position != nullptr && unison != nullptr
              && detune != nullptr && spread != nullptr && level != nullptr && pan != nullptr
              && semitones != nullptr && fine != nullptr && phase != nullptr
-             && phaseRandom != nullptr && detuneCurve != nullptr && unisonBlend != nullptr);
+             && phaseRandom != nullptr && detuneCurve != nullptr && unisonBlend != nullptr
+             && warpMode != nullptr && warpAmount != nullptr);
 }
 
 void ApolloAudioProcessor::EnvelopeParameterPointers::resolve (
@@ -401,6 +404,14 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
                                ? dsp::UnisonLayout::DetuneCurve::exponential
                                : dsp::UnisonLayout::DetuneCurve::linear;
         result.unisonBlend = readParameter (pointers.unisonBlend, 1.0f);
+
+        // Rounded and range-checked here, so the engine never sees a mode the
+        // oscillator does not have: a corrupt value is no warp, not a guess.
+        const auto mode = static_cast<int> (std::lround (readParameter (pointers.warpMode, 0.0f)));
+        result.warpMode = mode >= 0 && mode < dsp::UnisonOscillator::numWarpModes
+                            ? static_cast<dsp::UnisonOscillator::WarpMode> (mode)
+                            : dsp::UnisonOscillator::WarpMode::off;
+        result.warpAmount = readParameter (pointers.warpAmount, 0.0f);
 
         return result;
     };

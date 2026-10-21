@@ -161,6 +161,12 @@ struct InstrumentSnapshot
     std::array<std::atomic<int>, wavetableDisplayCount> wavetableIndex {};
     std::array<std::atomic<float>, wavetableDisplayCount> wavetablePosition {};
 
+    /** And how it is warping what it reads (Phase 13b): the mode, as
+        `dsp::UnisonOscillator::WarpMode`'s value, and the effective amount,
+        taken the same way as the position. */
+    std::array<std::atomic<int>, wavetableDisplayCount> wavetableWarpMode {};
+    std::array<std::atomic<float>, wavetableDisplayCount> wavetableWarpAmount {};
+
     /** Each envelope's stage, as `dsp::EnvelopeStage`'s numeric value.
 
         Indexed by `ModulatorSource` so there is one index space rather than two;
@@ -188,6 +194,12 @@ struct InstrumentSnapshot
             value.store (0, std::memory_order_relaxed);
 
         for (auto& value : wavetablePosition)
+            value.store (0.0f, std::memory_order_relaxed);
+
+        for (auto& value : wavetableWarpMode)
+            value.store (0, std::memory_order_relaxed);
+
+        for (auto& value : wavetableWarpAmount)
             value.store (0.0f, std::memory_order_relaxed);
 
         for (auto& value : envelopeStage)

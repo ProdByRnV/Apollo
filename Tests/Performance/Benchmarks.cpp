@@ -1437,6 +1437,25 @@ void benchmarkCallbacks()
         processor.releaseResources();
     }
 
+    // Phase 13b added a control that makes the oscillators dearer, so the worst
+    // patch moved. Mirror is the most expensive warp — it reads the table twice
+    // per voice per sample — and at full amount on both oscillators this is
+    // the new ceiling. A row of its own rather than a change to the one above,
+    // so that row stays comparable with every phase before it (ADR-0090).
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        applyModulation (processor);
+        applyFullRack (processor);
+        setPlain (processor, "osc1_warp_mode", 5.0f);
+        setPlain (processor, "osc1_warp_amount", 1.0f);
+        setPlain (processor, "osc2_warp_mode", 5.0f);
+        setPlain (processor, "osc2_warp_amount", 1.0f);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("everything + mirror warp, 32 held", traceCallbacks (processor, blocks, 32, true));
+        processor.releaseResources();
+    }
+
     std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
                  "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
               << std::endl;
