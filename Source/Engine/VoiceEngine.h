@@ -376,6 +376,10 @@ public:
     */
     void setModWheel (float value) noexcept;
 
+    /** One macro's value after its range and curve (dsp::shapeMacro), 0 to 1,
+        for every voice. Engine-wide, like the mod wheel. */
+    void setMacro (int index, float value) noexcept;
+
     /** Channel aftertouch on every channel at once.
 
         Kept for callers that do not track channels, and for the tests that
@@ -534,6 +538,7 @@ private:
     std::array<dsp::LfoSettings, static_cast<std::size_t> (Voice::numLfos)> lfoSettings;
 
     float modWheel = 0.0f;
+    std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
     float aftertouch = 0.0f;
 
     midi::MpeZone mpeZone;

@@ -39,7 +39,7 @@ import {
     Rack,
     ReverbEffect,
 } from './modules/Effects';
-import { Envelopes, Lfos } from './modules/Modulators';
+import { Envelopes, Lfos, Macros } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
 import { Presets } from './modules/Presets';
@@ -443,6 +443,7 @@ export function App(): JSX.Element {
 
                         <div className="rank rank--wide"><Envelopes /></div>
                         <div className="rank rank--wide"><Lfos /></div>
+                        <div className="rank rank--wide"><Macros /></div>
                         <div className="rank rank--wide"><Matrix /></div>
 
                         {/*

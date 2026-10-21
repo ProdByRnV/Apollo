@@ -202,52 +202,68 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `lfo4_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 4 output slew |
 | `lfo4_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 4: 0 unipolar, 1 bipolar |
 | `lfo4_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 4 steps, for the step shape |
-| `mod01_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 1 source; index into `dsp::ModSource` |
+| `macro1_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 1's knob. Through its curve and range it is the matrix source "Macro 1", which can be routed to any number of destinations, each with its own depth. No controller is assigned by default; MIDI Learn assigns one (ADR-0098) |
+| `macro1_min` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Where the knob's bottom lands. Above the maximum turns the macro round |
+| `macro1_max` | Rotary Knob | Normalized `[0, 1]` | `1` | 13e-3 | Where the knob's top lands |
+| `macro1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 13e-3 | The knob's travel bent before the range: positive moves fast then slowly (a fourth root at 1), negative the reverse (a fourth power at -1) |
+| `macro2_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 2's knob, as for macro 1 |
+| `macro2_min` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 2's minimum |
+| `macro2_max` | Rotary Knob | Normalized `[0, 1]` | `1` | 13e-3 | Macro 2's maximum |
+| `macro2_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 13e-3 | Macro 2's curve |
+| `macro3_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 3's knob, as for macro 1 |
+| `macro3_min` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 3's minimum |
+| `macro3_max` | Rotary Knob | Normalized `[0, 1]` | `1` | 13e-3 | Macro 3's maximum |
+| `macro3_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 13e-3 | Macro 3's curve |
+| `macro4_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 4's knob, as for macro 1 |
+| `macro4_min` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 4's minimum |
+| `macro4_max` | Rotary Knob | Normalized `[0, 1]` | `1` | 13e-3 | Macro 4's maximum |
+| `macro4_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 13e-3 | Macro 4's curve |
+| `mod01_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 1 source; index into `dsp::ModSource`. Timbre (15) was appended in 6b and the four macros (16 to 19) in 13e-3, each at the end so every earlier source keeps its number |
 | `mod01_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 1 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod01_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 1 depth; negative inverts the source |
-| `mod02_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 2 source; index into `dsp::ModSource` |
+| `mod02_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 2 source; index into `dsp::ModSource` |
 | `mod02_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 2 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod02_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 2 depth; negative inverts the source |
-| `mod03_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 3 source; index into `dsp::ModSource` |
+| `mod03_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 3 source; index into `dsp::ModSource` |
 | `mod03_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 3 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod03_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 3 depth; negative inverts the source |
-| `mod04_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 4 source; index into `dsp::ModSource` |
+| `mod04_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 4 source; index into `dsp::ModSource` |
 | `mod04_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 4 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod04_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 4 depth; negative inverts the source |
-| `mod05_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 5 source; index into `dsp::ModSource` |
+| `mod05_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 5 source; index into `dsp::ModSource` |
 | `mod05_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 5 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod05_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 5 depth; negative inverts the source |
-| `mod06_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 6 source; index into `dsp::ModSource` |
+| `mod06_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 6 source; index into `dsp::ModSource` |
 | `mod06_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 6 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod06_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 6 depth; negative inverts the source |
-| `mod07_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 7 source; index into `dsp::ModSource` |
+| `mod07_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 7 source; index into `dsp::ModSource` |
 | `mod07_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 7 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod07_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 7 depth; negative inverts the source |
-| `mod08_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 8 source; index into `dsp::ModSource` |
+| `mod08_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 8 source; index into `dsp::ModSource` |
 | `mod08_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 8 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod08_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 8 depth; negative inverts the source |
-| `mod09_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 9 source; index into `dsp::ModSource` |
+| `mod09_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 9 source; index into `dsp::ModSource` |
 | `mod09_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 9 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod09_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 9 depth; negative inverts the source |
-| `mod10_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 10 source; index into `dsp::ModSource` |
+| `mod10_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 10 source; index into `dsp::ModSource` |
 | `mod10_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 10 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod10_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 10 depth; negative inverts the source |
-| `mod11_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 11 source; index into `dsp::ModSource` |
+| `mod11_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 11 source; index into `dsp::ModSource` |
 | `mod11_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 11 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod11_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 11 depth; negative inverts the source |
-| `mod12_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 12 source; index into `dsp::ModSource` |
+| `mod12_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 12 source; index into `dsp::ModSource` |
 | `mod12_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 12 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod12_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 12 depth; negative inverts the source |
-| `mod13_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 13 source; index into `dsp::ModSource` |
+| `mod13_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 13 source; index into `dsp::ModSource` |
 | `mod13_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 13 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod13_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 13 depth; negative inverts the source |
-| `mod14_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 14 source; index into `dsp::ModSource` |
+| `mod14_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 14 source; index into `dsp::ModSource` |
 | `mod14_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 14 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod14_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 14 depth; negative inverts the source |
-| `mod15_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 15 source; index into `dsp::ModSource` |
+| `mod15_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 15 source; index into `dsp::ModSource` |
 | `mod15_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 15 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod15_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 15 depth; negative inverts the source |
-| `mod16_source` | Selector / Dropdown | Discrete `[0, 14]` | `0` | 5d | Slot 16 source; index into `dsp::ModSource` |
+| `mod16_source` | Selector / Dropdown | Discrete `[0, 19]` | `0` | 5d, 13e-3 | Slot 16 source; index into `dsp::ModSource` |
 | `mod16_destination` | Selector / Dropdown | Discrete `[0, 18]` | `0` | 5d, 13b | Slot 16 destination; index into `dsp::ModDestination`. 17 and 18, each oscillator's warp, appended in 13b |
 | `mod16_depth` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 5d | Slot 16 depth; negative inverts the source |
 | `fx_slot1` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 8a | What occupies chain position 1; index into `dsp::EffectType`, 0 empty |

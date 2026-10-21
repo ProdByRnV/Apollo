@@ -22,7 +22,7 @@ Phase 12d-2 (ADR-0087).
 | ⊘ | Considered and decided against, with the decision cited |
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
-platforms are built. Not built: macros (§17) entirely; drawn LFO curves
+platforms are built. Not built: drawn LFO curves
 and some matrix destinations within otherwise-built
 sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
@@ -439,7 +439,7 @@ LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
 
-> **Status, 0.1.0 to 13b:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre. ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, and since Phase 13b each oscillator's warp amount. ❌ Not built: macros as sources, effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
+> **Status, 0.1.0 to 13e-3:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, and since Phase 13b each oscillator's warp amount. ❌ Not built: effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
 
 ---
 17. Macro Controls
@@ -453,7 +453,7 @@ Curve shaping.
 Preset storage.
 The default macro mapping must never assume a particular MIDI controller.
 
-> **Status, 0.1.0:** ❌ Not built. Open: PROJECT-STATE issue 26.
+> **Status, 0.1.0 to 13e-3:** ✅ Built in Phase 13e-3 (ADR-0098): four macros, each a knob with a minimum, a maximum and a curve between it and what the matrix reads. Each is a matrix source, so one macro reaches as many destinations as route it, each with its own bipolar depth. They are parameters, so MIDI Learn assigns them and presets store them, and no controller is assigned to one by default.
 
 ---
 18. Multi-FX Rack

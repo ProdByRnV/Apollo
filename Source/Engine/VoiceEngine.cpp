@@ -507,6 +507,22 @@ void VoiceEngine::setModWheel (float value) noexcept
         voice.setModWheel (modWheel);
 }
 
+void VoiceEngine::setMacro (int index, float value) noexcept
+{
+    if (index < 0 || index >= dsp::numMacros)
+        return;
+
+    auto& current = macroValues[static_cast<std::size_t> (index)];
+
+    if (value == current)
+        return;
+
+    current = value;
+
+    for (auto& voice : voices)
+        voice.setMacro (index, value);
+}
+
 void VoiceEngine::setAftertouch (float value) noexcept
 {
     if (value == aftertouch)

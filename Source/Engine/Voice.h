@@ -46,6 +46,7 @@
 #include "DSP/Utilities/LinearSmoothedValue.h"
 #include "DSP/Filters/FilterDrive.h"
 #include "DSP/LFO/Lfo.h"
+#include "DSP/Modulation/Macro.h"
 #include "DSP/Modulation/ModulationTypes.h"
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
@@ -196,6 +197,14 @@ public:
         engine's decision, not this one's (midi::MpeZone).
     */
     void setModWheel (float value) noexcept { modWheel = value; }
+
+    /** One macro's shaped value, 0 to 1, read by the matrix like the mod wheel.
+        An index out of range is ignored. */
+    void setMacro (int index, float value) noexcept
+    {
+        if (index >= 0 && index < dsp::numMacros)
+            macroValues[static_cast<std::size_t> (index)] = value;
+    }
 
     /** Aftertouch, 0-1. Per note: with a plain controller every sounding voice
         is handed the same channel-pressure value and nothing changes, and with
@@ -562,6 +571,9 @@ private:
     float amplitudeScale = 1.0f;
 
     float modWheel = 0.0f;
+
+    /** The macros, shaped, as the engine last handed them over. */
+    std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
 
     /** Per-note expression. `pressure` is aftertouch, from whichever of the
         three sources delivered it; `timbre` is MPE's CC 74, centred at rest.

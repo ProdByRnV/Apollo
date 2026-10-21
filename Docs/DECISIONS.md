@@ -6158,3 +6158,85 @@ before was not established.
   stepping, and the specification does not ask for it.
 - **More modes**, such as an envelope that ignores a new note while one is
   held. With a voice per note there is nothing for it to ignore.
+
+---
+
+## ADR-0098 — A macro is a knob shaped by a range and a curve, and a source in the matrix
+
+**Phase 13e-3 · Accepted**
+
+### What was built
+
+Sixteen parameters, taking the registry to 282: for each of four macros,
+`macroN_value` (the knob, 0 to 1), `macroN_min`, `macroN_max` and `macroN_curve`.
+Four sources were appended to the matrix, Macro 1 to Macro 4, after timbre, so
+every existing source keeps its number. Every slot's source range grew from 16
+choices to 20, which moves a host's normalised automation of it
+(Docs/COMPATIBILITY.md §2). Nothing routes a macro by default, so all fifteen
+regression renders passed unregenerated. The pinned VST3 parameter numbers grew
+by sixteen and changed none.
+
+The knob's ID is `macroN_value` rather than `macroN`, because Apollo's ID
+convention asks for a domain and a name (Docs/PARAMETER-CONVENTIONS.md, which
+had already named it so). The registry test refused the shorter form.
+
+### How PRD §17's list is met
+
+- **Multiple destinations and bipolar depth come from the matrix.** A macro is a
+  source, and the matrix already sends any source to any number of
+  destinations, each with a bipolar depth. A second routing system inside the
+  macros would duplicate it. Measured: with Macro 1 routed to oscillator 1's
+  level at −1 and oscillator 2's at +1, oscillator 2 being an octave higher,
+  the knob at its bottom is oscillator 1 alone and at its top oscillator 2
+  alone. Each was compared against renders of the oscillator by itself, and
+  the difference was 0.00000 RMS at both ends.
+- **Minimum, maximum and a curve live in the macro**, between the knob and the
+  matrix (`dsp::shapeMacro`). The curve is a power of the knob, a fourth root
+  at +1 and a fourth power at −1, so the ends never move. The range then
+  places that travel in 0 to 1, and a minimum above the maximum turns the
+  macro round. At the defaults the result is the knob exactly. Through the
+  processor, a maximum of a half took a fully routed oscillator to exactly
+  half its level (0.0254 against 0.0508).
+- **MIDI Learn and preset storage come with being a parameter.** A controller
+  assigned to `macro2_value` moves it, and a macro with its range and curve
+  comes back from saved state.
+- **No particular controller.** Nothing is assigned by default; a test checks
+  that a fresh instance has no mappings and every macro at its bottom.
+
+### Engine-wide, once a block
+
+A macro is engine-wide, like the mod wheel: the engine holds its shaped value
+and every voice reads the same one. The processor reads the macro parameters
+once per block, as it reads every parameter the matrix reaches, and the voices
+pick the value up at their next modulation update (every 16 samples).
+
+So a macro moves in steps of one block. A destination with its own smoothing,
+such as a level or a pan, glides through those steps. A filter cutoff moves at
+the block rate, as it does when the cutoff parameter itself is automated. A
+macro brings nothing new there, and smoothing every matrix destination is a
+separate question from macros.
+
+### The panel
+
+Four boxed groups, two to a row: the knob, then Min, Max and Curve. They sit
+above the matrix, because that is where a macro is given somewhere to go. A
+first version laid the sixteen knobs out in one flowing row, where Macro 4's
+group broke across two lines and nothing marked where one macro ended.
+
+### What it costs
+
+Nothing per sample. A voice with a routing stores four more values in its
+source table at each modulation update. Not measured: the machine was 20 to
+35 % busy with something other than Apollo for the whole sitting (ADR-0097).
+
+### Given up
+
+- **A macro as a destination.** CLAUDE.md §15 lists "macro destinations".
+  Letting the matrix move a macro's knob would make a source of a destination,
+  and the matrix would need an order of evaluation it does not have. Routing
+  the same source straight to the macro's destinations does the same job.
+- **Names for macros.** A name is text the preset would carry. Parameters are
+  numbers, so a name needs a place in the document format, and it belongs with
+  13g's work on what presets reference.
+- **More than four.** Four matches the envelopes and the LFOs, and the source
+  list keeps its order whatever is appended later.

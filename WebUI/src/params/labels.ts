@@ -122,7 +122,7 @@ export const LABELS: Record<string, readonly string[]> = {
     modSource: ['—', 'ENV 1', 'ENV 2', 'ENV 3', 'ENV 4',
                 'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4',
                 'Velocity', 'Key Track', 'Mod Wheel', 'Pitch Bend', 'Aftertouch', 'Random',
-                'Timbre'],
+                'Timbre', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'],
 
     // Matches midi::MpeZoneType.
     mpe_zone: ['OFF', 'LOWER', 'UPPER'],

@@ -23,6 +23,7 @@ target_sources(ApolloTests PRIVATE
     Engine/EnvelopeRetriggerTests.cpp
     Engine/FilterSplitTests.cpp
     Engine/LfoSyncTests.cpp
+    Engine/MacroTests.cpp
     Engine/NoiseTransientTests.cpp
     Engine/NoiseTypeTests.cpp
     DSP/WavetableTests.cpp

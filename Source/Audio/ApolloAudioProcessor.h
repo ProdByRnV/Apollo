@@ -427,6 +427,17 @@ private:
         void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);
     };
 
+    /** One macro's raw parameter values: the knob, its range and its curve. */
+    struct MacroParameterPointers
+    {
+        std::atomic<float>* value = nullptr;
+        std::atomic<float>* minimum = nullptr;
+        std::atomic<float>* maximum = nullptr;
+        std::atomic<float>* curve = nullptr;
+    };
+
+    std::array<MacroParameterPointers, static_cast<std::size_t> (dsp::numMacros)> macroParameters;
+
     std::array<ModSlotParameterPointers, static_cast<std::size_t> (dsp::maxModulationSlots)>
         modulationParameters;
 

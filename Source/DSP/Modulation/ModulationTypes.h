@@ -95,6 +95,15 @@ enum class ModSource
     */
     timbre,
 
+    /** The four macro controls, 0 to 1 after each one's range and curve
+        (Macro.h). Engine-wide, like the mod wheel: every voice reads the same
+        value. Appended in Phase 13e-3, so every source above keeps its number.
+    */
+    macro1,
+    macro2,
+    macro3,
+    macro4,
+
     count
 };
 

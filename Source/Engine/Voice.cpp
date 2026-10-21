@@ -399,6 +399,9 @@ void Voice::updateModulation() noexcept
 
     store (Source::random, perNoteRandom);
 
+    for (int i = 0; i < dsp::numMacros; ++i)
+        store (static_cast<Source> (static_cast<int> (Source::macro1) + i), macroValues[static_cast<std::size_t> (i)]);
+
     dsp::evaluateModulation (routing, sourceValues, destinationValues);
 }
 

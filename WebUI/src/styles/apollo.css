@@ -1838,3 +1838,19 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* ==========================================================================
+   MACROS
+   One macro's knob and the three controls that shape it, kept together and
+   drawn as a group, so that four macros read as four rather than as sixteen
+   knobs in a row.
+   ========================================================================== */
+
+.macro {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+}

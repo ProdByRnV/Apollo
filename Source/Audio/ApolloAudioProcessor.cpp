@@ -59,6 +59,20 @@ ApolloAudioProcessor::ApolloAudioProcessor()
         modulationParameters[i].resolve (
             apvts, "mod" + juce::String (i + 1).paddedLeft ('0', 2) + "_");
 
+    for (std::size_t i = 0; i < macroParameters.size(); ++i)
+    {
+        const auto base = "macro" + juce::String (i + 1);
+        auto& macro = macroParameters[i];
+
+        macro.value = apvts.getRawParameterValue (base + "_value");
+        macro.minimum = apvts.getRawParameterValue (base + "_min");
+        macro.maximum = apvts.getRawParameterValue (base + "_max");
+        macro.curve = apvts.getRawParameterValue (base + "_curve");
+
+        jassert (macro.value != nullptr && macro.minimum != nullptr
+                 && macro.maximum != nullptr && macro.curve != nullptr);
+    }
+
     filter1Parameters.resolve (apvts, "filter1_");
     filter2Parameters.resolve (apvts, "filter2_");
     filterRoutingParameter = apvts.getRawParameterValue ("filter_routing");
@@ -554,6 +568,20 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     }
 
     voiceEngine.setModulationRouting (routing);
+
+    // The macros, through their curve and range, as the matrix reads them.
+    // Once a block, like every parameter the matrix reaches.
+    for (std::size_t i = 0; i < macroParameters.size(); ++i)
+    {
+        const auto& macro = macroParameters[i];
+
+        dsp::MacroSettings shape;
+        shape.minimum = readParameter (macro.minimum, 0.0f);
+        shape.maximum = readParameter (macro.maximum, 1.0f);
+        shape.curve = readParameter (macro.curve, 0.0f);
+
+        voiceEngine.setMacro (static_cast<int> (i), dsp::shapeMacro (readParameter (macro.value, 0.0f), shape));
+    }
 
     const auto readFilter = [] (const FilterParameterPointers& pointers, float defaultType)
     {

@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 282> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -1044,6 +1044,107 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
       1.0f, 1.0f,
       true, false, false },
 
+    // Macros -----------------------------------------------------------------
+    // Four knobs a performer moves, each a source in the matrix, with a range and
+    // a curve between the knob and what the matrix reads (dsp::shapeMacro).
+    // Learnable like any parameter, and assigned to no controller by default
+    // (PRD §17). Phase 13e-3 (ADR-0098).
+    { "macro1_value", "Macro 1",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro1_min", "Macro 1 Minimum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro1_max", "Macro 1 Maximum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro1_curve", "Macro 1 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro2_value", "Macro 2",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro2_min", "Macro 2 Minimum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro2_max", "Macro 2 Maximum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro2_curve", "Macro 2 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro3_value", "Macro 3",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro3_min", "Macro 3 Minimum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro3_max", "Macro 3 Maximum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro3_curve", "Macro 3 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro4_value", "Macro 4",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro4_min", "Macro 4 Minimum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro4_max", "Macro 4 Maximum",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "macro4_curve", "Macro 4 Curve",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -1.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
     // Modulation matrix ------------------------------------------------------
     // Sixteen slots, each a source, a destination and a bipolar depth
     // (CLAUDE.md §15). Source and destination are indices into dsp::ModSource and
@@ -1055,7 +1156,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
     // would put a promise in the metadata that the engine does not keep.
     { "mod01_source", "Mod 1 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1073,7 +1174,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod02_source", "Mod 2 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1091,7 +1192,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod03_source", "Mod 3 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1109,7 +1210,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod04_source", "Mod 4 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1127,7 +1228,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod05_source", "Mod 5 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1145,7 +1246,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod06_source", "Mod 6 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1163,7 +1264,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod07_source", "Mod 7 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1181,7 +1282,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod08_source", "Mod 8 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1199,7 +1300,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod09_source", "Mod 9 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1217,7 +1318,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod10_source", "Mod 10 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1235,7 +1336,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod11_source", "Mod 11 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1253,7 +1354,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod12_source", "Mod 12 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1271,7 +1372,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod13_source", "Mod 13 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1289,7 +1390,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod14_source", "Mod 14 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1307,7 +1408,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod15_source", "Mod 15 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1325,7 +1426,7 @@ inline constexpr std::array<ParameterDefinition, 266> parameterDefinitions { {
 
     { "mod16_source", "Mod 16 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 15.0f, 0.0f,
+      0.0f, 19.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

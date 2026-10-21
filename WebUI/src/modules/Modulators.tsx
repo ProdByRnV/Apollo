@@ -149,3 +149,29 @@ export function Lfos(): JSX.Element {
         </Module>
     );
 }
+
+/**
+    The four macros. Each is a knob a performer moves — or a controller does,
+    once MIDI Learn has assigned one; none is assigned by default — and the
+    range and curve between that knob and what the matrix reads. Where a macro
+    goes, and how far, is the matrix's: route "Macro 1" to as many destinations
+    as it should reach, each with its own depth.
+*/
+export function Macros(): JSX.Element {
+    return (
+        <Module title="Macros">
+            {INDICES.map((index) => {
+                const p = `macro${index}`;
+
+                return (
+                    <div key={index} className="macro" role="group" aria-label={`Macro ${index}`}>
+                        <Knob id={`${p}_value`} label={`Macro ${index}`} />
+                        <Knob id={`${p}_min`} label="Min" />
+                        <Knob id={`${p}_max`} label="Max" />
+                        <Knob id={`${p}_curve`} label="Curve" />
+                    </div>
+                );
+            })}
+        </Module>
+    );
+}
