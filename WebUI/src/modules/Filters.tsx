@@ -41,7 +41,7 @@ export function Filter({ index }: { index: number }): JSX.Element {
     const cutoffLabel = type === FORMANT ? `Vowel ${vowelName(plainOf(`${p}cutoff`))}` : 'Cutoff';
 
     // Each source's input means something only under split routing, so the
-    // selectors appear with it rather than sitting there doing nothing.
+    // selectors are shown with it rather than sitting there doing nothing.
     useParameterValue('filter_routing');
     const split = Math.round(plainOf('filter_routing')) === SPLIT;
 
@@ -65,8 +65,14 @@ export function Filter({ index }: { index: number }): JSX.Element {
                     ) : null}
                 </div>
 
-                {index === 2 && split ? (
-                    <div className="cluster">
+                {/*
+                    Hidden rather than left out, because the inputs still live
+                    here when they are not in use: a control that is not
+                    rendered at all is reported as having no home, and lands in
+                    the Unassigned panel at the foot of the page (Unplaced.tsx).
+                */}
+                {index === 2 ? (
+                    <div className="cluster" hidden={!split}>
                         {SPLIT_SOURCES.map(({ id, label }) => (
                             <Segmented key={id} id={id} label={label} table={LABELS[id]} />
                         ))}

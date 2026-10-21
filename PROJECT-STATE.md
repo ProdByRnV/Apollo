@@ -2735,6 +2735,7 @@ The Release standalone, over the DevTools protocol.
 | The inputs appear with split | Choosing SPLIT showed Osc 1, Osc 2, Sub and Noise beneath it, at F1, F2, F1 and F2 (screenshot); choosing SERIES hid them again |
 | The engine takes them | DIRECT chosen for Osc 1 was echoed back by the engine |
 | A preset is still a complete sound | Reloading Wire Pluck, which does not mention them, returned routing to SERIES and Osc 1's input to F1 |
+| **Missed, and fixed after** | Outside split the four inputs were not rendered at all, so the page's safety net listed them in an "Unassigned" panel at its foot (Unplaced.tsx). This check looked at the filter panel and not the foot of the page. Found during 13d-1's check; the inputs are now always rendered and hidden outside split, and the panel is gone |
 
 Not checked here: hearing it. What each path does is held exactly by
 `Tests/Engine/FilterSplitTests.cpp`.
