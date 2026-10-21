@@ -337,7 +337,7 @@ Mix
 Key tracking
 Filters should support modulation from the modulation matrix.
 
-> **Status, 0.1.0 to 13c-2:** ◐ Two filters, ✅ in series or in parallel; ❌ no split routing. §13.1: ✅ low-pass, high-pass, band-pass and notch, and since Phase 13c-1 ✅ comb (tuned by the cutoff, its feedback set by the resonance) and formant (the cutoff choosing among five vowels, the resonance narrowing them) (ADR-0091). §13.2: ✅ cutoff, resonance and drive, all modulatable; ✅ since Phase 13c-2 a mix per filter, smoothed, and key tracking per filter, −100 % to +100 % about middle C, following the note and its bend (ADR-0092).
+> **Status, 0.1.0 to 13c-3:** ✅ Two filters, in series, in parallel, and since Phase 13c-3 split: each source — both oscillators, the sub and the noise — chooses filter 1, filter 2 or neither, and the results are summed (ADR-0093). §13.1: ✅ low-pass, high-pass, band-pass and notch, and since Phase 13c-1 ✅ comb (tuned by the cutoff, its feedback set by the resonance) and formant (the cutoff choosing among five vowels, the resonance narrowing them) (ADR-0091). §13.2: ✅ cutoff, resonance and drive, all modulatable; ✅ since Phase 13c-2 a mix per filter, smoothed, and key tracking per filter, −100 % to +100 % about middle C, following the note and its bend (ADR-0092).
 
 ---
 14. Drive and Saturation

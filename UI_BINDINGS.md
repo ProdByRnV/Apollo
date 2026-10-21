@@ -130,7 +130,11 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `filter2_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 2 input saturation |
 | `filter2_mix` | Rotary Knob | Normalized `[0, 1]` | `1` | 13c-2 | Filter 2's wet amount, as for filter 1 |
 | `filter2_keytrack` | Rotary Knob | Normalized `[-1, 1]` | `0` | 13c-2 | Filter 2's key tracking, as for filter 1 |
-| `filter_routing` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 5b | 0 series, 1 parallel |
+| `filter_routing` | Selector / Dropdown | Discrete `[0, 2]` | `0` | 5b, 13c-3 | 0 series, 1 parallel, 2 split. Split was appended in 13c-3, so the first two keep their numbers (ADR-0093). Under split the four source inputs appear beneath it |
+| `osc1_filter` | Selector / Dropdown | Discrete `[0, 2]` | `0` | 13c-3 | Where oscillator 1 goes under split routing: 0 filter 1, 1 filter 2, 2 past both. Series and parallel ignore it |
+| `osc2_filter` | Selector / Dropdown | Discrete `[0, 2]` | `1` | 13c-3 | Oscillator 2's input under split routing, as for oscillator 1; filter 2 by default |
+| `sub_filter` | Selector / Dropdown | Discrete `[0, 2]` | `0` | 13c-3 | The sub's input under split routing; filter 1, with oscillator 1, by default |
+| `noise_filter` | Selector / Dropdown | Discrete `[0, 2]` | `1` | 13c-3 | The noise's input under split routing; filter 2, with oscillator 2, by default |
 | `env2_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 2 delay |
 | `env2_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 2 attack |
 | `env2_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 2 hold |

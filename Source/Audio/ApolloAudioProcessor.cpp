@@ -62,6 +62,10 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     filter1Parameters.resolve (apvts, "filter1_");
     filter2Parameters.resolve (apvts, "filter2_");
     filterRoutingParameter = apvts.getRawParameterValue ("filter_routing");
+    filterInputParameters = { apvts.getRawParameterValue ("osc1_filter"),
+                              apvts.getRawParameterValue ("osc2_filter"),
+                              apvts.getRawParameterValue ("sub_filter"),
+                              apvts.getRawParameterValue ("noise_filter") };
 
     effectParameters.resolve (apvts);
 
@@ -557,9 +561,25 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
     filters.filter1 = readFilter (filter1Parameters, 1.0f);
     filters.filter2 = readFilter (filter2Parameters, 0.0f);
-    filters.routing = readParameter (filterRoutingParameter, 0.0f) >= 0.5f
-                        ? engine::FilterRouting::parallel
-                        : engine::FilterRouting::series;
+
+    // Rounded and clamped rather than compared against a half, now that there
+    // are three: a state from a later version, or a corrupt one, must land on a
+    // routing that exists.
+    const auto filterRouting = static_cast<int> (std::lround (readParameter (filterRoutingParameter, 0.0f)));
+    filters.routing = static_cast<engine::FilterRouting> (filterRouting < 0 ? 0 : (filterRouting > 2 ? 2 : filterRouting));
+
+    const auto readInput = [] (const std::atomic<float>* pointer, float fallback)
+    {
+        const auto input = static_cast<int> (std::lround (readParameter (pointer, fallback)));
+        const auto last = engine::numFilterInputs - 1;
+
+        return static_cast<engine::FilterInput> (input < 0 ? 0 : (input > last ? last : input));
+    };
+
+    filters.inputs.osc1 = readInput (filterInputParameters[0], 0.0f);
+    filters.inputs.osc2 = readInput (filterInputParameters[1], 1.0f);
+    filters.inputs.sub = readInput (filterInputParameters[2], 0.0f);
+    filters.inputs.noise = readInput (filterInputParameters[3], 1.0f);
 
     voiceEngine.setFilterParameters (filters);
 }

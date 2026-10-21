@@ -16,7 +16,7 @@ written in React and shown through the platform's own WebView.
 released.** There are no downloads yet. Apollo is built from source, below, and
 every CI run also packages it for each platform.
 
-It is a complete instrument: it plays, every one of its 248 parameters affects
+It is a complete instrument: it plays, every one of its 252 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. What is
 not yet true is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md). The
 largest gaps are that it has not been tried inside a DAW, that its interface has
@@ -37,8 +37,9 @@ sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;
 warp aliases more than the plain oscillator, and the figures are published.
 
 **Shaping and movement.** Two filters (low-pass, high-pass, band-pass, notch,
-a comb tuned by its cutoff, and a formant filter that sweeps through vowels) in
-series or parallel. Four DAHDSR envelopes with adjustable
+a comb tuned by its cutoff, and a formant filter that sweeps through vowels),
+each with drive, a mix and key tracking, in series, in parallel, or split so
+that each source chooses its own. Four DAHDSR envelopes with adjustable
 curves, four LFOs with seven shapes, and a sixteen-slot modulation matrix whose
 sources include velocity, key tracking, the mod wheel, pitch bend, aftertouch,
 MPE timbre and a random source.

@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 248> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 252> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -557,11 +557,40 @@ inline constexpr std::array<ParameterDefinition, 248> parameterDefinitions { {
       1.0f, 0.0f,
       true, false, false },
 
-    // 0 series, 1 parallel. Un-indexed because it describes how the two filters
-    // are connected rather than belonging to either of them.
+    // 0 series, 1 parallel, 2 split. Un-indexed because it describes how the two
+    // filters are connected rather than belonging to either of them. Split was
+    // appended in Phase 13c-3, so the first two keep their numbers (ADR-0093).
     { "filter_routing", "Filter Routing",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 1.0f, 0.0f,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Under split routing, where each source goes: 0 filter 1, 1 filter 2,
+    // 2 past both. Series and parallel ignore them. The defaults put each
+    // oscillator through its own filter, the sub with oscillator 1 and the noise
+    // with oscillator 2 (Phase 13c-3, ADR-0093).
+    { "osc1_filter", "Osc 1 Filter Input",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "osc2_filter", "Osc 2 Filter Input",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "sub_filter", "Sub Filter Input",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    { "noise_filter", "Noise Filter Input",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 1.0f,
       1.0f, 1.0f,
       true, false, false },
 

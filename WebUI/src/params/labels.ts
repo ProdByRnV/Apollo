@@ -28,6 +28,9 @@ import { stepCount } from './mapping';
 */
 const fxPower = ['ON', 'OFF'] as const;
 
+/** Where a source goes under split routing, one table for the four sources. */
+const filterInput = ['F1', 'F2', 'DIRECT'] as const;
+
 export const LABELS: Record<string, readonly string[]> = {
     // 0..3, in the order WavetableLibrary builds them.
     //
@@ -50,7 +53,13 @@ export const LABELS: Record<string, readonly string[]> = {
     // 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch.
     filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],
     filter2_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],
-    filter_routing: ['SERIES', 'PARALLEL'],
+    filter_routing: ['SERIES', 'PARALLEL', 'SPLIT'],
+
+    // engine::FilterInput: where a source goes under split routing.
+    osc1_filter: filterInput,
+    osc2_filter: filterInput,
+    sub_filter: filterInput,
+    noise_filter: filterInput,
 
     // 0 empty, then dsp::EffectType in order. The effects whose phases have not
     // landed are selectable — the slot parameter's range is permanent, so it

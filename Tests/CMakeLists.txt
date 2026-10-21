@@ -20,6 +20,7 @@ target_sources(ApolloTests PRIVATE
     Engine/SourceControlsTests.cpp
     Engine/WarpTests.cpp
     Engine/FilterMixKeyTrackTests.cpp
+    Engine/FilterSplitTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
     DSP/UnisonTests.cpp

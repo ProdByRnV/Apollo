@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp), 13c-1 (comb and formant filters) and 13c-2 (filter mix and key tracking) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
+| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp) and 13c (filters: comb and formant types, mix and key tracking, split routing) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
 | **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — macros, LFO tempo sync and drawn curves among them (warp was, and 13b built it). The developer decided they all belong in the first release, so Phase 13 is building them before the release candidate (ADR-0089). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | Working toward **M11 — Release Candidate**, which now follows Phase 13. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 13c-3 — split routing**, the last part of 13c. 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Next step** | **Phase 13d — noise**: the noise generator beyond white noise (Docs/KNOWN-LIMITATIONS.md). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -1741,6 +1741,29 @@ Four parameters, taking the registry to **248**: `filterN_mix` and
 Tested in `Tests/Engine/FilterMixKeyTrackTests.cpp`, through a processor
 playing notes. The pinned VST3 parameter numbers grew by four and changed none.
 
+### Split filter routing (Phase 13c-3)
+
+A third routing, **split**, beside series and parallel, and four parameters
+taking the registry to **252**: `osc1_filter`, `osc2_filter`, `sub_filter` and
+`noise_filter`, each choosing filter 1, filter 2 or neither.
+
+- **Each source takes one path** and the paths are summed, not halved, so with
+  both filters transparent split is as loud as series.
+- **Every path is exactly the routing it stands for**: a source sent to
+  filter 1 is, sample for sample, that source through filter 1 alone; a source
+  sent past both is the source unfiltered.
+- **The defaults divide the voice in two** — oscillator 1 and the sub through
+  filter 1, oscillator 2 and the noise through filter 2 — so choosing split
+  does something before anything else is moved. Series and parallel ignore the
+  inputs, and sound exactly as they did.
+- **The interface shows the four inputs only under split**, beneath the routing
+  on filter 2.
+
+Tested in `Tests/Engine/FilterSplitTests.cpp`. The routing's range grew from
+two choices to three, which moves a host's normalised automation of it
+(Docs/COMPATIBILITY.md §2); the pinned VST3 parameter numbers grew by four and
+changed none.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -1751,9 +1774,9 @@ playing notes. The pinned VST3 parameter numbers grew by four and changed none.
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
 | 11 | **Complete.** 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64): install rules and a CPack archive per platform, seven package tests including the dependency table of both binaries, and the staged package driven through the whole host suite on all four jobs (ADR-0076 to ADR-0079). macOS is universal and ad-hoc signed; Linux names its runtime libraries and CI checks each resolves; ARM64 passed first time. Absent: everything that needs a desktop — the editor rendering on macOS or Linux, Retina — plus Developer ID signing with notarisation, and Windows on ARM64 |
 | 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d (documentation) is done.** **12d-1 (the front door)**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. **12d-2 (the specification documents) is done**: a status note per PRD section, ARCHITECTURE.md §20 as built, UI_BINDINGS and REPOSITORY-LAYOUT current (ADR-0087). **12d-3 (compatibility and the roadmap) is done**: Docs/COMPATIBILITY.md, a frozen 0.1.0 preset every build must read, two promises newly tested, and the roadmap brought up to date (ADR-0088). Absent: 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
-| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). **13c-1 (comb and formant filters) is done** (ADR-0091). **13c-2 (filter mix and key tracking) is done** (ADR-0092). Absent: 13c-3 split routing, 13d noise, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
+| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). **13c-1 (comb and formant filters) is done** (ADR-0091). **13c-2 (filter mix and key tracking) is done** (ADR-0092). **13c-3 (split routing) is done** (ADR-0093), which completes 13c. Absent: 13d noise, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
 
-**All 248 registered parameters now affect audio** (227 until Phase 13a added thirteen, 13b four and 13c-2 four) — the whole source section,
+**All 252 registered parameters now affect audio** (227 until Phase 13a added thirteen, 13b four, 13c-2 four and 13c-3 four) — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
 expression settings, `master_gain`, the rack's six slots, and all six effects in
 it. `fx_delay_time` was the last one that did not, inert since Phase 2 and
@@ -1842,7 +1865,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,322,779 assertions, 0 failures**, across 48 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,323,025 assertions, 0 failures**, across 49 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2702,6 +2725,20 @@ Not checked here: hearing them. Their effect is held by
 `Tests/Engine/FilterMixKeyTrackTests.cpp`, which measures it through a
 processor.
 
+### Split filter routing (Phase 13c-3), 2026-10-21
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| The control | Routing on filter 2 offers SERIES, PARALLEL and SPLIT |
+| The inputs appear with split | Choosing SPLIT showed Osc 1, Osc 2, Sub and Noise beneath it, at F1, F2, F1 and F2 (screenshot); choosing SERIES hid them again |
+| The engine takes them | DIRECT chosen for Osc 1 was echoed back by the engine |
+| A preset is still a complete sound | Reloading Wire Pluck, which does not mention them, returned routing to SERIES and Osc 1's input to F1 |
+
+Not checked here: hearing it. What each path does is held exactly by
+`Tests/Engine/FilterSplitTests.cpp`.
+
 ---
 
 
@@ -3381,6 +3418,24 @@ half mix and full tracking. Two quiet sittings, raw, per cent of the deadline:
 0.3 to 0.6 points of median. Both sittings ran about 2 points slower than
 13c-1's on every row, the untouched ones included, which is the machine; the
 comparison is within a sitting (ADR-0092).
+
+### Split routing on top (Phase 13c-3)
+
+**"+ split routing, 32 held"**: the previous row's patch, split rather than
+parallel. The old build and the new were timed alternately in the same
+sittings, raw, medians, per cent of the deadline:
+
+| Contention, before / after | Default, 8 held: before / after | Default, 32 held: before / after | + mix and key tracking | + split routing: median / worst |
+|---:|---|---|---:|---|
+| 2.0 % / 1.7 % | 1.28 / 1.24 | 2.58 / 2.46 | 70.87 | 72.50 / 132.6 |
+| 3.2 % / 0.9 % | 1.31 / 1.31 | 2.55 / 2.46 | 70.72 | 70.34 / 76.7 |
+| 1.4 % / 1.7 % | 1.27 / 1.25 | 2.46 / 2.47 | 70.70 | 70.28 / 77.8 |
+
+Split is about 0.4 points cheaper than parallel in the quiet sittings, and the
+patches that do not use it cost what they did. The first sitting's split row
+was disturbed (its own p99 was 84 %). A first version, with the filter slot as
+a member function, made the default patch 6 to 8 per cent slower in three pairs
+out of three; it was caught here and fixed before the commit (ADR-0093).
 
 ### First use (Phase 10c)
 

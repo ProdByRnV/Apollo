@@ -523,6 +523,7 @@ void VoiceEngine::applyFilterParameters() noexcept
     settings.filter1 = resolve (filterParameters.filter1);
     settings.filter2 = resolve (filterParameters.filter2);
     settings.routing = filterParameters.routing;
+    settings.inputs = filterParameters.inputs;
 
     for (auto& voice : voices)
         voice.setFilters (settings);

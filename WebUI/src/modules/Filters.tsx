@@ -14,6 +14,17 @@ import { plainOf, useParameterValue } from '../state/parameters';
 /** `filterN_type`'s value for the formant filter (Source/DSP/Filters/VoiceFilter.h). */
 const FORMANT = 6;
 
+/** `filter_routing`'s value for split routing (Source/Engine/FilterSettings.h). */
+const SPLIT = 2;
+
+/** The sources split routing sends somewhere, in the order the voice mixes them. */
+const SPLIT_SOURCES = [
+    { id: 'osc1_filter', label: 'Osc 1' },
+    { id: 'osc2_filter', label: 'Osc 2' },
+    { id: 'sub_filter', label: 'Sub' },
+    { id: 'noise_filter', label: 'Noise' },
+] as const;
+
 export function Filter({ index }: { index: number }): JSX.Element {
     const p = `filter${index}_`;
 
@@ -28,6 +39,11 @@ export function Filter({ index }: { index: number }): JSX.Element {
     // what the matrix and automation move.
     useParameterValue(`${p}cutoff`);
     const cutoffLabel = type === FORMANT ? `Vowel ${vowelName(plainOf(`${p}cutoff`))}` : 'Cutoff';
+
+    // Each source's input means something only under split routing, so the
+    // selectors appear with it rather than sitting there doing nothing.
+    useParameterValue('filter_routing');
+    const split = Math.round(plainOf('filter_routing')) === SPLIT;
 
     return (
         <Module title="Filter" index={String(index)} inactive={bypassed}>
@@ -48,6 +64,14 @@ export function Filter({ index }: { index: number }): JSX.Element {
                         />
                     ) : null}
                 </div>
+
+                {index === 2 && split ? (
+                    <div className="cluster">
+                        {SPLIT_SOURCES.map(({ id, label }) => (
+                            <Segmented key={id} id={id} label={label} table={LABELS[id]} />
+                        ))}
+                    </div>
+                ) : null}
             </div>
 
             {/*

@@ -437,6 +437,10 @@ private:
     FilterParameterPointers filter2Parameters;
     std::atomic<float>* filterRoutingParameter = nullptr;
 
+    /** Under split routing, the input each source takes: osc 1, osc 2, sub,
+        noise. */
+    std::array<std::atomic<float>*, 4> filterInputParameters {};
+
     /** The effects rack's raw parameter values: which effect is in each slot,
         and everything the effects themselves need.
     */

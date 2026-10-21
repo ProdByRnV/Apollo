@@ -5668,3 +5668,108 @@ comparison is made within a sitting and not across sittings.
   automation of the destination parameters each time (ADR-0090).
 - A choice of centre note. Middle C is the convention, and the cutoff control
   already sets where the filter sits at that note.
+
+---
+
+## ADR-0093 — Split routing gives each source a filter, or none, and sums them
+
+**Phase 13c-3 · Accepted**
+
+### What was built
+
+A third filter routing, **split**, appended after series and parallel so that
+both keep their numbers, and four parameters taking the registry to 252:
+`osc1_filter`, `osc2_filter`, `sub_filter` and `noise_filter`. Each is 0 for
+filter 1, 1 for filter 2 or 2 for neither. Series and parallel ignore them. All
+fifteen regression renders passed unregenerated, and the pinned VST3 parameter
+numbers grew by four and changed none.
+
+PRD §13 asks for "split/custom routing where technically feasible". Choosing
+a path per source covers both words: a fixed split is one setting of it, and the
+custom part is that every source chooses.
+
+### How it is built
+
+**The voice sums its sources into three buses instead of one**, one per input,
+and decides once per render call which bus each source feeds. Under series and
+parallel every source lands on bus 0, in the order it always did, so the sum is
+the same arithmetic as before and the old routings did not change by a bit.
+
+Under split, filter 1 runs on bus 0, filter 2 on bus 1, and the three results
+are added. **They are summed, not halved.** Parallel halves because the same
+signal goes through both filters (ADR-0025). Under split each source takes one
+path, so with both filters transparent the sum is the sources' own sum and the
+headroom is what it is in series. A test holds that exactly: with both filters
+off, split is the series bypass sample for sample.
+
+**Each path is exactly the routing it stands for**, and the tests say so as
+equalities rather than tolerances:
+
+- a source sent to filter 1 is that source through filter 1 alone, in series
+  with filter 2 off;
+- one sent to filter 2 is the source through filter 2 alone;
+- one sent past both is the source unfiltered.
+
+Two sources on two filters are the sum of each on its own, within 1.5e-8, which
+is the amplifier rounding a sum where the separate renders rounded each part.
+On the test's lowpass-and-highpass pair, split kept 36 dB more than series,
+where both sources meet both filters.
+
+**The defaults divide the voice in two**: oscillator 1 and the sub through
+filter 1, oscillator 2 and the noise through filter 2. Choosing split therefore
+does something at once, rather than sending everything to filter 1, which
+would be series with filter 2 removed.
+
+**An input is clamped twice.** The processor rounds and clamps each parameter,
+and the voice clamps again, because the engine is also driven directly and
+should not depend on its caller. Anything that is not one of the three inputs
+goes to filter 1. A test hands the engine 7 and −1 directly and gets filter 1,
+sample for sample.
+
+**Both slots run on every sample under split**, fed or not. A filter that a
+source has just left rings out rather than stopping dead, and the cost does not
+depend on how the sources are assigned.
+
+### What it costs
+
+**Split costs no more than parallel.** The worst-case row gained "+ split
+routing": the patch of ADR-0092's row, split instead of parallel. In the two
+quiet sittings below (contention 0.9 % and 1.7 %), its median was 70.3 % both
+times, against 70.7 % for the same patch in parallel, and its worst blocks were
+76.7 % and 77.8 %. Both slots run either way, and split skips parallel's
+copies and halving.
+
+**The first version made every patch slower, and the measurement caught it.**
+The old build and the new were timed alternately in the same sittings. With
+the slot's code moved from a lambda inside `applyFilters` into a member
+function, so that split could share it, the default patch's median rose by
+0.08 points at 8 voices and 0.2 at 32, which is 6 to 8 per cent, in three pairs
+out of three. Moving the source sums from an array into scalars did not
+change that. Making the slot a lambda again, at namespace scope, put the
+default patch back where it was:
+
+| Sitting | Default, 8 held: before / after | Default, 32 held: before / after |
+|---:|---|---|
+| 1 | 1.28 / 1.24 | 2.58 / 2.46 |
+| 2 | 1.31 / 1.31 | 2.55 / 2.46 |
+| 3 | 1.27 / 1.25 | 2.46 / 2.47 |
+
+Medians, per cent of the deadline. The likeliest reading is that MSVC stopped
+inlining the slot into the per-sample loop. That has not been confirmed in the
+generated code, so the code comment says "consistent with" rather than
+"because".
+
+### Given up
+
+- **A crossfade when the routing or an input changes.** A switch while a note
+  sounds is a step, as switching between series and parallel always was. A
+  crossfade would run both arrangements on every voice for its length. That is
+  two more filter slots per voice, for a selector most people set once.
+  Recorded in Docs/KNOWN-LIMITATIONS.md under "Decided against".
+- **Inputs under series and parallel**, such as a sub kept out of a series
+  chain. That needs a mixture of the two topologies, with a source joining a
+  chain halfway along, which is a routing graph rather than a choice. Split
+  covers the common case: the oscillators through a filter and the sub sent
+  straight past it.
+- **The inputs as matrix destinations.** They are choices, not amounts, and
+  the matrix modulates amounts.

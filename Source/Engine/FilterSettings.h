@@ -32,7 +32,43 @@ enum class FilterRouting
         halved so that two identical filters in parallel are the same loudness
         as one rather than twice it.
     */
-    parallel
+    parallel,
+
+    /** Each source chooses a filter, or neither, and the results are summed.
+        Not halved: every source passes through exactly one path, so with both
+        filters transparent the sum is the sources' own sum and the headroom is
+        what it is in series (ADR-0093).
+    */
+    split
+};
+
+/** Where a source goes under split routing. Ignored by series and parallel,
+    which put every source through the pair.
+*/
+enum class FilterInput
+{
+    filter1 = 0,
+    filter2,
+
+    /** Past both filters, straight to the amplifier. */
+    direct
+};
+
+inline constexpr int numFilterInputs = 3;
+
+/** Which input each source takes under split routing. The defaults divide the
+    voice in two — each oscillator through its own filter, the sub beside
+    oscillator 1 and the noise beside oscillator 2 — so choosing split does
+    something before anything else is touched.
+*/
+struct FilterInputs
+{
+    FilterInput osc1 = FilterInput::filter1;
+    FilterInput osc2 = FilterInput::filter2;
+    FilterInput sub = FilterInput::filter1;
+    FilterInput noise = FilterInput::filter2;
+
+    [[nodiscard]] bool operator== (const FilterInputs&) const = default;
 };
 
 /** One filter slot. */
@@ -77,6 +113,7 @@ struct VoiceFilterSettings
     FilterSlotSettings filter2;
 
     FilterRouting routing = FilterRouting::series;
+    FilterInputs inputs;
 
     /** True when neither slot would change the signal, so the whole section can
         be skipped rather than run as two transparent filters.

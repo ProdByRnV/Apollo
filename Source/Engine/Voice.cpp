@@ -48,6 +48,48 @@ constexpr double referenceNote = 69.0;
     return value > high ? high : value;
 }
 
+/** One filter slot — drive, filter, mix — on one stereo sample, in place.
+
+    A lambda rather than a member function, as it was when it lived inside
+    `applyFilters`. As a member function the default patch measured 6 to 8 per
+    cent slower, at 8 voices and at 32, and as a lambda it measures as it did
+    before (ADR-0093) — consistent with the function no longer being inlined
+    into the per-sample loop that calls it twice.
+*/
+constexpr auto runFilterSlot = [] (const FilterSlotSettings& slot,
+                                   dsp::VoiceFilter& leftFilter,
+                                   dsp::VoiceFilter& rightFilter,
+                                   dsp::LinearSmoothedValue& mix,
+                                   float& l,
+                                   float& r) noexcept
+{
+    const auto dryLeft = l;
+    const auto dryRight = r;
+
+    if (slot.drive > 0.0f)
+    {
+        const auto gain = dsp::driveGain (slot.drive);
+        const auto makeup = dsp::driveCompensation (slot.drive);
+
+        l = dsp::softClip (l * gain) * makeup;
+        r = dsp::softClip (r * gain) * makeup;
+    }
+
+    l = leftFilter.processSample (l);
+    r = rightFilter.processSample (r);
+
+    // Fully wet and not moving is the slot as it was before mix existed,
+    // and is left exactly so: `dry + 1 * (wet - dry)` is not always `wet`
+    // in floating point, and the regression renders would notice.
+    if (mix.isSmoothing() || mix.getTargetValue() < 1.0f)
+    {
+        const auto wet = mix.getNextValue();
+
+        l = dryLeft + wet * (l - dryLeft);
+        r = dryRight + wet * (r - dryRight);
+    }
+};
+
 } // namespace
 
 //==============================================================================
@@ -157,61 +199,42 @@ void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
 
 void Voice::applyFilters (float& left, float& right) noexcept
 {
-    const auto runSlot = [] (const FilterSlotSettings& slot,
-                             dsp::VoiceFilter& leftFilter,
-                             dsp::VoiceFilter& rightFilter,
-                             dsp::LinearSmoothedValue& mix,
-                             float& l,
-                             float& r)
-    {
-        const auto dryLeft = l;
-        const auto dryRight = r;
-
-        if (slot.drive > 0.0f)
-        {
-            const auto gain = dsp::driveGain (slot.drive);
-            const auto makeup = dsp::driveCompensation (slot.drive);
-
-            l = dsp::softClip (l * gain) * makeup;
-            r = dsp::softClip (r * gain) * makeup;
-        }
-
-        l = leftFilter.processSample (l);
-        r = rightFilter.processSample (r);
-
-        // Fully wet and not moving is the slot as it was before mix existed,
-        // and is left exactly so: `dry + 1 * (wet - dry)` is not always `wet`
-        // in floating point, and the regression renders would notice.
-        if (mix.isSmoothing() || mix.getTargetValue() < 1.0f)
-        {
-            const auto wet = mix.getNextValue();
-
-            l = dryLeft + wet * (l - dryLeft);
-            r = dryRight + wet * (r - dryRight);
-        }
-    };
-
     if (filters.routing == FilterRouting::series)
     {
-        runSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
-        runSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, left, right);
+        runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
+        runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, left, right);
         return;
     }
 
     // Parallel: both slots see the same input.
     auto leftA = left;
     auto rightA = right;
-    runSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, leftA, rightA);
+    runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, leftA, rightA);
 
     auto leftB = left;
     auto rightB = right;
-    runSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, leftB, rightB);
+    runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, leftB, rightB);
 
     // Halved, so two identical filters in parallel are as loud as one rather
     // than twice as loud — which would put the engine's headroom measurements
     // out by 6 dB the moment a user switched routing (ADR-0025).
     left = (leftA + leftB) * 0.5f;
     right = (rightA + rightB) * 0.5f;
+}
+
+void Voice::applySplitFilters (float& left, float& right,
+                               float secondLeft, float secondRight,
+                               float directLeft, float directRight) noexcept
+{
+    // Both slots run every sample whether or not anything feeds them, so a
+    // filter a source has just left rings out instead of stopping dead.
+    runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
+    runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, secondLeft, secondRight);
+
+    // Summed, not halved: each source took one path, so this is the sources'
+    // own sum when both filters are transparent.
+    left = left + secondLeft + directLeft;
+    right = right + secondRight + directRight;
 }
 
 void Voice::setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSettings) noexcept
@@ -853,6 +876,22 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
     const bool renderSub = sources.subTable != nullptr && subGain.isAudible();
     const bool renderNoise = noiseGain.isAudible();
 
+    // Which bus each source feeds, decided once per call. Anything that is not
+    // one of the three inputs lands on filter 1, as the processor's clamp
+    // would have put it, rather than wherever the last branch below sends it.
+    const bool split = filters.routing == FilterRouting::split;
+
+    const auto busOf = [split] (FilterInput input) noexcept
+    {
+        const auto index = static_cast<int> (input);
+        return split && index > 0 && index < numFilterInputs ? index : 0;
+    };
+
+    const auto osc1Bus = busOf (filters.inputs.osc1);
+    const auto osc2Bus = busOf (filters.inputs.osc2);
+    const auto subBus = busOf (filters.inputs.sub);
+    const auto noiseBus = busOf (filters.inputs.noise);
+
     for (int i = 0; i < numSamples; ++i)
     {
         if (hasActiveRouting)
@@ -879,8 +918,36 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
         if (stage == VoiceStage::idle && envelope <= 0.0f)
             break;
 
+        // A bus per filter input: filter 1's, filter 2's, and past both.
+        // Outside split routing every source lands on the first, in the order
+        // it always did, so the sum is the one it was. Scalars and a branch on
+        // a value fixed for the whole call, rather than an array indexed by
+        // it, so the sums can stay in registers.
         float left = 0.0f;
         float right = 0.0f;
+        float secondLeft = 0.0f;
+        float secondRight = 0.0f;
+        float directLeft = 0.0f;
+        float directRight = 0.0f;
+
+        const auto send = [&] (int bus, float l, float r) noexcept
+        {
+            if (bus == 0)
+            {
+                left += l;
+                right += r;
+            }
+            else if (bus == 1)
+            {
+                secondLeft += l;
+                secondRight += r;
+            }
+            else
+            {
+                directLeft += l;
+                directRight += r;
+            }
+        };
 
         if (renderOsc1)
         {
@@ -895,8 +962,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             stackLeft *= gain1.left.getNextValue();
             stackRight *= gain1.right.getNextValue();
 
-            left += stackLeft;
-            right += stackRight;
+            send (osc1Bus, stackLeft, stackRight);
 
             if (taps.oscillator1 != nullptr)
                 taps.oscillator1[i] += (stackLeft + stackRight) * 0.5f;
@@ -911,8 +977,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             stackLeft *= gain2.left.getNextValue();
             stackRight *= gain2.right.getNextValue();
 
-            left += stackLeft;
-            right += stackRight;
+            send (osc2Bus, stackLeft, stackRight);
 
             if (taps.oscillator2 != nullptr)
                 taps.oscillator2[i] += (stackLeft + stackRight) * 0.5f;
@@ -925,8 +990,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             const auto subLeft = value * subGain.left.getNextValue();
             const auto subRight = value * subGain.right.getNextValue();
 
-            left += subLeft;
-            right += subRight;
+            send (subBus, subLeft, subRight);
 
             if (taps.sub != nullptr)
                 taps.sub[i] += (subLeft + subRight) * 0.5f;
@@ -954,8 +1018,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
             float noiseRight = 0.0f;
             noise.addNextStereoSample (noiseLeft, noiseRight, noiseLeftGain, noiseRightGain);
 
-            left += noiseLeft;
-            right += noiseRight;
+            send (noiseBus, noiseLeft, noiseRight);
 
             if (taps.noise != nullptr)
                 taps.noise[i] += (noiseLeft + noiseRight) * 0.5f;
@@ -965,8 +1028,22 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
         // not an arbitrary one: filtering after the envelope would make a
         // resonant tail fade with the note rather than ring through it, and
         // would gate a self-oscillating filter with its own note.
-        if (! filters.isBypassed())
+        if (split)
+        {
+            if (filters.isBypassed())
+            {
+                left = left + secondLeft + directLeft;
+                right = right + secondRight + directRight;
+            }
+            else
+            {
+                applySplitFilters (left, right, secondLeft, secondRight, directLeft, directRight);
+            }
+        }
+        else if (! filters.isBypassed())
+        {
             applyFilters (left, right);
+        }
 
         const auto amplitude = envelope * noteVelocity * amplitudeScale;
 

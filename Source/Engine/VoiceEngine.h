@@ -158,6 +158,7 @@ struct FilterParameters
     FilterSlotParameters filter2;
 
     FilterRouting routing = FilterRouting::series;
+    FilterInputs inputs;
 
     [[nodiscard]] bool operator== (const FilterParameters&) const = default;
 };

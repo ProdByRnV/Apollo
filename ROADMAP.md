@@ -152,10 +152,10 @@ front of it is better understood, the way 8f was.
 | **13** | **Completing the specification — every feature the PRD specifies and 0.1.0 did not have, in the first release at the developer's direction (ADR-0089)** | ⬜ |
 | 13a | The oscillators' missing controls — oscillator 1's coarse and fine tuning, a start phase per source, unison phase randomisation (reproducible per note), detune curve and blend, and the sub's triangle and square, phase and tracking. Thirteen parameters, every default reproducing the old sound, which the regression renders confirm | ✅ |
 | 13b | The warp engine — sync, asym, PWM, bend and mirror (the PRD's "Asymmetric Sync" names two techniques, built as a mode each), an amount per oscillator, warp as a modulation destination, and the wave display drawing the warp. Aliasing treated by mip selection for the fastest read, polyBLEP/polyBLAMP at the edges and DC removal, measured and pinned; oversampling priced and declined for CPU (ADR-0090) | ✅ |
-| 13c | Filters, in three parts | ◐ |
+| 13c | Filters, in three parts | ✅ |
 | 13c-1 | Comb and formant filter types, appended to the type list so every existing type keeps its number (ADR-0091) | ✅ |
 | 13c-2 | A mix and key tracking per filter — four parameters, both defaults reproducing the old sound (ADR-0092) | ✅ |
-| 13c-3 | Split routing | ⬜ |
+| 13c-3 | Split routing — each source sends itself to filter 1, filter 2 or past both; four parameters, and series and parallel unchanged (ADR-0093) | ✅ |
 | 13d | Noise — pink noise, key tracking, built-in transient samples | ⬜ |
 | 13e | Modulation — LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive as destinations, modulation of depth | ⬜ |
 | 13f | Drawn LFO curves, and envelopes edited by dragging | ⬜ |
@@ -993,7 +993,7 @@ them; each sub-phase removes its rows from that list as it lands.
 
 - [x] Comb and formant types (PRD §13.1). — comb tuned by the cutoff with an allpass-interpolated period so its loudness does not change from note to note; formant sweeping U-O-A-E-I with the cutoff, the resonance narrowing it (13c-1, ADR-0091)
 - [x] Per-filter mix and key tracking (PRD §13.2). — mix smoothed per sample and bit-exact at full; key tracking −100 % to +100 % about middle C, following the note and its bend (13c-2, ADR-0092)
-- [ ] Split routing (PRD §13). (13c-3)
+- [x] Split routing (PRD §13). — a third routing in which each oscillator, the sub and the noise chooses filter 1, filter 2 or neither, summed rather than halved; every path exactly the routing it stands for (13c-3, ADR-0093)
 
 ### Noise (13d)
 

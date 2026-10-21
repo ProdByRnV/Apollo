@@ -440,8 +440,17 @@ private:
         return destinationValues[static_cast<std::size_t> (destination)];
     }
 
-    /** Runs one stereo sample through the filter section, in place. */
+    /** Runs one stereo sample through the filter section, in place, in series
+        or in parallel. */
     void applyFilters (float& left, float& right) noexcept;
+
+    /** Split routing. @p left and @p right arrive as the sources sent to
+        filter 1 and leave as the whole section's output; the second pair is
+        what was sent to filter 2, and the direct pair passes both. */
+    void applySplitFilters (float& left, float& right,
+                            float secondLeft, float secondRight,
+                            float directLeft, float directRight) noexcept;
+
 
     /** Gives each filter slot its coefficients: the engine's shared set when
         nothing reaches it, or this voice's own when the matrix or key tracking
