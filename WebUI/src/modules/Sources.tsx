@@ -102,7 +102,9 @@ export function Noise(): JSX.Element {
     return (
         <Module title="Noise" inactive={useSilent('noise_level')}>
             <Scope source="noise" />
+            <Segmented id="noise_type" label="Type" table={LABELS.noise_type} />
             <Knob id="noise_level" label="Level" />
+            <Knob id="noise_keytrack" label="Key Track" />
         </Module>
     );
 }

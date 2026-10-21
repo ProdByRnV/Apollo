@@ -455,14 +455,10 @@ void Voice::resolveFilterCoefficients() noexcept
 {
     using Destination = dsp::ModDestination;
 
-    // The played pitch, in octaves from middle C: the note and both bends, and
-    // not the oscillators' own tuning or the matrix's pitch modulation. Key
-    // tracking follows what was played, so a comb tuned to the note stays on
-    // it through a bend; a vibrato is a modulation of the pitch, not a
+    // Key tracking follows what was played, so a comb tuned to the note stays
+    // on it through a bend; a vibrato is a modulation of the pitch, not a
     // different note. An idle voice has no note, and keeps the shared set.
-    const auto playedOctaves = stage == VoiceStage::idle
-                                 ? 0.0f
-                                 : (static_cast<float> (note - 60) + pitchBendSemitones + noteBendSemitones) / 12.0f;
+    const auto playedOctaves = this->playedOctaves();
 
     // Filters re-resolve their own coefficients only when something actually
     // reaches them — the matrix or key tracking. Otherwise the engine's shared
@@ -505,6 +501,27 @@ void Voice::resolveFilterCoefficients() noexcept
                    filter2Left, filter2Right);
 }
 
+float Voice::playedOctaves() const noexcept
+{
+    if (stage == VoiceStage::idle)
+        return 0.0f;
+
+    return (static_cast<float> (note - 60) + pitchBendSemitones + noteBendSemitones) / 12.0f;
+}
+
+void Voice::updateNoiseRate() noexcept
+{
+    // Zero tracking is the rate the noise always had, set without a power of
+    // two, so an untracked note never touches the interpolating path.
+    if (sources.noiseKeyTrack == 0.0f)
+    {
+        noise.setRate (1.0f);
+        return;
+    }
+
+    noise.setRate (std::exp2 (sources.noiseKeyTrack * playedOctaves()));
+}
+
 void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
 {
     // The overwhelmingly common case: the parameters did not move this block.
@@ -531,6 +548,9 @@ void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
     oscillator2.setWarp (sources.osc2.warpMode, sources.osc2.warpAmount);
 
     subOscillator.setTable (sources.subTable);
+
+    noise.setType (sources.noiseType);
+    updateNoiseRate();
 
     updateGainTargets();
 
@@ -692,6 +712,9 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     stealGain = 1.0f;
     stage = VoiceStage::sounding;
 
+    // After the stage, which is what gives the voice a played pitch to follow.
+    updateNoiseRate();
+
     // Forces a modulation update on the first sample, so a note starts already
     // modulated rather than spending up to a control block at its unmodulated
     // value — which on a filter sweep is an audible blip at every note.
@@ -754,6 +777,7 @@ void Voice::setPitchBendSemitones (float semitones) noexcept
     if (stage != VoiceStage::idle)
     {
         updatePhaseIncrement();
+        updateNoiseRate();
 
         if (isKeyTracking())
             resolveFilterCoefficients();
@@ -767,6 +791,7 @@ void Voice::setNoteBendSemitones (float semitones) noexcept
     if (stage != VoiceStage::idle)
     {
         updatePhaseIncrement();
+        updateNoiseRate();
 
         if (isKeyTracking())
             resolveFilterCoefficients();

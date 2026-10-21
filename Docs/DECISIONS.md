@@ -5773,3 +5773,98 @@ generated code, so the code comment says "consistent with" rather than
   straight past it.
 - **The inputs as matrix destinations.** They are choices, not amounts, and
   the matrix modulates amounts.
+
+---
+
+## ADR-0094 — Pink noise is filtered white, and key tracking plays the noise like a recording
+
+**Phase 13d-1 · Accepted**
+
+### What was built
+
+Two parameters, taking the registry to 254: `noise_type` (0 white, 1 pink,
+default white) and `noise_keytrack` (0 to 1, default 0). The voice's noise
+generator became a noise source (`Source/DSP/Noise/NoiseSource.h`) that wraps
+the old generator. At the defaults it makes the same call the voice made
+before, so all fifteen regression renders passed unregenerated, Dust Sweep's
+noise included. The pinned VST3 parameter numbers grew by two and changed none.
+
+### Pink
+
+**Paul Kellet's "refined" filter**: six one-pole low-passes and a two-tap term
+on the white stream, summed, per channel. Measured over eight octaves from
+Nyquist down, every octave holds the same power to within 0.12 dB, except the
+lowest (47 to 94 Hz at 48 kHz), which is 0.46 dB high.
+
+- **It is scaled to white's RMS.** The filter's power gain on white noise is
+  9.318, from the sum of its squared impulse response, so the output is
+  multiplied by 0.3276. Measured, pink sits 0.14 dB from white. The type
+  changes the colour and leaves the level alone.
+- **Its poles are fixed, not derived from the sample rate.** At 96 kHz the
+  region where it is exact moves up an octave, and its low corner moves from
+  about 9 Hz to 18 Hz. The audible band stays pink. Deriving the poles per rate
+  would mean redesigning a filter whose published coefficients are the reason
+  to trust it.
+- **The channels stay independent**: a correlation of 0.011.
+
+### Key tracking
+
+**Noise is played the way a sampler plays a recording**: an octave slower an
+octave below middle C at full tracking, following the note and both bends but
+not the matrix's pitch modulation, as the filters' key tracking does
+(ADR-0092). Slower means the stream is drawn less often than once a sample and
+linearly interpolated. That is a low-pass whose corner follows the rate: at
+half rate, 5 % of white noise's power is left above the corner, against 50 %
+at full rate.
+
+**Faster than once a sample has nothing to add.** Noise drawn every sample is
+already as bright as the sample rate allows, so above middle C the noise is
+exactly the untracked noise, and a test says so sample for sample. At zero
+tracking, or at middle C, the source never enters the interpolating path at
+all.
+
+**The level is corrected per sample, and the first version did it on
+average.** Between two values with correlation r, a point a fraction t of the
+way has variance (1 − t)² + t² + 2t(1 − t)r. The first version gave back the
+average over t, which assumes t visits everywhere evenly. The test at half rate
+found it does not: an octave down, t is only ever 0 or a half, and the level
+came out 0.52 dB high. Worse, a rate just below 1 holds t near a half for
+thousands of samples at a time, and the level would sag about 1.2 dB and
+recover, audibly. The correction is now per sample, with r set per type: 0 for
+white and 0.8234 for pink, measured from Kellet's impulse response. Rates of
+0.5 and 0.25 now measure within 0.15 dB of the untracked level. A new test
+holds a rate of 0.9999 steady in 85 ms windows to within 0.07 dB of what the
+untracked noise does in the same windows.
+
+### What it costs
+
+**Pink and tracked noise cost nothing measurable on the worst patch.** The
+row "+ pink tracked noise" is the split-routing row's patch, which already
+plays white noise at full level, with the noise pink and fully tracked. In
+three sittings its median was 0.1, 0.6 and 1.5 points above the split row's.
+In the quietest of them its worst block was 79.4 % of the deadline.
+
+**The first version made the default patch slower, which plays no noise at
+all.** Timed alternately against the previous build, the default patch was
+about 0.05 points slower at 8 voices and 0.13 at 32, about 4 %, in six pairs
+out of six. Moving the noise source to the end of the voice, in case its extra
+hundred bytes had shifted the hot members, changed nothing. Keeping only
+untracked white noise inline and moving pink and interpolation into a function
+the compiler may not inline fixed it. In three pairs the default patch then
+measured 1.29 to 1.34 % at 8 voices against 1.33 to 1.37 % before, and 2.47 to
+2.56 % at 32 against 2.63 %. This is the second time in two sub-phases that
+code the default patch never runs has slowed the default patch by being
+inlined into the voice's loop (ADR-0093). The pattern is recorded here so that
+the next one is looked for.
+
+### Given up
+
+- **Brighter noise above middle C.** There is nothing brighter than white
+  noise at the sample rate. A tilt filter that brightened high notes would be a
+  different control, a tone control that follows the keyboard, and the filters
+  already have key tracking.
+- **Negative tracking.** A sampler does not play a recording slower for higher
+  notes, and nobody has asked for noise that darkens as the notes rise.
+- **Pitched noise**, such as a sample-and-hold at the note's frequency. That
+  is a different sound with its own uses, and the transient samples of 13d-2
+  are the pitched noise this phase is for.

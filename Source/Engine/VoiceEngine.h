@@ -121,6 +121,12 @@ struct SourceParameters
 
     float noiseLevel = 0.0f;
 
+    /** 0 white, 1 pink (dsp::NoiseType). */
+    int noiseType = 0;
+
+    /** Key tracking of the noise's rate, 0 to 1. */
+    float noiseKeyTrack = 0.0f;
+
     [[nodiscard]] bool operator== (const SourceParameters&) const = default;
 };
 

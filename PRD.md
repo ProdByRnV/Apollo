@@ -276,7 +276,7 @@ User-loadable noise samples where feasible.
 Deterministic behavior when required for preset recall.
 Noise generation must avoid unnecessary allocations on the real-time audio thread.
 
-> **Status, 0.1.0:** ◐ Stereo white noise with its own level, deterministic for recall, and modulatable through the matrix. ❌ No pink noise, no transient samples, no loadable samples, no key tracking.
+> **Status, 0.1.0 to 13d-1:** ◐ Stereo noise with its own level, deterministic for recall, and modulatable through the matrix, so an envelope can shape it. ✅ Since Phase 13d-1, white or pink — pink at white's level — and key tracking, which plays the noise slower below middle C, darker and not quieter (ADR-0094). ❌ No transient samples yet (13d-2), and no loadable samples (13g).
 
 ---
 11. Unison Engine

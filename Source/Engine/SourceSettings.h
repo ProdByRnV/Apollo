@@ -24,6 +24,7 @@
     them in the same callback.
 */
 
+#include "DSP/Noise/NoiseSource.h"
 #include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/Wavetable.h"
 #include "DSP/Unison/UnisonLayout.h"
@@ -98,6 +99,14 @@ struct VoiceSourceSettings
 
     /** Noise level, 0 to 1. Exactly zero skips it entirely. */
     float noiseLevel = 0.0f;
+
+    /** White or pink. */
+    dsp::NoiseType noiseType = dsp::NoiseType::white;
+
+    /** How far the noise's rate follows the played pitch, 0 to 1: at 1 it
+        plays an octave slower an octave below middle C, as a sampler would.
+        Zero leaves it drawn once a sample, as it always was. */
+    float noiseKeyTrack = 0.0f;
 
     [[nodiscard]] bool operator== (const VoiceSourceSettings&) const = default;
 };

@@ -522,6 +522,8 @@ private:
     std::atomic<float>* subPhaseParameter = nullptr;
     std::atomic<float>* subTrackingParameter = nullptr;
     std::atomic<float>* noiseLevelParameter = nullptr;
+    std::atomic<float>* noiseTypeParameter = nullptr;
+    std::atomic<float>* noiseKeyTrackParameter = nullptr;
 
     /** MIDI expression setup: bend ranges and the MPE zone. */
     std::atomic<float>* bendRangeParameter = nullptr;

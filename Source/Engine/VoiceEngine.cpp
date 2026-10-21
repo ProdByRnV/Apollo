@@ -571,6 +571,10 @@ void VoiceEngine::applySourceParameters() noexcept
     settings.subTracksOsc1 = parameters.subTracksOsc1;
 
     settings.noiseLevel = parameters.noiseLevel;
+    settings.noiseType = static_cast<dsp::NoiseType> (
+        parameters.noiseType < 0 ? 0 : (parameters.noiseType >= dsp::numNoiseTypes ? dsp::numNoiseTypes - 1
+                                                                                     : parameters.noiseType));
+    settings.noiseKeyTrack = parameters.noiseKeyTrack;
 
     for (auto& voice : voices)
         voice.setSources (settings);

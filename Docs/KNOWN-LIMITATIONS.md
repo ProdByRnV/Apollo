@@ -42,7 +42,7 @@ this table when its sub-phase lands (ADR-0089).
 | **LFO tempo sync** | An LFO cannot follow the host's tempo. The conversion exists in the LFO code (`tempoSyncedRateHz`) but no parameter selects it, so it is unreachable | PRD §15.2, CLAUDE.md §14.2 |
 | **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
-| **Noise** | White noise only; no pink noise, no transient samples, no loadable noise, no key tracking | PRD §10 |
+| **Noise** | No transient samples (13d-2), and no loadable noise samples (13g). *Built in 13d-1: pink noise and key tracking* | PRD §10 |
 | **Envelopes** | Shown as live traces, not edited by dragging them | PRD §15.1 |
 | **Modulation matrix** | No effect parameters or filter drive as destinations, and no modulation of a routing's depth (warp amount became one in 13b). Host automation as a source and an envelope follower are carried but unscheduled (ROADMAP "Carried forward") | PRD §16 |
 | **Wavetables from files** | The engine reads, validates and plays a wavetable from a WAV file, replacing a slot while a note sounds (ADR-0066), but nothing in the interface can choose a file, and a preset cannot refer to one. A file chooser has to be native rather than a path sent across the bridge (CLAUDE.md §40) | PRD §33 |

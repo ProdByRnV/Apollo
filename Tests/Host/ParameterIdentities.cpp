@@ -49,6 +49,8 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "sub_phase", 2101443260u },
         { "sub_tracking", 1452251606u },
         { "noise_level", 1734928927u },
+        { "noise_type", 1372422463u },
+        { "noise_keytrack", 135912913u },
         { "env1_delay", 1074427496u },
         { "env1_attack", 1023200771u },
         { "env1_hold", 1558808378u },

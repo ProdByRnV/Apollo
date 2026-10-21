@@ -111,6 +111,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `sub_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the sub's cycle |
 | `sub_tracking` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 follows the note; 1 follows oscillator 1, its tuning and pitch modulation included |
 | `noise_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Noise generator level (silent by default) |
+| `noise_type` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13d-1 | 0 white, 1 pink. Pink is at white's RMS level, so the type moves the colour and not the loudness (ADR-0094) |
+| `noise_keytrack` | Rotary Knob | Normalized `[0, 1]` | `0` | 13d-1 | How far the noise's rate follows the played pitch (note and bend), about middle C. Below middle C it plays slower, which darkens it at the same level; above, white or pink noise is already as bright as the sample rate allows |
 | `env1_delay` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 delay before the attack |
 | `env1_attack` | Rotary Knob | `0–10000 ms` | `5` | 5a | Envelope 1 attack time |
 | `env1_hold` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 hold at full level |

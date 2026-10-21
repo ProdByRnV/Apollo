@@ -16,7 +16,7 @@ written in React and shown through the platform's own WebView.
 released.** There are no downloads yet. Apollo is built from source, below, and
 every CI run also packages it for each platform.
 
-It is a complete instrument: it plays, every one of its 252 parameters affects
+It is a complete instrument: it plays, every one of its 254 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. What is
 not yet true is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md). The
 largest gaps are that it has not been tried inside a DAW, that its interface has
@@ -30,7 +30,7 @@ being built before the first release (Phase 13).
 
 **Sound.** Two wavetable oscillators, each with up to sixteen detuned,
 stereo-spread unison voices with a choice of detune curve and blend, plus a sub
-oscillator (sine, triangle or square) and a stereo noise generator. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
+oscillator (sine, triangle or square) and a stereo noise generator, white or pink, whose rate can follow the keyboard. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
 by position. The tables are band-limited mipmaps, and aliasing is measured, not
 assumed: worst case −98.5 dBc. Each oscillator can warp its wave five ways —
 sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;

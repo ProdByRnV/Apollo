@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 252> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
@@ -400,6 +400,21 @@ inline constexpr std::array<ParameterDefinition, 252> parameterDefinitions { {
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    // 0 white, 1 pink (dsp::NoiseType). Phase 13d-1 (ADR-0094).
+    { "noise_type", "Noise Type",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // How far the noise's rate follows the played pitch, about middle C. At 0,
+    // the default, it is drawn once a sample as it always was. Phase 13d-1.
+    { "noise_keytrack", "Noise Key Track",
+      ParameterType::floatingPoint, ParameterUnit::normalised,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
 
     // Envelope 1 — amplitude ------------------------------------------------
     // Added in Phase 5a with the DAHDSR generator that gives them meaning. Only

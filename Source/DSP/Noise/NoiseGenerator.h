@@ -65,6 +65,11 @@ public:
         right += nextValue (stateRight) * gainRight;
     }
 
+    /** The next value of each channel's stream, uniform in [-1, 1), for a
+        source that shapes the noise before scaling it (NoiseSource.h). */
+    [[nodiscard]] float nextLeft() noexcept { return nextValue (stateLeft); }
+    [[nodiscard]] float nextRight() noexcept { return nextValue (stateRight); }
+
 private:
     /** Marsaglia's 32-bit xorshift. Full period over the non-zero states, which
         is 4.29 billion samples — over 24 hours at 48 kHz before it repeats.

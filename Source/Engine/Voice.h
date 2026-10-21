@@ -40,7 +40,7 @@
 */
 
 #include "DSP/Envelopes/Envelope.h"
-#include "DSP/Noise/NoiseGenerator.h"
+#include "DSP/Noise/NoiseSource.h"
 #include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableOscillator.h"
 #include "DSP/Utilities/LinearSmoothedValue.h"
@@ -451,11 +451,19 @@ private:
                             float secondLeft, float secondRight,
                             float directLeft, float directRight) noexcept;
 
-
     /** Gives each filter slot its coefficients: the engine's shared set when
         nothing reaches it, or this voice's own when the matrix or key tracking
         moves its cutoff or resonance. */
     void resolveFilterCoefficients() noexcept;
+
+    /** Sets the noise's rate from its key tracking and the played pitch. */
+    void updateNoiseRate() noexcept;
+
+    /** The played pitch, in octaves from middle C: the note and both bends,
+        and not the oscillators' tuning or the matrix's pitch modulation. What
+        key tracking follows, for the filters and the noise alike. Zero for an
+        idle voice, which has no note. */
+    [[nodiscard]] float playedOctaves() const noexcept;
 
     /** Whether either slot follows the played pitch, which is what makes a
         bend or a new note a reason to re-resolve the filters. */
@@ -504,7 +512,7 @@ private:
     dsp::UnisonOscillator oscillator1;
     dsp::UnisonOscillator oscillator2;
     dsp::WavetableOscillator subOscillator;
-    dsp::NoiseGenerator noise;
+    dsp::NoiseSource noise;
 
     /** Kept so that reset can restore the noise stream to a known point rather
         than leaving it wherever the last render finished.

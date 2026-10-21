@@ -21,6 +21,7 @@ target_sources(ApolloTests PRIVATE
     Engine/WarpTests.cpp
     Engine/FilterMixKeyTrackTests.cpp
     Engine/FilterSplitTests.cpp
+    Engine/NoiseTypeTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
     DSP/UnisonTests.cpp
@@ -40,6 +41,7 @@ target_sources(ApolloTests PRIVATE
     Performance/Benchmarks.cpp
     Performance/Machine.cpp
     Performance/Machine.h
+    DSP/NoiseSourceTests.cpp
     DSP/NoiseTests.cpp
     Audio/EffectsIntegrationTests.cpp
     Audio/MidiRenderingTests.cpp
