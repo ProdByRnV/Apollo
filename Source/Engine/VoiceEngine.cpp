@@ -575,6 +575,9 @@ void VoiceEngine::applySourceParameters() noexcept
         parameters.noiseType < 0 ? 0 : (parameters.noiseType >= dsp::numNoiseTypes ? dsp::numNoiseTypes - 1
                                                                                      : parameters.noiseType));
     settings.noiseKeyTrack = parameters.noiseKeyTrack;
+    settings.noiseTransient = dsp::isTransient (settings.noiseType)
+                                ? &transients->get (dsp::transientIndex (settings.noiseType))
+                                : nullptr;
 
     for (auto& voice : voices)
         voice.setSources (settings);

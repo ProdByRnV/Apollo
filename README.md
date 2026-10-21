@@ -30,7 +30,7 @@ being built before the first release (Phase 13).
 
 **Sound.** Two wavetable oscillators, each with up to sixteen detuned,
 stereo-spread unison voices with a choice of detune curve and blend, plus a sub
-oscillator (sine, triangle or square) and a stereo noise generator, white or pink, whose rate can follow the keyboard. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
+oscillator (sine, triangle or square) and a stereo noise generator — white, pink, or one of four built-in attack transients — whose rate can follow the keyboard. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
 by position. The tables are band-limited mipmaps, and aliasing is measured, not
 assumed: worst case −98.5 dBc. Each oscillator can warp its wave five ways —
 sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;

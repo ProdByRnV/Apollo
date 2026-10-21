@@ -137,6 +137,7 @@ void Voice::prepare (double newSampleRate) noexcept
     gain2.reset (sampleRate);
     subGain.reset (sampleRate);
     noiseGain.reset (sampleRate);
+    noise.prepare (sampleRate);
 
     for (auto& envelope : envelopes)
         envelope.prepare (sampleRate);
@@ -549,7 +550,7 @@ void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
 
     subOscillator.setTable (sources.subTable);
 
-    noise.setType (sources.noiseType);
+    noise.setType (sources.noiseType, sources.noiseTransient);
     updateNoiseRate();
 
     updateGainTargets();
@@ -714,6 +715,9 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
 
     // After the stage, which is what gives the voice a played pitch to follow.
     updateNoiseRate();
+
+    // A transient starts with the note, at the rate just set. A stream runs on.
+    noise.trigger();
 
     // Forces a modulation update on the first sample, so a note starts already
     // modulated rather than spending up to a control block at its unmodulated
@@ -899,7 +903,7 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
     const bool renderOsc1 = sources.osc1.table != nullptr && gain1.isAudible();
     const bool renderOsc2 = sources.osc2.table != nullptr && gain2.isAudible();
     const bool renderSub = sources.subTable != nullptr && subGain.isAudible();
-    const bool renderNoise = noiseGain.isAudible();
+    const bool renderNoise = noiseGain.isAudible() && noise.isSounding();
 
     // Which bus each source feeds, decided once per call. Anything that is not
     // one of the three inputs lands on filter 1, as the processor's clamp

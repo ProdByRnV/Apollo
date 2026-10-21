@@ -29,6 +29,8 @@ configure_file(
 add_library(apollo_core STATIC
     DSP/Noise/NoiseGenerator.h
     DSP/Noise/NoiseSource.h
+    DSP/Noise/TransientLibrary.cpp
+    DSP/Noise/TransientLibrary.h
     DSP/Oscillators/UnisonOscillator.cpp
     DSP/Oscillators/UnisonOscillator.h
     DSP/Oscillators/Wavetable.cpp

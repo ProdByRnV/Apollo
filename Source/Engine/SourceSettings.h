@@ -100,8 +100,12 @@ struct VoiceSourceSettings
     /** Noise level, 0 to 1. Exactly zero skips it entirely. */
     float noiseLevel = 0.0f;
 
-    /** White or pink. */
+    /** White, pink or one of the built-in transients. */
     dsp::NoiseType noiseType = dsp::NoiseType::white;
+
+    /** The sample for a transient type, from the process's shared library;
+        null for a stream. Resolved by the engine, so a voice never looks one up. */
+    const dsp::TransientSample* noiseTransient = nullptr;
 
     /** How far the noise's rate follows the played pitch, 0 to 1: at 1 it
         plays an octave slower an octave below middle C, as a sampler would.

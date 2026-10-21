@@ -21,6 +21,7 @@ target_sources(ApolloTests PRIVATE
     Engine/WarpTests.cpp
     Engine/FilterMixKeyTrackTests.cpp
     Engine/FilterSplitTests.cpp
+    Engine/NoiseTransientTests.cpp
     Engine/NoiseTypeTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
@@ -43,6 +44,7 @@ target_sources(ApolloTests PRIVATE
     Performance/Machine.h
     DSP/NoiseSourceTests.cpp
     DSP/NoiseTests.cpp
+    DSP/TransientTests.cpp
     Audio/EffectsIntegrationTests.cpp
     Audio/MidiRenderingTests.cpp
     MIDI/MidiDeviceAdoptionTests.cpp
@@ -112,6 +114,17 @@ target_link_libraries(ApolloTests PRIVATE
 # The test tree is on the include path so test-only headers (the benchmarks)
 # can be included by path, the same way Apollo headers are.
 target_include_directories(ApolloTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# The main thread's stack, made the 8 MB that Linux and macOS give it by
+# default, on Windows too, where the default is 1 MB. Tests construct whole
+# processors on the stack — about 250 KB each — and an optimiser that inlines a
+# test class's methods into one frame puts several in it at once. Phase 13d-2
+# grew the voice by a few dozen bytes, thirty-two times over, and one test frame
+# crossed 1 MB: a stack overflow on Windows alone. Hosts allocate the plugin
+# on the heap, so this concerns the test binary and nothing that ships.
+if(MSVC)
+    target_link_options(ApolloTests PRIVATE "/STACK:8388608")
+endif()
 
 set_target_properties(ApolloTests PROPERTIES FOLDER "Apollo/Tests")
 

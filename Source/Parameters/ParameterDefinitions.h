@@ -401,10 +401,12 @@ inline constexpr std::array<ParameterDefinition, 254> parameterDefinitions { {
       1.0f, 0.0f,
       true, true, true },
 
-    // 0 white, 1 pink (dsp::NoiseType). Phase 13d-1 (ADR-0094).
+    // 0 white, 1 pink (dsp::NoiseType), Phase 13d-1 (ADR-0094); then the built-in
+    // transients, 2 click, 3 pick, 4 thump, 5 chiff, appended in 13d-2 so the
+    // first two keep their numbers (ADR-0095).
     { "noise_type", "Noise Type",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 1.0f, 0.0f,
+      0.0f, 5.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

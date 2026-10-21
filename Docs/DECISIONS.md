@@ -5868,3 +5868,122 @@ the next one is looked for.
 - **Pitched noise**, such as a sample-and-hold at the note's frequency. That
   is a different sound with its own uses, and the transient samples of 13d-2
   are the pitched noise this phase is for.
+
+---
+
+## ADR-0095 — The noise's transients are synthesised, kept at six bandwidths, and played once per note
+
+**Phase 13d-2 · Accepted**
+
+### What was built
+
+Four types appended to `noise_type` after white and pink, so those two keep
+their numbers: **click**, **pick**, **thump** and **chiff**, 2 to 5. Each is a
+short stereo sample played once from the start of every note. Key tracking
+pitches it the way a sampler would. No parameter was added; the type's range
+grew from two choices to six, which moves a host's normalised automation of
+it (Docs/COMPATIBILITY.md §2). All fifteen regression renders passed
+unregenerated.
+
+### Synthesised, not recorded
+
+Each transient is built from a formula and a fixed seed, once per process, the
+way the built-in wavetables are (CLAUDE.md §12.3). So Apollo ships no recording
+it would need a licence for, and every platform holds the same samples to
+within rounding.
+
+| | Length | What it is |
+|---|---:|---|
+| Click | 15 ms | Noise decaying in 0.6 ms, high-passed at 1 kHz: the tick of a key |
+| Pick | 80 ms | Noise struck into a band-pass at 3.5 kHz: a plectrum's attack |
+| Thump | 250 ms | A sine falling from 180 Hz to 50, with a little dull noise at its front |
+| Chiff | 300 ms | Noise swelling for 8 ms into a narrow band at 1.6 kHz, then fading: a flute's or a pipe's chiff |
+
+The noise in each is seeded differently on each side, so it is as wide as the
+noise generator, while the thump's sine is the same on both. Each ends in a
+raised-cosine fade over its last tenth, so none stops on a step. Each is
+normalised so its loudest sample on either side is 1, the same peak as white
+noise. Choosing a transient does not make the noise louder at its peak.
+
+### Six bandwidths
+
+**Played above its own pitch, a sample moves its top harmonics past Nyquist,
+where they fold back.** So each transient is kept as a mipmap. Level 0 is at
+48 kHz and keeps everything below 20 kHz, using a 127-tap Blackman-windowed
+sinc. Each further level low-passes the one before to half its band, using a
+255-tap kernel because the transition is narrower, and keeps every other
+sample. The player reads the first level whose top, at the pitch it is
+playing, still lands at or below Nyquist. That is the idea the wavetables use
+(ADR-0066), applied to a sample rather than a cycle.
+
+Measured with tones whose spectrum is known: a tone at 80 % of a level's band
+comes through at 0.00 dB, at every level. A tone at 125 % of the band is
+removed to −90 dB. Played an octave up at 48 kHz, a 15 kHz tone would read
+from level 0 at 30 kHz and fold to 18 kHz. From the level the player chooses,
+nothing reaches 18 kHz; it measured −116 dB.
+
+### The player
+
+**Four-point Hermite interpolation between samples.** At its own pitch and
+48 kHz every read lands on a sample, and the player returns the transient
+exactly; a test compares them sample for sample. At 96 kHz it takes twice as
+many samples, and every other one is an original sample, exactly. A tone
+played an octave down lands an octave down, 0.06 dB from its level.
+
+- **Once per note.** A note starts its transient from the beginning, and the
+  transient stops at its own end while the note is still held. A held note
+  plays exact silence afterwards, and the voice skips the noise from the next
+  block on.
+- **Pitched both ways.** A stream cannot get brighter than white (ADR-0094),
+  but a sample can be played faster. Tracked, a transient an octave up is half
+  as long, measured to the sample, and an octave down is twice as long.
+  Untracked it is the same on every note, and at middle C tracking changes
+  nothing.
+- **Misuse is silent, not undefined.** A transient type without a sample plays
+  silence, and a rate that is not a positive finite number is taken as 1.
+
+### What it costs
+
+**Building them takes 15.8 ms, once per process**, timed on its own at the
+head of the benchmark's first-use section, before the first instrument; that
+instrument's row (164 ms) is the wavetables and everything else. Together they
+are what somebody waits for the first time Apollo opens in a process. Later
+instruments share both.
+
+**Playing one costs less than pink noise.** The row "+ tracked transient" is
+the pink-noise row's patch with the noise the longest transient, fully
+tracked, so every note arriving during the trace plays a sample at its own
+pitch from its own level. Its median was below the pink row's in four
+sittings of five, by up to 1.8 points. Its worst block was 78 to 94 % of the
+deadline in four sittings. In the fifth it reached 124 %, in a run where the
+two rows before it had also thrown worst blocks of 95 and 111 %. A transient
+is one interpolated read for at most 300 ms per note, then nothing.
+
+**The default patch did not move.** Timed alternately against 13d-1's build,
+in the pairs whose sittings were quiet, its median moved by 0, −0.01 and +0.04
+points at 8 voices, and by +0.04, +0.05 and −0.03 at 32. There is no direction
+in that, and none of the transient code is inline in the voice's loop
+(ADR-0094).
+
+### A test binary that ran out of stack, on Windows only
+
+The first full run of the suite stopped part-way through, during a MIDI Learn
+test, with `0xC00000FD`: a stack overflow. Tests construct whole processors on
+the stack, about 250 KB each. MSVC's optimiser inlines a test class's methods
+into one frame, which can hold several of them at once. This sub-phase grew
+the voice by a few dozen bytes, thirty-two times over, and one frame crossed
+the 1 MB Windows gives a main thread. Linux and macOS give it 8 MB, which is
+why CI never saw it. The test binary now links with an 8 MB stack on Windows
+too. Hosts allocate a plugin on the heap, so nothing that ships was affected.
+
+### Given up
+
+- **User-loadable samples.** They need a file chooser, a reference stored in
+  presets and a fallback for a missing file, and that is 13g's work for
+  wavetables and noise together.
+- **Looping, a start offset, or a choice of length.** A transient is the
+  attack at the front of a sound. The matrix's envelopes on noise level, and
+  the filters, already shape what follows it.
+- **Recorded realism.** A synthesised pick is not a recorded one. It is what
+  can be shipped without a licence, and 13g will let somebody load the real
+  thing.

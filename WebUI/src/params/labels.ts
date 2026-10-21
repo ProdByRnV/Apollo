@@ -51,7 +51,7 @@ export const LABELS: Record<string, readonly string[]> = {
     sub_tracking: ['NOTE', 'OSC 1'],
 
     // dsp::NoiseType.
-    noise_type: ['WHITE', 'PINK'],
+    noise_type: ['WHITE', 'PINK', 'CLICK', 'PICK', 'THUMP', 'CHIFF'],
 
     // 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch.
     filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],

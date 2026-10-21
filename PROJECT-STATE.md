@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp), 13c (filters: comb and formant types, mix and key tracking, split routing) and 13d-1 (pink noise and noise key tracking) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
+| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp), 13c (filters: comb and formant types, mix and key tracking, split routing) and 13d (noise: pink, key tracking, built-in transients) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
 | **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — macros, LFO tempo sync and drawn curves among them (warp was, and 13b built it). The developer decided they all belong in the first release, so Phase 13 is building them before the release candidate (ADR-0089). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | Working toward **M11 — Release Candidate**, which now follows Phase 13. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 13d-2 — built-in transient samples**, the last part of 13d. 13d-1 gave the noise a pink type at white's level and key tracking that plays it slower below middle C (ADR-0094). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Next step** | **Phase 13e — modulation**: LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive, mix and key tracking as destinations, and modulation of a routing's depth. 13d is complete: 13d-2 added four synthesised attack transients, played once per note and pitched by the key tracking without aliasing (ADR-0095); 13d-1 gave the noise a pink type at white's level and key tracking that plays it slower below middle C (ADR-0094). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -1788,6 +1788,32 @@ Tested in `Tests/DSP/NoiseSourceTests.cpp` and, through a processor,
 `Tests/Engine/NoiseTypeTests.cpp`. The pinned VST3 parameter numbers grew by
 two and changed none.
 
+### Built-in noise transients (Phase 13d-2)
+
+Four types appended to `noise_type`, so white and pink keep their numbers:
+**click, pick, thump and chiff**, each a short stereo sample played once from
+the start of every note.
+
+- **Synthesised, not recorded**: filtered noise and a falling sine from fixed
+  seeds, built once per process like the wavetables, so nothing needs a licence
+  and every platform holds the same samples.
+- **Kept at six bandwidths**, so a tracked transient played high reads a level
+  that has nothing left to fold back: a tone above a level's band is removed to
+  −90 dB, and a 15 kHz tone played an octave up leaves −116 dB where it would
+  have folded.
+- **Exact at its own pitch**: the player returns the sample bit for bit at
+  48 kHz, and at 96 kHz every other sample is an original one.
+- **Once per note**: it stops at its own end while the note is held, and the
+  voice skips it afterwards. Tracked, an octave up is half as long and an
+  octave down twice, measured to the sample.
+
+The test binary now has an 8 MB stack on Windows, the size Linux and macOS
+give it. The voice's growth here pushed one test's frame past Windows' 1 MB,
+and the suite stopped with a stack overflow (ADR-0095).
+
+Tested in `Tests/DSP/TransientTests.cpp` and, through a processor,
+`Tests/Engine/NoiseTransientTests.cpp`.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -1798,7 +1824,7 @@ two and changed none.
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
 | 11 | **Complete.** 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64): install rules and a CPack archive per platform, seven package tests including the dependency table of both binaries, and the staged package driven through the whole host suite on all four jobs (ADR-0076 to ADR-0079). macOS is universal and ad-hoc signed; Linux names its runtime libraries and CI checks each resolves; ARM64 passed first time. Absent: everything that needs a desktop — the editor rendering on macOS or Linux, Retina — plus Developer ID signing with notarisation, and Windows on ARM64 |
 | 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d (documentation) is done.** **12d-1 (the front door)**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. **12d-2 (the specification documents) is done**: a status note per PRD section, ARCHITECTURE.md §20 as built, UI_BINDINGS and REPOSITORY-LAYOUT current (ADR-0087). **12d-3 (compatibility and the roadmap) is done**: Docs/COMPATIBILITY.md, a frozen 0.1.0 preset every build must read, two promises newly tested, and the roadmap brought up to date (ADR-0088). Absent: 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
-| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). **13c-1 (comb and formant filters) is done** (ADR-0091). **13c-2 (filter mix and key tracking) is done** (ADR-0092). **13c-3 (split routing) is done** (ADR-0093), which completes 13c. **13d-1 (pink noise and noise key tracking) is done** (ADR-0094). Absent: 13d-2 transient samples, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
+| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). **13c-1 (comb and formant filters) is done** (ADR-0091). **13c-2 (filter mix and key tracking) is done** (ADR-0092). **13c-3 (split routing) is done** (ADR-0093), which completes 13c. **13d-1 (pink noise and noise key tracking) is done** (ADR-0094). **13d-2 (built-in transients) is done** (ADR-0095), which completes 13d. Absent: 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
 
 **All 254 registered parameters now affect audio** (227 until Phase 13a added thirteen, 13b four, 13c-2 four, 13c-3 four and 13d-1 two) — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
@@ -1889,7 +1915,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,323,169 assertions, 0 failures**, across 51 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,323,257 assertions, 0 failures**, across 53 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2778,6 +2804,21 @@ The Release standalone, over the DevTools protocol.
 Not checked here: hearing it. Pink's spectrum and level, and what tracking
 does to both, are measured by `Tests/DSP/NoiseSourceTests.cpp`.
 
+### Built-in noise transients (Phase 13d-2), 2026-10-22
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| The control | Noise Type offers WHITE, PINK, CLICK, PICK, THUMP and CHIFF; with six choices the panel's Level and Key Track wrap beneath the selector (screenshot) |
+| The engine takes it | THUMP chosen and echoed back by the engine |
+| A preset is still a complete sound | Reloading Wire Pluck returned the noise to WHITE |
+| The whole page | No Unassigned panel |
+
+Not checked here: hearing them. What each one is, and how it is pitched, is
+measured by `Tests/DSP/TransientTests.cpp` and
+`Tests/Engine/NoiseTransientTests.cpp`.
+
 ---
 
 
@@ -3493,6 +3534,35 @@ Pink tracked noise is 0.1 to 1.5 points over the row without it. With pink
 and interpolation inlined into the voice's loop, the default patch had been
 about 4 % slower in six pairs out of six. Out of line, it is no slower
 (ADR-0094).
+
+### A tracked transient on top (Phase 13d-2)
+
+**"+ tracked transient, 32 held"**: the pink-noise row's patch with the noise
+the longest transient, fully tracked. Against 13d-1's build, timed
+alternately, raw, medians, per cent of the deadline (sittings with more than
+5 % contention on either side left out):
+
+| Contention, before / after | Default, 8 held: before / after | Default, 32 held: before / after | + pink tracked noise | + tracked transient: median / worst |
+|---:|---|---|---:|---|
+| 3.0 % / 2.4 % | 1.35 / 1.35 | 2.63 / 2.67 | 76.31 | 76.43 / 94.0 |
+| 2.0 % / 1.3 % | 1.33 / 1.32 | 2.55 / 2.60 | 71.19 | 70.61 / 123.6 |
+| 1.4 % / 2.2 % | 1.30 / 1.34 | 2.57 / 2.54 | 71.80 | 70.00 / 78.6 |
+
+The default patch moved in no direction. The transient is below pink noise in
+four sittings of five, counting two more whose before-runs were disturbed. The
+123.6 % came in a run whose pink and split rows also threw 111 and 95 %.
+
+**First use:** building the four transients takes **15.8 ms**, once per process,
+timed on its own before the first instrument (164 ms in that run).
+
+**Found on the way, from 13c-1: each instance now adds 4.69 MB, not 2.57.**
+The same run measured the second instance at 4.75 MB and each of the next
+sixteen at 4.69 MB, against 2.61 and 2.57 in Phase 10c. The difference matches
+13c-1's comb filters: a 16 KB delay line in each of the four filter channels
+of each of 32 voices is 2.05 MB, allocated whether or not a comb is chosen.
+Not fixed here; it belongs to the filters, and allocating a comb's line only
+when a comb is chosen would have to happen off the audio thread. Recorded for
+the release's memory review.
 
 ### First use (Phase 10c)
 

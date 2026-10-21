@@ -491,6 +491,11 @@ private:
     */
     dsp::WavetableLibrary library;
 
+    /** The noise's built-in transients, shared by every engine in the process.
+        Taken here, on the thread that makes the engine, so the build happens
+        before any audio callback could ask for it. */
+    const dsp::TransientLibrary* transients = &dsp::TransientLibrary::shared();
+
     /** One layout per primary oscillator, shared by every voice. Mutated on the
         audio thread before any voice reads it in the same callback.
     */

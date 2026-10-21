@@ -808,7 +808,7 @@ plugin.
 ### 20.3 The signal path
 
 Per voice, from a 32-voice pool: two wavetable oscillators of up to sixteen
-unison voices each, a sub oscillator (sine, triangle or square) and white or pink noise; the per-source
+unison voices each, a sub oscillator (sine, triangle or square) and noise (white, pink, or a built-in transient played once per note); the per-source
 level and pan mix; two filters, in series, in parallel, or split so that each
 source chooses filter 1, filter 2 or neither (ADR-0093), each filter a
 state-variable filter, a comb or a formant filter (ADR-0091) with its own gentle

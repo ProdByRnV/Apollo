@@ -156,9 +156,9 @@ front of it is better understood, the way 8f was.
 | 13c-1 | Comb and formant filter types, appended to the type list so every existing type keeps its number (ADR-0091) | ✅ |
 | 13c-2 | A mix and key tracking per filter — four parameters, both defaults reproducing the old sound (ADR-0092) | ✅ |
 | 13c-3 | Split routing — each source sends itself to filter 1, filter 2 or past both; four parameters, and series and parallel unchanged (ADR-0093) | ✅ |
-| 13d | Noise, in two parts | ◐ |
+| 13d | Noise, in two parts | ✅ |
 | 13d-1 | Pink noise and key tracking — a type and a tracking amount, both defaulting to the white noise that was there (ADR-0094) | ✅ |
-| 13d-2 | Built-in transient samples, played at the note's start and pitched by the key tracking | ⬜ |
+| 13d-2 | Built-in transient samples — click, pick, thump and chiff, synthesised once per process, played at each note's start and pitched by the key tracking without aliasing (ADR-0095) | ✅ |
 | 13e | Modulation — LFO tempo sync, envelope retrigger options, macros, effect parameters and filter drive as destinations, modulation of depth | ⬜ |
 | 13f | Drawn LFO curves, and envelopes edited by dragging | ⬜ |
 | 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
@@ -177,6 +177,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
 | 7 | Optional spectrum analyser | optional in both PRD and this file; unscheduled |
+| 13c-1 | A comb's delay line allocated only when a comb is chosen — every voice holds four, 2.05 MB per instance, found by 13d-2's benchmark (PROJECT-STATE §5b) | 14, the release's memory review |
 
 ---
 
@@ -1000,7 +1001,7 @@ them; each sub-phase removes its rows from that list as it lands.
 ### Noise (13d)
 
 - [x] Pink noise and key tracking (PRD §10). — Kellet's pink filter at white's level; key tracking plays the noise slower below middle C, darker and not quieter, its level corrected per sample (13d-1, ADR-0094)
-- [ ] Built-in transient samples (PRD §10). (13d-2)
+- [x] Built-in transient samples (PRD §10). — four, synthesised rather than recorded, each kept at six bandwidths so a tracked transient played high reads one that cannot alias (13d-2, ADR-0095)
 
 ### Modulation (13e)
 

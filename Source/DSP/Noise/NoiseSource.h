@@ -1,7 +1,8 @@
 #pragma once
 
 /*
-    The noise source: white or pink, played at a rate the keyboard can set.
+    The noise source: white or pink noise, or a built-in transient, played at a
+    rate the keyboard can set.
 
     WHITE is the generator's stream as it always was (NoiseGenerator.h), and
     at the defaults it is literally that call, so a patch from before this file
@@ -30,6 +31,13 @@
     the interpolation lost, from its type's neighbour correlation, so a tracked
     low note is darker but not quieter, and its level does not move.
 
+    TRANSIENTS (Phase 13d-2) are short samples from TransientLibrary.h, played
+    once from each note's start rather than run for ever. The rate plays them
+    faster as well as slower, unlike a stream, and they are read from the mip
+    level whose top still lands below Nyquist at that rate, with four-point
+    Hermite interpolation. At their own pitch and the 48 kHz they were built
+    at, every read lands on a sample and returns it exactly.
+
     DETERMINISM is the generator's: seeded explicitly, so a render reproduces.
     Reseeding also clears the pink filters and the interpolation, which is what
     makes a reset voice reproduce exactly.
@@ -39,9 +47,11 @@
 */
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 
 #include "DSP/Noise/NoiseGenerator.h"
+#include "DSP/Noise/TransientLibrary.h"
 
 // Keeps a function out of its caller, where the caller is a hot loop that the
 // function is rarely needed in. Every compiler Apollo builds with has one.
@@ -61,10 +71,29 @@ namespace apollo::dsp
 enum class NoiseType
 {
     white = 0,
-    pink
+    pink,
+
+    // The built-in transients (TransientLibrary.h), appended in Phase 13d-2.
+    click,
+    pick,
+    thump,
+    chiff
 };
 
-inline constexpr int numNoiseTypes = 2;
+inline constexpr int numNoiseTypes = 6;
+
+/** True for the types that are a sample played once per note rather than a
+    stream that runs for ever. */
+[[nodiscard]] constexpr bool isTransient (NoiseType type) noexcept
+{
+    return static_cast<int> (type) >= static_cast<int> (NoiseType::click);
+}
+
+/** The transient library's index for a transient type. */
+[[nodiscard]] constexpr int transientIndex (NoiseType type) noexcept
+{
+    return static_cast<int> (type) - static_cast<int> (NoiseType::click);
+}
 
 /** One channel of Kellet's pink filter. */
 class PinkFilter
@@ -104,7 +133,16 @@ class NoiseSource
 public:
     NoiseSource() = default;
 
-    /** Seeds the stream and clears everything that shapes it. */
+    /** The rate the output runs at, which a transient's playback is relative
+        to. A stream does not care. */
+    void prepare (double sampleRate) noexcept
+    {
+        outputRate = sampleRate > 0.0 ? sampleRate : TransientSample::referenceRate;
+        updateStep();
+    }
+
+    /** Seeds the stream and clears everything that shapes it, and stops a
+        transient that is playing. */
     void setSeed (std::uint32_t seed) noexcept
     {
         generator.setSeed (seed);
@@ -112,31 +150,70 @@ public:
         pinkRight.reset();
         interpolating = false;
         phase = 0.0f;
+        playing = false;
     }
 
-    void setType (NoiseType newType) noexcept
+    /** @param newTransient  the sample for a transient type, from the shared
+                             library; ignored for a stream. A transient type
+                             without one is silent rather than undefined.
+    */
+    void setType (NoiseType newType, const TransientSample* newTransient = nullptr) noexcept
     {
-        if (newType == type)
+        const auto index = static_cast<int> (newType);
+        const auto clamped = static_cast<NoiseType> (index < 0 ? 0 : (index >= numNoiseTypes ? numNoiseTypes - 1 : index));
+        const auto* sample = isTransient (clamped) ? newTransient : nullptr;
+
+        if (clamped == type && sample == transient)
             return;
 
-        type = (newType == NoiseType::pink) ? NoiseType::pink : NoiseType::white;
+        type = clamped;
+        transient = sample;
 
-        // The values being interpolated between belong to the old type.
+        // The values being interpolated between belong to the old type, and a
+        // sample of the old type stops; the new one starts with the next note.
         interpolating = false;
+        playing = false;
+        updateStep();
     }
 
     [[nodiscard]] NoiseType getType() const noexcept { return type; }
 
-    /** Draws per output sample, from key tracking: 1 is the stream's own rate.
-        Below 1 the stream is drawn less often and interpolated; at 1 or above,
-        and for anything that is not a positive finite number, once a sample.
+    /** The playback rate from key tracking: 1 is the noise's own.
+
+        A stream below 1 is drawn less often and interpolated; at 1 or above it
+        is drawn once a sample. A transient is played at exactly this rate,
+        faster as well as slower. Anything that is not a positive finite number
+        is taken as 1.
     */
     void setRate (float newRate) noexcept
     {
-        rate = (newRate > 0.0f && newRate < 1.0f) ? newRate : 1.0f;
+        pitch = (newRate > 0.0f && std::isfinite (newRate)) ? newRate : 1.0f;
+        rate = pitch < 1.0f ? pitch : 1.0f;
+        updateStep();
     }
 
     [[nodiscard]] float getRate() const noexcept { return rate; }
+
+    /** Starts the transient from its beginning. Does nothing for a stream,
+        which runs freely across notes. */
+    void trigger() noexcept
+    {
+        if (transient != nullptr)
+        {
+            position = 0.0;
+            playing = true;
+        }
+    }
+
+    /** False only for a transient that has finished, whose output is silence
+        until the next trigger, so a caller may skip it. */
+    [[nodiscard]] bool isSounding() const noexcept
+    {
+        return transient == nullptr || playing;
+    }
+
+    /** The mip level a transient is being read from: 0 is the full band. */
+    [[nodiscard]] int getTransientLevel() const noexcept { return level; }
 
     /** Adds the next stereo sample into @p left and @p right, scaling each
         channel by its own gain. */
@@ -162,9 +239,15 @@ public:
     static constexpr float pinkNeighbourCorrelation = 0.823399f;
 
 private:
-    /** Pink, or interpolated, or both. */
+    /** Pink, or interpolated, or both, or a transient. */
     APOLLO_NOINLINE void addShapedStereoSample (float& left, float& right, float gainLeft, float gainRight) noexcept
     {
+        if (isTransient (type))
+        {
+            addTransientSample (left, right, gainLeft, gainRight);
+            return;
+        }
+
         if (rate >= 1.0f)
         {
             interpolating = false;
@@ -211,6 +294,65 @@ private:
         right += (currentRight + (nextRight - currentRight) * t) * makeup * gainRight;
     }
 
+    void addTransientSample (float& left, float& right, float gainLeft, float gainRight) noexcept
+    {
+        if (! playing || transient == nullptr)
+            return;
+
+        // Level k holds every 2^k-th frame of level 0's timeline, so a position
+        // in level-0 frames divides down to it exactly.
+        const auto& source = transient->levels[static_cast<std::size_t> (level)];
+        const auto x = position / static_cast<double> (1 << level);
+        const auto whole = static_cast<std::ptrdiff_t> (x);
+        const auto fraction = static_cast<float> (x - static_cast<double> (whole));
+
+        left += hermite (source.left, whole, fraction) * gainLeft;
+        right += hermite (source.right, whole, fraction) * gainRight;
+
+        position += step;
+
+        if (position >= static_cast<double> (transient->length()))
+            playing = false;
+    }
+
+    /** Four-point cubic Hermite, reading silence either side of the sample. */
+    [[nodiscard]] static float hermite (const std::vector<float>& samples, std::ptrdiff_t index, float t) noexcept
+    {
+        const auto size = static_cast<std::ptrdiff_t> (samples.size());
+        const auto at = [&samples, size] (std::ptrdiff_t i)
+        {
+            return i >= 0 && i < size ? samples[static_cast<std::size_t> (i)] : 0.0f;
+        };
+
+        const auto y0 = at (index - 1);
+        const auto y1 = at (index);
+        const auto y2 = at (index + 1);
+        const auto y3 = at (index + 2);
+
+        const auto c1 = 0.5f * (y2 - y0);
+        const auto c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        const auto c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+
+        return ((c3 * t + c2) * t + c1) * t + y1;
+    }
+
+    /** A transient's step through level 0 per output sample, and the level to
+        read: the first whose top, played at this pitch, lands at or below
+        Nyquist. */
+    void updateStep() noexcept
+    {
+        step = static_cast<double> (pitch) * TransientSample::referenceRate / outputRate;
+
+        auto top = TransientSample::referenceBandwidth * static_cast<double> (pitch);
+        level = 0;
+
+        while (level < TransientSample::numLevels - 1 && top > 0.5 * outputRate)
+        {
+            top *= 0.5;
+            ++level;
+        }
+    }
+
     void draw (float& l, float& r) noexcept
     {
         if (type == NoiseType::white)
@@ -230,6 +372,14 @@ private:
 
     NoiseType type = NoiseType::white;
     float rate = 1.0f;
+    float pitch = 1.0f;
+
+    const TransientSample* transient = nullptr;
+    double outputRate = TransientSample::referenceRate;
+    double position = 0.0;
+    double step = 1.0;
+    int level = 0;
+    bool playing = false;
 
     bool interpolating = false;
     float phase = 0.0f;

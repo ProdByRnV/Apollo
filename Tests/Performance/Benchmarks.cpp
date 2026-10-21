@@ -17,6 +17,7 @@
 #include "Audio/ApolloAudioProcessor.h"
 #include "DSP/Effects/EffectsRack.h"
 #include "DSP/LFO/Lfo.h"
+#include "DSP/Noise/TransientLibrary.h"
 #include "DSP/Oscillators/UnisonOscillator.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Oversampling/Oversampler.h"
@@ -1552,6 +1553,32 @@ void benchmarkCallbacks()
         processor.releaseResources();
     }
 
+    // Phase 13d-2: the same with the noise a tracked transient instead, the
+    // longest of them, so that every note that arrives during the trace plays
+    // a sample at its own pitch from its own mip level (ADR-0095).
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        applyModulation (processor);
+        applyFullRack (processor);
+        setPlain (processor, "osc1_warp_mode", 5.0f);
+        setPlain (processor, "osc1_warp_amount", 1.0f);
+        setPlain (processor, "osc2_warp_mode", 5.0f);
+        setPlain (processor, "osc2_warp_amount", 1.0f);
+        setPlain (processor, "filter1_type", 6.0f);
+        setPlain (processor, "filter2_type", 6.0f);
+        setPlain (processor, "filter_routing", 2.0f);
+        setPlain (processor, "filter1_mix", 0.5f);
+        setPlain (processor, "filter2_mix", 0.5f);
+        setPlain (processor, "filter1_keytrack", 1.0f);
+        setPlain (processor, "filter2_keytrack", 1.0f);
+        setPlain (processor, "noise_type", 5.0f);
+        setPlain (processor, "noise_keytrack", 1.0f);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("+ tracked transient, 32 held", traceCallbacks (processor, blocks, 32, true));
+        processor.releaseResources();
+    }
+
     std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
                  "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
               << std::endl;
@@ -1680,6 +1707,13 @@ void benchmarkFirstUse()
     std::size_t afterMany = 0;
 
     constexpr int many = 16;
+
+    // The noise's transients are built once per process too (Phase 13d-2), and
+    // are timed on their own, first, so the row after keeps meaning what it
+    // always meant: the wavetables and everything else. What somebody waits
+    // for on the first instrument is the two rows together.
+    const auto transientBuild = milliseconds ([] { static_cast<void> (dsp::TransientLibrary::shared()); });
+    printMilliseconds ("Building the noise transients (once per process)", transientBuild);
 
     {
         std::unique_ptr<ApolloAudioProcessor> first;
