@@ -277,7 +277,7 @@ private:
         voiceEngine.prepare (testSampleRate);
 
         engine::FilterParameters filters;
-        filters.filter1.mode = StateVariableFilter::Mode::lowpass;
+        filters.filter1.mode = FilterType::lowpass;
         filters.filter1.cutoffHz = 800.0f;
         filters.filter1.q = 0.707f;
         voiceEngine.setFilterParameters (filters);
@@ -485,7 +485,7 @@ private:
             voiceEngine.prepare (testSampleRate);
 
             engine::FilterParameters filters;
-            filters.filter1.mode = StateVariableFilter::Mode::lowpass;
+            filters.filter1.mode = FilterType::lowpass;
             filters.filter1.cutoffHz = 600.0f;
             filters.filter1.q = 4.0f;
             voiceEngine.setFilterParameters (filters);
@@ -535,7 +535,7 @@ private:
         voiceEngine.prepare (testSampleRate);
 
         engine::FilterParameters filters;
-        filters.filter1.mode = StateVariableFilter::Mode::lowpass;
+        filters.filter1.mode = FilterType::lowpass;
         filters.filter1.cutoffHz = 1000.0f;
         filters.filter1.q = 8.0f;
         voiceEngine.setFilterParameters (filters);

@@ -31,7 +31,8 @@
     REAL-TIME CONTRACT: every function here is callable from the audio thread.
     None of them allocate, lock, log, or perform I/O. `prepare` is the only
     function that may be called from another thread, and only while audio is
-    stopped.
+    stopped — and since Phase 13c it is also the one that allocates: each filter
+    slot's comb delay line, sized for the sample rate.
 
     AMPLITUDE. The voice is shaped by a DAHDSR envelope (Phase 5a), multiplied
     by note velocity, and — only while the voice is being stolen — by a separate
@@ -113,7 +114,12 @@ public:
     */
     static constexpr double gainRampSeconds = 0.02;
 
-    /** Prepares for a sample rate. Not real-time safe; call while stopped. */
+    /** Prepares for a sample rate. Not real-time safe; call while stopped.
+
+        Allocates the comb delay lines. noexcept as it always was: an allocation
+        failure here ends the process, as JUCE's own buffers do in prepareToPlay,
+        rather than leaving a voice half-prepared to be played.
+    */
     void prepare (double newSampleRate) noexcept;
 
     /** Sets the phase this voice starts every note from, in the range [0, 1).
@@ -546,10 +552,10 @@ private:
     /** Two filters per channel. A stereo voice needs independent state per
         side, or the two channels share integrators and the image collapses.
     */
-    dsp::StateVariableFilter filter1Left;
-    dsp::StateVariableFilter filter1Right;
-    dsp::StateVariableFilter filter2Left;
-    dsp::StateVariableFilter filter2Right;
+    dsp::VoiceFilter filter1Left;
+    dsp::VoiceFilter filter1Right;
+    dsp::VoiceFilter filter2Left;
+    dsp::VoiceFilter filter2Right;
 
     /** Multiplies the envelope while a voice is being stolen, and is 1 at every
         other time. Kept apart from the envelope so the anti-click fade and the

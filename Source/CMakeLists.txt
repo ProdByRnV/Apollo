@@ -59,9 +59,15 @@ add_library(apollo_core STATIC
     DSP/Effects/AudioEffect.h
     DSP/Effects/EffectsRack.cpp
     DSP/Effects/EffectsRack.h
+    DSP/Filters/CombFilter.cpp
+    DSP/Filters/CombFilter.h
     DSP/Filters/FilterDrive.h
+    DSP/Filters/FormantFilter.cpp
+    DSP/Filters/FormantFilter.h
     DSP/Filters/StateVariableFilter.cpp
     DSP/Filters/StateVariableFilter.h
+    DSP/Filters/VoiceFilter.cpp
+    DSP/Filters/VoiceFilter.h
     DSP/LFO/Lfo.cpp
     DSP/LFO/Lfo.h
     DSP/Modulation/ModulationTypes.cpp

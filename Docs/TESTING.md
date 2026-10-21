@@ -60,6 +60,9 @@ ApolloTests --category <name>  run one category
 ApolloTests --list             list categories and tests, run nothing
 ApolloTests --seed <n>         fix the random seed (default 0)
 ApolloTests --benchmark        run the CPU measurements, run no tests
+ApolloTests --benchmark --callbacks
+                               only the worst-case callback rows, to repeat
+                               one whose worst block may be the machine's
 ApolloTests --goldens          re-render the regression references (see §7)
 ApolloTests --help
 ```

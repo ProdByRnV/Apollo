@@ -127,7 +127,7 @@ struct SourceParameters
 /** One filter slot, as the host and UI express it. */
 struct FilterSlotParameters
 {
-    dsp::StateVariableFilter::Mode mode = dsp::StateVariableFilter::Mode::off;
+    dsp::FilterType mode = dsp::FilterType::off;
 
     float cutoffHz = 20000.0f;
 
@@ -148,7 +148,7 @@ struct FilterSlotParameters
 */
 struct FilterParameters
 {
-    FilterSlotParameters filter1 { dsp::StateVariableFilter::Mode::lowpass, 20000.0f, 0.707f, 0.0f };
+    FilterSlotParameters filter1 { dsp::FilterType::lowpass, 20000.0f, 0.707f, 0.0f };
     FilterSlotParameters filter2;
 
     FilterRouting routing = FilterRouting::series;

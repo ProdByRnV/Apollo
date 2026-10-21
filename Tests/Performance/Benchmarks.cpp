@@ -352,7 +352,7 @@ void benchmarkModulation()
         voiceEngine.setSourceParameters (defaultPatch());
 
         engine::FilterParameters filters;
-        filters.filter1.mode = dsp::StateVariableFilter::Mode::lowpass;
+        filters.filter1.mode = dsp::FilterType::lowpass;
         filters.filter1.cutoffHz = 1200.0f;
         filters.filter1.q = 3.0f;
         voiceEngine.setFilterParameters (filters);
@@ -1456,6 +1456,28 @@ void benchmarkCallbacks()
         processor.releaseResources();
     }
 
+    // Phase 13c's filter types moved it again. The formant filter is the
+    // dearest: three band-passes per channel where the others run one, and,
+    // with the matrix sweeping filter 1's cutoff, three tangents per voice per
+    // block to resolve them. Both slots formant, in parallel so both run on
+    // the full signal (ADR-0091).
+    {
+        ApolloAudioProcessor processor;
+        applyHeaviestPatch (processor);
+        applyModulation (processor);
+        applyFullRack (processor);
+        setPlain (processor, "osc1_warp_mode", 5.0f);
+        setPlain (processor, "osc1_warp_amount", 1.0f);
+        setPlain (processor, "osc2_warp_mode", 5.0f);
+        setPlain (processor, "osc2_warp_amount", 1.0f);
+        setPlain (processor, "filter1_type", 6.0f);
+        setPlain (processor, "filter2_type", 6.0f);
+        setPlain (processor, "filter_routing", 1.0f);
+        processor.prepareToPlay (sampleRate, blockSize);
+        printCallbackRow ("+ two formant filters, 32 held", traceCallbacks (processor, blocks, 32, true));
+        processor.releaseResources();
+    }
+
     std::cout << "\n  The last row is the worst patch Apollo's own controls can build. Anything\n"
                  "  over 100 % of the deadline will not keep up on this machine (issue 13).\n"
               << std::endl;
@@ -1670,7 +1692,7 @@ void benchmarkFirstUse()
 
 //==============================================================================
 
-void run()
+void run (bool callbacksOnly)
 {
     std::cout << "\n==========================================================\n"
               << "Apollo CPU measurements\n"
@@ -1755,19 +1777,29 @@ void run()
                  "  the passes of that row disagreed.\n"
               << std::endl;
 
-    // First, and the ordering is load-bearing: this is the only section whose
-    // figures are about the first instrument in a process, and any benchmark
-    // running before it would have built the shared wavetable library already.
-    benchmarkFirstUse();
+    if (callbacksOnly)
+    {
+        // A repeat of the one section, on a machine assessed the same way, for
+        // a row whose worst block needs telling apart from the machine's.
+        benchmarkCallbacks();
+    }
+    else
+    {
+        // First, and the ordering is load-bearing: this is the only section
+        // whose figures are about the first instrument in a process, and any
+        // benchmark running before it would have built the shared wavetable
+        // library already.
+        benchmarkFirstUse();
 
-    benchmarkPolyphony();
-    benchmarkModulation();
-    benchmarkLfos();
-    benchmarkOversampling();
-    benchmarkEffects();
-    benchmarkTelemetry();
-    benchmarkUnisonSimd();
-    benchmarkCallbacks();
+        benchmarkPolyphony();
+        benchmarkModulation();
+        benchmarkLfos();
+        benchmarkOversampling();
+        benchmarkEffects();
+        benchmarkTelemetry();
+        benchmarkUnisonSimd();
+        benchmarkCallbacks();
+    }
 
     // The other end of the run. The assessment above happened before any Apollo
     // code had executed and the report is a minute and a half of solid work, so

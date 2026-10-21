@@ -5444,3 +5444,136 @@ this build does not have, and 13b made it a real one. It now uses
   halves, sync and asym, which can be heard and modulated separately.
 - Warp on the sub oscillator. The PRD lists warp among the primary
   oscillators' controls (§8.1).
+
+---
+
+## ADR-0091 — The comb and the formant filter are structures of their own, behind one slot
+
+**Phase 13c-1 · Accepted**
+
+### What was built
+
+Two filter types, appended as `filterN_type` 5 (comb) and 6 (formant), so every
+existing type keeps its number. As with warp's destinations (ADR-0090), the
+range grew from [0, 4] to [0, 6], which moves a host's *normalised* automation of
+the type. That is allowed before 1.0 and is recorded in Docs/COMPATIBILITY.md.
+Presets store the number and are unaffected.
+
+They are not state-variable filters, so they do not live inside one:
+
+- `CombFilter`, a delay line;
+- `FormantFilter`, three band-passes in parallel;
+- `VoiceFilter`, the slot a voice holds, which runs whichever of those or the
+  state-variable filter the type names.
+
+The state-variable filter is also the delay's and the distortion's, and has no
+business carrying a delay line for them. `VoiceFilterCoefficients` resolves only
+what its type needs, so the four original types still cost one `tan`. A test
+checks the slot against the bare state-variable filter, sample for sample, for
+each of those four. All fifteen regression renders passed without being
+regenerated.
+
+### The comb
+
+`w[n] = x[n] + a·w[n − D]`, `y[n] = s·(w[n] + w[n − D])/2`.
+
+- **D is one period of the cutoff**, so the teeth sit on the cutoff and its
+  multiples. Tuned to the note, the comb rings at the note.
+- **The feedforward tap** puts a zero between each pair of teeth, so the comb
+  is audibly a comb even with no feedback. A feedback comb alone does nothing
+  at the bottom of the resonance control.
+- **Resonance is feedback**, `a = Q/(Q + 1/2)`: no dead zone, 0.59 at the
+  default, 0.95 at the top, and never above 0.97.
+- **`s = sqrt(2(1 − a))`**, which makes the power gain on a broadband signal
+  exactly 1 at every resonance. Resonance changes the colour of noise or a
+  dense chord, not its level. Harmonics that sit on the teeth are lifted by
+  `2·sqrt(Q + 1/2)`: +7 dB at the default and +16 dB at the top, against +20
+  for the state-variable filter's own resonant peak. Both figures are measured
+  to 0.2 dB.
+
+**The period is read through an allpass, and that was the second design.** The
+first read the fractional period with a four-point cubic interpolator. The
+broadband-loudness test caught what that does: at full resonance it took
+**2.9 dB** off when the period was fractional and nothing when it was whole,
+because the interpolator darkens the loop. The comb would have sounded brighter
+or duller from note to note, depending on whether a period happened to be a
+whole number of samples. A first-order allpass (a Thiran interpolator) has a
+gain of exactly 1 at every frequency, and both cases now measure within 0.25 dB.
+The price is a delay that varies slightly with frequency, which stretches the
+highest teeth by a few cents.
+
+**The allpass then failed a different test.** An allpass whose input jumps
+about inside a feedback loop can gain energy. A comb swept from end to end every
+64 samples reached **3.8 million**, where the cubic version had stayed bounded.
+The fix is a slew limit: the delay may move by at most one sample per sample.
+The limit engages only on a jump of more than about 145 samples, which means
+crossing most of the comb's range in one block. Ordinary modulation stays on the
+3 ms glide, which exists so that a cutoff updated once a modulation block does
+not click. With the limit, the same sweep peaks at 2.3, and a retune to a random
+cutoff every 16 samples peaks at 2.8. The cost is that a jump from the lowest
+tuning to the highest takes up to 50 ms at 48 kHz. That is recorded in
+Docs/KNOWN-LIMITATIONS.md under "Decided against".
+
+The comb's delay line is allocated in `prepare`, for a 20 Hz comb at the
+prepared rate: 16 KB per slot per channel at 48 kHz, 2 MB across the pool. A
+voice only clears a line it has written to, so a voice that never uses its comb
+never pays for clearing one.
+
+### The formant filter
+
+Three band-passes, normalised to unity at their centres and weighted by each
+formant's level, using the tenor formants from Csound's table.
+
+- **The cutoff chooses the vowel.** U, O, A, E, I, ordered by their second
+  formant, an octave and a half apart from U at 160 Hz to I at 10.24 kHz. That
+  puts A near the middle of the control, and turning the control up brightens
+  the sound, as it does for every other type. Between vowels each formant
+  glides: frequency logarithmically, level in decibels, bandwidth linearly.
+- **Resonance narrows the formants.** At the default, 0.707, they are twice the
+  table's width, which keeps a vowel audible on a note whose harmonics would miss
+  narrower peaks.
+- **The level is measured, not assumed.** Through every vowel, a 110 Hz saw
+  first came out 10.6 to 13.3 dB quieter than without the filter. A +12 dB
+  makeup puts all five vowels within 1.5 dB of it.
+
+The interface labels the cutoff knob with the vowel it chooses ("Vowel A"); the
+readout still gives the frequency, which is what automation and the matrix
+move. The page's copy of the mapping is pinned to the engine's by its own test.
+
+### What it costs
+
+The formant filter is the dearer type. Each channel runs three band-passes
+where the others run one, and with the matrix sweeping filter 1's cutoff, each
+voice resolves three tangents per modulation block. So the benchmark gained a
+worst-case row: the mirror-warp worst patch (ADR-0090) with **both slots set to
+formant, in parallel**. Raw, as a percentage of the deadline:
+
+| Sitting | Contention | Mirror warp: median / p99 / worst | + two formant filters: median / p99 / p99.9 / worst |
+|---|---:|---|---|
+| Full report | 4.5 % | 66.6 / 71.5 / 78.6 | 68.7 / 75.5 / 133.0 / **135.6** (block 70) |
+| `--callbacks`, first | 2.1 % | 68.0 / 73.3 / 74.6 | 69.4 / 76.0 / 76.9 / 92.8 (block 769) |
+| `--callbacks`, second | 1.1 % | 67.9 / 74.3 / 75.8 | **69.6 / 74.9 / 75.9 / 76.4** |
+
+**The 135.6 % block was the machine, and the report did not say so until it
+was measured again.** One block is the whole of a row's worst figure, so a
+single interruption sets it. In the same sitting, the unwarped "everything" row
+also read a worst of 62.4 % against 35.5 % in a quiet one. Block 70 is nowhere
+special: every note is down by block 32, and stealing happens on multiples of
+16. Repeated, the worst block landed somewhere else each time and shrank as the
+machine quietened, which is what interference looks like and a cost in the code
+does not. To make that repeat take a minute rather than ten,
+`--benchmark --callbacks` now runs the worst-case section on its own, after the
+same machine assessment.
+
+In the quiet sitting, two formant filters add **1.7 points to the median** of
+the worst patch the controls can build. Its worst block was 76.4 %.
+
+### Given up
+
+- Filter drive inside the comb's loop, which would make a resonant comb
+  saturate. It would make the comb's level depend on its input, which is the
+  property the normalisation exists to remove.
+- More than three formants, and voices other than a tenor. The fourth and fifth
+  formants shape a particular singer, which a synthesiser does not have.
+- A second dimension for the vowel. One control gives five vowels in a line;
+  a vowel *pad* would need a parameter the PRD does not name.

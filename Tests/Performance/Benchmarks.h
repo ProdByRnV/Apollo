@@ -21,7 +21,14 @@
 namespace apollo::benchmarks
 {
 
-/** Runs every benchmark and prints a report to stdout. */
-void run();
+/** Runs every benchmark and prints a report to stdout.
+
+    @param callbacksOnly  runs only the worst-case callback section, after the
+                          same machine assessment. A row's worst block is one
+                          block, and telling one that is the code's from one
+                          that is the machine's means measuring it again; this
+                          does that in a minute rather than ten (Phase 13c-1).
+*/
+void run (bool callbacksOnly = false);
 
 } // namespace apollo::benchmarks

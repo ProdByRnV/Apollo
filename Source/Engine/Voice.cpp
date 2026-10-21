@@ -104,6 +104,11 @@ void Voice::prepare (double newSampleRate) noexcept
 
     stealDecrement = static_cast<float> (rampIncrement (stealSeconds, sampleRate));
 
+    filter1Left.prepare (sampleRate);
+    filter1Right.prepare (sampleRate);
+    filter2Left.prepare (sampleRate);
+    filter2Right.prepare (sampleRate);
+
     reset();
 }
 
@@ -133,13 +138,13 @@ void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
     // turn a mode switch into a click, and the state is valid for any mode.
     filters = newFilters;
 
-    filter1Left.setMode (filters.filter1.mode);
-    filter1Right.setMode (filters.filter1.mode);
+    filter1Left.setType (filters.filter1.mode);
+    filter1Right.setType (filters.filter1.mode);
     filter1Left.setCoefficients (filters.filter1.coefficients);
     filter1Right.setCoefficients (filters.filter1.coefficients);
 
-    filter2Left.setMode (filters.filter2.mode);
-    filter2Right.setMode (filters.filter2.mode);
+    filter2Left.setType (filters.filter2.mode);
+    filter2Right.setType (filters.filter2.mode);
     filter2Left.setCoefficients (filters.filter2.coefficients);
     filter2Right.setCoefficients (filters.filter2.coefficients);
 }
@@ -147,8 +152,8 @@ void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
 void Voice::applyFilters (float& left, float& right) noexcept
 {
     const auto runSlot = [] (const FilterSlotSettings& slot,
-                             dsp::StateVariableFilter& leftFilter,
-                             dsp::StateVariableFilter& rightFilter,
+                             dsp::VoiceFilter& leftFilter,
+                             dsp::VoiceFilter& rightFilter,
                              float& l,
                              float& r)
     {
@@ -405,8 +410,8 @@ void Voice::applyModulation() noexcept
     const auto resolveFilter = [this] (const FilterSlotSettings& slot,
                                        Destination cutoffTarget,
                                        Destination resonanceTarget,
-                                       dsp::StateVariableFilter& left,
-                                       dsp::StateVariableFilter& right)
+                                       dsp::VoiceFilter& left,
+                                       dsp::VoiceFilter& right)
     {
         const auto cutoffOffset = destinationOffset (cutoffTarget);
         const auto resonanceOffset = destinationOffset (resonanceTarget);
@@ -424,8 +429,8 @@ void Voice::applyModulation() noexcept
         const auto cutoff = slot.cutoffHz * std::exp2 (cutoffOffset);
         const auto q = slot.q + resonanceOffset;
 
-        dsp::SvfCoefficients coefficients;
-        coefficients.set (cutoff, q, sampleRate);
+        dsp::VoiceFilterCoefficients coefficients;
+        coefficients.set (slot.mode, cutoff, q, sampleRate);
 
         left.setCoefficients (coefficients);
         right.setCoefficients (coefficients);

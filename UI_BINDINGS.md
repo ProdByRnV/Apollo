@@ -118,11 +118,11 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env1_sustain` | Rotary Knob | Normalized `[0, 1]` | `1` | 5a | Envelope 1 sustain level |
 | `env1_release` | Rotary Knob | `0–10000 ms` | `50` | 5a | Envelope 1 release time |
 | `env1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5a | Envelope 1 curve tension; 0 is linear, positive is the analog shape |
-| `filter1_type` | Selector / Dropdown | Discrete `[0, 4]` | `1` | 5b | Filter 1 mode: 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch |
+| `filter1_type` | Selector / Dropdown | Discrete `[0, 6]` | `1` | 5b, 13c | Filter 1 type: 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch, 5 comb, 6 formant. Comb and formant were appended in 13c, so the first five keep their numbers (ADR-0091). Under formant the cutoff knob is labelled with the vowel it chooses |
 | `filter1_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 1 cutoff frequency |
 | `filter1_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 1 resonance as Q; 0.707 is Butterworth |
 | `filter1_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 1 input saturation |
-| `filter2_type` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 5b | Filter 2 mode; off by default |
+| `filter2_type` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5b, 13c | Filter 2 type, the same seven; off by default |
 | `filter2_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 2 cutoff frequency |
 | `filter2_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 2 resonance as Q |
 | `filter2_drive` | Rotary Knob | Normalized `[0, 1]` | `0` | 5b | Filter 2 input saturation |

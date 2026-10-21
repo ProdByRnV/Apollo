@@ -48,8 +48,8 @@ export const LABELS: Record<string, readonly string[]> = {
     sub_tracking: ['NOTE', 'OSC 1'],
 
     // 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch.
-    filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH'],
-    filter2_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH'],
+    filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],
+    filter2_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],
     filter_routing: ['SERIES', 'PARALLEL'],
 
     // 0 empty, then dsp::EffectType in order. The effects whose phases have not

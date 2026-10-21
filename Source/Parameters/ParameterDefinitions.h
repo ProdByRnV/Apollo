@@ -472,11 +472,13 @@ inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
     // only window in which this is cheap (Docs/VERSIONING.md §2).
     //
     // Type is a discrete choice: 0 off, 1 lowpass, 2 highpass, 3 bandpass,
-    // 4 notch. "Off" is a mode rather than a separate enable, so one control
-    // cannot disagree with another about whether a filter is running.
+    // 4 notch, and since Phase 13c 5 comb and 6 formant, appended so the first
+    // five keep their numbers (ADR-0091). "Off" is a mode rather than a
+    // separate enable, so one control cannot disagree with another about
+    // whether a filter is running.
     { "filter1_type", "Filter 1 Type",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 4.0f, 1.0f,
+      0.0f, 6.0f, 1.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -504,7 +506,7 @@ inline constexpr std::array<ParameterDefinition, 244> parameterDefinitions { {
     // adding it must not change how an existing patch sounds.
     { "filter2_type", "Filter 2 Type",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 4.0f, 0.0f,
+      0.0f, 6.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

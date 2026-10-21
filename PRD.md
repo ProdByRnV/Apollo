@@ -22,8 +22,8 @@ Phase 12d-2 (ADR-0087).
 | ⊘ | Considered and decided against, with the decision cited |
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
-platforms are built. Not built: macros (§17) entirely; LFO tempo sync, drawn LFO curves, comb and formant filters,
-and pink noise within otherwise-built
+platforms are built. Not built: macros (§17) entirely; LFO tempo sync, drawn LFO curves, filter mix,
+key tracking and split routing, and pink noise within otherwise-built
 sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
 The full list is Docs/KNOWN-LIMITATIONS.md.
@@ -337,7 +337,7 @@ Mix
 Key tracking
 Filters should support modulation from the modulation matrix.
 
-> **Status, 0.1.0:** ◐ Two state-variable filters, ✅ in series or in parallel; ❌ no split routing. §13.1: ✅ low-pass, high-pass, band-pass and notch; ❌ no comb or formant. §13.2: ✅ cutoff, resonance and drive, all modulatable; ❌ no per-filter mix and no key-tracking control, though key tracking can be routed to cutoff through the matrix.
+> **Status, 0.1.0 to 13c-1:** ◐ Two filters, ✅ in series or in parallel; ❌ no split routing. §13.1: ✅ low-pass, high-pass, band-pass and notch, and since Phase 13c-1 ✅ comb (tuned by the cutoff, its feedback set by the resonance) and formant (the cutoff choosing among five vowels, the resonance narrowing them) (ADR-0091). §13.2: ✅ cutoff, resonance and drive, all modulatable; ❌ no per-filter mix and no key-tracking control, though key tracking can be routed to cutoff through the matrix.
 
 ---
 14. Drive and Saturation

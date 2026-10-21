@@ -36,8 +36,9 @@ assumed: worst case −98.5 dBc. Each oscillator can warp its wave five ways —
 sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;
 warp aliases more than the plain oscillator, and the figures are published.
 
-**Shaping and movement.** Two state-variable filters (low-pass, high-pass,
-band-pass, notch) in series or parallel. Four DAHDSR envelopes with adjustable
+**Shaping and movement.** Two filters (low-pass, high-pass, band-pass, notch,
+a comb tuned by its cutoff, and a formant filter that sweeps through vowels) in
+series or parallel. Four DAHDSR envelopes with adjustable
 curves, four LFOs with seven shapes, and a sixteen-slot modulation matrix whose
 sources include velocity, key tracking, the mod wheel, pitch bend, aftertouch,
 MPE timbre and a random source.

@@ -538,8 +538,8 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
         // Clamped rather than cast blindly: the mode indexes a switch, and a
         // corrupt preset must not be able to select something that is not there.
-        slot.mode = static_cast<dsp::StateVariableFilter::Mode> (
-            type < 0 ? 0 : (type > 4 ? 4 : type));
+        slot.mode = static_cast<dsp::FilterType> (
+            type < 0 ? 0 : (type >= dsp::numFilterTypes ? dsp::numFilterTypes - 1 : type));
 
         slot.cutoffHz = readParameter (pointers.cutoff, 20000.0f);
         slot.q = readParameter (pointers.resonance, 0.707f);

@@ -22,6 +22,7 @@ namespace
 
       wavetable    0 SIN-SAW   1 SIN-SQR   2 TRI-SAW   3 SAW-SQR
       filter type  0 off  1 low pass  2 high pass  3 band pass  4 notch
+                   5 comb  6 formant
       LFO shape    0 sine  1 tri  2 saw  3 rev saw  4 square  5 S&H  6 step
       mod source   1 env 1 .. 4 env 4, 5 LFO 1 .. 8 LFO 4, 9 velocity,
                    10 key track, 11 mod wheel, 12 bend, 13 aftertouch,

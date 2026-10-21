@@ -11,6 +11,7 @@
         ApolloTests --list              list categories and tests, run nothing
         ApolloTests --seed <n>          use a fixed random seed (default 0)
         ApolloTests --benchmark         run the CPU measurements, run no tests
+        ApolloTests --benchmark --callbacks   only the worst-case callback rows
         ApolloTests --goldens           print regenerated regression references
         ApolloTests --help
 */
@@ -49,6 +50,7 @@ void printUsage()
         << "  --list              list categories and tests without running them\n"
         << "  --seed <n>          random seed for tests that use randomness (default 0)\n"
         << "  --benchmark         run the CPU measurements instead of the tests\n"
+        << "    --callbacks       with --benchmark: only the worst-case callback rows\n"
         << "  --goldens           render every regression case and print the C++ that\n"
         << "                      stores it, for Tests/Regression/GoldenRenders.cpp\n"
         << "  --help              show this message\n"
@@ -109,7 +111,7 @@ int main (int argc, char* argv[])
     // Tests/Performance/Benchmarks.h for why they live in this binary anyway.
     if (args.contains ("--benchmark"))
     {
-        apollo::benchmarks::run();
+        apollo::benchmarks::run (args.contains ("--callbacks"));
         return EXIT_SUCCESS;
     }
 

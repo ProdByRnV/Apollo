@@ -15,7 +15,7 @@
     does not change; only who fills it in does.
 */
 
-#include "DSP/Filters/StateVariableFilter.h"
+#include "DSP/Filters/VoiceFilter.h"
 
 namespace apollo::engine
 {
@@ -38,12 +38,12 @@ enum class FilterRouting
 /** One filter slot. */
 struct FilterSlotSettings
 {
-    dsp::StateVariableFilter::Mode mode = dsp::StateVariableFilter::Mode::off;
+    dsp::FilterType mode = dsp::FilterType::off;
 
     /** Already resolved from cutoff and resonance by the engine, for the common
         case where nothing modulates this filter.
     */
-    dsp::SvfCoefficients coefficients;
+    dsp::VoiceFilterCoefficients coefficients;
 
     /** The values those coefficients came from.
 
@@ -75,8 +75,8 @@ struct VoiceFilterSettings
     */
     [[nodiscard]] bool isBypassed() const noexcept
     {
-        return filter1.mode == dsp::StateVariableFilter::Mode::off
-            && filter2.mode == dsp::StateVariableFilter::Mode::off;
+        return filter1.mode == dsp::FilterType::off
+            && filter2.mode == dsp::FilterType::off;
     }
 
     [[nodiscard]] bool operator== (const VoiceFilterSettings&) const = default;

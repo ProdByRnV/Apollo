@@ -513,7 +513,7 @@ void VoiceEngine::applyFilterParameters() noexcept
         resolved.drive = slot.drive;
         resolved.cutoffHz = slot.cutoffHz;
         resolved.q = slot.q;
-        resolved.coefficients.set (slot.cutoffHz, slot.q, preparedSampleRate);
+        resolved.coefficients.set (slot.mode, slot.cutoffHz, slot.q, preparedSampleRate);
 
         return resolved;
     };

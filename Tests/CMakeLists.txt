@@ -23,6 +23,7 @@ target_sources(ApolloTests PRIVATE
     DSP/FftTests.cpp
     DSP/UnisonTests.cpp
     DSP/EnvelopeTests.cpp
+    DSP/CombFormantTests.cpp
     DSP/FilterTests.cpp
     DSP/LfoTests.cpp
     DSP/ModulationTests.cpp

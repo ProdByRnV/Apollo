@@ -809,8 +809,9 @@ plugin.
 
 Per voice, from a 32-voice pool: two wavetable oscillators of up to sixteen
 unison voices each, a sub oscillator (sine, triangle or square) and white noise; the per-source
-level and pan mix; two state-variable filters in series or parallel, each with
-its own gentle drive (ADR-0033); then the amplitude envelope. Voices sum into a
+level and pan mix; two filters in series or parallel — each a state-variable
+filter, a comb or a formant filter (ADR-0091), with its own gentle drive
+(ADR-0033); then the amplitude envelope. Voices sum into a
 stereo bus, which passes through the six-slot effects rack in whatever order its
 slots name, and then the master gain.
 

@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls) and 13b (warp) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
+| **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp) and 13c-1 (comb and formant filters) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
 | **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — macros, LFO tempo sync and drawn curves among them (warp was, and 13b built it). The developer decided they all belong in the first release, so Phase 13 is building them before the release candidate (ADR-0089). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | Working toward **M11 — Release Candidate**, which now follows Phase 13. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 13c — the filters**: comb and formant types, a mix per filter, key tracking and split routing (ROADMAP.md). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Next step** | **Phase 13c-2 — a mix and key tracking per filter.** 13c is in three parts: 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091); 13c-3 will add split routing. 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -1697,6 +1697,30 @@ its name says, the period is kept, aliasing at four notes per mode against the
 measured figures, no DC, the matrix destination, and the display. The pinned VST3
 parameter numbers grew by four and changed none.
 
+### Comb and formant filters (Phase 13c-1)
+
+Two filter types, appended as `filterN_type` 5 and 6, so no parameter was added
+and every existing type kept its number. ADR-0091 has the reasoning.
+
+- **Comb.** A feedback comb with a feedforward tap, its teeth on the cutoff and
+  every multiple of it, its feedback set by the resonance. On a broadband signal
+  it keeps the level exactly at every resonance; on harmonics that sit on its
+  teeth it lifts them by 2·sqrt(Q + 1/2), +7 dB at the default and +16 dB at the
+  top, measured to 0.2 dB. The period is read through an allpass, so the level
+  does not depend on whether a period is a whole number of samples (a cubic
+  interpolator, built first, lost 2.9 dB when it was not). A moving cutoff
+  glides over 3 ms, and the delay may move at most a sample per sample, which
+  keeps a swept comb bounded.
+- **Formant.** Three band-passes at a tenor's formants. The cutoff chooses among
+  U, O, A, E and I, an octave and a half apart, and the resonance narrows them.
+  A saw comes out within 1.5 dB of its own level on every vowel. The interface
+  names the vowel under the knob.
+- **Nothing else moved.** A voice's filter slot is now `VoiceFilter`, which runs
+  the state-variable filter for the four original types, sample for sample the
+  same; all fifteen regression renders passed unregenerated.
+
+Tested in `Tests/DSP/CombFormantTests.cpp` and `WebUI/test/vowel.test.mjs`.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -1707,7 +1731,7 @@ parameter numbers grew by four and changed none.
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
 | 11 | **Complete.** 11a (Windows), 11b (macOS), 11c (Linux) and 11d (ARM64): install rules and a CPack archive per platform, seven package tests including the dependency table of both binaries, and the staged package driven through the whole host suite on all four jobs (ADR-0076 to ADR-0079). macOS is universal and ad-hoc signed; Linux names its runtime libraries and CI checks each resolves; ARM64 passed first time. Absent: everything that needs a desktop — the editor rendering on macOS or Linux, Retina — plus Developer ID signing with notarisation, and Windows on ARM64 |
 | 12 | **12a (reliability) is done**: a soak suite in the host harness with `--soak N`, which found an over-long block silently skipping the oversampled effects and five wrong assertions of its own (ADR-0080). **12b (audio quality) is done**: listening, aliasing, gain staging, noise floor and transients reviewed by hand by the developer from two MIDI keyboards (§5a, 2026-10-18), over the measurements in §5c. **12c-1 (keyboard and accessibility) is done**: one Tab stop per group with the arrows inside it, a heading and region per panel, real tab semantics, a reset menu that no longer leaks keys into the knob behind it, and the interface's first test suite (ADR-0083). **12c-2 (discoverability and feedback) is done**: a value can be typed into any knob, the preset list has column headings, and the status line and "SR" readout say things a user can act on (ADR-0084). **12c-3 (workflows and errors) is done**: MIDI Learn and the preset workflow walked end to end, a replace prompt that could overwrite an unasked-about file fixed, the list and masthead made to agree after a restart or a reopened window, and every message read as a user would read it (ADR-0085). **12d (documentation) is done.** **12d-1 (the front door)**: README.md rewritten to what Apollo is, Docs/PLATFORMS.md and Docs/KNOWN-LIMITATIONS.md added, Docs/BUILD.md corrected, and a configure check for the Node version the interface tests need. **12d-2 (the specification documents) is done**: a status note per PRD section, ARCHITECTURE.md §20 as built, UI_BINDINGS and REPOSITORY-LAYOUT current (ADR-0087). **12d-3 (compatibility and the roadmap) is done**: Docs/COMPATIBILITY.md, a frozen 0.1.0 preset every build must read, two promises newly tested, and the roadmap brought up to date (ADR-0088). Absent: 12e the release candidate; and interface reload inside a host, which a headless harness cannot do |
-| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). Absent: 13c filters, 13d noise, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
+| 13 | **13a (the oscillators' controls) is done** (ADR-0089). **13b (warp) is done** (ADR-0090). **13c-1 (comb and formant filters) is done** (ADR-0091). Absent: 13c-2 filter mix and key tracking, 13c-3 split routing, 13d noise, 13e modulation, 13f the drawing editors, 13g user files, 13h the remainder — Docs/KNOWN-LIMITATIONS.md lists what each will build. Then Phase 14, the release |
 
 **All 244 registered parameters now affect audio** (227 until Phase 13a added thirteen and 13b four) — the whole source section,
 four envelopes, four LFOs, both filters, sixteen modulation slots, the MIDI
@@ -1798,7 +1822,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,322,448 assertions, 0 failures**, across 46 test classes, in `ApolloTests`; **18 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,322,563 assertions, 0 failures**, across 47 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2630,6 +2654,20 @@ Not checked here: hearing the warp, for the reason given under 13a. The sound of
 each mode is held by `Tests/Engine/WarpTests.cpp`, which measures its period, its
 aliasing at four notes and its DC.
 
+### Comb and formant filters (Phase 13c-1), 2026-10-21
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| The controls | Both filters' type selectors read OFF, LP, HP, BP, NOTCH, COMB, FORMANT and fit their panels (screenshot); the "unplaced" panel is absent |
+| The engine takes them | FORMANT and then COMB on filter 1 were each echoed back as the selected type |
+| The vowel label | With FORMANT, the cutoff knob read "Vowel E" at Wire Pluck's 3.20 kHz; a typed 1.28 kHz read "Vowel A"; back on COMB it read "Cutoff" |
+| The developer's sound | Wire Pluck reloaded: filter 1 LP at 3.20 kHz, masthead Wire Pluck |
+
+Not checked here: hearing them, for the reason given under 13a. Their response is
+held by `Tests/DSP/CombFormantTests.cpp`.
+
 ---
 
 
@@ -3276,6 +3314,25 @@ The code was restructured regardless — one specialised render per mode, two
 passes, reciprocals, no `floor` — and the warped-to-plain ratio fell from 2.35 to
 2.09. In a quiet sitting the worst patch the controls allow, warped as hard as
 they allow, keeps a quarter of its deadline in hand (ADR-0090).
+
+### Two formant filters on top (Phase 13c-1)
+
+A row after it, **"+ two formant filters, 32 held"**: the same patch with both
+filter slots on the dearest type, in parallel, filter 1's cutoff swept by the
+matrix. Raw, per cent of the deadline:
+
+| Sitting | Contention | Mirror warp: median / p99 / worst | + two formant filters: median / p99 / p99.9 / worst |
+|---|---:|---|---|
+| Full report | 4.5 % | 66.6 / 71.5 / 78.6 | 68.7 / 75.5 / 133.0 / 135.6 |
+| `--callbacks`, first | 2.1 % | 68.0 / 73.3 / 74.6 | 69.4 / 76.0 / 76.9 / 92.8 |
+| `--callbacks`, second | 1.1 % | 67.9 / 74.3 / 75.8 | **69.6 / 74.9 / 75.9 / 76.4** |
+
+The full report's 135.6 % was one block, number 70, which is nowhere special
+(notes are all down by block 32, and stealing falls on multiples of 16). It
+moved and shrank each time the row was repeated, as the machine quietened,
+which is how interference behaves and a cost in the code does not. In the
+quiet sitting the formant filters cost 1.7 points of median. `--benchmark
+--callbacks` was added to make that repeat a one-minute job (ADR-0091).
 
 ### First use (Phase 10c)
 
