@@ -1,5 +1,7 @@
 /*
     What moves the sound: four DAHDSR envelopes and four LFOs, behind tab strips.
+    Each envelope is drawn as a shape that can be dragged (Phase 13f-2), beside
+    the knobs it moves another way.
 
     The tab is the one piece of genuinely local state on the page — nothing else
     needs to know which envelope is on screen — so it is `useState` and nothing
@@ -13,6 +15,7 @@
 
 import { useId, useState } from 'react';
 
+import { EnvelopeEditor } from '../components/EnvelopeEditor';
 import { Knob } from '../components/Knob';
 import { LfoCurveEditor } from '../components/LfoCurveEditor';
 import { Module, Tabs, tabPanelProps } from '../components/Module';
@@ -59,6 +62,8 @@ export function Envelopes(): JSX.Element {
                                 table={LABELS.envRetrigger}
                             />
                         </div>
+
+                        <EnvelopeEditor envelope={index} />
 
                         <Trace source={`env${index}`} label={`env ${index}`} />
 

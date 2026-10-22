@@ -29,7 +29,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { setLfoCurve } from '../bridge/bridge';
 import type { LfoCurvePoint } from '../bridge/protocol';
-import { cssColour, fitCanvas } from '../canvas/draw';
+import { cssColour, fitCanvas, pointerOnCanvas } from '../canvas/draw';
 import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import {
     DEFAULT_LFO_CURVE,
@@ -247,19 +247,19 @@ export function LfoCurveEditor({ lfo }: { lfo: number }): JSX.Element {
     //--------------------------------------------------------------------------
     // Editing.
 
-    const geometry = (): Geometry & { left: number; top: number } => {
-        const box = canvasRef.current!.getBoundingClientRect();
-        return { width: box.width, height: box.height, left: box.left, top: box.top };
-    };
+    /** The pointer in the picture's own coordinates, inside the canvas's
+        border (canvas/draw.ts). */
+    const pointer = (event: MouseEvent): Geometry & { x: number; y: number } =>
+        pointerOnCanvas(rootRef.current!, canvasRef.current!, ASPECT, event);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const hit = (event: PointerEvent | MouseEvent): Grab | null => {
-            const g = geometry();
-            const px = event.clientX - g.left;
-            const py = event.clientY - g.top;
+            const g = pointer(event);
+            const px = g.x;
+            const py = g.y;
             const points = curveRef.current;
 
             let best: Grab | null = null;
@@ -309,12 +309,12 @@ export function LfoCurveEditor({ lfo }: { lfo: number }): JSX.Element {
             const grabbed = grabRef.current;
             if (!grabbed) return;
 
-            const g = geometry();
+            const g = pointer(event);
             const points = curveRef.current;
 
             if (grabbed.kind === 'point') {
-                let position = positionOf(event.clientX - g.left, g);
-                let value = valueOf(event.clientY - g.top, g);
+                let position = positionOf(g.x, g);
+                let value = valueOf(g.y, g);
 
                 if (event.shiftKey) {
                     position = Math.round(position / SNAP_X) * SNAP_X;
@@ -369,9 +369,8 @@ export function LfoCurveEditor({ lfo }: { lfo: number }): JSX.Element {
 
             if (grabbed) return;
 
-            const g = geometry();
-            const result = insertPoint(points,
-                positionOf(event.clientX - g.left, g), valueOf(event.clientY - g.top, g));
+            const g = pointer(event);
+            const result = insertPoint(points, positionOf(g.x, g), valueOf(g.y, g));
 
             if (result) {
                 commit(result.curve);

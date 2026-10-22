@@ -34,6 +34,32 @@ export function fitCanvas(root: HTMLElement, canvas: HTMLCanvasElement, aspect: 
     return { width: backingWidth, height: backingHeight, ratio };
 }
 
+/** Where a pointer is, in the coordinates a picture sized by fitCanvas draws in.
+
+    Those are the root's width and that times the aspect, but the canvas shows
+    them inside its own border, so its outer box is a couple of pixels off both
+    ways. An editor that hit-tested against the outer box drew each handle up to
+    a pixel from where it could be grabbed, and a drag crept away from the
+    pointer. Found in Phase 13f-2.
+*/
+export function pointerOnCanvas(
+    root: HTMLElement,
+    canvas: HTMLCanvasElement,
+    aspect: number,
+    event: { clientX: number; clientY: number },
+): { x: number; y: number; width: number; height: number } {
+    const width = Math.max(1, Math.round(root.clientWidth));
+    const height = Math.max(1, Math.round(width * aspect));
+    const box = canvas.getBoundingClientRect();
+
+    return {
+        x: (event.clientX - box.left - canvas.clientLeft) * (width / Math.max(1, canvas.clientWidth)),
+        y: (event.clientY - box.top - canvas.clientTop) * (height / Math.max(1, canvas.clientHeight)),
+        width,
+        height,
+    };
+}
+
 /** Points arrive as integer thousandths of full scale.
 
     Not an optimisation after the fact: a JSON number is a double, and JUCE

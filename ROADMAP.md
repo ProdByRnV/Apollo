@@ -165,9 +165,9 @@ front of it is better understood, the way 8f was.
 | 13e-3 | Macros — four knobs that are matrix sources, each with a range and a curve, learnable and stored in presets, assigned to no controller (ADR-0098) | ✅ |
 | 13e-4 | Filter drive, mix and key tracking as destinations, and a via source per slot that modulates its depth (ADR-0099) | ✅ |
 | 13e-5 | Effect parameters as destinations — six controls the effects smooth, following the newest note, or the engine-wide sources when nothing sounds (ADR-0100) | ✅ |
-| 13f | The drawing editors, in two parts | ⬜ |
+| 13f | The drawing editors, in two parts | ✅ |
 | 13f-1 | Drawn LFO curves — a DRAWN shape on every LFO: up to 32 points with a bend per segment, dragged on the LFO page, stored in presets and projects beside the parameters, played from a table handed over lock-free. The default curve is the triangle and plays as it (ADR-0102) | ✅ |
-| 13f-2 | Envelopes edited by dragging | ⬜ |
+| 13f-2 | Envelopes edited by dragging — every envelope drawn as a note held and released, its corners setting the stage times and the sustain and its diamonds the curve; another way of moving the same knobs, on a time axis scaled as the knobs are. Drawn with the engine's curve, held to it by a test (ADR-0103) | ✅ |
 | 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
 | 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation. A spectrum analyser was here and is done, as the equaliser's display (ADR-0101) | ⬜ |
 | **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
@@ -1021,7 +1021,7 @@ them; each sub-phase removes its rows from that list as it lands.
 ### Editors (13f)
 
 - [x] Drawn LFO curves, stored in presets (PRD §15.2; ADR-0034 deferred them for this). — up to 32 points with a bend per segment, dragged on the LFO page; carried in presets and projects as an element beside the parameters, played from a table handed to the audio thread through a triple buffer. The default curve plays as the triangle, to 6e-8 (13f-1, ADR-0102)
-- [ ] Envelopes edited by dragging (PRD §15.1).
+- [x] Envelopes edited by dragging (PRD §15.1). — the shape of a note held to its sustain and released: corners for the five times and the sustain, diamonds for the curve, a double-click to reset and the whole of it from the keyboard. No new state: each handle moves the existing parameters with a knob's gestures. The engine and the page are held to one table of the curve's values (13f-2, ADR-0103)
 
 ### Resources (13g)
 

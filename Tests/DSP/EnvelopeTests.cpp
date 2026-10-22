@@ -81,6 +81,7 @@ public:
         testEndpointsAreExact();
         testZeroLengthStages();
         testCurveShape();
+        testShapeIsTheEditorsClosedForm();
         testReleaseFromAnyStage();
         testRetriggerDoesNotJumpToZero();
         testRestartBeginsFromSilence();
@@ -332,6 +333,77 @@ private:
                         "curve " + juce::String (curve, 2) + ": the attack overshot full scale");
 
                 previous = value;
+            }
+        }
+    }
+
+    void testShapeIsTheEditorsClosedForm()
+    {
+        beginTest ("A segment follows the closed form the envelope editor draws");
+
+        // The editor draws each segment as start + (end - start) * f(p, curve),
+        // with f(p) = (1 - e^(-6 curve p)) / (1 - e^(-6 curve)), and
+        // WebUI/test/envelopeShape.test.mjs holds the page to these same values.
+        // The engine steps the exponential incrementally rather than calling
+        // exp() per sample, so this is what says the two are the same curve.
+        struct Anchor
+        {
+            float curve;
+            float values[4]; // f at p = 1/8, 1/4, 1/2, 3/4
+        };
+
+        constexpr Anchor anchors[] {
+            { -1.0f, { 0.002776f, 0.008652f, 0.047426f, 0.221200f } },
+            { -0.5f, { 0.023840f, 0.058526f, 0.182426f, 0.444721f } },
+            {  0.0f, { 0.125000f, 0.250000f, 0.500000f, 0.750000f } },
+            {  0.5f, { 0.329095f, 0.555279f, 0.817574f, 0.941474f } },
+            {  1.0f, { 0.528945f, 0.778800f, 0.952574f, 0.991348f } },
+        };
+
+        constexpr int segmentSamples = 4800; // 0.1 s at the test rate
+        constexpr int at[] { segmentSamples / 8, segmentSamples / 4, segmentSamples / 2, 3 * segmentSamples / 4 };
+        constexpr float sustain = 0.25f;
+
+        for (const auto& anchor : anchors)
+        {
+            // A rising segment: the attack, from silence to full.
+            {
+                Envelope envelope;
+                envelope.prepare (testSampleRate);
+
+                auto settings = plainSettings();
+                settings.attackSeconds = 0.1f;
+                settings.curve = anchor.curve;
+                envelope.setSettings (settings);
+                envelope.noteOn();
+
+                const auto values = render (envelope, segmentSamples);
+
+                for (std::size_t i = 0; i < 4; ++i)
+                    expectWithinAbsoluteError (values[static_cast<std::size_t> (at[i] - 1)], anchor.values[i], 2.0e-4f,
+                                               "attack, curve " + juce::String (anchor.curve, 2));
+            }
+
+            // A falling segment: the decay, from full to the sustain level. An
+            // attack of zero lands on full at once, so the decay starts there.
+            {
+                Envelope envelope;
+                envelope.prepare (testSampleRate);
+
+                auto settings = plainSettings();
+                settings.attackSeconds = 0.0f;
+                settings.decaySeconds = 0.1f;
+                settings.sustainLevel = sustain;
+                settings.curve = anchor.curve;
+                envelope.setSettings (settings);
+                envelope.noteOn();
+
+                const auto values = render (envelope, segmentSamples);
+
+                for (std::size_t i = 0; i < 4; ++i)
+                    expectWithinAbsoluteError (values[static_cast<std::size_t> (at[i] - 1)],
+                                               1.0f + (sustain - 1.0f) * anchor.values[i], 2.0e-4f,
+                                               "decay, curve " + juce::String (anchor.curve, 2));
             }
         }
     }

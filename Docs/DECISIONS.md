@@ -6632,3 +6632,111 @@ that LFO, the rule a held knob follows. It sends at most one curve a frame.
   parameter list.
 - **Repairing a bad curve from the page.** It would leave the page drawing one
   curve while the engine played another.
+
+---
+
+## ADR-0103 — An envelope is edited by dragging its shape, as another way of moving its knobs
+
+**Phase 13f-2 · Accepted**
+
+### What was built
+
+Every envelope is drawn as the shape of a note held to its sustain and then
+released, and the shape can be dragged. That is PRD §15.1's "visual editing",
+the last part of the envelope section left unbuilt.
+
+- **A corner's sideways drag** sets its stage's time: delay, attack, hold,
+  decay and release.
+- **The decay's corner also moves up and down**, and that is the sustain level.
+- **A diamond half way along a moving segment** bends the curve.
+- **A double-click** puts a handle's parameters back to their defaults. The
+  keyboard does everything the pointer does: `[` and `]` choose a handle, the
+  arrows move it, Shift is fine and Delete resets it.
+
+### Not a new control
+
+Each handle moves parameters that already exist, through the same
+`setParameter` and `gesture` messages a knob sends. No state, DSP or bridge
+message was added. Everything a knob turn gets, a drag gets:
+- host automation, recorded as one movement per drag;
+- presets and projects;
+- MIDI Learn and controller profiles, on the knobs;
+- the rule that the engine's echo does not pull a held control backwards.
+
+The alternative was an envelope that kept its own breakpoints, as a drawn LFO
+curve does (ADR-0102). That would have been a second description of a sound
+that already has one. Seven parameters describe a DAHDSR envelope completely,
+so a picture of them is the editor.
+
+### What is drawn is what plays
+
+Each segment is drawn with the closed form of the engine's curve,
+`(1 − e^(−kp)) / (1 − e^(−k))` with `k = 6 × curve`. The engine steps that
+incrementally, a multiply per sample. Two tests hold the two to one table of
+values, at four points of the segment and five curves:
+- `Envelope / A segment follows the closed form the envelope editor draws`
+  holds the engine to it, rising and falling, within 2×10⁻⁴;
+- `test/envelopeShape.test.mjs` holds the page to it, within 10⁻⁶.
+
+The picture is the envelope of a note held long enough to reach its sustain.
+A note released earlier releases from wherever it had got to, which the live
+trace beside the editor shows.
+
+### The time axis is not linear
+
+Envelope times run from nothing to ten seconds. On one linear scale, a 5 ms
+attack beside a 2 s release is a pixel wide, and nobody can grab it. So **each
+stage is as wide as its normalised value**: the skewed position its knob shows.
+
+- **A pixel of drag moves a time by the proportion a knob turn would.** The
+  editor and the knob agree about what "a little longer" means.
+- **A short stage and a long one are both visible**, and both can be grabbed.
+- **The caption gives the time itself**, in the knob's own words, and the
+  editor says "time not to scale" so nobody reads the widths as milliseconds.
+
+The sustain has no time and is drawn at a fixed width. **The scale is refitted
+only when no hand is on the editor**, so the picture never rescales under the
+pointer. A corner dragged past the edge keeps going, under pointer capture, and
+the picture refits when it is let go.
+
+### Corners in one place
+
+A stage of no time puts its corner on the one before it. The default envelope
+has no hold, so the hold's corner sits on the attack's.
+
+**A plain drag takes the earlier corner, and an Alt-drag the later one.**
+Lengthening the attack is the edit people make, so it has to be the one a plain
+drag gets. Pulling a hold out from under the attack is rarer. It needs a way in
+that is not a guess, and the knob and the keyboard are there as well. The rule
+is in the editor's tooltip and its accessible description.
+
+### One curve, three diamonds
+
+There is one curve control for the whole envelope (PRD §15.1), so every
+segment bends together and the diamonds are three handles on one value. **Up
+bows the segment being held upwards**, the direction the hand moved. On the
+rising attack that is positive tension; on a falling decay or release, positive
+tension falls quickly and bows downwards, so up there is negative. The LFO
+editor's bends follow the same rule.
+
+### A pointer in the picture's own coordinates
+
+Checking the editor in the running standalone found that both editors, this
+one and 13f-1's, tested the pointer against the canvas's outer box while
+drawing inside its 1 px border. Handles were drawn up to a pixel from where
+they could be grabbed, and a drag crept 0.7 % from the pointer. `pointerOnCanvas`
+in `canvas/draw.ts` now maps a pointer into the coordinates the picture is
+drawn in, and both editors use it. In the standalone, a corner and an LFO point
+are now each drawn exactly where the pointer stopped.
+
+### Alternatives
+
+- **A linear time axis that zooms to fit.** It is honest about time, but
+  dragging a release changes the scale, which moves every other corner under
+  the hand. Freezing it during a drag and refitting afterwards is what this
+  editor does anyway. On a linear axis, though, the short stages are still
+  slivers.
+- **A curve per stage.** PRD §15.1 lists that as a later option. It would add
+  parameters, so it is a state change, and it is out of scope for an editor.
+- **Choosing between stacked corners by the direction of the first movement.**
+  Both directions lengthen the attack, so direction cannot tell the two apart.

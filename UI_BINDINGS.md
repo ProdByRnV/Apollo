@@ -989,6 +989,25 @@ drawn shape costs what a built-in one costs.
 
 ---
 
+### 10.9 The envelope shape (Phase 13f-2)
+
+**No messages of its own.** The envelope editor is another way of moving the
+`envN_delay`, `_attack`, `_hold`, `_decay`, `_sustain`, `_release` and `_curve`
+parameters, and it uses the knob's messages (ADR-0103):
+
+- `gesture` `begin` when a handle is grabbed, for every parameter it moves (the
+  decay's corner moves two), and `end` when it is let go;
+- `setParameter` on each move, normalised and clamped, as a knob sends it;
+- a keyboard step or a double-click reset is a `begin`, one `setParameter` and an
+  `end`, as a knob's nudge is.
+
+The held flag a knob sets is set for the same ids, so the engine's echo does not
+pull a corner back under the hand. Everything the editor draws comes from the
+parameter store, so a knob, the host or a preset moves the picture as it moves
+the knobs.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
