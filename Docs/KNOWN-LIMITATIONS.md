@@ -39,7 +39,7 @@ this table when its sub-phase lands (ADR-0089).
 | Area | Not built | Spec |
 |---|---|---|
 | **Macros** | A macro is a matrix source but not itself a destination, so the matrix cannot move a macro's knob. *Built in 13e-3: four macros, learnable, each with a range and a curve, stored in presets* (ADR-0098) | CLAUDE.md §15 |
-| **Drawable LFO curves** | Seven fixed shapes; no user-drawn curve. Deferred because a drawn curve needs an editor and a place in the preset format (ADR-0034) | PRD §15.2 |
+| **Drawable LFO curves** | A drawn curve is not automatable, and there is no library of saved shapes to choose from: a curve lives in the patch it was drawn in. *Built in 13f-1: a drawn shape on every LFO, up to 32 points with a bend per segment, stored in presets (ADR-0102)* | PRD §15.2 |
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Noise** | No loadable noise samples (13g). *Built in 13d: pink noise, key tracking, and four built-in transients* | PRD §10 |
 | **Envelopes** | Shown as live traces, not edited by dragging them. By default a stolen voice's note starts its envelopes at the level the last note left, so a slow attack is skipped when voices run out; Retrigger set to RESTART gives it the whole attack (13e-2, ADR-0097) | PRD §15.1 |

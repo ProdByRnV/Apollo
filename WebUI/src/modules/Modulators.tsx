@@ -14,6 +14,7 @@
 import { useId, useState } from 'react';
 
 import { Knob } from '../components/Knob';
+import { LfoCurveEditor } from '../components/LfoCurveEditor';
 import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
@@ -78,6 +79,9 @@ export function Envelopes(): JSX.Element {
 /** `lfoN_sync`'s value when the rate is taken from the host's tempo. */
 const SYNCED = 1;
 
+/** `lfoN_shape`'s value for a drawn curve (Phase 13f-1). */
+const DRAWN = 7;
+
 function LfoPage({ index, hidden, idBase }: { index: number; hidden: boolean; idBase: string }): JSX.Element {
     const p = `lfo${index}_`;
 
@@ -87,6 +91,11 @@ function LfoPage({ index, hidden, idBase }: { index: number; hidden: boolean; id
     // having no home (Unplaced.tsx).
     useParameterValue(`${p}sync`);
     const synced = Math.round(plainOf(`${p}sync`)) === SYNCED;
+
+    // The editor appears with the drawn shape. It is not a parameter, so
+    // nothing reports it as unplaced when it is not rendered.
+    useParameterValue(`${p}shape`);
+    const drawn = Math.round(plainOf(`${p}shape`)) === DRAWN;
 
     return (
         <div className="cluster" hidden={hidden} {...tabPanelProps(idBase, index - 1)}>
@@ -110,6 +119,8 @@ function LfoPage({ index, hidden, idBase }: { index: number; hidden: boolean; id
                     <Segmented id={`${p}division`} label="Division" table={LABELS.lfoDivision} />
                 </div>
             </div>
+
+            {drawn && <LfoCurveEditor lfo={index} />}
 
             <Trace source={`lfo${index}`} label={`lfo ${index}`} />
 

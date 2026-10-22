@@ -22,6 +22,7 @@
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
 #include "Resources/PresetLibrary.h"
+#include "State/LfoCurveState.h"
 #include "State/StateSerialization.h"
 #include "Telemetry/TelemetryHub.h"
 
@@ -176,6 +177,10 @@ public:
         keep working with the interface closed, and must be present when the host
         asks for state whether an editor was ever opened or not.
     */
+    /** The four drawn LFO curves (Phase 13f-1). MESSAGE THREAD, apart from
+        what the processor itself reads on the audio thread. */
+    [[nodiscard]] state::LfoCurveStore& getLfoCurves() noexcept { return *lfoCurves; }
+
     [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
     [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
 
@@ -625,6 +630,12 @@ private:
         holds parameter pointers into it and writes into its state tree.
     */
     midi::MidiControlManager midiControl;
+
+    /** The drawn LFO curves, kept in the state tree and handed to the audio
+        thread as rendered tables. Held indirectly for the reason the telemetry
+        hub is: three tables per LFO is fifty kilobytes, which a test that puts
+        a processor on its stack should not have to find room for. */
+    std::unique_ptr<state::LfoCurveStore> lfoCurves;
 
     /** Declared last, and therefore destroyed first: it owns a thread, and a
         thread that is still scanning must be stopped before anything it might

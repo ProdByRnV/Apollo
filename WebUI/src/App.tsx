@@ -20,6 +20,7 @@ import {
     midiMappingClearAll,
     midiMappingRemove,
     requestControllerProfiles,
+    requestLfoCurves,
     requestMetadata,
     requestMidiMappings,
     requestPresets,
@@ -28,6 +29,7 @@ import {
     toggleFullscreen,
 } from './bridge/bridge';
 import { PROTOCOL_VERSION } from './bridge/protocol';
+import { applyLfoCurves } from './state/lfoCurves';
 import type { InboundMessage } from './bridge/protocol';
 
 import {
@@ -112,6 +114,10 @@ export function App(): JSX.Element {
                 requestMidiMappings();
                 requestControllerProfiles();
 
+                // And for the drawn LFO curves, which travel in the same
+                // document as the parameters but are not parameters.
+                requestLfoCurves();
+
                 // And for the library, which was scanned when the editor
                 // attached and so may already be waiting.
                 requestPresets();
@@ -156,6 +162,10 @@ export function App(): JSX.Element {
 
             case 'spectrumFrame':
                 deliverSpectrumFrame(message);
+                break;
+
+            case 'lfoCurves':
+                applyLfoCurves(message.curves);
                 break;
 
             case 'midiMappings':

@@ -24,6 +24,7 @@
 #include "MIDI/MidiMapping.h"
 #include "Resources/PresetLibrary.h"
 #include "State/PresetDocument.h"
+#include "DSP/LFO/LfoCurve.h"
 #include "Engine/SpectrumFrame.h"
 #include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
@@ -79,7 +80,14 @@ enum class BridgeErrorCode
     /** Nothing usable was left of a preset name, or a metadata field was longer
         than a metadata field may be.
     */
-    invalidPresetName
+    invalidPresetName,
+
+    /** A drawn LFO curve named an LFO that does not exist, or was not a curve
+        the engine can render as it stands: too few or too many points, a
+        number out of range, positions out of order, or ends that do not reach
+        the start and end of the cycle (Phase 13f-1).
+    */
+    invalidLfoCurve
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -139,7 +147,12 @@ enum class BridgeCommandType
     requestPresets, ///< Send the index as it stands, without scanning.
     rescanPresets,  ///< Look at the disk again; the result arrives when it does.
     loadPreset,     ///< Load one preset named by its index id.
-    savePreset      ///< Write the current sound into the user library.
+    savePreset,     ///< Write the current sound into the user library.
+
+    // Drawn LFO curves (Phase 13f-1). A curve is not a parameter, so it has
+    // commands of its own: the page can ask for all four and replace one.
+    requestLfoCurves, ///< Send every LFO's curve.
+    setLfoCurve       ///< Replace one LFO's curve.
 };
 
 /** A validated command.
@@ -195,6 +208,11 @@ struct BridgeCommand
         and the default answer to a question nobody asked is "don't".
     */
     bool overwriteExisting = false;
+
+    /** For setLfoCurve: which LFO, from 0, and the curve. Valid by the time it
+        is here — `dsp::isValid` holds — so the store has nothing to repair. */
+    int lfoIndex = 0;
+    dsp::LfoCurve lfoCurve {};
 };
 
 /** The outcome of parsing one inbound message. */
@@ -354,5 +372,16 @@ struct BridgeParseResult
     something quiet.
 */
 [[nodiscard]] juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame);
+
+/** `{"type":"lfoCurves", ...}`
+
+    Every LFO's drawn curve, as `[x, y, bend]` triples in order. All four,
+    always, including the ones still on the default: the page draws whichever
+    LFO is showing, and a message that left some out would make it guess.
+
+    Sent when the page asks, in answer to every curve it sets (the store's copy
+    being the authoritative one), and after a state load replaces them.
+*/
+[[nodiscard]] juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves);
 
 } // namespace apollo::ui

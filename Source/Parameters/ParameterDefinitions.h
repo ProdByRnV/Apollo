@@ -785,8 +785,9 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     // LFOs 1-4 ---------------------------------------------------------------
     // Shape is a discrete choice: 0 sine, 1 triangle, 2 saw, 3 reverse saw,
-    // 4 square, 5 sample and hold, 6 step. The order matches dsp::LfoShape and,
-    // like every identifier here, is permanent once released.
+    // 4 square, 5 sample and hold, 6 step, 7 custom (a drawn curve, appended in
+    // Phase 13f-1). The order matches dsp::LfoShape and, like every identifier
+    // here, is permanent once released.
     //
     // Rate is skewed hard because LFO rates are used logarithmically: the
     // difference between 0.5 and 1 Hz matters far more than between 300 and
@@ -794,7 +795,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
     // range anybody adjusts.
     { "lfo1_shape", "LFO 1 Shape",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 6.0f, 0.0f,
+      0.0f, 7.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -857,7 +858,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "lfo2_shape", "LFO 2 Shape",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 6.0f, 0.0f,
+      0.0f, 7.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -920,7 +921,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "lfo3_shape", "LFO 3 Shape",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 6.0f, 0.0f,
+      0.0f, 7.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -983,7 +984,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "lfo4_shape", "LFO 4 Shape",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 6.0f, 0.0f,
+      0.0f, 7.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

@@ -587,7 +587,8 @@ private:
                                  BridgeErrorCode::invalidParameterValue,
                                  BridgeErrorCode::invalidGestureState,
                                  BridgeErrorCode::unknownPreset,
-                                 BridgeErrorCode::invalidPresetName })
+                                 BridgeErrorCode::invalidPresetName,
+                                 BridgeErrorCode::invalidLfoCurve })
         {
             const auto text = describe (code);
 

@@ -38,10 +38,8 @@ namespace apollo::dsp
 
 /** LFO waveform.
 
-    The set PRD §15.2 specifies. Custom drawable curves are listed there too and
-    are absent here on purpose: a drawable curve is a resource the user creates,
-    so it needs the editor that draws it and the preset format that stores it,
-    which are Phases 7 and 9.
+    The set PRD §15.2 specifies. The order is the `lfoN_shape` parameter's and is
+    permanent; a shape added later is appended.
 */
 enum class LfoShape
 {
@@ -51,8 +49,15 @@ enum class LfoShape
     reverseSaw,   ///< Falls across the cycle.
     square,
     sampleAndHold, ///< A new random value each cycle.
-    step           ///< A staircase: the ramp quantised into equal steps.
+    step,          ///< A staircase: the ramp quantised into equal steps.
+
+    /** A curve the user drew (Phase 13f-1, LfoCurve.h), read from the table in
+        `LfoSettings::curveTable`. */
+    custom
 };
+
+/** Values `LfoShape` has. */
+inline constexpr int numLfoShapes = 8;
 
 /** @returns the LFO rate in hertz that matches @p beatsPerCycle at @p bpm.
 
@@ -122,6 +127,13 @@ struct LfoSettings
         free-running LFO's phase to where the host is in the bar; the LFO
         itself runs on `rateHz` either way. */
     double tempoBeats = 0.0;
+
+    /** The drawn curve's rendered table, `lfoCurveTableSize + 1` entries, read
+        by the `custom` shape and by nothing else. Borrowed, not owned: it
+        belongs to an `LfoCurveExchange`, whose reader hands out a new pointer
+        when a new curve arrives, so a changed curve is a changed setting. Null
+        draws the custom shape flat. */
+    const float* curveTable = nullptr;
 
     [[nodiscard]] bool operator== (const LfoSettings&) const = default;
 };

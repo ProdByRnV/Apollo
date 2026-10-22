@@ -149,6 +149,21 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::savePreset:
             return applyPresetCommand (command);
 
+        case BridgeCommandType::requestLfoCurves:
+        case BridgeCommandType::setLfoCurve:
+        {
+            if (lfoCurves == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+            // Answered with all four either way. After a set, that is the echo
+            // the page draws from: the store's copy is the one that counts.
+            if (command.type == BridgeCommandType::setLfoCurve
+                && ! lfoCurves->set (command.lfoIndex, command.lfoCurve))
+                return makeErrorMessage (BridgeErrorCode::invalidLfoCurve);
+
+            return createLfoCurves();
+        }
+
         case BridgeCommandType::toggleFullscreen:
             // The bridge knows nothing about windows and should not: it owns
             // parameters. The editor registers what to do here, and if none has
@@ -564,6 +579,17 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
             jassertfalse;
             return makeErrorMessage (BridgeErrorCode::unknownMessageType);
     }
+}
+
+juce::String ParameterBridge::createLfoCurves() const
+{
+    std::array<dsp::LfoCurve, 4> curves;
+    static_assert (std::tuple_size_v<decltype (curves)> == static_cast<std::size_t> (state::numLfoCurves));
+
+    for (std::size_t i = 0; i < curves.size(); ++i)
+        curves[i] = lfoCurves != nullptr ? lfoCurves->get (static_cast<int> (i)) : dsp::defaultLfoCurve();
+
+    return makeLfoCurvesMessage (curves);
 }
 
 juce::String ParameterBridge::createMidiMappings() const

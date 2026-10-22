@@ -1296,6 +1296,70 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     opacity: 0.6;
 }
 
+/* ==========================================================================
+   DRAWN LFO SHAPE (Phase 13f-1)
+
+   An editor rather than a picture, so it is wider than the trace beside it:
+   points a few pixels apart are points nobody can pick out.
+   ========================================================================== */
+
+.lfo-curve {
+    --wave-line: var(--accent-bright);
+    --scope-grid: var(--display-grid);
+
+    flex: 0 0 auto;
+    width: 340px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.lfo-curve__canvas {
+    display: block;
+    width: 100%;
+    background: var(--display-ground);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.lfo-curve__canvas:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.lfo-curve__caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.lfo-curve__reset {
+    font: inherit;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    padding: 1px 6px;
+    cursor: pointer;
+}
+
+.lfo-curve__reset:hover,
+.lfo-curve__reset:focus-visible {
+    color: var(--accent-bright);
+    border-color: var(--accent);
+}
+
 /* What the two spectrum lines are. Told apart by weight as well as colour, the
    way they are drawn, so the key still reads on a greyscale screen. */
 .eq-curve__key {

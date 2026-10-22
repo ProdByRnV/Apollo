@@ -51,6 +51,7 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::invalidGestureState:        return "INVALID_GESTURE_STATE";
         case BridgeErrorCode::unknownPreset:              return "UNKNOWN_PRESET";
         case BridgeErrorCode::invalidPresetName:          return "INVALID_PRESET_NAME";
+        case BridgeErrorCode::invalidLfoCurve:            return "INVALID_LFO_CURVE";
     }
 
     return "MALFORMED_MESSAGE";
@@ -76,6 +77,7 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::invalidPresetName:
             return "That name cannot be saved. Use at least one letter or number, in under "
                  + juce::String (presets::maximumNameLength) + " characters.";
+        case BridgeErrorCode::invalidLfoCurve:            return "That curve could not be used.";
     }
 
     return "The message could not be read.";
@@ -202,6 +204,64 @@ BridgeParseResult parseMessage (const juce::String& json)
     {
         BridgeCommand command;
         command.type = BridgeCommandType::rescanPresets;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "requestLfoCurves")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestLfoCurves;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "setLfoCurve")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::setLfoCurve;
+
+        const auto lfoValue = object->getProperty ("lfo");
+        const auto* points = object->getProperty ("points").getArray();
+
+        if (! isNumber (lfoValue) || points == nullptr)
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        // One-based on the wire, as everywhere a person reads an LFO's number.
+        // Checked as a double before it is narrowed, as a preset id is.
+        const auto lfo = static_cast<double> (lfoValue);
+
+        if (! std::isfinite (lfo) || lfo < 1.0 || lfo > 4.0 || lfo != std::floor (lfo))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
+        if (points->size() < 2 || points->size() > dsp::maxLfoCurvePoints)
+            return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
+        command.lfoIndex = static_cast<int> (lfo) - 1;
+        command.lfoCurve.count = points->size();
+
+        for (int i = 0; i < points->size(); ++i)
+        {
+            const auto* triple = points->getReference (i).getArray();
+
+            if (triple == nullptr || triple->size() != 3)
+                return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
+            for (const auto& number : *triple)
+                if (! isNumber (number))
+                    return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
+            command.lfoCurve.points[static_cast<std::size_t> (i)] = {
+                static_cast<float> (static_cast<double> (triple->getReference (0))),
+                static_cast<float> (static_cast<double> (triple->getReference (1))),
+                static_cast<float> (static_cast<double> (triple->getReference (2)))
+            };
+        }
+
+        // Refused rather than repaired, like a parameter value out of range: a
+        // curve that needed repair is a page that drew something it should not
+        // have, and quietly fixing it would leave the two disagreeing.
+        if (! dsp::isValid (command.lfoCurve))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -775,6 +835,44 @@ juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame
     // Sent as a whole number. Every rate a device offers is one, and rounding
     // here keeps a rate out of the JSON in sixteen decimal places.
     object->setProperty ("sampleRate", static_cast<int> (std::lround (frame.sampleRate)));
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves)
+{
+    juce::Array<juce::var> entries;
+
+    for (std::size_t i = 0; i < curves.size(); ++i)
+    {
+        const auto& curve = curves[i];
+        juce::Array<juce::var> points;
+
+        // Rounded to a millionth on the way out. The store holds floats, and a
+        // float spelled as a double is seventeen digits of noise in every
+        // number the page reads back.
+        const auto rounded = [] (float value)
+        {
+            return std::round (static_cast<double> (value) * 1.0e6) / 1.0e6;
+        };
+
+        for (int p = 0; p < curve.count && p < dsp::maxLfoCurvePoints; ++p)
+        {
+            const auto& point = curve.points[static_cast<std::size_t> (p)];
+            juce::Array<juce::var> triple { rounded (point.x), rounded (point.y), rounded (point.bend) };
+            points.add (triple);
+        }
+
+        auto* entry = new juce::DynamicObject();
+        entry->setProperty ("lfo", static_cast<int> (i) + 1);
+        entry->setProperty ("points", points);
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "lfoCurves");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("curves", entries);
 
     return juce::JSON::toString (juce::var (object), oneLine);
 }

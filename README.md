@@ -40,8 +40,9 @@ warp aliases more than the plain oscillator, and the figures are published.
 a comb tuned by its cutoff, and a formant filter that sweeps through vowels),
 each with drive, a mix and key tracking, in series, in parallel, or split so
 that each source chooses its own. Four DAHDSR envelopes with adjustable
-curves, four LFOs with seven shapes that can follow the host's tempo, and a
-sixteen-slot modulation matrix, each slot's depth itself modulatable, whose
+curves, four LFOs with seven built-in shapes and one you draw, which can follow
+the host's tempo, and a sixteen-slot modulation matrix, each slot's depth itself
+modulatable, whose
 sources include velocity, key tracking, the mod wheel, pitch bend, aftertouch,
 MPE timbre, a random source and four macros, each with a range and a curve.
 

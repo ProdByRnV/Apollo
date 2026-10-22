@@ -6536,3 +6536,99 @@ which run the real processor and the real bridge.
   faster.
 - **The scope sources.** Adding the two taps to `ScopeSource` would send two
   traces nobody draws, 30 times a second.
+
+---
+
+## ADR-0102 — A drawn LFO shape is points with bends, stored beside the parameters and played from a table
+
+**Phase 13f-1 · Accepted**
+
+### What was built
+
+Every LFO has an eighth shape, DRAWN, which plays a curve drawn on the LFO page.
+That completes PRD §15.2's list. ADR-0034 deferred the shape until there was an
+editor to draw it and a place in the preset format to keep it; this provides
+both.
+
+### The curve is points with a bend per segment
+
+The model is up to 32 points across one cycle:
+- each point has a position, a value from −1 to +1, and a bend for the segment
+  leaving it;
+- the first point sits at the cycle's start and the last at its end;
+- two points at one position make a step.
+
+That is what a hand drawing a shape does, and it is the model every synthesiser
+with a drawable LFO uses. The bend is the same power law as a macro's curve,
+`u ^ 4^-bend`, so a segment's ends never move.
+
+**The default is the triangle**, so choosing DRAWN before drawing anything
+changes nothing but the choice. A built-in shape's default would have to be one
+of the seven; the triangle is the simplest that shows what points are for.
+
+**32 points.** Enough for a sixteen-step staircase, two points a step, and for
+anything drawn by hand. Few enough that a preset carrying four curves stays a
+few kilobytes and the bridge message stays far inside its 8 KB bound.
+
+### Stored beside the parameters
+
+A curve is not a parameter: no host can automate a list of points. It lives
+where the other non-parameter state lives, as an `<LFOCURVES>` child of the
+state tree beside `<MIDIMAP>` and `<PRESET>`. That gives it everything for
+nothing:
+- host projects and presets save it;
+- a load replaces it;
+- an older Apollo ignores an element it does not know, so no schema bump.
+
+**Only curves that differ from the default are written.** A patch nobody drew on
+saves exactly the document it did before. **A document without a curve puts the
+default back**, so a preset is still a complete sound (Docs/COMPATIBILITY.md §1):
+loading one never keeps a drawing from the sound before.
+
+A curve read from a document is **repaired where it can be** (sorted, clamped,
+its ends pinned to the cycle) and **defaulted where it cannot**, as a restored
+MIDI mapping is. A curve from the page is **refused, not repaired**, as an
+out-of-range parameter value is, because a page that sent a bad curve has a
+defect that repair would hide.
+
+### Played from a table
+
+The audio thread never reads the points. Each curve is rendered into a
+1025-entry table when it is set: 1024 across the cycle and one past the end for
+the last stretch. The LFO interpolates between neighbouring entries. So a drawn
+shape costs the same whatever its points, and a step is a ramp one entry wide:
+a thousandth of a cycle, a millisecond at 1 Hz. That smoothing is welcome
+rather than a flaw, because an LFO stepping a filter clicks unless something
+rounds the edge.
+
+**The handoff is a triple buffer per LFO.** The writer renders into a table
+nobody is reading and swaps it into the middle. The reader takes the middle
+table, once a block, if a new one has arrived. Neither side waits; nothing is
+allocated after construction; and the table the reader holds is never written.
+
+Writers come from the message thread, or from whatever thread a host loads
+state on, so they are serialised by a lock the audio thread never touches.
+
+**The new table reaches the voices as an ordinary setting.** The processor
+builds every LFO's settings each block, and the table pointer is one of them. A
+new curve is a new pointer, which the engine passes on the way it passes any
+changed setting. An unchanged pointer is an unchanged setting.
+
+### The page
+
+The editor draws with a transcription of the engine's arithmetic, and a test
+holds the two to the same values; otherwise the picture would not be the sound.
+Every edit is a pure function, tested to leave a curve the engine will accept.
+While a hand is on a curve, the page draws its own copy and ignores echoes for
+that LFO, the rule a held knob follows. It sends at most one curve a frame.
+
+### Alternatives
+
+- **Evaluating the points per sample.** That costs more for every point added,
+  and needs a segment search in the inner loop. The table costs the same for
+  every curve.
+- **A curve as parameters**, 32 positions, values and bends per LFO. That would
+  be 384 automatable parameters nobody would automate, filling every host's
+  parameter list.
+- **Repairing a bad curve from the page.** It would leave the page drawing one
+  curve while the engine played another.

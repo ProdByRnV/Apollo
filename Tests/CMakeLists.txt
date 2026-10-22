@@ -30,6 +30,7 @@ target_sources(ApolloTests PRIVATE
     Engine/NoiseTypeTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
+    DSP/LfoCurveTests.cpp
     DSP/UnisonTests.cpp
     DSP/EnvelopeTests.cpp
     DSP/CombFormantTests.cpp
@@ -60,6 +61,7 @@ target_sources(ApolloTests PRIVATE
     Telemetry/InstrumentTelemetryTests.cpp
     Telemetry/ScopeTests.cpp
     Telemetry/SpectrumTests.cpp
+    State/LfoCurveStateTests.cpp
     Parameters/ParameterRegistryTests.cpp
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp

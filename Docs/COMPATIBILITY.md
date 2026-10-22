@@ -29,6 +29,17 @@ before it. *Held by `State compatibility`: every parameter is moved away from
 its default, a one-parameter document is loaded, and all the others must be
 back at their defaults.*
 
+**Drawn LFO shapes follow the same rule (13f-1).** A curve is not a parameter;
+it is stored as an `<LFOCURVES>` element beside the parameters, and only for
+LFOs whose curve differs from the default. A document without one, which is
+every document written before 13f-1, loads with every LFO on the default curve
+rather than keeping whatever was drawn before. An earlier Apollo reading a
+document with curves ignores the element. An LFO set to the drawn shape should
+then fall back to that version's last shape, step, because the shape's number is
+past the end of its range. That is how the parameter clamps; it has not been
+tried against an older build. No schema change was needed (ADR-0102). *Held by
+`Drawn LFO curves in the instrument`.*
+
 **Two things a preset deliberately does not carry**, because they describe your
 setup rather than the sound (ADR-0061):
 
@@ -48,7 +59,7 @@ plugin's identity. Both are permanent once released.
 |---|---|---|
 | **Parameter IDs** (`filter1_cutoff`) | Never change meaning, never reused. A changed parameter gets a new ID, and the old one is migrated on load ([VERSIONING.md](VERSIONING.md) §5) | `Parameter identifier conventions`, `Parameter registry` |
 | **The numbers a VST3 host stores** | Pinned against a loaded plugin, because a JUCE upgrade could renumber them with every string ID intact (ADR-0075) | `ApolloHostTests` |
-| **Stepped parameters** (filter type, rack slot) | The order of their choices never changes, so a preset or project — which stores the choice's number — always means the same choice. A choice added later goes at the end, and that does grow the range: a host's automation of the parameter stores a *normalised* position, which moves when the range grows. That is allowed before 1.0 and recorded each time — Phase 13b appended warp to the matrix destinations (ADR-0090), 13c-1 comb and formant to the filter types (ADR-0091), 13c-3 split to the filter routing (ADR-0093), and 13d-2 four transients to the noise type (ADR-0095), 13e-3 four macros to every matrix slot's source (ADR-0098), 13e-4 six filter controls to every slot's destination (ADR-0099), and 13e-5 six effect controls to it (ADR-0100) — and is a breaking change after it. The rack slots listed all six effects from the start to avoid exactly this (ADR-0054) | **No test pins this.** The registry test checks ranges are consistent, not that they are unchanged, so for now it is held by review alone |
+| **Stepped parameters** (filter type, rack slot) | The order of their choices never changes, so a preset or project — which stores the choice's number — always means the same choice. A choice added later goes at the end, and that does grow the range: a host's automation of the parameter stores a *normalised* position, which moves when the range grows. That is allowed before 1.0 and recorded each time — Phase 13b appended warp to the matrix destinations (ADR-0090), 13c-1 comb and formant to the filter types (ADR-0091), 13c-3 split to the filter routing (ADR-0093), and 13d-2 four transients to the noise type (ADR-0095), 13e-3 four macros to every matrix slot's source (ADR-0098), 13e-4 six filter controls to every slot's destination (ADR-0099), 13e-5 six effect controls to it (ADR-0100), and 13f-1 the drawn shape to every LFO's shapes (ADR-0102) — and is a breaking change after it. The rack slots listed all six effects from the start to avoid exactly this (ADR-0054) | **No test pins this.** The registry test checks ranges are consistent, not that they are unchanged, so for now it is held by review alone |
 | **The plugin's identity** (`ProdByRnV`, `Prnv`, `Apol`, `com.prodbyrnv.apollo`) | **Confirmed by the developer** (ADR-0089). From the first release a DAW identifies Apollo in every saved project by them, so they never change after it | — |
 
 ---

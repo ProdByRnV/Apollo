@@ -143,6 +143,18 @@ export interface SpectrumFrameMessage {
     output?: number[];
 }
 
+/** One point of a drawn LFO curve: position in the cycle (0 to 1), value
+    (-1 to +1), and the bend of the segment leaving it (-1 to +1). */
+export type LfoCurvePoint = [number, number, number];
+
+/** Every LFO's drawn curve, all four, as the store holds them (Phase 13f-1).
+    Sent on request, in answer to every curve the page sets, and after a load. */
+export interface LfoCurvesMessage {
+    type: 'lfoCurves';
+    version: number;
+    curves: { lfo: number; points: LfoCurvePoint[] }[];
+}
+
 export interface MidiMappingEntry {
     id: string;
     controller: number;
@@ -235,6 +247,7 @@ export type InboundMessage =
     | ScopeFramesMessage
     | InstrumentFrameMessage
     | SpectrumFrameMessage
+    | LfoCurvesMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
     | PresetIndexMessage
@@ -267,6 +280,8 @@ export type OutboundMessage =
     | { type: 'requestPresets'; version: number }
     | { type: 'rescanPresets'; version: number }
     | { type: 'loadPreset'; version: number; preset: number }
+    | { type: 'requestLfoCurves'; version: number }
+    | { type: 'setLfoCurve'; version: number; lfo: number; points: LfoCurvePoint[] }
     | {
           type: 'savePreset';
           version: number;

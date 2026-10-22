@@ -8,7 +8,7 @@
     "Connecting" for ever (CLAUDE.md §33).
 */
 
-import type { InboundMessage, OutboundMessage, ProfileMode } from './protocol';
+import type { InboundMessage, LfoCurvePoint, OutboundMessage, ProfileMode } from './protocol';
 import { PROTOCOL_VERSION } from './protocol';
 
 /** JUCE's injected object. Declared rather than imported because it is put on
@@ -151,4 +151,15 @@ export function requestControllerProfiles(): void {
 
 export function applyControllerProfile(profile: string, mode: ProfileMode): void {
     send({ type: 'applyControllerProfile', version: PROTOCOL_VERSION, profile, mode });
+}
+
+/** Asks for every LFO's drawn curve. */
+export function requestLfoCurves(): void {
+    send({ type: 'requestLfoCurves', version: PROTOCOL_VERSION });
+}
+
+/** Replaces one LFO's drawn curve. Answered with all four, which is what the
+    page then draws: the store's copy is the one that counts. */
+export function setLfoCurve(lfo: number, points: LfoCurvePoint[]): void {
+    send({ type: 'setLfoCurve', version: PROTOCOL_VERSION, lfo, points });
 }

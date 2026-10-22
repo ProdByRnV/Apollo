@@ -177,6 +177,10 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // schedule and pushes the finished index through the bridge.
     bridge.setPresetLibrary (&processor.getPresetLibrary());
 
+    // The drawn LFO curves are not parameters, so they reach the page through
+    // commands of their own rather than through the parameter snapshot.
+    bridge.setLfoCurves (&processor.getLfoCurves());
+
     // Loading a preset replaces the whole state tree, which is the processor's
     // event to handle rather than the bridge's: the bridge owns parameters and
     // knows nothing about the MIDI table hanging off the same tree.
@@ -229,6 +233,7 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     // editor has gone must not call into it.
     bridge.setPresetLibrary (nullptr);
     bridge.onStateReplaced = {};
+    bridge.setLfoCurves (nullptr);
 }
 
 void ApolloWebViewEditor::paint (juce::Graphics& g)
@@ -312,6 +317,10 @@ void ApolloWebViewEditor::timerCallback()
     // MIDI mappings travel inside the same document as the parameters, so a
     // project load replaces them too and the page's copy is just as stale.
     sendToWebView (bridge.createMidiMappings());
+
+    // The drawn LFO curves live in the same tree, and a load replaces them as
+    // well, with the default wherever the document had none.
+    sendToWebView (bridge.createLfoCurves());
 
     // And so does the preset name, which lives in the same tree so that an
     // instrument reopens showing the sound it was on rather than "Init". The

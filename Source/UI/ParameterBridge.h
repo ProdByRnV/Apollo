@@ -23,6 +23,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "MIDI/MidiControlManager.h"
+#include "State/LfoCurveState.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "UI/BridgeProtocol.h"
 
@@ -136,6 +137,16 @@ public:
     /** @returns the whole MIDI Learn state described for the frontend, with the
         status of the most recent assignment.
     */
+    /** Attaches the drawn LFO curves. Pass nullptr to detach. Nullable for the
+        reasons the MIDI manager is; without it the curve commands are answered
+        with a structured error. Borrowed: the processor owns the store,
+        because a curve has to keep sounding with the editor closed.
+    */
+    void setLfoCurves (state::LfoCurveStore* storeToUse) noexcept { lfoCurves = storeToUse; }
+
+    /** @returns every LFO's drawn curve, described for the frontend. */
+    [[nodiscard]] juce::String createLfoCurves() const;
+
     [[nodiscard]] juce::String createMidiMappings() const;
 
     /** As above, but with an explicit status — used when what just happened was
@@ -207,6 +218,9 @@ private:
 
     /** Borrowed, not owned, and null when there is no preset library. */
     resources::PresetLibrary* presetLibrary = nullptr;
+
+    /** Borrowed, not owned, and null when there are no curves to edit. */
+    state::LfoCurveStore* lfoCurves = nullptr;
 
     /** What the current sound was loaded from or saved to, if anything.
 

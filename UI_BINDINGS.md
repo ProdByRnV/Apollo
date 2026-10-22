@@ -932,6 +932,63 @@ draw audio from before it was taken out.
 
 ---
 
+### 10.8 Drawn LFO curves (Phase 13f-1)
+
+The drawn LFO shape (`lfoN_shape` = 7, labelled DRAWN) plays a curve, and a
+curve is not a parameter: it is a list of up to 32 points, which no host can
+automate. So it has commands of its own, and the store in the processor is
+authoritative, as it is for MIDI mappings (ADR-0102).
+
+```json
+{ "type": "requestLfoCurves", "version": 1 }
+{ "type": "setLfoCurve", "version": 1, "lfo": 2,
+  "points": [[0, -1, 0], [0.3, 1, 0.5], [1, -1, 0]] }
+```
+
+```json
+{
+  "type": "lfoCurves",
+  "version": 1,
+  "curves": [
+    { "lfo": 1, "points": [[0, -1, 0], [0.5, 1, 0], [1, -1, 0]] },
+    { "lfo": 2, "points": [[0, -1, 0], [0.3, 1, 0.5], [1, -1, 0]] }
+  ]
+}
+```
+
+- **A point is `[x, y, bend]`**:
+  - `x` is the position in the cycle, 0 to 1;
+  - `y` is the value, −1 to +1;
+  - `bend` is how the segment leaving the point bows, −1 to +1, where 0 is
+    straight and positive moves most of the way early. The last point's bend is
+    unused.
+- **The rules a curve must keep.** Two to 32 points, positions never
+  decreasing, the first at exactly 0 and the last at exactly 1. Two points at
+  one position make a step, and the later one wins at that position.
+- **`setLfoCurve` is refused, not repaired,** with `INVALID_LFO_CURVE` if the
+  LFO is not 1 to 4 or the curve breaks a rule. Nothing changes when it is
+  refused.
+- **`lfoCurves` always carries all four**, numbers rounded to a millionth. It is
+  sent:
+  - when the page asks;
+  - in answer to every `setLfoCurve`, as the echo the page draws from;
+  - after a host or preset load, beside the parameter snapshot.
+- **While a curve is being dragged**, the page draws its own copy and ignores
+  echoes for that LFO, the rule a held knob follows. It sends at most one
+  `setLfoCurve` a frame.
+
+**In the document**, curves are an `<LFOCURVES>` child of the state root, beside
+`<MIDIMAP>` and `<PRESET>`, written only for LFOs whose curve differs from the
+default. Presets carry them; a document without one puts every LFO back on the
+default (Docs/COMPATIBILITY.md §1).
+
+**On the audio thread** the curve is a 1025-entry table, rendered when the curve
+is set and handed over through a lock-free triple buffer that the processor
+reads once a block. The LFO interpolates between neighbouring entries, so a
+drawn shape costs what a built-in one costs.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
@@ -1164,6 +1221,7 @@ the user, not for a developer, since the page displays it as given:
 | `INVALID_GESTURE_STATE` | A gesture that is neither `begin` nor `end` | No |
 | `UNKNOWN_PRESET` | A preset id the current index does not have | **Yes**: a list on screen from before a preset was deleted |
 | `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
+| `INVALID_LFO_CURVE` | A drawn curve for an LFO other than 1 to 4, or one that breaks a curve's rules (§10.8) | No: the editor only makes valid curves |
 
 **How the page shows them (12c-3).** The status line shows an error with a
 warning sign as well as a colour, and a screen reader hears "Error:" before it

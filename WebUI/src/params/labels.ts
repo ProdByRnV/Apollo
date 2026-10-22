@@ -107,7 +107,7 @@ export const LABELS: Record<string, readonly string[]> = {
     // it from wherever it is (dsp::EnvelopeSettings::continueOnRetrigger).
     envRetrigger: ['RESTART', 'CONTINUE'],
 
-    lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP'],
+    lfoShape: ['SINE', 'TRI', 'SAW', 'RSAW', 'SQR', 'S&H', 'STEP', 'DRAWN'],
     lfoRetrigger: ['FREE', 'RETRIG'],
     lfoPolarity: ['UNI', 'BI'],
 

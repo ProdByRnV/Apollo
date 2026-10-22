@@ -36,6 +36,7 @@ ApolloAudioProcessor::ApolloAudioProcessor()
       midiControl (apvts)
 {
     telemetry = std::make_unique<telemetry::TelemetryHub>();
+    lfoCurves = std::make_unique<state::LfoCurveStore> (apvts);
 
     // The per-source taps live inside the voice loop, so the engine is the only
     // thing that can take them. It holds the hub without owning it, and reads
@@ -531,7 +532,7 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         // Clamped rather than cast blindly: the shape indexes a switch, and a
         // corrupt preset must not be able to select something that is not there.
         const auto shape = static_cast<int> (readParameter (pointers.shape, 0.0f));
-        lfo.shape = static_cast<dsp::LfoShape> (shape < 0 ? 0 : (shape > 6 ? 6 : shape));
+        lfo.shape = static_cast<dsp::LfoShape> (shape < 0 ? 0 : (shape >= dsp::numLfoShapes ? dsp::numLfoShapes - 1 : shape));
 
         lfo.rateHz = readParameter (pointers.rate, 1.0f);
         lfo.phaseOffset = readParameter (pointers.phase, 0.0f);
@@ -550,6 +551,11 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
                 readParameter (pointers.division, static_cast<float> (dsp::defaultLfoDivision)))));
             lfo.rateHz = dsp::tempoSyncedRateHz (hostBpm, lfo.tempoBeats);
         }
+
+        // The drawn curve's table, the newest one published. A new pointer
+        // when a new curve has arrived, which the LFO sees as a changed
+        // setting; otherwise the same one, which it does not.
+        lfo.curveTable = lfoCurves->acquireTable (static_cast<int> (i));
 
         voiceEngine.setLfoSettings (static_cast<int> (i), lfo);
     }
@@ -1477,6 +1483,11 @@ void ApolloAudioProcessor::notifyStateReplaced()
     // existing ones back into the tree before this runs — so rebuilding from
     // the tree is right on both paths, and is what keeps them one path.
     midiControl.restoreFromState();
+
+    // And so do the drawn LFO curves: a document that carries none puts every
+    // LFO back on the default, rather than leaving the last project's drawing
+    // under a preset that never had one.
+    lfoCurves->restoreFromState();
 
     // Every parameter may have moved at once. Bumping the counter lets an
     // attached editor resynchronise wholesale instead of inferring a preset

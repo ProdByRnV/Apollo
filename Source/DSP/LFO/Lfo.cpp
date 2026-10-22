@@ -1,4 +1,5 @@
 #include "DSP/LFO/Lfo.h"
+#include "DSP/LFO/LfoCurve.h"
 
 #include <cmath>
 
@@ -212,6 +213,27 @@ float Lfo::shapeAt (double p) noexcept
             const auto index = static_cast<double> (static_cast<int> (p * static_cast<double> (steps)));
 
             return static_cast<float> (2.0 * index / static_cast<double> (steps - 1) - 1.0);
+        }
+
+        case LfoShape::custom:
+        {
+            // The drawn curve, from its table, between neighbouring entries.
+            // The table carries one entry past the end of the cycle, so the
+            // last stretch interpolates towards where the curve ends rather
+            // than towards where it begins.
+            const auto* table = settings.curveTable;
+
+            if (table == nullptr)
+                return 0.0f;
+
+            const auto position = p * static_cast<double> (lfoCurveTableSize);
+            auto index = static_cast<int> (position);
+            index = index < 0 ? 0 : (index > lfoCurveTableSize - 1 ? lfoCurveTableSize - 1 : index);
+
+            const auto fraction = static_cast<float> (position - static_cast<double> (index));
+            const auto from = table[index];
+
+            return from + (table[index + 1] - from) * fraction;
         }
 
         default:
