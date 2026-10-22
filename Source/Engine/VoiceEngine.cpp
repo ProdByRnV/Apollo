@@ -523,6 +523,53 @@ void VoiceEngine::setMacro (int index, float value) noexcept
         voice.setMacro (index, value);
 }
 
+void VoiceEngine::updateEffectModulation() noexcept
+{
+    const auto first = static_cast<std::size_t> (dsp::firstEffectDestination);
+
+    // The newest sounding voice, releasing ones included: a tail is still the
+    // last note played until another arrives.
+    const Voice* newest = nullptr;
+
+    for (const auto& voice : voices)
+        if (voice.isActive() && (newest == nullptr || voice.getStartOrder() > newest->getStartOrder()))
+            newest = &voice;
+
+    if (newest != nullptr)
+    {
+        for (std::size_t i = 0; i < effectOffsets.size(); ++i)
+            effectOffsets[i] = newest->getModulationOffset (static_cast<dsp::ModDestination> (first + i));
+
+        return;
+    }
+
+    // Nothing sounds: only the sources that exist without a note.
+    dsp::ModSourceValues sources {};
+
+    for (int i = 0; i < dsp::numMacros; ++i)
+        sources[static_cast<std::size_t> (static_cast<int> (dsp::ModSource::macro1) + i)]
+            = macroValues[static_cast<std::size_t> (i)];
+
+    sources[static_cast<std::size_t> (dsp::ModSource::modWheel)] = modWheel;
+    sources[static_cast<std::size_t> (dsp::ModSource::pitchBend)] = wheelNormalised;
+    sources[static_cast<std::size_t> (dsp::ModSource::aftertouch)] = aftertouch;
+
+    dsp::ModDestinationValues destinations {};
+    dsp::evaluateModulation (routing, sources, destinations);
+
+    for (std::size_t i = 0; i < effectOffsets.size(); ++i)
+        effectOffsets[i] = destinations[first + i];
+}
+
+float VoiceEngine::getEffectOffset (dsp::ModDestination destination) const noexcept
+{
+    const auto index = static_cast<int> (destination) - static_cast<int> (dsp::firstEffectDestination);
+
+    return index >= 0 && index < dsp::numEffectDestinations
+             ? effectOffsets[static_cast<std::size_t> (index)]
+             : 0.0f;
+}
+
 void VoiceEngine::setAftertouch (float value) noexcept
 {
     if (value == aftertouch)

@@ -332,6 +332,14 @@ void ApolloAudioProcessor::prepareToPlay (double sampleRate, int maximumExpected
     // gets the answer for the chain the session was saved with rather than for
     // an empty rack.
     applyHostTempo();
+
+    // The matrix too, so an effect control a routing moves starts where the
+    // routing puts it rather than gliding there over the first block: the
+    // effects snap to their settings here, and the offsets are part of them.
+    // Nothing sounds yet, so these are the engine-wide sources' (13e-5).
+    applySourceParameters();
+    voiceEngine.updateEffectModulation();
+
     applyEffectParameters();
     setLatencySamples (effects.getLatencySamples());
     reportedLatencySamples.store (effects.getLatencySamples(), std::memory_order_relaxed);
@@ -728,9 +736,19 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     const auto mode = static_cast<int> (readParameter (effectParameters.distortionMode, 0.0f));
 
     distortion.mode = static_cast<dsp::Distortion::Mode> (mode < 0 ? 0 : (mode > 2 ? 2 : mode));
-    distortion.driveDb = readParameter (effectParameters.distortionDrive, 12.0f);
+    // The six effect destinations (Phase 13e-5): each control offset by the
+    // matrix and kept inside its own range. Zero when nothing routes them, so
+    // each is then the control exactly.
+    using Destination = dsp::ModDestination;
+
+    const auto offset = [this] (Destination destination) { return voiceEngine.getEffectOffset (destination); };
+    const auto within = [] (float value, float low, float high) { return value < low ? low : (value > high ? high : value); };
+
+    distortion.driveDb = within (readParameter (effectParameters.distortionDrive, 12.0f)
+                                     + offset (Destination::fxDistortionDrive), 0.0f, 36.0f);
     distortion.toneHz = readParameter (effectParameters.distortionTone, 20000.0f);
-    distortion.mix = readParameter (effectParameters.distortionMix, 0.0f);
+    distortion.mix = within (readParameter (effectParameters.distortionMix, 0.0f)
+                                 + offset (Destination::fxDistortionMix), 0.0f, 1.0f);
     distortion.outputDb = readParameter (effectParameters.distortionOutput, 0.0f);
 
     effects.distortion().setSettings (distortion);
@@ -744,11 +762,13 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     delay.timeMs = readParameter (effectParameters.delayTime, 500.0f);
     delay.division = static_cast<dsp::Delay::Division> (
         division < 0 ? 0 : (division > lastDivision ? lastDivision : division));
-    delay.feedback = readParameter (effectParameters.delayFeedback, 0.35f);
+    delay.feedback = within (readParameter (effectParameters.delayFeedback, 0.35f)
+                                 + offset (Destination::fxDelayFeedback), 0.0f, 1.0f);
     delay.dampingHz = readParameter (effectParameters.delayDamping, 8000.0f);
     delay.lowCutHz = readParameter (effectParameters.delayLowCut, 20.0f);
     delay.pingPong = readParameter (effectParameters.delayPingPong, 0.0f) >= 0.5f;
-    delay.mix = readParameter (effectParameters.delayMix, 0.0f);
+    delay.mix = within (readParameter (effectParameters.delayMix, 0.0f)
+                            + offset (Destination::fxDelayMix), 0.0f, 1.0f);
 
     effects.delay().setSettings (delay);
 
@@ -766,7 +786,8 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     reverb.dampingHz = readParameter (effectParameters.reverbDamping, 6000.0f);
     reverb.preDelayMs = readParameter (effectParameters.reverbPreDelay, 20.0f);
     reverb.width = readParameter (effectParameters.reverbWidth, 1.0f);
-    reverb.mix = readParameter (effectParameters.reverbMix, 0.0f);
+    reverb.mix = within (readParameter (effectParameters.reverbMix, 0.0f)
+                             + offset (Destination::fxReverbMix), 0.0f, 1.0f);
 
     effects.reverb().setSettings (reverb);
 
@@ -787,7 +808,8 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     compressor.attackMs = readParameter (effectParameters.compressorAttack, 10.0f);
     compressor.releaseMs = readParameter (effectParameters.compressorRelease, 120.0f);
     compressor.makeupDb = readParameter (effectParameters.compressorMakeup, 0.0f);
-    compressor.mix = readParameter (effectParameters.compressorMix, 1.0f);
+    compressor.mix = within (readParameter (effectParameters.compressorMix, 1.0f)
+                                 + offset (Destination::fxCompressorMix), 0.0f, 1.0f);
 
     effects.compressor().setSettings (compressor);
 
@@ -1169,6 +1191,10 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // chain that changed halfway through a block would be a difference no one
     // could hear and everyone would have to reason about — while the controls
     // that would step audibly are smoothed per sample inside the effect itself.
+    //
+    // The matrix's offsets for the effect destinations first, taken from the
+    // voices as they stand at the end of this block (Phase 13e-5).
+    voiceEngine.updateEffectModulation();
     applyEffectParameters();
     effects.process (outputs, numOutputChannels, numSamples);
 

@@ -276,6 +276,18 @@ public:
                  : 0.0f;
     }
 
+    /** One destination's offset from this voice's last routing evaluation, or
+        zero for one out of range. Read by the engine for the effect
+        destinations, which no voice consumes itself. */
+    [[nodiscard]] float getModulationOffset (dsp::ModDestination destination) const noexcept
+    {
+        const auto index = static_cast<std::size_t> (destination);
+        return index < destinationValues.size() ? destinationValues[index] : 0.0f;
+    }
+
+    /** True when a routing is active on this voice, so its offsets are live. */
+    [[nodiscard]] bool isModulated() const noexcept { return hasActiveRouting; }
+
     [[nodiscard]] float getLfoValue (int index) const noexcept
     {
         return index >= 0 && index < numLfos

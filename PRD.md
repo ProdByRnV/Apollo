@@ -22,8 +22,8 @@ Phase 12d-2 (ADR-0087).
 | ⊘ | Considered and decided against, with the decision cited |
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
-platforms are built. Not built: drawn LFO curves
-and some matrix destinations within otherwise-built
+platforms are built. Not built: drawn LFO curves and envelopes edited by
+dragging, within otherwise-built
 sections; wavetable management in the interface (§33); and
 user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
 The full list is Docs/KNOWN-LIMITATIONS.md.
@@ -439,7 +439,7 @@ LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
 
-> **Status, 0.1.0 to 13e-4:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, since Phase 13b each oscillator's warp amount, and since Phase 13e-4 each filter's drive, mix and key tracking (ADR-0099). ✅ Modulation of depth: since Phase 13e-4 every slot has a via source that scales its contribution, so "LFO 1 → ENV 2 depth" is ENV 2's routing with LFO 1 as its via. ❌ Not built: effect parameters as destinations (13e-5). New sources and destinations are added without rewriting the engine, as required.
+> **Status, 0.1.0 to 13e-5:** ✅ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, since Phase 13b each oscillator's warp amount, since Phase 13e-4 each filter's drive, mix and key tracking (ADR-0099), and since Phase 13e-5 six effect controls — distortion drive and mix, delay feedback and mix, reverb mix and compressor mix — which follow the newest sounding note, or the engine-wide sources when nothing sounds (ADR-0100). ✅ Modulation of depth: since Phase 13e-4 every slot has a via source that scales its contribution, so "LFO 1 → ENV 2 depth" is ENV 2's routing with LFO 1 as its via. Not every effect control is a destination: only the ones the effects smooth per sample. New sources and destinations are added without rewriting the engine, as required.
 
 ---
 17. Macro Controls

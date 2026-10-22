@@ -160,8 +160,27 @@ enum class ModDestination
     filter2Mix,
     filter2KeyTrack,
 
+    /** Effect parameters, appended in Phase 13e-5: the ones each effect
+        smooths per sample, so an offset that arrives once a block glides.
+        The effects run on the summed voices, so these are evaluated against
+        the newest sounding voice, or against the engine-wide sources when
+        nothing sounds (VoiceEngine::updateEffectModulation). */
+    fxDistortionDrive,
+    fxDistortionMix,
+    fxDelayFeedback,
+    fxDelayMix,
+    fxReverbMix,
+    fxCompressorMix,
+
     count
 };
+
+/** The first of the effect destinations; every destination from here to
+    `count` is one, consumed by the processor rather than by a voice. */
+inline constexpr ModDestination firstEffectDestination = ModDestination::fxDistortionDrive;
+
+inline constexpr int numEffectDestinations
+    = static_cast<int> (ModDestination::count) - static_cast<int> (firstEffectDestination);
 
 /** How far a destination may be pushed by modulation at full depth.
 
@@ -204,6 +223,18 @@ enum class ModDestination
         case ModDestination::filter1KeyTrack:
         case ModDestination::filter2KeyTrack:
             return 1.0f;
+
+        // The effects' own ranges: the whole of each mix and of the delay's
+        // feedback, and the distortion's whole 36 dB of drive.
+        case ModDestination::fxDistortionMix:
+        case ModDestination::fxDelayFeedback:
+        case ModDestination::fxDelayMix:
+        case ModDestination::fxReverbMix:
+        case ModDestination::fxCompressorMix:
+            return 1.0f;
+
+        case ModDestination::fxDistortionDrive:
+            return 36.0f;
 
         // Cutoff is modulated in octaves rather than hertz, because that is how
         // it is heard: a fixed number of hertz is a huge move at the bottom of

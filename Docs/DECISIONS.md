@@ -6333,3 +6333,93 @@ its drive from the voice rather than from the shared settings. Like
   summed voices, so they cannot take a per-voice offset, and need a decision of
   their own.
 - **A depth as a destination, as well as a via.** See above.
+
+---
+
+## ADR-0100 — Effect controls are destinations that follow the newest note, or the engine-wide sources in silence
+
+**Phase 13e-5 · Accepted**
+
+### What was built
+
+Six destinations, appended after the filter ones: distortion drive and mix,
+delay feedback and mix, reverb mix and compressor mix. Every slot's destination
+range grew from 25 choices to 31 (Docs/COMPATIBILITY.md §2). No parameter was
+added. The six controls are now marked modulatable, which is true of them for
+the first time; `fx_distortion_mix` had claimed it before without being a
+destination. Nothing routes to them by default, so all fifteen regression
+renders passed unregenerated.
+
+### Which value of a per-voice source
+
+**The effects run once, on the summed voices, so an envelope or a note's
+velocity has no single value to give them.** They take the newest sounding
+voice's, which is a synthesiser's usual rule for anything global: the last
+note played leads. A releasing voice still counts, because its tail is still
+the last note until another arrives. The voice already evaluates the whole
+routing table, the effect destinations included. Once per block, after the
+voices have rendered, the engine copies the newest one's offsets for these six
+(`VoiceEngine::updateEffectModulation`), and the processor adds them to the
+controls before the rack runs.
+
+**When nothing sounds, there is no newest voice.** The routing is then
+evaluated against the sources that exist without a note: the macros, the mod
+wheel, the pitch wheel and channel aftertouch, with every per-note source at
+zero. A macro on the reverb's mix therefore keeps working between phrases, and
+velocity on it falls to nothing once the last note has gone.
+
+Measured at the engine: velocity on the reverb's mix read 0.25 after a note at
+0.25, 0.75 once a note at 0.75 had joined it, and 0 once both had finished. A
+macro at 0.8 with a depth of a half read 0.4 with nothing sounding, and the mod
+wheel likewise.
+
+### Why these six
+
+They are the effect controls the effects already smooth per sample. The
+offset arrives once a block, so a control that applied it at once would step
+every block. The reverb's size and decay and the delay's damping are not smoothed, and
+making them destinations would mean smoothing them first. The gate, the
+equaliser and the compressor's other controls were not examined this time. The delay's time is smoothed, but it glides on purpose,
+like tape, and a routing would play that glide as a pitch wobble. That deserves
+a decision of its own.
+
+### A destination means what its control means
+
+Offsets are in the control's own units: the whole of each mix and of the
+delay's feedback at full depth, and 36 dB of drive. They are kept inside each
+control's range. Through the processor, with a short note and its tail through
+the rack, a constant routed to a control sounded identical, sample for sample,
+to setting the control there. That held for the delay's mix, for the
+distortion's drive (6 dB plus half of 36), and for a mix of 0.8 with an offset
+of 0.6, which is a mix of 1.
+
+**That needed one change to how the processor prepares.** At first the routed
+versions differed. When prepared, the effects snap to their settings, and the
+matrix's offsets were not part of those settings yet, so a routed effect began
+at its control's value and glided to the routed one over its first ramp.
+Preparing now applies the parameters and works out the effect offsets before
+the effects take their settings, so a routed effect starts where the routing
+puts it. Nothing is sounding at that point, so these are the engine-wide
+sources' offsets.
+
+### What it costs
+
+Per block: finding the newest voice among 32 and copying six floats. When
+nothing sounds, one evaluation of the routing table. Nothing per sample. Not
+measured, for the reason in ADR-0099.
+
+### Noticed, not changed
+
+The parameter registry's `modulatable` flag still claims more than the matrix
+offers: envelope stage times, LFO rates, detune and others are marked
+modulatable and are not destinations. Nothing reads the flag except the bridge,
+which passes it to the page, where nothing reads it. It is recorded here rather
+than corrected in passing. Correcting it means deciding, control by control,
+whether to make it a destination or drop the claim.
+
+### Given up
+
+- **A mix of every sounding voice's sources**, such as their average or the
+  loudest. An average of envelopes at different stages describes no note, and
+  the loudest jumps between voices.
+- **Effects per voice.** That would multiply the rack by the polyphony.

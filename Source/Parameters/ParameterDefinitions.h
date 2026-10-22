@@ -1162,7 +1162,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod01_destination", "Mod 1 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1189,7 +1189,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod02_destination", "Mod 2 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1213,7 +1213,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod03_destination", "Mod 3 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1237,7 +1237,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod04_destination", "Mod 4 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1261,7 +1261,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod05_destination", "Mod 5 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1285,7 +1285,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod06_destination", "Mod 6 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1309,7 +1309,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod07_destination", "Mod 7 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1333,7 +1333,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod08_destination", "Mod 8 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1357,7 +1357,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod09_destination", "Mod 9 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1381,7 +1381,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod10_destination", "Mod 10 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1405,7 +1405,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod11_destination", "Mod 11 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1429,7 +1429,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod12_destination", "Mod 12 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1453,7 +1453,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod13_destination", "Mod 13 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1477,7 +1477,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod14_destination", "Mod 14 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1501,7 +1501,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod15_destination", "Mod 15 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1525,7 +1525,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     { "mod16_destination", "Mod 16 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 24.0f, 0.0f,
+      0.0f, 30.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1621,7 +1621,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::decibels,
       0.0f, 36.0f, 12.0f,
       1.0f, 0.0f,
-      true, false, true },
+      true, true, true },
 
     { "fx_distortion_tone", "Distortion Tone",
       ParameterType::floatingPoint, ParameterUnit::hertz,
@@ -1670,7 +1670,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.35f,
       1.0f, 0.0f,
-      true, false, true },
+      true, true, true },
 
     // Inside the feedback path, so each repeat is darker than the last.
     { "fx_delay_damping", "Delay Damping",
@@ -1697,7 +1697,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
-      true, false, true },
+      true, true, true },
 
     // Reverb (Phase 8c) ------------------------------------------------------
     { "fx_reverb_bypass", "Reverb Bypass",
@@ -1752,7 +1752,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
-      true, false, true },
+      true, true, true },
 
     // Noise gate (Phase 8d) --------------------------------------------------
     { "fx_gate_bypass", "Gate Bypass",
@@ -1843,7 +1843,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 1.0f,
       1.0f, 0.0f,
-      true, false, true },
+      true, true, true },
 
     { "fx_delay_time", "Delay Time",
       ParameterType::floatingPoint, ParameterUnit::milliseconds,

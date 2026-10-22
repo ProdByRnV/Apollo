@@ -380,6 +380,22 @@ public:
         for every voice. Engine-wide, like the mod wheel. */
     void setMacro (int index, float value) noexcept;
 
+    /** Works out the matrix's offsets for the effect destinations, once a
+        block, after the voices have rendered (Phase 13e-5).
+
+        The effects run on the summed voices, so a per-voice source has no
+        single value for them. They follow the newest sounding voice — the
+        last note played, a synthesiser's usual rule for anything global —
+        and when nothing sounds, the routing is evaluated against the
+        engine-wide sources alone: the macros, the mod wheel, the pitch wheel
+        and channel aftertouch, with every per-note source at zero.
+    */
+    void updateEffectModulation() noexcept;
+
+    /** An effect destination's offset as of the last updateEffectModulation,
+        in the destination's own units; zero for anything else. */
+    [[nodiscard]] float getEffectOffset (dsp::ModDestination destination) const noexcept;
+
     /** Channel aftertouch on every channel at once.
 
         Kept for callers that do not track channels, and for the tests that
@@ -539,6 +555,9 @@ private:
 
     float modWheel = 0.0f;
     std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
+
+    /** The effect destinations' offsets, indexed from dsp::firstEffectDestination. */
+    std::array<float, static_cast<std::size_t> (dsp::numEffectDestinations)> effectOffsets {};
     float aftertouch = 0.0f;
 
     midi::MpeZone mpeZone;
