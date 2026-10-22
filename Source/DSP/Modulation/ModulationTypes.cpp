@@ -26,9 +26,21 @@ void evaluateModulation (const ModulationRouting& routing,
         // Depth is scaled by the destination's own range here rather than by the
         // consumer, so every consumer receives an offset already in its own
         // units — semitones, octaves, or a fraction of a control's travel.
-        destinations[destinationIndex] += sources[sourceIndex]
-                                        * slot.depth
-                                        * fullDepthRange (slot.destination);
+        //
+        // A via source scales the whole contribution: the routing's depth,
+        // modulated. Checked like the others, and an ordinary slot keeps the
+        // expression it always had, so it adds exactly what it always added.
+        const auto viaIndex = static_cast<std::size_t> (slot.via);
+
+        if (slot.via == ModSource::none || viaIndex >= sources.size())
+            destinations[destinationIndex] += sources[sourceIndex]
+                                            * slot.depth
+                                            * fullDepthRange (slot.destination);
+        else
+            destinations[destinationIndex] += sources[sourceIndex]
+                                            * slot.depth
+                                            * fullDepthRange (slot.destination)
+                                            * sources[viaIndex];
     }
 }
 

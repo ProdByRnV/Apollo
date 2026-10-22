@@ -743,6 +743,12 @@ void VoiceEngine::publishModulation() noexcept
 
         if (source >= firstEnvelope && source <= lastLfo)
             isRouted[static_cast<std::size_t> (source - firstEnvelope)] = true;
+
+        // A modulator scaling another routing is in use too.
+        const auto via = static_cast<int> (slot.via);
+
+        if (via >= firstEnvelope && via <= lastLfo)
+            isRouted[static_cast<std::size_t> (via - firstEnvelope)] = true;
     }
 
     // Envelope 1 shapes the voice whether or not the matrix reads it, so it is

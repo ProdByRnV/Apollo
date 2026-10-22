@@ -137,7 +137,9 @@ export const LABELS: Record<string, readonly string[]> = {
                      'Amplitude',
                      // Appended in 13b, so every destination before them keeps
                      // its number (ADR-0090).
-                     'Osc 1 Warp', 'Osc 2 Warp'],
+                     'Osc 1 Warp', 'Osc 2 Warp',
+                     'Filter 1 Drive', 'Filter 1 Mix', 'Filter 1 Key Track',
+                     'Filter 2 Drive', 'Filter 2 Mix', 'Filter 2 Key Track'],
 
     // dsp::UnisonOscillator::WarpMode.
     osc1_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],
@@ -166,6 +168,12 @@ export const DESTINATION_PARAMETER: Record<number, string> = {
     15: 'filter2_resonance',
     17: 'osc1_warp_amount',
     18: 'osc2_warp_amount',
+    19: 'filter1_drive',
+    20: 'filter1_mix',
+    21: 'filter1_keytrack',
+    22: 'filter2_drive',
+    23: 'filter2_mix',
+    24: 'filter2_keytrack',
 };
 
 /** `dsp::EnvelopeStage`, in its own numeric order. Shown as a word because a

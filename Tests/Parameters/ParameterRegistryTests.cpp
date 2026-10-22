@@ -89,7 +89,7 @@ using namespace apollo::params;
 //
 // Phase 13c-2 added four: a mix and a key tracking amount for each filter
 // (ADR-0092).
-static_assert (parameterCount() == 282, "the registry has two hundred and eighty-two parameters");
+static_assert (parameterCount() == 298, "the registry has two hundred and ninety-eight parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

@@ -57,7 +57,7 @@ constexpr double referenceNote = 69.0;
     before (ADR-0093) — consistent with the function no longer being inlined
     into the per-sample loop that calls it twice.
 */
-constexpr auto runFilterSlot = [] (const FilterSlotSettings& slot,
+constexpr auto runFilterSlot = [] (float drive,
                                    dsp::VoiceFilter& leftFilter,
                                    dsp::VoiceFilter& rightFilter,
                                    dsp::LinearSmoothedValue& mix,
@@ -67,10 +67,10 @@ constexpr auto runFilterSlot = [] (const FilterSlotSettings& slot,
     const auto dryLeft = l;
     const auto dryRight = r;
 
-    if (slot.drive > 0.0f)
+    if (drive > 0.0f)
     {
-        const auto gain = dsp::driveGain (slot.drive);
-        const auto makeup = dsp::driveCompensation (slot.drive);
+        const auto gain = dsp::driveGain (drive);
+        const auto makeup = dsp::driveCompensation (drive);
 
         l = dsp::softClip (l * gain) * makeup;
         r = dsp::softClip (r * gain) * makeup;
@@ -190,8 +190,7 @@ void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
     filter2Left.setType (filters.filter2.mode);
     filter2Right.setType (filters.filter2.mode);
 
-    filter1Mix.setTargetValue (filters.filter1.mix);
-    filter2Mix.setTargetValue (filters.filter2.mix);
+    updateFilterControls();
 
     // Through the voice's own resolution rather than straight to the shared
     // set, so a voice being modulated or key-tracked keeps its offset across a
@@ -203,19 +202,19 @@ void Voice::applyFilters (float& left, float& right) noexcept
 {
     if (filters.routing == FilterRouting::series)
     {
-        runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
-        runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, left, right);
+        runFilterSlot (filter1Drive, filter1Left, filter1Right, filter1Mix, left, right);
+        runFilterSlot (filter2Drive, filter2Left, filter2Right, filter2Mix, left, right);
         return;
     }
 
     // Parallel: both slots see the same input.
     auto leftA = left;
     auto rightA = right;
-    runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, leftA, rightA);
+    runFilterSlot (filter1Drive, filter1Left, filter1Right, filter1Mix, leftA, rightA);
 
     auto leftB = left;
     auto rightB = right;
-    runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, leftB, rightB);
+    runFilterSlot (filter2Drive, filter2Left, filter2Right, filter2Mix, leftB, rightB);
 
     // Halved, so two identical filters in parallel are as loud as one rather
     // than twice as loud — which would put the engine's headroom measurements
@@ -230,8 +229,8 @@ void Voice::applySplitFilters (float& left, float& right,
 {
     // Both slots run every sample whether or not anything feeds them, so a
     // filter a source has just left rings out instead of stopping dead.
-    runFilterSlot (filters.filter1, filter1Left, filter1Right, filter1Mix, left, right);
-    runFilterSlot (filters.filter2, filter2Left, filter2Right, filter2Mix, secondLeft, secondRight);
+    runFilterSlot (filter1Drive, filter1Left, filter1Right, filter1Mix, left, right);
+    runFilterSlot (filter2Drive, filter2Left, filter2Right, filter2Mix, secondLeft, secondRight);
 
     // Summed, not halved: each source took one path, so this is the sources'
     // own sum when both filters are transparent.
@@ -276,6 +275,12 @@ void Voice::setModulationRouting (const dsp::ModulationRouting& newRouting) noex
 
         if (index < sourceUsed.size())
             sourceUsed[index] = true;
+
+        // A source that only scales another routing still has to run.
+        const auto via = static_cast<std::size_t> (slot.via);
+
+        if (slot.via != dsp::ModSource::none && via < sourceUsed.size())
+            sourceUsed[via] = true;
     }
 
     // A routing that has just been switched off must not leave its last offsets
@@ -453,7 +458,24 @@ void Voice::applyModulation() noexcept
     subGain.setTargets (sources.subLevel + destinationOffset (Destination::subLevel), 0.0f);
     noiseGain.setTargets (sources.noiseLevel + destinationOffset (Destination::noiseLevel), 0.0f);
 
+    updateFilterControls();
     resolveFilterCoefficients();
+}
+
+void Voice::updateFilterControls() noexcept
+{
+    using Destination = dsp::ModDestination;
+
+    // Each slot's drive and mix, offset by the matrix (Phase 13e-4). With no
+    // routing the offsets are zero and these are the settings exactly. The mix
+    // goes to its smoother, so a routing arriving every sixteen samples still
+    // glides; the drive is read per sample and steps with the control block,
+    // as the cutoff does.
+    filter1Drive = clampFinite (filters.filter1.drive + destinationOffset (Destination::filter1Drive), 0.0f, 1.0f);
+    filter2Drive = clampFinite (filters.filter2.drive + destinationOffset (Destination::filter2Drive), 0.0f, 1.0f);
+
+    filter1Mix.setTargetValue (clampFinite (filters.filter1.mix + destinationOffset (Destination::filter1Mix), 0.0f, 1.0f));
+    filter2Mix.setTargetValue (clampFinite (filters.filter2.mix + destinationOffset (Destination::filter2Mix), 0.0f, 1.0f));
 }
 
 void Voice::resolveFilterCoefficients() noexcept
@@ -471,12 +493,14 @@ void Voice::resolveFilterCoefficients() noexcept
     const auto resolveFilter = [this, playedOctaves] (const FilterSlotSettings& slot,
                                                       Destination cutoffTarget,
                                                       Destination resonanceTarget,
+                                                      Destination keyTrackTarget,
                                                       dsp::VoiceFilter& left,
                                                       dsp::VoiceFilter& right)
     {
         const auto cutoffOffset = destinationOffset (cutoffTarget);
         const auto resonanceOffset = destinationOffset (resonanceTarget);
-        const auto trackedOctaves = slot.keyTrack * playedOctaves;
+        const auto keyTrack = clampFinite (slot.keyTrack + destinationOffset (keyTrackTarget), -1.0f, 1.0f);
+        const auto trackedOctaves = keyTrack * playedOctaves;
 
         if (cutoffOffset == 0.0f && resonanceOffset == 0.0f && trackedOctaves == 0.0f)
         {
@@ -500,10 +524,10 @@ void Voice::resolveFilterCoefficients() noexcept
     };
 
     resolveFilter (filters.filter1, Destination::filter1Cutoff, Destination::filter1Resonance,
-                   filter1Left, filter1Right);
+                   Destination::filter1KeyTrack, filter1Left, filter1Right);
 
     resolveFilter (filters.filter2, Destination::filter2Cutoff, Destination::filter2Resonance,
-                   filter2Left, filter2Right);
+                   Destination::filter2KeyTrack, filter2Left, filter2Right);
 }
 
 float Voice::playedOctaves() const noexcept

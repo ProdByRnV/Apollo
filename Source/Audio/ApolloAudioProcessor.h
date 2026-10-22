@@ -422,6 +422,7 @@ private:
         std::atomic<float>* source = nullptr;
         std::atomic<float>* destination = nullptr;
         std::atomic<float>* depth = nullptr;
+        std::atomic<float>* via = nullptr;
 
         /** @param prefix  "mod01_" through "mod16_". */
         void resolve (juce::AudioProcessorValueTreeState& state, juce::StringRef prefix);

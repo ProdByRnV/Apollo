@@ -845,11 +845,18 @@ body::before {
 /* Fixed so the two banks line up with each other, and so a long destination
    name cannot push the depth rail off the edge. */
 .matrix__source {
-    width: 34%;
+    width: 24%;
 }
 
 .matrix__destination {
-    width: 36%;
+    width: 28%;
+}
+
+/* The via source scales the routing, so it reads after the depth it scales.
+   Its names are short — a modulator or a macro — so it takes the least room,
+   and the depth keeps enough for its rail and an unwrapped readout. */
+.matrix__via {
+    width: 17%;
 }
 
 .matrix__depth {
@@ -915,6 +922,8 @@ body::before {
     font-variant-numeric: tabular-nums;
     color: var(--text-bright);
     width: 46px;
+    flex: none;
+    white-space: nowrap;
     text-align: right;
 }
 

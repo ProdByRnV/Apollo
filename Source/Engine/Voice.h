@@ -468,6 +468,9 @@ private:
     /** Sets the noise's rate from its key tracking and the played pitch. */
     void updateNoiseRate() noexcept;
 
+    /** Each filter's drive and mix target, from its settings and the matrix. */
+    void updateFilterControls() noexcept;
+
     /** The played pitch, in octaves from middle C: the note and both bends,
         and not the oscillators' tuning or the matrix's pitch modulation. What
         key tracking follows, for the filters and the noise alike. Zero for an
@@ -603,6 +606,11 @@ private:
         is every patch from before the control existed. */
     dsp::LinearSmoothedValue filter1Mix { 1.0f };
     dsp::LinearSmoothedValue filter2Mix { 1.0f };
+
+    /** Each filter's drive as the slot applies it: the setting, offset by the
+        matrix (updateFilterControls). */
+    float filter1Drive = 0.0f;
+    float filter2Drive = 0.0f;
 
     /** Multiplies the envelope while a voice is being stolen, and is 1 at every
         other time. Kept apart from the envelope so the anti-click fade and the

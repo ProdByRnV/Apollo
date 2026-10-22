@@ -150,6 +150,16 @@ enum class ModDestination
     osc1Warp,
     osc2Warp,
 
+    /** Each filter's drive and mix, 0 to 1, and its key tracking, -1 to 1:
+        the filter controls Phase 13c added, made destinations in 13e-4 and
+        appended for the same reason as the warp. */
+    filter1Drive,
+    filter1Mix,
+    filter1KeyTrack,
+    filter2Drive,
+    filter2Mix,
+    filter2KeyTrack,
+
     count
 };
 
@@ -183,6 +193,16 @@ enum class ModDestination
         case ModDestination::amplitude:
         case ModDestination::osc1Warp:
         case ModDestination::osc2Warp:
+        case ModDestination::filter1Drive:
+        case ModDestination::filter1Mix:
+        case ModDestination::filter2Drive:
+        case ModDestination::filter2Mix:
+            return 1.0f;
+
+        // An octave of cutoff per octave played at full depth: half the key
+        // tracking control's span, which runs -1 to 1.
+        case ModDestination::filter1KeyTrack:
+        case ModDestination::filter2KeyTrack:
             return 1.0f;
 
         // Cutoff is modulated in octaves rather than hertz, because that is how
@@ -213,6 +233,13 @@ struct ModulationSlot
     ModSource source = ModSource::none;
     ModDestination destination = ModDestination::none;
     float depth = 0.0f;
+
+    /** A second source that scales this slot's contribution — the routing's
+        depth, modulated (Phase 13e-4, PRD §16). None leaves the slot as it
+        was. Its value multiplies as it stands, so a unipolar source opens the
+        routing from nothing to full and a bipolar one also turns it round.
+    */
+    ModSource via = ModSource::none;
 
     /** True when this slot would do nothing, so it can be skipped entirely
         rather than multiplied by zero.

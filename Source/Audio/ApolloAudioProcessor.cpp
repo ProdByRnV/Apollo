@@ -296,8 +296,9 @@ void ApolloAudioProcessor::ModSlotParameterPointers::resolve (
     source = state.getRawParameterValue (base + "source");
     destination = state.getRawParameterValue (base + "destination");
     depth = state.getRawParameterValue (base + "depth");
+    via = state.getRawParameterValue (base + "via");
 
-    jassert (source != nullptr && destination != nullptr && depth != nullptr);
+    jassert (source != nullptr && destination != nullptr && depth != nullptr && via != nullptr);
 }
 
 ApolloAudioProcessor::~ApolloAudioProcessor()
@@ -565,6 +566,12 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
                                          : dsp::ModDestination::none;
 
         routing.slots[i].depth = readParameter (pointers.depth, 0.0f);
+
+        const auto via = static_cast<int> (readParameter (pointers.via, 0.0f));
+
+        routing.slots[i].via = (via > 0 && via < sourceCount)
+                                 ? static_cast<dsp::ModSource> (via)
+                                 : dsp::ModSource::none;
     }
 
     voiceEngine.setModulationRouting (routing);

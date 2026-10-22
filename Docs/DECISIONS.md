@@ -6240,3 +6240,96 @@ source table at each modulation update. Not measured: the machine was 20 to
   13g's work on what presets reference.
 - **More than four.** Four matches the envelopes and the LFOs, and the source
   list keeps its order whatever is appended later.
+
+---
+
+## ADR-0099 — The filter's own controls become destinations, and a slot's depth is modulated by a via source
+
+**Phase 13e-4 · Accepted**
+
+### What was built
+
+- **Six destinations**, appended after the warp so every destination keeps its
+  number: each filter's drive, mix and key tracking. Every slot's destination
+  range grew from 19 choices to 25, which moves a host's normalised automation
+  of it (Docs/COMPATIBILITY.md §2).
+- **Sixteen parameters**, taking the registry to 298: a `modNN_via` per slot, a
+  second source from the same list as the first. The key-tracking parameters
+  are now marked modulatable, as the drive and mix already were.
+
+Nothing routes to them or uses a via by default, so all fifteen regression
+renders passed unregenerated. The pinned VST3 parameter numbers grew by sixteen
+and changed none.
+
+### A destination means what its control means
+
+A routing offsets the control on the way to what uses it. It never writes the
+control, as with every other destination. The offsets are in the controls'
+own units, scaled by the depth: drive and mix by up to their whole range, and
+key tracking by up to one octave per octave played. The mix offset goes to the
+mix's smoother, so it glides even though routings update every 16 samples. The
+drive is read per sample and steps with the control block, as the cutoff does.
+The key tracking feeds the voice's coefficient resolution, which already
+re-resolved every block when anything was routed.
+
+The proof is a comparison with the control itself. A constant routed to a
+destination was set beside the same value in the control:
+
+| Destination | Routed against set |
+|---|---|
+| Drive, 0.7 | identical, sample for sample |
+| Mix, 0.4 (after both had settled) | worst difference 7e-9 |
+| Key tracking, 1, on a comb at A4 | identical, sample for sample |
+
+With no routing, the offsets are exactly zero and each control passes through
+unchanged. The voice now reads a filter's drive from its own copy rather than
+from the shared settings, but at zero offset that copy is the setting.
+
+### Modulating a depth
+
+PRD §16 asks for modulation of modulation depth, "LFO 1 → ENV 2 depth" being
+its example. Each slot now has a via: a second source whose value multiplies
+the slot's contribution. That example is ENV 2's routing with LFO 1 as its
+via.
+
+- **Why a via and not depth as a destination.** A depth as a destination would
+  make one slot's output another slot's input, and the matrix would need an
+  order of evaluation and a rule for cycles. A via is evaluated inside its own
+  slot, in the single pass the matrix already makes, and costs one multiply.
+- **A via multiplies by its source as it stands.** A unipolar source such as a
+  macro, a unipolar LFO, velocity or an envelope opens the routing from nothing
+  to full. A bipolar source also turns it round. Measured with one macro as
+  the via of another's routing: at 0, 0.5 and 1 the level was 0.0350, 0.0175
+  and 0.0000.
+- **An ordinary slot is untouched.** A slot with no via evaluates the same
+  expression as before, written the same way, so that no compiler contracts
+  it differently. A via out of range is ignored, as an out-of-range source is.
+- **A source used only as a via runs.** The voice advances only the sources
+  something reads, and a via counts as reading. An LFO used only as a via moved
+  the level from 0.0325 to 0.0022 and back across a cycle. The interface's
+  trace marks such an LFO as routed.
+
+### The matrix panel
+
+A Via column after Depth, since the via scales the depth. The source and
+destination columns narrowed to make room. The first layout squeezed the depth
+column until its "+60 %" readout wrapped onto two lines and ran into the via.
+The readout no longer wraps, and the via column, whose names are short, takes
+the least room.
+
+### What it costs
+
+**Not measured.** Something other than Apollo had the machine at 20 to 35 %
+for the whole sitting. A full core of it was a game, and it is not stopped
+from here. Timed alternately against 13e-2's build, the same binary measured
+3.15 % and then 1.80 % on the default patch, so a comparison of 6 % is inside
+its own noise. The change on the per-sample path is that the filter slot reads
+its drive from the voice rather than from the shared settings. Like
+13e-2's, it is recorded as owed a quiet sitting rather than passed.
+
+### Given up
+
+- **Effect parameters as destinations.** That is 13e-5: the effects run on the
+  summed voices, so they cannot take a per-voice offset, and need a decision of
+  their own.
+- **A depth as a destination, as well as a via.** See above.

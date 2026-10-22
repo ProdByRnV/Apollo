@@ -439,7 +439,7 @@ LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
 
-> **Status, 0.1.0 to 13e-3:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, and since Phase 13b each oscillator's warp amount. ❌ Not built: effect parameters as destinations, and modulation of a routing's depth. New sources and destinations are added without rewriting the engine, as required.
+> **Status, 0.1.0 to 13e-4:** ◐ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, since Phase 13b each oscillator's warp amount, and since Phase 13e-4 each filter's drive, mix and key tracking (ADR-0099). ✅ Modulation of depth: since Phase 13e-4 every slot has a via source that scales its contribution, so "LFO 1 → ENV 2 depth" is ENV 2's routing with LFO 1 as its via. ❌ Not built: effect parameters as destinations (13e-5). New sources and destinations are added without rewriting the engine, as required.
 
 ---
 17. Macro Controls

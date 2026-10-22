@@ -17,7 +17,7 @@ import { publishRouting } from '../state/modulation';
 
 export const SLOT_COUNT = 16;
 
-function slotId(slot: number, part: 'source' | 'destination' | 'depth'): string {
+function slotId(slot: number, part: 'source' | 'destination' | 'depth' | 'via'): string {
     return `mod${String(slot).padStart(2, '0')}_${part}`;
 }
 
@@ -28,7 +28,9 @@ function slotId(slot: number, part: 'source' | 'destination' | 'depth'): string 
 export const MATRIX_PARAMETER_IDS: string[] = Array.from(
     { length: SLOT_COUNT },
     (_, index) => index + 1,
-).flatMap((slot) => [slotId(slot, 'source'), slotId(slot, 'destination'), slotId(slot, 'depth')]);
+).flatMap((slot) => [
+    slotId(slot, 'source'), slotId(slot, 'destination'), slotId(slot, 'depth'), slotId(slot, 'via'),
+]);
 
 interface RowProps {
     slot: number;
@@ -38,11 +40,13 @@ function Row({ slot }: RowProps): JSX.Element {
     const sourceId = slotId(slot, 'source');
     const destinationId = slotId(slot, 'destination');
     const depthId = slotId(slot, 'depth');
+    const viaId = slotId(slot, 'via');
 
     // Subscribed to individually, so a row re-renders when its own slot moves.
     useParameterValue(sourceId);
     useParameterValue(destinationId);
     useParameterValue(depthId);
+    useParameterValue(viaId);
 
     // A routing counts as assigned when it has a source, a destination and a
     // depth that is not zero — all three, because any one of them missing means
@@ -72,6 +76,14 @@ function Row({ slot }: RowProps): JSX.Element {
             <td className="matrix__depth">
                 <BipolarRail id={depthId} />
             </td>
+
+            {/*
+                A second source that scales the routing: its depth, modulated
+                (13e-4). "—" leaves the slot as it was.
+            */}
+            <td className="matrix__via">
+                <Select id={viaId} table={LABELS.modSource} ariaLabel={`Slot ${slot} via`} />
+            </td>
         </tr>
     );
 }
@@ -86,6 +98,7 @@ function Bank({ bank }: { bank: number }): JSX.Element {
                     <th className="matrix__arrow" />
                     <th className="matrix__destination">Destination</th>
                     <th className="matrix__depth">Depth</th>
+                    <th className="matrix__via">Via</th>
                 </tr>
             </thead>
 
