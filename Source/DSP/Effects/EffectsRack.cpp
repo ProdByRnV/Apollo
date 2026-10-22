@@ -167,7 +167,17 @@ double EffectsRack::getTailSeconds() const noexcept
     return total;
 }
 
-void EffectsRack::process (float* const* channels, int numChannels, int numSamples) noexcept
+bool EffectsRack::contains (EffectType type) const noexcept
+{
+    for (const auto& slot : chain)
+        if (slot.effect == type && type != EffectType::none)
+            return true;
+
+    return false;
+}
+
+void EffectsRack::process (float* const* channels, int numChannels, int numSamples,
+                           EffectWatcher* watcher) noexcept
 {
     if (channels == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
@@ -179,10 +189,16 @@ void EffectsRack::process (float* const* channels, int numChannels, int numSampl
         if (effect == nullptr)
             continue;
 
+        if (watcher != nullptr)
+            watcher->watch (slot.effect, EffectWatcher::Side::input, channels, numChannels, numSamples);
+
         if (slot.bypassed)
             effect->processBypassed (channels, numChannels, numSamples);
         else
             effect->process (channels, numChannels, numSamples);
+
+        if (watcher != nullptr)
+            watcher->watch (slot.effect, EffectWatcher::Side::output, channels, numChannels, numSamples);
     }
 }
 

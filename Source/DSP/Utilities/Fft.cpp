@@ -74,6 +74,71 @@ void forwardTransform (std::vector<std::complex<double>>& samples)
     }
 }
 
+void PreparedTransform::prepare (std::size_t newSize)
+{
+    size = 0;
+    twiddles.clear();
+    reversed.clear();
+
+    if (! isTransformSize (newSize))
+        return;
+
+    twiddles.resize (newSize / 2);
+
+    for (std::size_t k = 0; k < twiddles.size(); ++k)
+    {
+        const auto angle = -twoPi * static_cast<double> (k) / static_cast<double> (newSize);
+        twiddles[k] = { std::cos (angle), std::sin (angle) };
+    }
+
+    reversed.resize (newSize);
+
+    auto bits = 0;
+
+    while ((std::size_t { 1 } << bits) < newSize)
+        ++bits;
+
+    for (std::size_t i = 0; i < newSize; ++i)
+    {
+        std::size_t r = 0;
+
+        for (auto b = 0; b < bits; ++b)
+            r |= ((i >> b) & 1u) << (bits - 1 - b);
+
+        reversed[i] = r;
+    }
+
+    size = newSize;
+}
+
+void PreparedTransform::perform (std::complex<double>* samples) const noexcept
+{
+    if (samples == nullptr || size == 0)
+        return;
+
+    for (std::size_t i = 0; i < size; ++i)
+        if (i < reversed[i])
+            std::swap (samples[i], samples[reversed[i]]);
+
+    for (std::size_t span = 2; span <= size; span <<= 1)
+    {
+        const auto half = span / 2;
+        const auto stride = size / span;
+
+        for (std::size_t start = 0; start < size; start += span)
+        {
+            for (std::size_t offset = 0; offset < half; ++offset)
+            {
+                const auto even = samples[start + offset];
+                const auto odd = twiddles[offset * stride] * samples[start + offset + half];
+
+                samples[start + offset] = even + odd;
+                samples[start + offset + half] = even - odd;
+            }
+        }
+    }
+}
+
 std::vector<std::complex<double>> analyseCycle (const std::vector<double>& samples,
                                                 int numHarmonics)
 {

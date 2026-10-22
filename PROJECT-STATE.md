@@ -7,7 +7,7 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-10-21
+**Last verified:** 2026-10-22
 **Apollo version:** 0.1.0
 
 ---
@@ -19,14 +19,15 @@
 | **Phase** | **Phase 13 — Completing the specification**, in progress: **13a (the oscillators' controls), 13b (warp), 13c (filters: comb and formant types, mix and key tracking, split routing), 13d (noise: pink, key tracking, built-in transients) and 13e (modulation: LFO tempo sync, envelope retrigger, macros, filter and effect destinations, depth modulation) complete**. Phase 12 (production hardening) is complete — 12a reliability, 12b audio quality, 12c UX, 12d documentation — and its release candidate moved to Phase 14, after the developer decided every specified feature belongs in the first release (ADR-0089). Phase 11 is closed, and Phase 10 is closed except 10e-2 and 10e-3, the DAW work, deferred at the developer's direction |
 | **Status** | **A complete, tested instrument, on its way to a release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI. On Windows it has also been played from two MIDI keyboards and its interface driven by hand. Phase 12 has shown it stays correct over long sessions (12a), sounds as intended (12b), and has an interface that can be used from the keyboard and by a screen reader, takes typed values, and says what it is doing (12c). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): it has not been tried in a DAW, its interface has never been seen on macOS or Linux, and several specified features were never built — drawn curves among them (warp was, and 13b built it). The developer decided they all belong in the first release, so Phase 13 is building them before the release candidate (ADR-0089). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | Working toward **M11 — Release Candidate**, which now follows Phase 13. M10 (Beta) is met except its representative-host testing, which is the deferred DAW work (10e-2, 10e-3) |
-| **Next step** | **Phase 13f — the drawing editors**: drawn LFO curves, and envelopes edited by dragging. 13e is complete: 13e-5 made six effect controls destinations, following the newest note or, in silence, the engine-wide sources (ADR-0100); 13e-4 made each filter's drive, mix and key tracking destinations and gave every slot a via source that modulates its depth (ADR-0099); 13e-3 added four macros, matrix sources with a range and a curve each (ADR-0098); 13e-2 gave each envelope a retrigger option, CONTINUE by default as before, and stopped a continuing steal from stepping (ADR-0097); 13e-1 gave the LFOs tempo sync, a free-running synced LFO locked to the bar (ADR-0096). 13d is complete: 13d-2 added four synthesised attack transients, played once per note and pitched by the key tracking without aliasing (ADR-0095); 13d-1 gave the noise a pink type at white's level and key tracking that plays it slower below middle C (ADR-0094). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Next step** | **Phase 13f — the drawing editors**: drawn LFO curves, and envelopes edited by dragging. Since 13e, at the developer's request, the equaliser draws the live spectrum of its input and output behind its curve (ADR-0101). 13e is complete: 13e-5 made six effect controls destinations, following the newest note or, in silence, the engine-wide sources (ADR-0100); 13e-4 made each filter's drive, mix and key tracking destinations and gave every slot a via source that modulates its depth (ADR-0099); 13e-3 added four macros, matrix sources with a range and a curve each (ADR-0098); 13e-2 gave each envelope a retrigger option, CONTINUE by default as before, and stopped a continuing steal from stepping (ADR-0097); 13e-1 gave the LFOs tempo sync, a free-running synced LFO locked to the bar (ADR-0096). 13d is complete: 13d-2 added four synthesised attack transients, played once per note and pitched by the key tracking without aliasing (ADR-0095); 13d-1 gave the noise a pink type at white's level and key tracking that plays it slower below middle C (ADR-0094). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
 up to sixteen unison voices each, a sub oscillator and a noise generator; two
 filters; four envelopes, four LFOs and a sixteen-slot modulation matrix; a
 reorderable rack of six effects; presets; MIDI Learn, controller profiles and
-MPE; and an oscilloscope for every source. [README.md](README.md) describes it
+MPE; an oscilloscope for every source; and the live spectrum of the sound
+through the equaliser, behind its curve. [README.md](README.md) describes it
 for somebody meeting it for the first time, and
 [Docs/PLATFORMS.md](Docs/PLATFORMS.md) says how much of each platform has been
 seen working.
@@ -138,7 +139,7 @@ Everything below was configured, built and executed on this machine.
   frames a second through state would re-render eleven components to produce
   markup that never changes (ADR-0050).
 - **Now also present:** every visualizer Apollo owes except a spectrum analyser
-  (Phase 7a-7c). Six oscilloscopes — the output, both wavetable oscillators, the
+  (Phase 7a-7c), which came later, as the equaliser's display (ADR-0101). Six oscilloscopes — the output, both wavetable oscillators, the
   sub, the noise generator and the post-filter signal — from frames broadcast at
   30 Hz; eight modulator traces, an output meter with a clip indicator, the
   sounding voice count and a wavetable display per oscillator, at 15 Hz. Each
@@ -567,7 +568,8 @@ Everything below was configured, built and executed on this machine.
   it. A control the user turns rather than a scale the page chooses, so a
   magnified trace can never be mistaken for a loud one.
 - **Not yet present:** a spectrum analyser, which PRD and ROADMAP both mark
-  optional; and the React migration (7d).
+  optional (built after 13e, behind the equaliser's curve; ADR-0101); and the
+  React migration (7d).
 
 ### The effects rack and the distortion (Phase 8a)
 
@@ -804,8 +806,8 @@ Everything below was configured, built and executed on this machine.
   resolved to an empty slot now asserts the opposite: the only value that means
   nothing is the one that means nothing.
 - **Not yet present:** whole-chain validation (8f). Deliberately absent: a
-  linear-phase mode, per-band solo, a spectrum analyser behind the curve, and
-  reorderable bands — a cascade of minimum-phase filters commutes, so reordering
+  linear-phase mode, per-band solo, a spectrum analyser behind the curve (since
+  built, at the developer's request; ADR-0101), and reorderable bands — a cascade of minimum-phase filters commutes, so reordering
   would be a control that changes nothing (ADR-0059).
 
 ### Whole-chain validation (Phase 8f)
@@ -1920,11 +1922,45 @@ Tested in `Tests/Engine/EffectModulationTests.cpp`. Every slot's destination
 range grew from 25 choices to 31 (Docs/COMPATIBILITY.md §2). **This completes
 13e**, modulation.
 
+### The equaliser's spectrum (after 13e, at the developer's request)
+
+Behind the equaliser's curve there are now two lines:
+- a grey line for the live spectrum of what goes into the equaliser;
+- a gold line, over a faint fill, for what comes out.
+
+The curve says what the equaliser is set to do, and the gap between the lines is
+what it is doing, so every knob, button and handle on the panel visibly moves
+the gold line (ADR-0101).
+
+- **Capture.** The rack offers each effect's input and output to an optional
+  watcher (`dsp::EffectWatcher`). The processor's watcher copies the
+  equaliser's two sides, mixed to mono, into two more capture rings on the hub,
+  only while an editor is watching. Out of the rack, the rings are written with
+  silence and a flag says so.
+- **Analysis on the message thread**, 30 times a second:
+  - 4096-point Hann transforms through a new `dsp::PreparedTransform`, whose
+    twiddle factors are a table;
+  - 160 points from 20 Hz to 20 kHz;
+  - a 4.5 dB per octave tilt about 1 kHz;
+  - a fast rise and a fall of at most 60 dB a second.
+- **A third broadcast, `spectrumFrame`**, about 2 KB, in tenths of a decibel
+  (UI_BINDINGS.md §10.7). The page caches the curve, so the spectrum's frame
+  rate does not recompute seven filters at every pixel.
+
+Tested in `Tests/Telemetry/SpectrumTests.cpp`:
+- A sine reads at its own level and nowhere else.
+- A 12 dB cut at 1 kHz reads −11.92 dB between output and input at 1 kHz, and
+  −0.22 and −0.14 dB at 150 Hz and 7 kHz.
+- A bypassed equaliser draws the two lines together.
+- Out of the rack, the frame is inactive and the taps are silent.
+- Nothing is captured unwatched, and watching does not change the sound.
+- The message keeps to its budget.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
 |---|---|
-| 7 | **Complete**, but for an optional spectrum analyser. The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
+| 7 | **Complete**. The optional spectrum analyser came after 13e, as the equaliser's display (ADR-0101). The transport landed in **7a**, a scope on the output and all five sources in **7b**, the modulator traces, output meter, voice count and wavetable displays in **7c**, and the React/TypeScript migration in **7d** |
 | 8 | **Complete.** The rack, the distortion, the delay, the reverb, the gate, the compressor, the equaliser, and the whole-chain validation that needed all six to mean anything. Every one of Phase 8's five exit criteria is closed |
 | 9 | **Complete.** The `.rnv` document is written, read, validated, migrated and bounded (ADR-0061); the library on disk is located, scanned on a background thread and saved to atomically (ADR-0062); the browser lists, searches, filters, loads and saves it, asking for a preset by a number the backend assigned and unable to express a path at all (ADR-0063); nine factory sounds plus the init patch are compiled in, each played a note by the suite to prove it makes one (ADR-0065); and wavetables became resources — described as spectra, built once per process, replaceable while a note sounds, and read from a file through a validator that leaves the instrument playing whatever goes wrong (ADR-0066). Absent: a way for the user to *choose* a wavetable file, which needs a native chooser rather than a path across the bridge |
 | 10 | **10a to 10d are done, and 10e-1: the host harness** loads the built VST3 through a VST3 host implementation in CI on all three platforms, and fixed four defects it found (ADR-0075). **10a, 10b, 10c and all of 10d are done.** The assembled instrument is measured for tuning, distortion, noise, DC, aliasing, transient behaviour and stability (§5c, ADR-0067); fifteen renders are pinned against references compiled in beside the tests (§5d, ADR-0068); the benchmark reports how much it should be believed (§5b, ADR-0069); **10d-1 and 10d-2 made the voice path about 2.8x cheaper**, taking the worst patch from 105 % of its callback deadline to around a third of it (ADR-0070, ADR-0071); **10d-3 made the measurements reproducible**, finding this 15 W laptop sheds up to 68 % of its clock mid-report (ADR-0072); **10d-4 priced SIMD and declined it**, because 1.39x of the 1.76x available came from data layout alone (ADR-0073); and **10d-5 built that restructuring** — the unison stack is flat rather than sixteen oscillator objects — for a further **1.28x on the heaviest patch** (ADR-0074). Absent: Apollo in a real DAW (10e-2, FL Studio) and whatever that finds (10e-3) |
@@ -2021,7 +2057,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,326,336 assertions, 0 failures**, across 58 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,326,575 assertions, 0 failures**, across 59 test classes, in `ApolloTests`; **21 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **214 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2050,6 +2086,7 @@ subsystems they test.
 | MIDI | MPE and per-note expression | Zone channel classification at both ends of both zones; manager-versus-member routing; RPN decoding, per-channel independence, the null selection and NRPN cancellation; polyphonic aftertouch pressing one note and not another; channel pressure still pressing everything; per-note bend independent per channel and adding to the wheel; note-off matching its channel; CC 74 as timbre inside a zone and as a MIDI Learn target outside one; the bend range as a control, applied to a held wheel; an MPE Configuration Message reaching the zone through the parameter; and pressure not being inherited by a new note while the bend is |
 | MIDI | MIDI Learn | Learn assigns the moved control and disarms; a reserved control is refused and leaves learn armed; the learning message does not itself move the parameter; a mapped control sweeps its parameter; **rendering alone never writes a parameter**; a control being learned does not drive its old destination; removal and clearing stop it; sustain and the mod wheel keep their fixed behaviour; mappings round-trip through save and reload and still drive audio; unknown-parameter entries are dropped; every bridge command, including with no MIDI attached |
 | Telemetry | Visualisation transport | An untouched source distinguishable from a silent one; the window read back in order, including across the ring's wrap; a stopped source seen to stop rather than holding its last picture; reset; the silence threshold; triggering, including that a flat line reports itself free-running; decimation that shows alternating samples rather than averaging them to nothing; per-source isolation and unique wire tokens; the processor capturing its own output through `processBlock`; and the bridge sending a frame whose points are finite, inside full scale, and actually a waveform. Phase 7b added the four claims that matter most: that an unwatched instance captures nothing and still sounds; that arming discards the picture the last viewer left behind; that the same note rendered with and without capture comes back **sample for sample identical**, including when the block is long enough for the capture path to split it; that a source at level zero is captured *as silence* rather than left uncaptured, and survives a closed filter that takes the mix away; and that a source's trace grows with the voice pool rather than showing one voice from it. Both frame builders also log and bound their message size, so an encoding change that multiplies the traffic is caught here rather than in a profiler |
+| Telemetry | Equaliser spectrum | Added after 13e (ADR-0101):<br>• The prepared transform matches the existing one to 1e-9.<br>• A 996 Hz sine at half scale reads −6.03 dB at its own point and the floor two octaves away.<br>• A sound that stops falls steadily to the floor and is reported silent.<br>• With no equaliser in the rack, or an engine not yet prepared, the frame is inactive.<br>• **A 12 dB bell cut at 1 kHz reads −11.92 dB between output and input at 1 kHz, and under a quarter of a decibel at 150 Hz and 7 kHz; flat, it reads nothing.**<br>• A bypassed equaliser draws the two lines together.<br>• Taken out of the rack, the hub says so and the taps hold silence; put back, it is placed again.<br>• Nothing is captured unwatched.<br>• The same note with and without watching is sample for sample identical.<br>• The message carries 160 levels a side, within range, in about 2 KB, and nothing but the fact when inactive. |
 | Telemetry | Instrument telemetry | The modulator traces, the meter, the voice count and the wavetable displays, added in 7c. A modulator nothing traces is distinguishable from one sitting still; the trace is the most recent second across the ring's wrap; the meter takes a peak in the block it happened in and gives it up over about a second and a half; peak and RMS disagree about a single spike and agree about a constant tone, which is why there are two of them; a clip is still reported half a second after the samples that caused it and clears itself after the hold; an envelope's trace shows its rise, settles at the sustain level and falls on release, with the stage reported at each point; the two ends of a wavetable draw different waves, so the display is following the position rather than ignoring it; an unrouted LFO does not claim to be running and starts to when something routes it; and the frame that reaches the interface names every modulator exactly once and both oscillators by number rather than by array position |
 
 | DSP | Distortion | The curve is bounded, monotonic and centred, and every mode passes a quiet signal through unchanged — which is what lets the mode be switched without a jump; drive compensation holds a -6 dBFS sine within 4 dB across the whole 0 to 36 dB range on all three curves; a fully dry mix is the input delayed by **exactly** the reported latency, asserted sample for sample rather than approximately, because a dry path that has been through arithmetic is a bug; latency does not move with mode, drive, mix or bypass; oversampling removes 13 to 15 dB of fold-back against the same curves at the base rate, and a musical note at moderate drive stays under -60 dBc; absurd and denormal input produces finite output, and a very hot signal leaves bounded by the curve's own ceiling; and a reset leaves no tail in the filters or the delay line |
@@ -2999,6 +3036,21 @@ The Release standalone, over the DevTools protocol.
 | A preset is still a complete sound | Reloading Wire Pluck cleared slot 3 and the mark |
 | The whole page | No Unassigned panel |
 
+### The equaliser's spectrum (after 13e), 2026-10-22
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| The broadcast | `spectrumFrame` arrived 30 times a second. With Wire Pluck's rack (delay, reverb) it was inactive and carried no levels |
+| The equaliser put in slot 6 | The frames went active at once: 160 levels a side, silent, at the −120 dB floor, because nothing was playing. The key under the curve appeared |
+| The drawing | Frames injected with a harmonic spectrum and a 12 dB dip at 1 kHz drew a grey input line, a gold output line over a faint fill, and the two parting at 1 kHz, behind the curve and its handles |
+| Taken out again | The frames went inactive, the key hid and the picture cleared |
+
+**Not checked: live notes.** This machine has no virtual MIDI port and the only
+input is a hardware controller, so no note reached the standalone. The path from
+a note to the picture is tested through the real processor and bridge.
+
 ---
 
 
@@ -3759,6 +3811,23 @@ The filter slot reads its drive from the voice now. Timed alternately against
 13e-2's build, but with a game holding a full core: the same binary measured
 3.15 % and 1.80 % on the default patch in successive runs. Recorded as owed a
 quiet sitting, with 13e-2's (ADR-0099).
+
+### The equaliser's spectrum (after 13e)
+
+Two sittings, both reported as not steady (Apollo was open beside them, about
+11 % contention). Raw, medians.
+
+| | Per block | At 30 frames a second |
+|---|---:|---:|
+| Building a spectrum frame: two 4096-point transforms, message thread | 1.89 %, then 1.81 % | **0.60 %, then 0.58 % of real time** |
+| Six scope frames, for comparison | 0.14 % | 0.04 % |
+| The two taps on the audio thread, while watched with the equaliser in the rack | **0.016 %** | — |
+
+The audio thread pays almost nothing, and nothing at all with the editor
+closed. The message thread pays about 0.6 % of a core while the equaliser is in
+the rack and the editor is open, which is about thirteen times the six scopes
+together. Not optimised: it is not a bottleneck. If it ever matters, one complex
+transform can carry both real signals at once, which halves it (ADR-0101).
 
 ### First use (Phase 10c)
 

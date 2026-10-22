@@ -42,6 +42,10 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     // once per block whether anything is watching.
     voiceEngine.setTelemetry (telemetry.get());
 
+    // And the rack's, which only the rack can take: it alone knows where in
+    // the chain the equaliser is.
+    equaliserTap.hub = telemetry.get();
+
     // Resolved once, here: a string lookup per block would be an unbounded
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
@@ -1196,7 +1200,14 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // voices as they stand at the end of this block (Phase 13e-5).
     voiceEngine.updateEffectModulation();
     applyEffectParameters();
-    effects.process (outputs, numOutputChannels, numSamples);
+    // While something is watching, the equaliser's input and output are
+    // taken on the way through for the spectrum behind its curve.
+    const auto watching = telemetry->isCapturing();
+
+    effects.process (outputs, numOutputChannels, numSamples, watching ? &equaliserTap : nullptr);
+
+    if (watching)
+        finishEqualiserTap (numSamples);
 
     // Master gain last, so it scales the finished mix rather than one stage of
     // it. Smoothed per sample: an automated gain move must not step.
@@ -1242,6 +1253,38 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         // loop that did neither job plainly.
         telemetry->outputMeter().process (outputs, numOutputChannels, 0, numSamples);
     }
+}
+
+void ApolloAudioProcessor::EqualiserTap::watch (dsp::EffectType effect, Side side,
+                                                 const float* const* channels, int numChannels,
+                                                 int numSamples) noexcept
+{
+    // AUDIO THREAD.
+    if (effect != dsp::EffectType::equaliser || hub == nullptr)
+        return;
+
+    const auto tap = side == Side::input ? telemetry::SpectrumTap::equaliserInput
+                                         : telemetry::SpectrumTap::equaliserOutput;
+
+    hub->spectrum (tap).writeMixedToMono (channels, numChannels, 0, numSamples);
+    seen = true;
+}
+
+void ApolloAudioProcessor::finishEqualiserTap (int numSamples) noexcept
+{
+    // AUDIO THREAD.
+    telemetry->setEqualiserPlaced (effects.contains (dsp::EffectType::equaliser));
+
+    // An equaliser that did not run this block - out of the rack, or the whole
+    // plugin bypassed - is shown as silence rather than as the last thing it
+    // heard, so that bringing it back cannot draw audio from before.
+    if (! equaliserTap.seen)
+    {
+        telemetry->spectrum (telemetry::SpectrumTap::equaliserInput).writeSilence (numSamples);
+        telemetry->spectrum (telemetry::SpectrumTap::equaliserOutput).writeSilence (numSamples);
+    }
+
+    equaliserTap.seen = false;
 }
 
 void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer,
@@ -1301,6 +1344,10 @@ void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffe
         telemetry->scope (telemetry::ScopeSource::output)
             .writeMixedToMono (outputs, numOutputChannels, 0, numSamples);
         telemetry->outputMeter().process (outputs, numOutputChannels, 0, numSamples);
+
+        // The equaliser is not running, so its spectrum is silence too; and
+        // whether it is in the rack is still worth saying.
+        finishEqualiserTap (numSamples);
     }
 }
 

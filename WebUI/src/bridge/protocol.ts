@@ -129,6 +129,20 @@ export interface InstrumentFrameMessage {
     sampleRate: number;
 }
 
+/** The equaliser's input and output spectra (CLAUDE.md §22), drawn behind
+    its curve. Levels are integer tenths of a decibel, one per point on a
+    logarithmic axis from 20 Hz to 20 kHz; divide by 10. Absent when `active` is
+    false, which means there is no equaliser in the rack rather than that it is
+    quiet. */
+export interface SpectrumFrameMessage {
+    type: 'spectrumFrame';
+    version: number;
+    active: boolean;
+    silent: boolean;
+    input?: number[];
+    output?: number[];
+}
+
 export interface MidiMappingEntry {
     id: string;
     controller: number;
@@ -220,6 +234,7 @@ export type InboundMessage =
     | ParameterChangedMessage
     | ScopeFramesMessage
     | InstrumentFrameMessage
+    | SpectrumFrameMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
     | PresetIndexMessage

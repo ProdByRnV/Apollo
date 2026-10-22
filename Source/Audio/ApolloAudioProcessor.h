@@ -580,6 +580,32 @@ private:
     */
     dsp::EffectsRack effects;
 
+    /** Copies what goes into the equaliser and what comes out of it into the
+        spectrum taps, so the interface can draw both behind its curve
+        (CLAUDE.md §22).
+
+        Handed to the rack only while something is watching, so an instance
+        with its editor closed pays nothing for it. With one open, it costs two
+        mono mix-downs of the block, and only when the equaliser is in the rack.
+    */
+    struct EqualiserTap final : dsp::EffectWatcher
+    {
+        void watch (dsp::EffectType effect, Side side, const float* const* channels,
+                    int numChannels, int numSamples) noexcept override;
+
+        telemetry::TelemetryHub* hub = nullptr;
+
+        /** Whether the equaliser was seen this block. */
+        bool seen = false;
+    };
+
+    EqualiserTap equaliserTap;
+
+    /** AUDIO THREAD. After the rack has run while something watches: says
+        whether the equaliser is in it, and writes silence to the spectrum taps
+        if it is not. */
+    void finishEqualiserTap (int numSamples) noexcept;
+
     /** What the host was last told the rack's latency is.
 
         The audio thread compares the rack's current latency against this on

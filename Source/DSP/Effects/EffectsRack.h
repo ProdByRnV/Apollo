@@ -43,6 +43,35 @@
 namespace apollo::dsp
 {
 
+/** Something that wants to see the signal on either side of an effect.
+
+    The equaliser draws the spectrum of what goes into it and what comes out of
+    it (CLAUDE.md §22), and the rack is the only thing that knows where in the
+    chain it is. Rather than the rack learning about displays, it offers each
+    effect's input and output to whoever asks and does nothing else with them;
+    the DSP stays free of the telemetry it feeds.
+
+    AUDIO THREAD. An implementation may only do what any audio-thread code may:
+    copy into a preallocated ring, set a flag. It is called twice per effect in
+    the chain, per block — twelve indirect calls at most, outside every sample
+    loop — and only while something is watching, because the rack is handed no
+    watcher otherwise.
+*/
+class EffectWatcher
+{
+public:
+    enum class Side
+    {
+        input,
+        output
+    };
+
+    virtual ~EffectWatcher() = default;
+
+    virtual void watch (EffectType effect, Side side, const float* const* channels,
+                        int numChannels, int numSamples) noexcept = 0;
+};
+
 class EffectsRack
 {
 public:
@@ -85,8 +114,16 @@ public:
     /** The resolved chain. */
     [[nodiscard]] const Chain& getChain() const noexcept { return chain; }
 
-    /** Runs the chain in place over the output buffer. */
-    void process (float* const* channels, int numChannels, int numSamples) noexcept;
+    /** Runs the chain in place over the output buffer.
+
+        @param watcher  shown every effect's input and output in chain order,
+                        bypassed or not, or nullptr to show nobody anything.
+    */
+    void process (float* const* channels, int numChannels, int numSamples,
+                  EffectWatcher* watcher = nullptr) noexcept;
+
+    /** True if @p type is in the resolved chain, bypassed or not. */
+    [[nodiscard]] bool contains (EffectType type) const noexcept;
 
     /** Total delay the chain adds, in samples.
 

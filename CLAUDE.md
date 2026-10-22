@@ -938,6 +938,12 @@ can be given back without moving the master and everything downstream of it.
 The response curve should be displayed, drawn at the rate the engine is actually
 running at rather than an assumed one.
 
+Behind the curve, the equaliser draws the **live spectrum** of what goes into it
+and of what comes out, on the same frequency axis. The curve says what the
+equaliser is set to do; the gap between the two spectra is what it is doing, so
+every knob, button and handle on the panel visibly changes the picture. The
+developer asked for this directly (ADR-0101).
+
 ---
 
 # 23. Oversampling

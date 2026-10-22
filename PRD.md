@@ -571,8 +571,9 @@ Band-pass
 Notch
 The equaliser shall also provide an output trim, so gain taken by a boost can be given back without moving the master.
 The response curve shall be displayed, drawn at the rate the engine is actually running at rather than an assumed one.
+Behind the curve, the equaliser shall draw the live spectrum of the signal going into it and of the signal coming out, so that every control on the panel visibly changes the picture.
 
-> **Status, 0.1.0:** ✅ Seven bands as specified, with the response curve drawn at the engine's rate.
+> **Status, 0.1.0:** ✅ Seven bands as specified, with the response curve drawn at the engine's rate. ✅ The live input and output spectra behind the curve, captured either side of the equaliser only while an editor is watching (ADR-0101).
 
 ---
 25. Oversampling

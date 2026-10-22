@@ -824,6 +824,47 @@ void benchmarkTelemetry()
         std::cout << "      at " << ui::TelemetryBridge::frameRateHz << " frames a second that is "
                   << std::fixed << std::setprecision (4) << (actual * 100.0)
                   << " % of real time, on the message thread" << std::endl;
+
+        // The equaliser's display: two windows transformed and reduced to the
+        // axis, every frame, while the equaliser is in the rack.
+        for (std::size_t tap = 0; tap < telemetry::spectrumTapCount; ++tap)
+            for (int i = 0; i < telemetry::scopeBufferSize / blockSize + 1; ++i)
+                hub.spectrum (static_cast<telemetry::SpectrumTap> (tap)).write (noise.data(), blockSize);
+
+        hub.prepare (sampleRate);
+        hub.setEqualiserPlaced (true);
+
+        static engine::SpectrumAnalyser analyser;
+        engine::SpectrumFrame spectrum;
+
+        const auto spectrumCost = measure (secondsPerMeasurement, [&]
+        {
+            (void) analyser.build (hub, spectrum);
+        }, Reference::memory);
+
+        printRow ("equaliser spectrum (two 4096-point transforms), per block", spectrumCost, 0);
+
+        const auto spectrumActual = spectrumCost.realtimeFraction
+                                  * (static_cast<double> (ui::TelemetryBridge::frameRateHz)
+                                     / blocksPerSecond);
+
+        std::cout << "      at " << ui::TelemetryBridge::frameRateHz << " frames a second that is "
+                  << std::fixed << std::setprecision (4) << (spectrumActual * 100.0)
+                  << " % of real time, on the message thread" << std::endl;
+
+        // And what the audio thread pays for it: the equaliser's input and
+        // output copied, mixed to mono, into their rings. Every block while an
+        // editor watches and the equaliser is in the rack.
+        std::vector<float> right (noise);
+        const float* const stereo[] = { noise.data(), right.data() };
+
+        const auto taps = measure (secondsPerMeasurement, [&]
+        {
+            hub.spectrum (telemetry::SpectrumTap::equaliserInput).writeMixedToMono (stereo, 2, 0, blockSize);
+            hub.spectrum (telemetry::SpectrumTap::equaliserOutput).writeMixedToMono (stereo, 2, 0, blockSize);
+        }, Reference::memory);
+
+        printRow ("equaliser taps (audio thread), per block", taps, 0);
     }
 }
 

@@ -61,7 +61,12 @@ import {
 import { applyPresetIndex, applyPresetRefusal, applyPresetStatus, usePresets } from './state/presets';
 import { announce, useAnnouncement } from './state/status';
 import type { StatusTone } from './state/status';
-import { deliverInstrumentFrame, deliverScopeFrames, useSampleRate } from './state/telemetry';
+import {
+    deliverInstrumentFrame,
+    deliverScopeFrames,
+    deliverSpectrumFrame,
+    useSampleRate,
+} from './state/telemetry';
 
 export function App(): JSX.Element {
     const workspaceRef = useRef<HTMLElement>(null);
@@ -147,6 +152,10 @@ export function App(): JSX.Element {
 
             case 'instrumentFrame':
                 deliverInstrumentFrame(message);
+                break;
+
+            case 'spectrumFrame':
+                deliverSpectrumFrame(message);
                 break;
 
             case 'midiMappings':

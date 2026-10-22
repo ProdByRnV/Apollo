@@ -779,6 +779,36 @@ juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame
     return juce::JSON::toString (juce::var (object), oneLine);
 }
 
+juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame)
+{
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "spectrumFrame");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("active", frame.active);
+    object->setProperty ("silent", frame.silent);
+
+    if (frame.active)
+    {
+        // Tenths of a decibel, as integers: finer than a pixel at any height
+        // the panel is drawn, and never more than five characters.
+        const auto tenths = [] (const engine::SpectrumFrame::Levels& levels)
+        {
+            juce::Array<juce::var> points;
+            points.ensureStorageAllocated (engine::spectrumPoints);
+
+            for (const auto value : levels)
+                points.add (static_cast<int> (std::lround (static_cast<double> (value) * 10.0)));
+
+            return points;
+        };
+
+        object->setProperty ("input", tenths (frame.input));
+        object->setProperty ("output", tenths (frame.output));
+    }
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
 juce::String makeControllerProfilesMessage()
 {
     juce::Array<juce::var> entries;

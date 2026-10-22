@@ -6423,3 +6423,116 @@ whether to make it a destination or drop the claim.
   loudest. An average of envelopes at different stages describes no note, and
   the loudest jumps between voices.
 - **Effects per voice.** That would multiply the rack by the polyphony.
+
+---
+
+## ADR-0101 — The equaliser draws the live spectrum of its input and output behind its curve
+
+**After Phase 13e · Accepted**
+
+### What was asked
+
+The developer asked for the sound to be visible inside the equaliser, with the
+panel's knobs and buttons visibly changing it. Two readings were possible: a
+waveform, as the scopes draw, or a spectrum. The developer chose the spectrum
+when asked. An equaliser changes how loud each frequency is, which a spectrum
+shows directly and a waveform hardly shows at all: a 3 kHz bell is all but
+invisible in a trace of the wave.
+
+### What was built
+
+Two lines behind the curve, on its frequency axis:
+- a grey line for the spectrum of what goes into the equaliser;
+- a gold line, over a faint gold fill, for what comes out.
+
+The curve is what the equaliser is set to do, and the gap between the lines is
+what it is doing, measured from the audio. A key under the panel names the two
+lines while there is something to draw.
+
+**Capture.** The rack offers each effect's input and output to an optional
+watcher, `dsp::EffectWatcher`, and the processor's watcher copies the
+equaliser's two sides, mixed to mono, into two more capture rings on the
+telemetry hub. These are the same lock-free rings the scopes use. The DSP knows
+nothing about displays: the rack hands over buffers it already has, and only
+while something watches.
+
+**Analysis.** On the message thread, 30 times a second:
+- each ring's newest 4096 samples are windowed (Hann) and transformed;
+- the result is reduced to 160 points from 20 Hz to 20 kHz, the loudest bin
+  where a point covers several and interpolated where it covers less than one;
+- the levels are tilted 4.5 dB per octave about 1 kHz;
+- each point rises most of the way to a louder reading at once and falls by at
+  most 2 dB a frame.
+
+A new `dsp::PreparedTransform` holds the twiddle factors in a table. The existing
+transform computes them per butterfly, which is right for building a wavetable
+once and wrong 60 times a second.
+
+**Transport.** A third broadcast, `spectrumFrame`, carries the levels as integer
+tenths of a decibel, at about 2 KB a frame (UI_BINDINGS.md §10.7). It is
+inactive, with no levels, while the equaliser is out of the rack. The page draws
+the levels on a scale of its own, +6 to −90 dB, and caches the curve, so 30
+spectrum frames a second do not recompute seven filters at every pixel.
+
+### Choices worth recording
+
+- **Mono.** Both sides are mixed to mono, as every scope is. A per-channel
+  display can come later; the gap between input and output is the same either
+  way for anything the equaliser does, because it treats both channels alike.
+- **Tilted, as most analysers are.** Untilted, almost every sound slopes away
+  towards the treble and leaves the top three octaves empty, where much of an
+  equaliser's work is done. The tilt is the same on both lines, so it cannot
+  change the gap between them. 4.5 dB per octave is a common analyser default.
+- **Loudest bin, not average.** A harmonic reads at its own level instead of
+  being averaged into the empty bins around it. Noise therefore reads a few
+  decibels high at the top of the axis, where each point covers many bins. That
+  is the usual trade, and it affects input and output alike.
+- **Out of the rack, the rings are written with silence.** Otherwise putting the
+  equaliser back would draw audio from before it was taken out for the first
+  85 ms. The flag that says it is placed is separate from the silence, so the
+  interface can tell "not in the chain" from "nothing playing".
+- **A bypassed equaliser is still drawn**, with the two lines on top of each
+  other, which is what bypass does.
+
+### Measured
+
+From `Tests/Telemetry/SpectrumTests.cpp`:
+- **Level.** A 996 Hz sine at half scale read −6.03 dB against −6.03 expected,
+  and −120 dB (the floor) two octaves either side.
+- **The cut shows.** Noise through a 12 dB bell cut at 1 kHz read
+  `output − input` of −11.92 dB at 1 kHz, −0.22 dB at 150 Hz and −0.14 dB at
+  7 kHz. With the bell flat it read 0.00.
+- **Bypass.** Bypassed, the two lines agreed to within 0.05 dB.
+- **The sound is untouched.** The same note, with and without the display
+  watching, was sample for sample identical.
+- **The transform.** The prepared transform matched the existing one to within
+  1e-9 at three sizes.
+
+**Cost** (benchmarks, two sittings):
+- **The audio thread** pays 0.016 % of real time per block, and only while
+  watched with the equaliser in the rack.
+- **The message thread** pays about 0.6 % of real time at 30 frames a second,
+  about thirteen times the six scope frames together. That is not a bottleneck,
+  so it is not optimised. If it becomes one, transforming both signals as the
+  real and imaginary parts of one complex transform would halve it.
+
+### Not verified here
+
+Live notes in the running standalone. This machine has no virtual MIDI port, and
+the interface has no way to play a note, so the app checks ran with:
+- **real frames from the engine**, which were active at 30 a second with the
+  equaliser in a slot and inactive without it;
+- **injected frames** to see the drawing.
+
+The path from a sounding note to the frames is covered by the tests above,
+which run the real processor and the real bridge.
+
+### Alternatives considered
+
+- **A waveform**, as asked about first. It was put to the developer, who chose
+  the spectrum.
+- **Transforming in the page.** That would send 8,192 samples a frame instead of
+  320 levels, about 25 times the traffic, to do in JavaScript what C++ does
+  faster.
+- **The scope sources.** Adding the two taps to `ScopeSource` would send two
+  traces nobody draws, 30 times a second.

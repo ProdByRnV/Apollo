@@ -39,11 +39,16 @@ void TelemetryBridge::setOutboundHandler (OutboundHandler handler)
     // reads, and it is what makes an instance with its editor closed cost
     // nothing at all for visualisation rather than merely wasting it.
     hub.setCapturing (watching);
+
+    // A display opening starts from the floor rather than from whatever the
+    // last one was showing when it closed.
+    spectrumAnalyser.reset();
 }
 
 void TelemetryBridge::timerCallback()
 {
     sendFrames();
+    sendSpectrumFrame();
 
     // One timer, two rates. A second juce::Timer would be a second thread-safe
     // object and a second thing to start and stop in step with the first, for a
@@ -76,6 +81,21 @@ void TelemetryBridge::sendInstrumentFrame()
         return;
 
     outboundHandler (createInstrumentFrame());
+}
+
+juce::String TelemetryBridge::createSpectrumFrame()
+{
+    // MESSAGE THREAD.
+    (void) spectrumAnalyser.build (hub, spectrumFrame);
+    return makeSpectrumFrameMessage (spectrumFrame);
+}
+
+void TelemetryBridge::sendSpectrumFrame()
+{
+    if (! outboundHandler)
+        return;
+
+    outboundHandler (createSpectrumFrame());
 }
 
 juce::String TelemetryBridge::createScopeFrames()

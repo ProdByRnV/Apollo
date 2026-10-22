@@ -29,6 +29,7 @@
 #include <juce_events/juce_events.h>
 
 #include "DSP/Oscillators/WavetableLibrary.h"
+#include "Engine/SpectrumFrame.h"
 #include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
@@ -77,6 +78,17 @@ public:
 
     [[nodiscard]] juce::String createInstrumentFrame();
 
+    /** Builds and sends the equaliser's spectrum frame (CLAUDE.md §22).
+
+        At the scope rate rather than the instrument rate: it is a moving
+        picture of a signal, and at fifteen frames a second a spectrum under a
+        hand turning a knob reads as a slideshow. Exposed for tests, like the
+        others.
+    */
+    void sendSpectrumFrame();
+
+    [[nodiscard]] juce::String createSpectrumFrame();
+
     /** Frames per second sent to the interface.
 
         A scope is a moving picture, so this is a *frame rate* rather than the
@@ -113,6 +125,13 @@ private:
     int framesUntilInstrument = 0;
 
     telemetry::InstrumentFrame instrumentFrame;
+
+    /** The equaliser's analyser, and the frame it fills. The analyser holds
+        the smoothed levels from the frame before, which is why it lives here
+        rather than being made per frame.
+    */
+    engine::SpectrumAnalyser spectrumAnalyser;
+    engine::SpectrumFrame spectrumFrame;
 
     /** Built in place every tick rather than allocated, because this runs thirty
         times a second for the life of the editor.

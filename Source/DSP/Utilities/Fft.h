@@ -47,6 +47,45 @@ namespace apollo::dsp
 */
 void forwardTransform (std::vector<std::complex<double>>& samples);
 
+/** The same transform at one size, prepared once and run many times.
+
+    `forwardTransform` computes every twiddle factor as it goes, which is right
+    for wavetable analysis — it runs a few hundred times when a table is built
+    and never again — and wrong for a spectrum display, which transforms the same
+    length thirty times a second for as long as the editor is open. This holds
+    the factors in a table instead.
+
+    The table is filled from `std::cos`/`std::sin` entry by entry, not by
+    recurrence, so its accuracy is `forwardTransform`'s exactly; the two produce
+    the same result to rounding, and a test holds them to that.
+
+    `prepare` allocates. `perform` does not, and is safe to call at a display's
+    frame rate on the message thread. It is not meant for the audio thread, and
+    nothing calls it there.
+*/
+class PreparedTransform
+{
+public:
+    /** Sizes the tables. Anything that is not a transform size leaves the
+        object unprepared, and `perform` then does nothing. */
+    void prepare (std::size_t newSize);
+
+    [[nodiscard]] std::size_t getSize() const noexcept { return size; }
+
+    /** Transforms @p samples, `getSize()` complex values, in place. */
+    void perform (std::complex<double>* samples) const noexcept;
+
+private:
+    std::size_t size = 0;
+
+    /** e^(-2 pi i k / size), for k below size / 2. A stage of span s reads
+        every (size / s)-th entry. */
+    std::vector<std::complex<double>> twiddles;
+
+    /** Where each index moves to before the butterflies begin. */
+    std::vector<std::size_t> reversed;
+};
+
 /** @returns the first @p numHarmonics harmonics of one cycle of @p samples.
 
     The waveform is taken to be exactly one period long, so bin k *is* harmonic

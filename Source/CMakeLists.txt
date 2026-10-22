@@ -90,6 +90,8 @@ add_library(apollo_core STATIC
     DSP/Utilities/Fft.h
     DSP/Utilities/LinearSmoothedValue.h
     Engine/SourceSettings.h
+    Engine/SpectrumFrame.cpp
+    Engine/SpectrumFrame.h
     Engine/Voice.cpp
     Engine/Voice.h
     Engine/VoiceEngine.cpp

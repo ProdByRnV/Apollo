@@ -167,7 +167,7 @@ front of it is better understood, the way 8f was.
 | 13e-5 | Effect parameters as destinations — six controls the effects smooth, following the newest note, or the engine-wide sources when nothing sounds (ADR-0100) | ✅ |
 | 13f | Drawn LFO curves, and envelopes edited by dragging | ⬜ |
 | 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
-| 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation, a spectrum analyser | ⬜ |
+| 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation. A spectrum analyser was here and is done, as the equaliser's display (ADR-0101) | ⬜ |
 | **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
 
 ### Carried forward
@@ -181,7 +181,6 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 | 2 | Thread-safety tests — an allocation and lock detector on the audio thread | unscheduled; 10a did not take it, because the obvious detector would miss the allocations most likely to happen (PROJECT-STATE issue 6) |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
-| 7 | Optional spectrum analyser | optional in both PRD and this file; unscheduled |
 | 13c-1 | A comb's delay line allocated only when a comb is chosen — every voice holds four, 2.05 MB per instance, found by 13d-2's benchmark (PROJECT-STATE §5b) | 14, the release's memory review |
 
 ---
@@ -633,7 +632,7 @@ visualizers followed in 7a-7c.
 - [x] Envelope visualization — a live trace of the value being produced, not a static picture of the shape. All four, one entry every 7.8 ms over a one-second window, following the most recently started sounding voice, with the DAHDSR stage named in words (7c)
 - [x] LFO visualization — likewise, and an LFO nothing routes says "unrouted" rather than leaving a flat line to look like a fault (7c)
 - [x] Measure the cost of capture across polyphony, and show a silent source as silent rather than stale. — everything a watched instance pays adds 0.12 % of real time at one voice and 0.47 % at thirty-two; six scope frames cost 0.05 % at 30 Hz on the message thread. Because it is a meaningful fraction of the render, capture runs only while an editor is watching, and an unwatched instance costs what it did before scopes existed. A stopped source reads as silent because the capture records the silence rather than inferring it from the absence of a write (7a, 7b, 7c)
-- [ ] Optional spectrum visualization. — the one item in this section still outstanding, and explicitly optional; it is an FFT and a log frequency axis rather than more of the transport built here
+- [x] Optional spectrum visualization. — built after Phase 13e, at the developer's request, as the equaliser's display: the spectrum of what goes into the equaliser and of what comes out, live behind its curve, through two more capture rings either side of it and a 4096-point transform on the message thread (ADR-0101)
 - [x] Voice/activity indicators. — sounding voices against the polyphony ceiling, in the meter's caption where it is read alongside the level (7c)
 - [x] Output metering. — peak with a 20 dB/s fall beside RMS over 300 ms, and a clip held for a second and a half after the sample that caused it. The first real use of the red overload token, said in a word as well as a colour (ADR-0049) (7c)
 
@@ -658,9 +657,10 @@ visualizers followed in 7a-7c.
 > scope on every source, 7c added the modulator traces, the output meter and the
 > wavetable displays, and 7d moved the whole interface to React and TypeScript
 > with no change a user can see. Every cost is measured rather than assumed and
-> all capture is gated on whether anything is watching. Two items remain
-> unticked and both are marked optional or deferred: a spectrum analyser, and
-> the hosts and browsers this environment cannot reach.
+> all capture is gated on whether anything is watching. One item remains
+> unticked, and it is deferred: the hosts and browsers this environment cannot
+> reach. The optional spectrum analyser was built later, as the equaliser's
+> display (ADR-0101).
 
 ---
 
@@ -1032,7 +1032,7 @@ them; each sub-phase removes its rows from that list as it lands.
 - [ ] Program change (PRD §34).
 - [ ] Controller profiles that can be edited, exported and imported (PRD §35).
 - [ ] Drag-and-drop modulation (PRD §42.4).
-- [ ] A spectrum analyser (PRD §30, optional).
+- [x] A spectrum analyser (PRD §30, optional). — built early, as the equaliser's input and output spectra behind its curve (ADR-0101).
 
 ## Exit Criteria
 

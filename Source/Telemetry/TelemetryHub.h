@@ -130,6 +130,29 @@ inline constexpr std::size_t modulatorSourceCount
     }
 }
 
+/** The two places the equaliser's spectrum is taken from (CLAUDE.md §22).
+
+    Not scope sources, though they are captured the same way. A scope is drawn
+    as a trace and is sent as one; these are transformed into a spectrum and
+    drawn behind the equaliser's curve, and putting them in `ScopeSource` would
+    send two traces nobody draws thirty times a second.
+
+    ORDER IS PART OF THE CONTRACT, like the others: entries are appended.
+*/
+enum class SpectrumTap
+{
+    /** What reaches the equaliser, from whatever is ahead of it in the rack. */
+    equaliserInput = 0,
+
+    /** What leaves it. The difference between the two is what the equaliser
+        is doing, and that difference is the picture. */
+    equaliserOutput,
+
+    count
+};
+
+inline constexpr std::size_t spectrumTapCount = static_cast<std::size_t> (SpectrumTap::count);
+
 /** Oscillators whose wavetable can be drawn. */
 inline constexpr std::size_t wavetableDisplayCount = 2;
 
@@ -249,6 +272,34 @@ public:
         return traces[indexOf (source)];
     }
 
+    [[nodiscard]] ScopeBuffer& spectrum (SpectrumTap tap) noexcept
+    {
+        return spectrumTaps[indexOf (tap)];
+    }
+
+    [[nodiscard]] const ScopeBuffer& spectrum (SpectrumTap tap) const noexcept
+    {
+        return spectrumTaps[indexOf (tap)];
+    }
+
+    /** AUDIO THREAD writes, MESSAGE THREAD reads. Whether the equaliser is in
+        the rack, bypassed or not.
+
+        The spectrum taps are written with silence while it is not, so that
+        putting it back cannot show audio from before it was taken out; this is
+        what tells the interface the silence means "not in the chain" rather
+        than "nothing is playing", which it must not draw alike.
+    */
+    void setEqualiserPlaced (bool placed) noexcept
+    {
+        equaliserPlaced.store (placed, std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] bool isEqualiserPlaced() const noexcept
+    {
+        return equaliserPlaced.load (std::memory_order_relaxed);
+    }
+
     [[nodiscard]] LevelMeter& outputMeter() noexcept { return meter; }
     [[nodiscard]] const LevelMeter& outputMeter() const noexcept { return meter; }
 
@@ -289,6 +340,11 @@ public:
 
         for (auto& value : traces)
             value.reset();
+
+        for (auto& buffer : spectrumTaps)
+            buffer.reset();
+
+        equaliserPlaced.store (false, std::memory_order_relaxed);
 
         meter.reset();
         instrument.reset();
@@ -351,8 +407,17 @@ private:
         return index < modulatorSourceCount ? index : 0;
     }
 
+    [[nodiscard]] static std::size_t indexOf (SpectrumTap tap) noexcept
+    {
+        const auto index = static_cast<std::size_t> (tap);
+        return index < spectrumTapCount ? index : 0;
+    }
+
     std::array<ScopeBuffer, scopeSourceCount> buffers;
     std::array<ModulationTrace, modulatorSourceCount> traces;
+    std::array<ScopeBuffer, spectrumTapCount> spectrumTaps;
+
+    std::atomic<bool> equaliserPlaced { false };
 
     LevelMeter meter;
     InstrumentSnapshot instrument;

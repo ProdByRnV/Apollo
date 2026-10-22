@@ -48,7 +48,8 @@ MPE timbre, a random source and four macros, each with a range and a curve.
 **Effects.** A rack of six slots in any order: distortion (soft, hard and diode
 curves, 4× oversampled), a stereo delay with ping-pong and tempo sync, a
 room-and-hall reverb, a noise gate, an RMS compressor, and a seven-band
-parametric equaliser that draws its own response curve.
+parametric equaliser that draws its own response curve, with the live spectrum
+of the sound going in and coming out behind it.
 
 **Presets.** Nine factory sounds and an init patch, built into the plugin, and
 your own presets saved as `.rnv` files and browsed by name, category and bank.

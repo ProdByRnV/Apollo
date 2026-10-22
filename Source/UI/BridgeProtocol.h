@@ -24,6 +24,7 @@
 #include "MIDI/MidiMapping.h"
 #include "Resources/PresetLibrary.h"
 #include "State/PresetDocument.h"
+#include "Engine/SpectrumFrame.h"
 #include "Telemetry/InstrumentFrame.h"
 #include "Telemetry/ScopeFrame.h"
 #include "Telemetry/TelemetryHub.h"
@@ -339,5 +340,19 @@ struct BridgeParseResult
     source is, and for the same reason.
 */
 [[nodiscard]] juce::String makeInstrumentFrameMessage (const telemetry::InstrumentFrame& frame);
+
+/** `{"type":"spectrumFrame", ...}`
+
+    The equaliser's input and output spectra, for drawing behind its curve
+    (CLAUDE.md §22). A third broadcast rather than more of the scope frame,
+    because it has a different reader and a different shape: two rows of levels
+    on a frequency axis, not traces in time.
+
+    Levels are sent as integer tenths of a decibel, which is finer than the
+    display can draw and at most five characters each. An inactive frame carries
+    no levels at all: there is nothing to draw, which is not the same as
+    something quiet.
+*/
+[[nodiscard]] juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame);
 
 } // namespace apollo::ui

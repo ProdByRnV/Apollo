@@ -59,6 +59,7 @@ target_sources(ApolloTests PRIVATE
     MIDI/MidiLearnTests.cpp
     Telemetry/InstrumentTelemetryTests.cpp
     Telemetry/ScopeTests.cpp
+    Telemetry/SpectrumTests.cpp
     Parameters/ParameterRegistryTests.cpp
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp

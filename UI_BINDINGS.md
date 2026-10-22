@@ -877,6 +877,61 @@ the same as silence.
 
 ---
 
+### 10.7 Spectrum frames (the equaliser's display)
+
+The third broadcast: the spectrum of what goes into the equaliser and of what
+comes out of it, drawn behind its response curve (CLAUDE.md §22; ADR-0101). The
+curve is what the equaliser is set to do. The gap between the two spectra is what
+it is doing, measured from the audio, so every control on the panel visibly
+moves the output line.
+
+**At the scope rate, 30 Hz**, off the same timer. It is a moving picture of a
+signal, and under a hand turning a knob fifteen frames a second reads as a
+slideshow.
+
+```json
+{
+  "type": "spectrumFrame",
+  "version": 1,
+  "active": true,
+  "silent": false,
+  "input":  [-1200, -874, -512],
+  "output": [-1200, -874, -633]
+}
+```
+
+- `input` and `output` are **160 levels each, in integer tenths of a dB**, at
+  points evenly spaced on the logarithmic axis the curve is drawn on, 20 Hz at
+  the first and 20 kHz at the last. Where a point covers several transform bins
+  it takes the loudest, so a harmonic reads at its own level; below that it is
+  interpolated between the two nearest bins.
+- The level is dBFS **tilted by 4.5 dB per octave about 1 kHz**, upwards towards
+  the treble, so a typical sound does not leave the top of the display empty.
+  The same tilt is applied to both lines, so the gap between them is untouched.
+  A full-scale sine at 1 kHz reads 0 dB. The floor, and silence, is −120.
+- Each point rises most of the way to a louder reading at once and falls by at
+  most 2 dB a frame (60 dB/s), so a stopped sound is seen to fall away rather
+  than vanishing or hanging.
+- `active` is false, and the levels are **absent**, while the equaliser is not in
+  the rack: nothing to draw, which is not the same as something quiet. A
+  bypassed equaliser is in the rack and is drawn, with the two lines on top of
+  each other.
+- `silent` is true when neither side heard anything in the window; the levels
+  are still sent, falling.
+
+The page draws the spectra on their own vertical scale, +6 dB at the top to −90
+at the bottom, because a signal's level and a filter's gain are different
+quantities; only the frequency axis is shared.
+
+**Capture.** Two more rings, filled by the rack as the equaliser runs: its input
+and its output, mixed to mono. Like every other tap, they are written only while
+an editor is watching, and only the equaliser's slot costs anything; the
+transform (4096 points, Hann) runs on the message thread. While the equaliser is
+out of the rack, the rings are written with silence, so putting it back cannot
+draw audio from before it was taken out.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
@@ -1055,8 +1110,8 @@ UI telemetry should normally be sampled at a display-appropriate rate, approxima
 
 The audio thread must never wait for the UI to consume telemetry.
 
-**As built** (Phases 7a-7c): every item on that list exists except spectrum
-data, and all of it takes the flow above. Scope waveforms and modulator traces
+**As built** (Phases 7a-7c): every item on that list exists, and all of it takes
+the flow above. Spectrum data came last, as the equaliser's display (§10.7). Scope waveforms and modulator traces
 travel through per-source lock-free rings; the meter, the voice count and the
 wavetable positions are plain atomics the audio thread refreshes once a block.
 Nothing is requested and nothing waits.

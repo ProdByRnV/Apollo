@@ -17,6 +17,17 @@
     the other six are doing to it — which is the question being asked whenever
     two bands overlap.
 
+    BEHIND THE CURVE, THE SOUND. The spectrum of what goes into the equaliser,
+    as a grey line, and of what comes out of it, as a gold line over a faint
+    fill, both live (CLAUDE.md §22). The curve is what the equaliser is set to
+    do; the gap between the two spectra is what it is doing, measured from the
+    audio rather than predicted from the settings. Every knob, button and handle
+    on this panel moves the gold one. The spectra have their own vertical scale,
+    from SPECTRUM_TOP_DB at the top to SPECTRUM_BOTTOM_DB at the bottom, because
+    a signal's level and a filter's gain are different quantities; only the
+    frequency axis is shared. Nothing is drawn while the equaliser is out of the
+    rack, which the module already says.
+
     A MUTED OR DISABLED BAND STILL SHOWS ITS HANDLE, greyed. A handle that
     vanished would have to be found again, and the band is still where it was.
 
@@ -30,10 +41,12 @@
     a keyboard, not faster.
 */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { SpectrumFrameMessage } from '../bridge/protocol';
 import { cssColour, fitCanvas } from '../canvas/draw';
 import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
+import { subscribeToSpectrum } from '../state/telemetry';
 import {
     EQ_MAX_GAIN_DB,
     EQ_MAX_HZ,
@@ -76,6 +89,73 @@ const LOG_MAX = Math.log(EQ_MAX_HZ);
 */
 const HANDLE_RADIUS = 5;
 const GRAB_RADIUS = 14;
+
+/** The spectra's own vertical scale, in dB. The engine tilts the spectrum
+    upwards towards the treble, so a full mix sits in the upper half of this and
+    a single quiet oscillator in the lower; ninety-six decibels holds both. */
+const SPECTRUM_TOP_DB = 6;
+const SPECTRUM_BOTTOM_DB = -90;
+
+/** The newest spectrum frame, as levels in dB, or null while there is none to
+    draw. */
+interface Spectrum {
+    input: Float32Array;
+    output: Float32Array;
+}
+
+function toLevels(tenths: readonly number[]): Float32Array {
+    const levels = new Float32Array(tenths.length);
+    for (let i = 0; i < tenths.length; ++i) levels[i] = (tenths[i] ?? 0) / 10;
+    return levels;
+}
+
+function spectrumFrom(message: SpectrumFrameMessage): Spectrum | null {
+    if (!message.active || !message.input || !message.output) return null;
+    if (message.input.length < 2 || message.input.length !== message.output.length) return null;
+
+    return { input: toLevels(message.input), output: toLevels(message.output) };
+}
+
+function yForSpectrumDb(db: number, height: number): number {
+    const t = (SPECTRUM_TOP_DB - db) / (SPECTRUM_TOP_DB - SPECTRUM_BOTTOM_DB);
+    return Math.min(1, Math.max(0, t)) * height;
+}
+
+/** Traces one spectrum as a path. The points are evenly spaced along the
+    logarithmic axis the curve is drawn on, 20 Hz at the left edge and 20 kHz at
+    the right, so a point's x is its index; the path runs through the midpoints
+    between them with the points as control points, which draws a curve through
+    the levels rather than a polyline with a corner every few pixels. */
+function traceSpectrum(context: CanvasRenderingContext2D, levels: Float32Array,
+                       width: number, height: number): void {
+    const last = levels.length - 1;
+    const x = (i: number): number => (i / last) * width;
+    const y = (i: number): number => yForSpectrumDb(levels[i] ?? SPECTRUM_BOTTOM_DB, height);
+
+    context.moveTo(x(0), y(0));
+
+    for (let i = 1; i < last; ++i) {
+        context.quadraticCurveTo(x(i), y(i), (x(i) + x(i + 1)) / 2, (y(i) + y(i + 1)) / 2);
+    }
+
+    context.lineTo(x(last), y(last));
+}
+
+/** The curve's heights, one per physical pixel, kept between frames.
+
+    The curve moves when a control does; the spectrum behind it moves thirty
+    times a second. Recomputing seven filters' response at every pixel for every
+    spectrum frame would spend most of the panel's drawing on a picture that had
+    not changed, so it is computed when the props or the size change and reused
+    otherwise. */
+interface CurveCache {
+    props: EqCurveProps;
+    width: number;
+    height: number;
+    ratio: number;
+    sum: Float32Array;
+    selected: Float32Array | null;
+}
 
 export interface EqCurveProps {
     bands: readonly BandSettings[];
@@ -125,6 +205,14 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
     propsRef.current = props;
 
     const draggingRef = useRef<number | null>(null);
+
+    const spectrumRef = useRef<Spectrum | null>(null);
+    const curveRef = useRef<CurveCache | null>(null);
+
+    // Whether the key to the two lines is shown. State, unlike the levels,
+    // because it is markup — and it changes only when the equaliser enters or
+    // leaves the rack, not at frame rate.
+    const [spectrumShown, setSpectrumShown] = useState(false);
 
     const draw = useCallback(() => {
         const root = rootRef.current;
@@ -178,47 +266,98 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
         context.globalAlpha = 1;
 
         //----------------------------------------------------------------------
-        // The selected band on its own, behind the sum.
+        // The spectra, behind everything that can be grabbed. The input first
+        // and plainly, as the reference; the output over it in the accent, with
+        // a faint fill beneath so that where the two part, the part the
+        // equaliser took away is the part left unfilled.
 
-        const selectedBand = bands[selected];
+        const spectrum = spectrumRef.current;
 
-        if (selectedBand && selectedBand.type !== EQ_TYPE_OFF && !selectedBand.muted) {
-            context.strokeStyle = accent;
-            context.globalAlpha = 0.3;
-            context.lineWidth = Math.max(1, 1.2 * ratio);
+        if (spectrum) {
+            context.lineJoin = 'round';
+
             context.beginPath();
+            traceSpectrum(context, spectrum.output, width, height);
+            context.lineTo(width, height);
+            context.lineTo(0, height);
+            context.closePath();
+            context.fillStyle = accent;
+            context.globalAlpha = 0.1;
+            context.fill();
 
-            for (let x = 0; x <= width; x += ratio) {
-                const db = bandMagnitudeDbAt(selectedBand, sampleRate, hzForX(x, width));
-                const y = yForDb(db, height);
-
-                if (x === 0) context.moveTo(x, y);
-                else context.lineTo(x, y);
-            }
-
+            context.beginPath();
+            traceSpectrum(context, spectrum.input, width, height);
+            context.strokeStyle = muted;
+            context.globalAlpha = 0.85;
+            context.lineWidth = Math.max(1, ratio);
             context.stroke();
+
+            context.beginPath();
+            traceSpectrum(context, spectrum.output, width, height);
+            context.strokeStyle = accent;
+            context.globalAlpha = 0.5;
+            context.lineWidth = Math.max(1, 1.2 * ratio);
+            context.stroke();
+
             context.globalAlpha = 1;
         }
 
         //----------------------------------------------------------------------
-        // The sum. One sample per physical pixel: a curve drawn at a coarser
-        // step and interpolated would round off a narrow notch, which is the one
-        // feature a narrow notch has.
+        // The curve's heights: from the cache while nothing it depends on has
+        // moved, recomputed when something has. One sample per physical pixel:
+        // a curve drawn at a coarser step and interpolated would round off a
+        // narrow notch, which is the one feature a narrow notch has.
 
+        let curve = curveRef.current;
+
+        if (!curve || curve.props !== propsRef.current || curve.width !== width
+            || curve.height !== height || curve.ratio !== ratio) {
+            const count = Math.floor(width / ratio) + 1;
+            const sum = new Float32Array(count);
+            const selectedBand = bands[selected];
+            const showSelected = selectedBand !== undefined
+                && selectedBand.type !== EQ_TYPE_OFF && !selectedBand.muted;
+            const alone = showSelected ? new Float32Array(count) : null;
+
+            for (let i = 0; i < count; ++i) {
+                const hz = hzForX(i * ratio, width);
+                sum[i] = yForDb(curveDbAt(bands, levelDb, sampleRate, hz), height);
+
+                if (alone && selectedBand) {
+                    alone[i] = yForDb(bandMagnitudeDbAt(selectedBand, sampleRate, hz), height);
+                }
+            }
+
+            curve = { props: propsRef.current, width, height, ratio, sum, selected: alone };
+            curveRef.current = curve;
+        }
+
+        const strokeHeights = (heights: Float32Array): void => {
+            context.beginPath();
+
+            for (let i = 0; i < heights.length; ++i) {
+                const y = heights[i] ?? 0;
+                if (i === 0) context.moveTo(0, y);
+                else context.lineTo(i * ratio, y);
+            }
+
+            context.stroke();
+        };
+
+        // The selected band on its own, behind the sum.
+        if (curve.selected) {
+            context.strokeStyle = accent;
+            context.globalAlpha = 0.3;
+            context.lineWidth = Math.max(1, 1.2 * ratio);
+            strokeHeights(curve.selected);
+            context.globalAlpha = 1;
+        }
+
+        // The sum.
         context.strokeStyle = accent;
         context.lineWidth = Math.max(1, 1.8 * ratio);
         context.lineJoin = 'round';
-        context.beginPath();
-
-        for (let x = 0; x <= width; x += ratio) {
-            const db = curveDbAt(bands, levelDb, sampleRate, hzForX(x, width));
-            const y = yForDb(db, height);
-
-            if (x === 0) context.moveTo(x, y);
-            else context.lineTo(x, y);
-        }
-
-        context.stroke();
+        strokeHeights(curve.sum);
 
         //----------------------------------------------------------------------
         // Handles.
@@ -356,6 +495,21 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
         };
     }, []);
 
+    // The spectrum, thirty times a second while the equaliser is in the rack.
+    // Drawn straight from the handler rather than through React: the canvas
+    // is the same element every frame, and only its pixels change.
+    useEffect(() => subscribeToSpectrum((message) => {
+        const next = spectrumFrom(message);
+        const hadOne = spectrumRef.current !== null;
+
+        spectrumRef.current = next;
+        setSpectrumShown(next !== null);
+
+        // An inactive frame repeats every tick; only the first one, which
+        // takes the picture away, needs a repaint.
+        if (next !== null || hadOne) draw();
+    }), [draw]);
+
     // Redrawn whenever anything it draws changes. The dependency is the props
     // object itself, which React gives a new identity on every render of the
     // parent — and the parent re-renders exactly when a band's value moves,
@@ -375,6 +529,12 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
             <div className="eq-curve__caption">
                 <span className="eq-curve__axis">20 Hz</span>
                 <span className="eq-curve__range">±{RANGE_DB} dB</span>
+                <span className="eq-curve__key" hidden={!spectrumShown}>
+                    <span className="eq-curve__swatch eq-curve__swatch--in" aria-hidden="true" />
+                    in
+                    <span className="eq-curve__swatch eq-curve__swatch--out" aria-hidden="true" />
+                    out
+                </span>
                 <span className="eq-curve__axis">20 kHz</span>
             </div>
         </div>

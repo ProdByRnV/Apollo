@@ -29,6 +29,7 @@ import type {
     MeterFrame,
     ModulatorFrame,
     ScopeFrame,
+    SpectrumFrameMessage,
     WavetableFrame,
 } from '../bridge/protocol';
 
@@ -146,4 +147,22 @@ export function deliverInstrumentFrame(message: InstrumentFrameMessage): void {
         sampleRate = message.sampleRate;
         for (const listener of sampleRateListeners) listener();
     }
+}
+
+//==============================================================================
+// The equaliser's spectrum.
+//
+// One reader, the curve it is drawn behind, but delivered by call like every
+// other frame and for the same reason: thirty frames a second through React
+// state would re-render the equaliser's whole module to repaint one canvas.
+
+const spectrumHandlers = new Set<Handler<SpectrumFrameMessage>>();
+
+export function subscribeToSpectrum(handler: Handler<SpectrumFrameMessage>): () => void {
+    spectrumHandlers.add(handler);
+    return () => { spectrumHandlers.delete(handler); };
+}
+
+export function deliverSpectrumFrame(message: SpectrumFrameMessage): void {
+    for (const handler of spectrumHandlers) handler(message);
 }
