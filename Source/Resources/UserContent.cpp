@@ -568,7 +568,9 @@ void UserContent::deliver (Result& result)
     select (slot);
 
     if (onChanged)
-        onChanged ({ slot, "LOADED", result.source.name + " is playing on " + describe (slot).toLowerCase() + "." });
+        onChanged ({ slot, "LOADED", isWavetableSlot (slot)
+                                         ? result.source.name + " is playing on " + describe (slot).toLowerCase() + "."
+                                         : result.source.name + " is the noise sample now." });
 }
 
 void UserContent::empty (ContentSlot slot)

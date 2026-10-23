@@ -2,6 +2,7 @@
     What makes the sound: two wavetable oscillators, a sub and a noise generator.
 */
 
+import { ContentBrowser } from '../components/ContentBrowser';
 import { Knob } from '../components/Knob';
 import { Module } from '../components/Module';
 import { Scope } from '../components/Scope';
@@ -19,13 +20,26 @@ function useSilent(id: string): boolean {
     return plainOf(id) <= 0.0001;
 }
 
+/** `oscN_wavetable`'s choice that plays the oscillator's own table, and
+    `noise_type`'s that plays the user's sample (Phase 13g). */
+const USER_TABLE = 4;
+const USER_SAMPLE = 6;
+
 export function Oscillator({ index }: { index: number }): JSX.Element {
     const p = `osc${index}_`;
+
+    useParameterValue(`${p}wavetable`);
+    const userSelected = Math.round(plainOf(`${p}wavetable`)) === USER_TABLE;
 
     return (
         <Module title="Oscillator" index={String(index)} inactive={useSilent(`${p}level`)}>
             <div className="cluster cluster--banner">
                 <Segmented id={`${p}wavetable`} label="Wavetable" table={LABELS[`${p}wavetable`]} />
+            </div>
+
+            {/* The table of your own that USER plays (Phase 13g). */}
+            <div className="cluster cluster--banner">
+                <ContentBrowser slot={index === 2 ? 'osc2' : 'osc1'} selected={userSelected} />
             </div>
 
             {/*
@@ -99,6 +113,9 @@ export function SubOscillator(): JSX.Element {
 }
 
 export function Noise(): JSX.Element {
+    useParameterValue('noise_type');
+    const sampleSelected = Math.round(plainOf('noise_type')) === USER_SAMPLE;
+
     return (
         <Module title="Noise" inactive={useSilent('noise_level')}>
             <Scope source="noise" />
@@ -106,6 +123,11 @@ export function Noise(): JSX.Element {
             <Segmented id="noise_loop" label="Plays" table={LABELS.noise_loop} />
             <Knob id="noise_level" label="Level" />
             <Knob id="noise_keytrack" label="Key Track" />
+
+            {/* The sample of your own that SAMPLE plays (Phase 13g). */}
+            <div className="cluster cluster--banner">
+                <ContentBrowser slot="noise" selected={sampleSelected} />
+            </div>
         </Module>
     );
 }

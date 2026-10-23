@@ -23,12 +23,14 @@ import {
     requestLfoCurves,
     requestMetadata,
     requestMidiMappings,
+    requestContent,
     requestPresets,
     send,
     subscribe,
     toggleFullscreen,
 } from './bridge/bridge';
 import { PROTOCOL_VERSION } from './bridge/protocol';
+import { applyContentIndex, applyContentSlots } from './state/content';
 import { applyLfoCurves } from './state/lfoCurves';
 import type { InboundMessage } from './bridge/protocol';
 
@@ -121,6 +123,10 @@ export function App(): JSX.Element {
                 // And for the library, which was scanned when the editor
                 // attached and so may already be waiting.
                 requestPresets();
+
+                // And for the user's own wavetables and noise sample, which
+                // travel in the patch, and the libraries they come from.
+                requestContent();
                 break;
 
             case 'stateSnapshot':
@@ -200,6 +206,21 @@ export function App(): JSX.Element {
                 // for and is owed an answer about; the current name arriving at
                 // startup, or after a project load, is not news.
                 if (message.statusMessage) announce(message.statusMessage, presetTone(message.status));
+                break;
+
+            case 'contentIndex':
+                applyContentIndex(message);
+                break;
+
+            case 'contentSlots':
+                applyContentSlots(message);
+
+                // Said in the status bar as well as on the slot's own line:
+                // a dialog may have covered the line when it happened.
+                if (message.statusMessage && !['CURRENT', 'RESTORED'].includes(message.status)) {
+                    announce(message.statusMessage,
+                             message.status.endsWith('_FAILED') ? 'error' : 'info');
+                }
                 break;
 
             case 'error':

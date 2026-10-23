@@ -233,6 +233,60 @@ export interface PresetStatusMessage {
     loaded: number;
 }
 
+/** Where the user's own content can go (Phase 13g). */
+export type ContentSlot = 'osc1' | 'osc2' | 'noise';
+export type ContentKind = 'wavetable' | 'noise';
+
+export interface ContentEntry {
+    /** What to send back to load it. Valid only against the index it came in. */
+    id: number;
+    name: string;
+    /** The folder it sits in, relative to its root, or "" at the top. */
+    bank: string;
+    factory: boolean;
+    /** A wavetable's frames, from its header. */
+    frames?: number;
+    /** A sample's length in seconds, from its header. */
+    seconds?: number;
+    /** Why its header says it will not load, or "". */
+    problem: string;
+}
+
+export interface ContentIndexMessage {
+    type: 'contentIndex';
+    version: number;
+    wavetables: ContentEntry[];
+    noise: ContentEntry[];
+    truncated: boolean;
+    scanning: boolean;
+}
+
+export interface ContentSlotState {
+    slot: ContentSlot;
+    loaded: boolean;
+    name: string;
+    /** "library", "factory" or "file". */
+    origin: string;
+    frames: number;
+    seconds: number;
+    /** The library entry it came from, if it is still listed; else 0. */
+    entry: number;
+    loading: boolean;
+    loadingName: string;
+}
+
+export interface ContentSlotsMessage {
+    type: 'contentSlots';
+    version: number;
+    slots: ContentSlotState[];
+    /** LOADED, LOAD_FAILED, RESTORED, RESTORE_FAILED, CLEARED, LOADING, SAVED,
+        SAVE_FAILED, or CURRENT when nothing happened. */
+    status: string;
+    /** The slot it happened to, or "". */
+    slot: string;
+    statusMessage: string;
+}
+
 export interface ErrorMessage {
     type: 'error';
     version: number;
@@ -252,6 +306,8 @@ export type InboundMessage =
     | ControllerProfilesMessage
     | PresetIndexMessage
     | PresetStatusMessage
+    | ContentIndexMessage
+    | ContentSlotsMessage
     | ErrorMessage;
 
 //==============================================================================
@@ -281,6 +337,13 @@ export type OutboundMessage =
     | { type: 'rescanPresets'; version: number }
     | { type: 'loadPreset'; version: number; preset: number }
     | { type: 'requestLfoCurves'; version: number }
+    | { type: 'requestContent'; version: number }
+    | { type: 'rescanContent'; version: number }
+    | { type: 'loadContent'; version: number; slot: ContentSlot; entry: number }
+    | { type: 'chooseContentFile'; version: number; slot: ContentSlot }
+    | { type: 'clearContent'; version: number; slot: ContentSlot }
+    | { type: 'saveContentToLibrary'; version: number; slot: ContentSlot }
+    | { type: 'revealContentFolder'; version: number; kind: ContentKind }
     | { type: 'setLfoCurve'; version: number; lfo: number; points: LfoCurvePoint[] }
     | {
           type: 'savePreset';

@@ -8,7 +8,7 @@
     "Connecting" for ever (CLAUDE.md §33).
 */
 
-import type { InboundMessage, LfoCurvePoint, OutboundMessage, ProfileMode } from './protocol';
+import type { ContentKind, ContentSlot, InboundMessage, LfoCurvePoint, OutboundMessage, ProfileMode } from './protocol';
 import { PROTOCOL_VERSION } from './protocol';
 
 /** JUCE's injected object. Declared rather than imported because it is put on
@@ -162,4 +162,44 @@ export function requestLfoCurves(): void {
     page then draws: the store's copy is the one that counts. */
 export function setLfoCurve(lfo: number, points: LfoCurvePoint[]): void {
     send({ type: 'setLfoCurve', version: PROTOCOL_VERSION, lfo, points });
+}
+
+//==============================================================================
+// The user's wavetables and noise sample (Phase 13g). As with presets, the
+// page names a slot and a number from the index; it never names a file. A file
+// anywhere else is chosen in the system's own dialog, which the page can only
+// ask to be opened.
+
+/** Asks for the libraries and what every slot holds. */
+export function requestContent(): void {
+    send({ type: 'requestContent', version: PROTOCOL_VERSION });
+}
+
+/** Asks for the library folders to be looked at again. */
+export function rescanContent(): void {
+    send({ type: 'rescanContent', version: PROTOCOL_VERSION });
+}
+
+/** Loads a library entry into a slot. What happened arrives as contentSlots. */
+export function loadContent(slot: ContentSlot, entry: number): void {
+    send({ type: 'loadContent', version: PROTOCOL_VERSION, slot, entry });
+}
+
+/** Asks for the system's file dialog, for a slot. */
+export function chooseContentFile(slot: ContentSlot): void {
+    send({ type: 'chooseContentFile', version: PROTOCOL_VERSION, slot });
+}
+
+export function clearContent(slot: ContentSlot): void {
+    send({ type: 'clearContent', version: PROTOCOL_VERSION, slot });
+}
+
+/** Writes what a slot holds into the user's library, as a file of its own. */
+export function saveContentToLibrary(slot: ContentSlot): void {
+    send({ type: 'saveContentToLibrary', version: PROTOCOL_VERSION, slot });
+}
+
+/** Opens the user's library folder for a kind in the system's file manager. */
+export function revealContentFolder(kind: ContentKind): void {
+    send({ type: 'revealContentFolder', version: PROTOCOL_VERSION, kind });
 }

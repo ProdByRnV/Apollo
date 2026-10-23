@@ -1962,3 +1962,223 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     border: 1px solid var(--line);
     border-radius: var(--r-xs);
 }
+
+/* ==========================================================================
+   YOUR OWN CONTENT (Phase 13g)
+
+   A line under an oscillator's wavetable switch, or the noise type, saying
+   what the slot holds, and a list of the library that opens beneath it. The
+   list is the preset browser's, smaller: the same rows, the same gold for the
+   one that is loaded, the same words beside the colour.
+   ========================================================================== */
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.content__line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    min-width: 0;
+}
+
+.content__state {
+    flex: 1 1 220px;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.content__state[data-loaded="true"] {
+    color: var(--accent-bright);
+}
+
+.content__state[data-loading="true"] {
+    color: var(--text);
+}
+
+.content__note {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--caution);
+}
+
+.content__actions,
+.content__tools {
+    display: flex;
+    gap: var(--s-1);
+    flex-wrap: wrap;
+}
+
+.content__tools {
+    align-items: center;
+}
+
+.content__action {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.content__action:hover {
+    background: var(--surface-hover);
+    color: var(--text-bright);
+}
+
+.content__action:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.content__action[aria-expanded="true"] {
+    color: var(--accent-bright);
+    border-color: var(--accent);
+}
+
+.content__action--quiet {
+    color: var(--text-dim);
+}
+
+.content__event {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text-dim);
+}
+
+.content__event[data-tone="error"] {
+    color: var(--danger);
+}
+
+.content__browser {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+}
+
+.content__search {
+    flex: 1 1 160px;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    color: var(--text-bright);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 4px 8px;
+}
+
+.content__search:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.content__list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--display-ground);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    padding: var(--s-1);
+    overflow-y: auto;
+    min-height: 64px;
+    max-height: 30vh;
+    scrollbar-width: thin;
+}
+
+.content__row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr) 56px;
+    align-items: baseline;
+    gap: var(--s-2);
+    width: 100%;
+    text-align: left;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    border-radius: var(--r-xs);
+    padding: 4px var(--s-2);
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    color: var(--text);
+}
+
+.content__row:hover {
+    background: var(--surface-hover);
+    color: var(--text-bright);
+}
+
+.content__row:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.content__row[data-loaded="true"] {
+    background: var(--accent-glow);
+    color: var(--accent-bright);
+}
+
+.content__row[data-loaded="true"] .content__name {
+    font-weight: 600;
+}
+
+/* A file whose header says it will not load: listed, so the user can see it
+   is there and why, but struck through and not clickable. */
+.content__row[data-problem="true"] {
+    cursor: default;
+    color: var(--text-dim);
+}
+
+.content__row[data-problem="true"] .content__name {
+    text-decoration: line-through;
+}
+
+.content__row[data-problem="true"] .content__size {
+    color: var(--caution);
+}
+
+.content__name,
+.content__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.content__meta {
+    color: var(--text-dim);
+    font-size: var(--t-label);
+}
+
+.content__origin {
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+}
+
+.content__empty {
+    padding: var(--s-3);
+    text-align: center;
+    color: var(--text-dim);
+    font-size: var(--t-body);
+}
