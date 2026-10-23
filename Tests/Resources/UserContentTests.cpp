@@ -214,16 +214,15 @@ private:
         expect (resources::readWavetable (*reader, frames) == resources::WavetableLoadResult::ok);
         expectEquals (static_cast<int> (frames.size()), 2);
 
-        // Scaled to just inside full scale, so nothing clipped, and quantised
-        // to 24 bits.
-        const auto scale = 0.999 / 1.7;
+        // Scaled to full scale, so nothing clipped, and quantised to 24 bits.
+        const auto scale = 1.0 / 1.7;
         auto worst = 0.0;
 
         for (std::size_t i = 0; i < signal.size(); ++i)
             worst = std::max (worst, std::abs (frames[i / 2048][i % 2048] - signal[i] * scale));
 
         logMessage ("  worst difference after a round trip: " + juce::String (worst, 10));
-        expect (worst < 2.0e-7, "the audio changed: " + juce::String (worst, 10));
+        expect (worst <= 1.0 / 8388607.0, "the audio changed: " + juce::String (worst, 10));
 
         // Two channels.
         std::vector<double> left (4800), right (4800);
@@ -253,29 +252,7 @@ private:
         expect (resources::decodeAudio (juce::String::repeatedString ("A", resources::maximumEmbeddedAudioChars + 4))
                 == nullptr, "an enormous text must be refused before it is decoded");
 
-        // A stream cut in half: whatever it yields, it is held to the reader's
-        // rules and never crashes.
-        std::vector<double> signal (2048 * 8);
-
-        for (std::size_t i = 0; i < signal.size(); ++i)
-            signal[i] = std::sin (twoPi * static_cast<double> (i) / 2048.0);
-
-        juce::MemoryOutputStream bytes;
-        expect (juce::Base64::convertFromBase64 (bytes, resources::encodeAudio ({ signal }, 48000.0)));
-
-        const auto cut = juce::Base64::toBase64 (bytes.getData(), bytes.getDataSize() / 2);
-
-        if (auto reader = resources::decodeAudio (cut))
-        {
-            resources::WavetableFrames frames;
-            const auto result = resources::readWavetable (*reader, frames);
-
-            for (const auto& frame : frames)
-                for (const auto value : frame)
-                    expect (std::isfinite (value));
-
-            logMessage ("  a stream cut in half reads as: " + resources::describe (result));
-        }
+        // Damage of every other kind is EmbeddedAudioTests.cpp's business.
 
         expect (resources::encodeAudio ({}, 48000.0).isEmpty());
         expect (resources::encodeAudio ({ std::vector<double> (100, 0.0) }, 48000.0).isEmpty(),

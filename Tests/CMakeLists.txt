@@ -70,6 +70,7 @@ target_sources(ApolloTests PRIVATE
     Resources/WavetableResourceTests.cpp
     Resources/NoiseSampleFileTests.cpp
     Resources/UserContentTests.cpp
+    Resources/EmbeddedAudioTests.cpp
     Resources/ContentLibraryTests.cpp
     Package/BinaryImage.cpp
     Package/BinaryImage.h

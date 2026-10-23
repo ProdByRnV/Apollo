@@ -216,7 +216,7 @@ private:
         WavetableFrames read;
         expect (readWavetableFile (second, read) == WavetableLoadResult::ok);
         expectEquals (static_cast<int> (read.size()), 3);
-        expectWithinAbsoluteError (read[1][512], 0.999, 1.0e-5);
+        expectWithinAbsoluteError (read[1][512], 1.0, 1.0e-5);
 
         // A name that is not one still saves, as something.
         juce::File named;
