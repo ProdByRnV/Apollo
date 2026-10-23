@@ -78,7 +78,17 @@ enum class WavetableLoadResult
 */
 using WavetableFrames = std::vector<std::vector<double>>;
 
-/** Reads @p file into @p destination.
+/** Reads from @p reader, wherever its bytes come from — a file, or audio
+    embedded in a document (Phase 13g) — and holds it to the same rules either
+    way.
+
+    @returns `ok`, with @p destination holding the frames; otherwise the
+             reason, with @p destination empty.
+*/
+[[nodiscard]] WavetableLoadResult readWavetable (juce::AudioFormatReader& reader,
+                                                 WavetableFrames& destination);
+
+/** Reads @p file into @p destination: the size bound, then readWavetable.
 
     @returns `ok`, in which case @p destination holds between 1 and
              `maximumWavetableFrames` frames; otherwise the reason, and

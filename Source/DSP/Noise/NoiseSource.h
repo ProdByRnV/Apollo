@@ -32,7 +32,11 @@
     low note is darker but not quieter, and its level does not move.
 
     TRANSIENTS (Phase 13d-2) are short samples from TransientLibrary.h, played
-    once from each note's start rather than run for ever. The rate plays them
+    once from each note's start rather than run for ever. A SAMPLE the user
+    loaded (Phase 13g) is the same kind of object, built by the same
+    makeTransient, and played the same way. Any sample type can LOOP instead:
+    when it reaches its end it goes on from its start, and the interpolation
+    reads across the seam rather than into silence. The rate plays them
     faster as well as slower, unlike a stream, and they are read from the mip
     level whose top still lands below Nyquist at that rate, with four-point
     Hermite interpolation. At their own pitch and the 48 kHz they were built
@@ -77,19 +81,24 @@ enum class NoiseType
     click,
     pick,
     thump,
-    chiff
+    chiff,
+
+    // A sample the user loaded, appended in Phase 13g (ADR-0104).
+    sample
 };
 
-inline constexpr int numNoiseTypes = 6;
+inline constexpr int numNoiseTypes = 7;
 
-/** True for the types that are a sample played once per note rather than a
-    stream that runs for ever. */
+/** True for the types that are a sample, played from each note's start,
+    rather than a stream that runs for ever: the built-in transients and a
+    loaded sample. */
 [[nodiscard]] constexpr bool isTransient (NoiseType type) noexcept
 {
     return static_cast<int> (type) >= static_cast<int> (NoiseType::click);
 }
 
-/** The transient library's index for a transient type. */
+/** The transient library's index for a built-in transient type. Meaningless
+    for `sample`, which is not in the library. */
 [[nodiscard]] constexpr int transientIndex (NoiseType type) noexcept
 {
     return static_cast<int> (type) - static_cast<int> (NoiseType::click);
@@ -177,6 +186,12 @@ public:
     }
 
     [[nodiscard]] NoiseType getType() const noexcept { return type; }
+
+    /** True plays a sample type round and round while the note sounds; false,
+        the default, plays it once from the note's start. A stream ignores it. */
+    void setLoop (bool shouldLoop) noexcept { looping = shouldLoop; }
+
+    [[nodiscard]] bool isLooping() const noexcept { return looping; }
 
     /** The playback rate from key tracking: 1 is the noise's own.
 
@@ -306,22 +321,38 @@ private:
         const auto whole = static_cast<std::ptrdiff_t> (x);
         const auto fraction = static_cast<float> (x - static_cast<double> (whole));
 
-        left += hermite (source.left, whole, fraction) * gainLeft;
-        right += hermite (source.right, whole, fraction) * gainRight;
+        left += hermite (source.left, whole, fraction, looping) * gainLeft;
+        right += hermite (source.right, whole, fraction, looping) * gainRight;
 
         position += step;
 
-        if (position >= static_cast<double> (transient->length()))
-            playing = false;
+        const auto length = static_cast<double> (transient->length());
+
+        if (position >= length)
+        {
+            if (looping && length > 0.0)
+                position = std::fmod (position, length);
+            else
+                playing = false;
+        }
     }
 
-    /** Four-point cubic Hermite, reading silence either side of the sample. */
-    [[nodiscard]] static float hermite (const std::vector<float>& samples, std::ptrdiff_t index, float t) noexcept
+    /** Four-point cubic Hermite. Either side of the sample it reads silence, or
+        for a loop, the other end of it. */
+    [[nodiscard]] static float hermite (const std::vector<float>& samples, std::ptrdiff_t index, float t,
+                                        bool wrap) noexcept
     {
         const auto size = static_cast<std::ptrdiff_t> (samples.size());
-        const auto at = [&samples, size] (std::ptrdiff_t i)
+        const auto at = [&samples, size, wrap] (std::ptrdiff_t i)
         {
-            return i >= 0 && i < size ? samples[static_cast<std::size_t> (i)] : 0.0f;
+            if (i >= 0 && i < size)
+                return samples[static_cast<std::size_t> (i)];
+
+            if (! wrap || size == 0)
+                return 0.0f;
+
+            const auto wrapped = ((i % size) + size) % size;
+            return samples[static_cast<std::size_t> (wrapped)];
         };
 
         const auto y0 = at (index - 1);
@@ -380,6 +411,7 @@ private:
     double step = 1.0;
     int level = 0;
     bool playing = false;
+    bool looping = false;
 
     bool interpolating = false;
     float phase = 0.0f;

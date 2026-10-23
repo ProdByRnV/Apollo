@@ -597,8 +597,10 @@ private:
         engine.setWavetableIndex (-5);
         expectEquals (engine.getWavetableIndex(), 0);
 
+        // The last choice is the oscillator's own user table since Phase 13g,
+        // which with nothing loaded plays the first built-in: still a table.
         engine.setWavetableIndex (999);
-        expectEquals (engine.getWavetableIndex(), 3);
+        expectEquals (engine.getWavetableIndex(), apollo::dsp::WavetableLibrary::numChoices - 1);
     }
 
     void testStackedSourcesStayFinite()

@@ -89,7 +89,10 @@ using namespace apollo::params;
 //
 // Phase 13c-2 added four: a mix and a key tracking amount for each filter
 // (ADR-0092).
-static_assert (parameterCount() == 298, "the registry has two hundred and ninety-eight parameters");
+//
+// Phase 13g added one, noise_loop, and grew oscX_wavetable by one choice (USER)
+// and noise_type by one (SAMPLE), each appended (ADR-0104).
+static_assert (parameterCount() == 299, "the registry has two hundred and ninety-nine parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

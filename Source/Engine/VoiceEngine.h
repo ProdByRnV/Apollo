@@ -28,6 +28,7 @@
 
 #include "DSP/Envelopes/Envelope.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
+#include "DSP/Utilities/PublishedSlot.h"
 #include "DSP/Unison/UnisonLayout.h"
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
@@ -121,8 +122,12 @@ struct SourceParameters
 
     float noiseLevel = 0.0f;
 
-    /** 0 white, 1 pink (dsp::NoiseType). */
+    /** dsp::NoiseType: 0 white, 1 pink, 2-5 the built-in transients, 6 the
+        user's sample. */
     int noiseType = 0;
+
+    /** True plays a sample type round and round rather than once. */
+    bool noiseLoop = false;
 
     /** Key tracking of the noise's rate, 0 to 1. */
     float noiseKeyTrack = 0.0f;
@@ -437,6 +442,14 @@ public:
     /** The built-in tables. Exposed for tests and for the future resource layer. */
     [[nodiscard]] const dsp::WavetableLibrary& getWavetableLibrary() const noexcept { return library; }
 
+    /** For publishing a user's table into an oscillator's slot. MESSAGE THREAD
+        for anything that publishes or restores (WavetableLibrary.h). */
+    [[nodiscard]] dsp::WavetableLibrary& getWavetableLibrary() noexcept { return library; }
+
+    /** The user's noise sample, played by the SAMPLE noise type. MESSAGE THREAD
+        for anything that publishes or clears (PublishedSlot.h). */
+    [[nodiscard]] dsp::PublishedSlot<dsp::TransientSample>& getNoiseSampleSlot() noexcept { return noiseSample; }
+
     /** The unison layouts in force, for tests and for future visualisation. */
     [[nodiscard]] const dsp::UnisonLayout& getUnisonLayout (int oscillatorIndex) const noexcept
     {
@@ -520,6 +533,9 @@ private:
         synchronisation.
     */
     dsp::WavetableLibrary library;
+
+    /** The user's noise sample, or empty (Phase 13g). */
+    dsp::PublishedSlot<dsp::TransientSample> noiseSample;
 
     /** The noise's built-in transients, shared by every engine in the process.
         Taken here, on the thread that makes the engine, so the build happens

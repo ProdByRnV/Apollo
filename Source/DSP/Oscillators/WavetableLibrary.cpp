@@ -311,7 +311,10 @@ WavetableLibrary::WavetableLibrary()
 
     for (std::size_t i = 0; i < builtIn.size(); ++i)
     {
-        builtIn[i] = shared.tables[i];
+        // A user slot falls back to the first built-in, shared rather than
+        // copied: it is the same immutable table.
+        builtIn[i] = i < shared.tables.size() ? shared.tables[i]
+                                              : shared.tables[static_cast<std::size_t> (userFallbackTable)];
 
         current[i].store (builtIn[i].get(), std::memory_order_release);
     }
@@ -323,7 +326,7 @@ WavetableLibrary::~WavetableLibrary() = default;
 
 int WavetableLibrary::clampIndex (int index) noexcept
 {
-    return index < 0 ? 0 : (index >= numTables ? numTables - 1 : index);
+    return index < 0 ? 0 : (index >= numSlots ? numSlots - 1 : index);
 }
 
 const Wavetable& WavetableLibrary::getSubTable (int waveform) const noexcept
@@ -354,7 +357,7 @@ void WavetableLibrary::retire (std::unique_ptr<Wavetable> previous)
 
 bool WavetableLibrary::publish (int index, std::unique_ptr<Wavetable> table)
 {
-    if (index < 0 || index >= numTables || table == nullptr || table->isEmpty())
+    if (index < 0 || index >= numSlots || table == nullptr || table->isEmpty())
         return false;
 
     const auto slot = static_cast<std::size_t> (index);
@@ -376,7 +379,7 @@ bool WavetableLibrary::publish (int index, std::unique_ptr<Wavetable> table)
 
 void WavetableLibrary::restoreBuiltIn (int index)
 {
-    if (index < 0 || index >= numTables)
+    if (index < 0 || index >= numSlots)
         return;
 
     const auto slot = static_cast<std::size_t> (index);

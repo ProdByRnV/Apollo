@@ -579,6 +579,7 @@ void Voice::setSources (const VoiceSourceSettings& newSources) noexcept
     subOscillator.setTable (sources.subTable);
 
     noise.setType (sources.noiseType, sources.noiseTransient);
+    noise.setLoop (sources.noiseLoop);
     updateNoiseRate();
 
     updateGainTargets();

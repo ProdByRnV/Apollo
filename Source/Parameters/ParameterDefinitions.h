@@ -113,11 +113,14 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 299> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
+    // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
+    // oscillator's own user table, appended in Phase 13g so the built-ins keep
+    // their numbers (ADR-0104). Each oscillator has a user table of its own.
     { "osc1_wavetable", "Osc 1 Wavetable",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 3.0f, 0.0f,
+      0.0f, 4.0f, 0.0f,
       1.0f, 1.0f,
       /* automatable */ true, /* modulatable */ false, /* smoothed */ false },
 
@@ -244,7 +247,7 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
     // the user makes rather than one Apollo makes for them.
     { "osc2_wavetable", "Osc 2 Wavetable",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 3.0f, 0.0f,
+      0.0f, 4.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -403,10 +406,11 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
 
     // 0 white, 1 pink (dsp::NoiseType), Phase 13d-1 (ADR-0094); then the built-in
     // transients, 2 click, 3 pick, 4 thump, 5 chiff, appended in 13d-2 so the
-    // first two keep their numbers (ADR-0095).
+    // first two keep their numbers (ADR-0095); then 6, a sample the user loaded,
+    // appended in 13g (ADR-0104).
     { "noise_type", "Noise Type",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 5.0f, 0.0f,
+      0.0f, 6.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -416,6 +420,16 @@ inline constexpr std::array<ParameterDefinition, 298> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::normalised,
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
+      true, false, false },
+
+    // 0 plays a sample type once from each note's start, as the transients
+    // always have; 1 plays it round and round while the note sounds, which is
+    // what a loaded noise bed needs. Applies to every sample type, built-in or
+    // loaded; a stream ignores it. Phase 13g (ADR-0104).
+    { "noise_loop", "Noise Loop",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
       true, false, false },
 
     // Envelope 1 — amplitude ------------------------------------------------

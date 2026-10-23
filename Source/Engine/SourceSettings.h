@@ -103,9 +103,13 @@ struct VoiceSourceSettings
     /** White, pink or one of the built-in transients. */
     dsp::NoiseType noiseType = dsp::NoiseType::white;
 
-    /** The sample for a transient type, from the process's shared library;
-        null for a stream. Resolved by the engine, so a voice never looks one up. */
+    /** The sample for a sample type: a built-in transient from the process's
+        shared library, or the user's loaded sample; null for a stream. Resolved
+        by the engine, so a voice never looks one up. */
     const dsp::TransientSample* noiseTransient = nullptr;
+
+    /** True plays a sample type round and round rather than once. */
+    bool noiseLoop = false;
 
     /** How far the noise's rate follows the played pitch, 0 to 1: at 1 it
         plays an octave slower an octave below middle C, as a sampler would.

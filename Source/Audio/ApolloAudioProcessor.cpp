@@ -96,6 +96,7 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     noiseLevelParameter = apvts.getRawParameterValue ("noise_level");
     noiseTypeParameter = apvts.getRawParameterValue ("noise_type");
     noiseKeyTrackParameter = apvts.getRawParameterValue ("noise_keytrack");
+    noiseLoopParameter = apvts.getRawParameterValue ("noise_loop");
 
     bendRangeParameter = apvts.getRawParameterValue ("midi_bend_range");
     mpeZoneParameter = apvts.getRawParameterValue ("mpe_zone");
@@ -469,6 +470,7 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     parameters.noiseLevel = readParameter (noiseLevelParameter, 0.0f);
     parameters.noiseType = static_cast<int> (std::lround (readParameter (noiseTypeParameter, 0.0f)));
     parameters.noiseKeyTrack = readParameter (noiseKeyTrackParameter, 0.0f);
+    parameters.noiseLoop = readParameter (noiseLoopParameter, 0.0f) >= 0.5f;
 
     voiceEngine.setSourceParameters (parameters);
 

@@ -54,10 +54,20 @@ WavetableLoadResult readWavetableFile (const juce::File& file, WavetableFrames& 
     // header alike.
     const std::unique_ptr<juce::AudioFormatReader> reader { formats.createReaderFor (file) };
 
-    if (reader == nullptr || reader->numChannels == 0)
+    if (reader == nullptr)
         return WavetableLoadResult::unreadable;
 
-    const auto totalSamples = reader->lengthInSamples;
+    return readWavetable (*reader, destination);
+}
+
+WavetableLoadResult readWavetable (juce::AudioFormatReader& reader, WavetableFrames& destination)
+{
+    destination.clear();
+
+    if (reader.numChannels == 0)
+        return WavetableLoadResult::unreadable;
+
+    const auto totalSamples = reader.lengthInSamples;
 
     if (totalSamples <= 0)
         return WavetableLoadResult::empty;
@@ -75,7 +85,7 @@ WavetableLoadResult readWavetableFile (const juce::File& file, WavetableFrames& 
     // frame of this table.
     juce::AudioBuffer<float> audio (1, static_cast<int> (totalSamples));
 
-    if (! reader->read (&audio, 0, static_cast<int> (totalSamples), 0, true, false))
+    if (! reader.read (&audio, 0, static_cast<int> (totalSamples), 0, true, false))
         return WavetableLoadResult::unreadable;
 
     const auto* samples = audio.getReadPointer (0);

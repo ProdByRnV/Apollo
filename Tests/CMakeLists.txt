@@ -28,8 +28,10 @@ target_sources(ApolloTests PRIVATE
     Engine/MacroTests.cpp
     Engine/NoiseTransientTests.cpp
     Engine/NoiseTypeTests.cpp
+    Engine/UserContentEngineTests.cpp
     DSP/WavetableTests.cpp
     DSP/FftTests.cpp
+    DSP/ResamplerTests.cpp
     DSP/LfoCurveTests.cpp
     DSP/UnisonTests.cpp
     DSP/EnvelopeTests.cpp
@@ -66,6 +68,7 @@ target_sources(ApolloTests PRIVATE
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp
     Resources/WavetableResourceTests.cpp
+    Resources/NoiseSampleFileTests.cpp
     Package/BinaryImage.cpp
     Package/BinaryImage.h
     Package/BinaryImageTests.cpp

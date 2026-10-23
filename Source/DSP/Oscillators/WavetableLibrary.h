@@ -51,10 +51,51 @@ namespace apollo::dsp
 class WavetableLibrary
 {
 public:
-    /** Number of selectable tables. Matches the `oscN_wavetable` parameter
-        range documented in UI_BINDINGS.md §3 (discrete, 0-3).
+    /** Number of built-in tables: the `oscN_wavetable` parameter's choices
+        0 to 3 (UI_BINDINGS.md §3).
     */
     static constexpr int numTables = 4;
+
+    /** The `oscN_wavetable` choice that plays the oscillator's own user table
+        rather than a built-in one (Phase 13g, ADR-0104). Appended after the
+        built-ins so that every patch made before it keeps its table.
+    */
+    static constexpr int userChoice = numTables;
+
+    /** How many choices `oscN_wavetable` has. */
+    static constexpr int numChoices = numTables + 1;
+
+    /** One user slot per oscillator, so loading a table into one oscillator
+        never changes what the other plays. They sit after the built-ins, so the
+        slot indices 0 to 3 mean what they always meant.
+    */
+    static constexpr int numUserSlots = 2;
+    static constexpr int numSlots = numTables + numUserSlots;
+
+    /** @returns oscillator @p oscillator's (1 or 2) user slot. */
+    [[nodiscard]] static constexpr int userSlot (int oscillator) noexcept
+    {
+        return numTables + (oscillator == 2 ? 1 : 0);
+    }
+
+    /** @returns the slot oscillator @p oscillator plays for @p choice, a value
+        of its `oscN_wavetable` parameter: the built-in of that number, or its
+        own user slot. Out-of-range choices clamp, never to the other
+        oscillator's table.
+    */
+    [[nodiscard]] static constexpr int slotForChoice (int oscillator, int choice) noexcept
+    {
+        if (choice >= userChoice)
+            return userSlot (oscillator);
+
+        return choice < 0 ? 0 : choice;
+    }
+
+    /** The built-in an empty user slot plays: the first, so a USER choice with
+        nothing loaded, or with content that failed to load, still sounds
+        (CLAUDE.md §33).
+    */
+    static constexpr int userFallbackTable = 0;
 
     /** Frames per built-in table.
 
@@ -103,7 +144,8 @@ public:
     WavetableLibrary();
     ~WavetableLibrary();
 
-    /** @returns the table in slot @p index, clamped into range.
+    /** @returns the table in slot @p index (0 to numSlots - 1), clamped into
+        range.
 
         AUDIO THREAD. An atomic load and nothing else.
 
@@ -174,7 +216,8 @@ public:
     */
     bool publish (int index, std::unique_ptr<Wavetable> table);
 
-    /** Puts slot @p index back to the table Apollo was built with.
+    /** Puts slot @p index back to the table Apollo was built with — for a user
+        slot, `userFallbackTable`.
 
         The fallback. A file that has gone missing, or turned out not to be a
         wavetable, leaves the instrument playing something rather than nothing
@@ -212,23 +255,24 @@ private:
     /** Hands @p previous to the retired list, if there was one. */
     void retire (std::unique_ptr<Wavetable> previous);
 
-    /** The four tables Apollo was built with. Never replaced: every slot can
-        fall back to one at any moment.
+    /** What each slot falls back to: the four tables Apollo was built with,
+        then `userFallbackTable` again for each user slot. Never replaced, so
+        every slot can fall back at any moment.
 
         Shared rather than owned, because they are identical in every instance
         of the plugin and building them costs real time. They are immutable from
         the moment they exist, so sharing needs no synchronisation.
     */
-    std::array<std::shared_ptr<const Wavetable>, static_cast<std::size_t> (numTables)> builtIn;
+    std::array<std::shared_ptr<const Wavetable>, static_cast<std::size_t> (numSlots)> builtIn;
 
     /** The loaded table each slot is playing, or null where the slot is playing
         its built-in. This is what *owns* a published table; `current` only
         points at it.
     */
-    std::array<std::unique_ptr<Wavetable>, static_cast<std::size_t> (numTables)> loaded;
+    std::array<std::unique_ptr<Wavetable>, static_cast<std::size_t> (numSlots)> loaded;
 
     /** What each slot is currently playing. Read by the audio thread. */
-    std::array<std::atomic<const Wavetable*>, static_cast<std::size_t> (numTables)> current;
+    std::array<std::atomic<const Wavetable*>, static_cast<std::size_t> (numSlots)> current;
 
     /** Tables the audio thread may still be reading. Message thread only. */
     std::vector<Retired> retired;

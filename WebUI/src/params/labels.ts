@@ -32,13 +32,14 @@ const fxPower = ['ON', 'OFF'] as const;
 const filterInput = ['F1', 'F2', 'DIRECT'] as const;
 
 export const LABELS: Record<string, readonly string[]> = {
-    // 0..3, in the order WavetableLibrary builds them.
+    // 0..3, in the order WavetableLibrary builds them; then the oscillator's
+    // own user table (Phase 13g).
     //
     // These name the four real tables that replaced the morphs between classic
     // shapes: a saw whose bandwidth opens, a square whose width narrows, a saw
     // under a climbing resonant peak, and a sine driven into a wavefolder.
-    osc1_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
-    osc2_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD'],
+    osc1_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD', 'USER'],
+    osc2_wavetable: ['SWEEP', 'PULSE', 'FORMANT', 'FOLD', 'USER'],
 
     // dsp::UnisonLayout::DetuneCurve.
     osc1_detune_curve: ['LINEAR', 'EXP'],
@@ -50,8 +51,9 @@ export const LABELS: Record<string, readonly string[]> = {
     sub_waveform: ['SINE', 'TRI', 'SQR'],
     sub_tracking: ['NOTE', 'OSC 1'],
 
-    // dsp::NoiseType.
-    noise_type: ['WHITE', 'PINK', 'CLICK', 'PICK', 'THUMP', 'CHIFF'],
+    // dsp::NoiseType; SAMPLE is the user's own (Phase 13g).
+    noise_type: ['WHITE', 'PINK', 'CLICK', 'PICK', 'THUMP', 'CHIFF', 'SAMPLE'],
+    noise_loop: ['ONCE', 'LOOP'],
 
     // 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch.
     filter1_type: ['OFF', 'LP', 'HP', 'BP', 'NOTCH', 'COMB', 'FORMANT'],

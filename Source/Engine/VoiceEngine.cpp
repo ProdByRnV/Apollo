@@ -23,7 +23,7 @@ namespace
     if (index < 0)
         return 0;
 
-    return index >= dsp::WavetableLibrary::numTables ? dsp::WavetableLibrary::numTables - 1 : index;
+    return index >= dsp::WavetableLibrary::numChoices ? dsp::WavetableLibrary::numChoices - 1 : index;
 }
 } // namespace
 
@@ -627,9 +627,11 @@ void VoiceEngine::applySourceParameters() noexcept
 
     const auto resolveOscillator = [this] (OscillatorSourceSettings& resolved,
                                            const OscillatorParameters& osc,
-                                           const dsp::UnisonLayout& layout) noexcept
+                                           const dsp::UnisonLayout& layout,
+                                           int oscillator) noexcept
     {
-        resolved.table = &library.getTable (osc.wavetableIndex);
+        // The USER choice is each oscillator's own slot (Phase 13g).
+        resolved.table = &library.getTable (dsp::WavetableLibrary::slotForChoice (oscillator, osc.wavetableIndex));
         resolved.unison = &layout;
         resolved.position = osc.position;
         resolved.level = osc.level;
@@ -641,8 +643,8 @@ void VoiceEngine::applySourceParameters() noexcept
         resolved.warpAmount = osc.warpAmount;
     };
 
-    resolveOscillator (settings.osc1, parameters.osc1, unison1);
-    resolveOscillator (settings.osc2, parameters.osc2, unison2);
+    resolveOscillator (settings.osc1, parameters.osc1, unison1, 1);
+    resolveOscillator (settings.osc2, parameters.osc2, unison2, 2);
 
     settings.subTable = &library.getSubTable (parameters.subWaveform);
     settings.subLevel = parameters.subLevel;
@@ -655,9 +657,25 @@ void VoiceEngine::applySourceParameters() noexcept
         parameters.noiseType < 0 ? 0 : (parameters.noiseType >= dsp::numNoiseTypes ? dsp::numNoiseTypes - 1
                                                                                      : parameters.noiseType));
     settings.noiseKeyTrack = parameters.noiseKeyTrack;
-    settings.noiseTransient = dsp::isTransient (settings.noiseType)
-                                ? &transients->get (dsp::transientIndex (settings.noiseType))
-                                : nullptr;
+    settings.noiseLoop = parameters.noiseLoop;
+
+    if (settings.noiseType == dsp::NoiseType::sample)
+    {
+        // The user's sample. With none loaded — none chosen yet, or one that
+        // failed to load — the noise plays white rather than nothing, so the
+        // instrument never goes quiet because content is missing (CLAUDE.md
+        // §33). The interface says which it is.
+        settings.noiseTransient = noiseSample.get();
+
+        if (settings.noiseTransient == nullptr)
+            settings.noiseType = dsp::NoiseType::white;
+    }
+    else
+    {
+        settings.noiseTransient = dsp::isTransient (settings.noiseType)
+                                    ? &transients->get (dsp::transientIndex (settings.noiseType))
+                                    : nullptr;
+    }
 
     for (auto& voice : voices)
         voice.setSources (settings);
@@ -693,10 +711,16 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
     // a swap is not a parameter change — so this is what makes a loaded table
     // actually play, and what bounds how long a retired one can still be in use
     // (WavetableLibrary.h).
-    if (library.takeGenerationChange())
+    // Both asked every block, not one or the other: each call consumes its
+    // change.
+    const auto tablesChanged = library.takeGenerationChange();
+    const auto sampleChanged = noiseSample.takeGenerationChange();
+
+    if (tablesChanged || sampleChanged)
         applySourceParameters();
 
     library.beginBlock();
+    noiseSample.beginBlock();
 
     // The engine is the origin of the signal, so it clears rather than adds.
     for (int channel = 0; channel < numChannels; ++channel)
@@ -838,8 +862,11 @@ void VoiceEngine::publishModulation() noexcept
     {
         const auto oscillator = static_cast<int> (i) + 1;
 
+        // The slot rather than the choice, so the display draws an
+        // oscillator's own user table when that is what it plays.
         instrument.wavetableIndex[i].store (
-            oscillator == 2 ? parameters.osc2.wavetableIndex : parameters.osc1.wavetableIndex,
+            dsp::WavetableLibrary::slotForChoice (
+                oscillator, oscillator == 2 ? parameters.osc2.wavetableIndex : parameters.osc1.wavetableIndex),
             std::memory_order_relaxed);
 
         // The oscillator's effective position, from the voice the traces follow.

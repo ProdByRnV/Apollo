@@ -91,6 +91,9 @@ add_library(apollo_core STATIC
     DSP/Utilities/Fft.cpp
     DSP/Utilities/Fft.h
     DSP/Utilities/LinearSmoothedValue.h
+    DSP/Utilities/PublishedSlot.h
+    DSP/Utilities/Resampler.cpp
+    DSP/Utilities/Resampler.h
     Engine/SourceSettings.h
     Engine/SpectrumFrame.cpp
     Engine/SpectrumFrame.h
@@ -162,6 +165,8 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/NoiseSampleFile.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/NoiseSampleFile.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableFile.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableFile.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/WavetableLoader.cpp"
