@@ -102,6 +102,166 @@ void ParameterBridge::setPresetLibrary (resources::PresetLibrary* libraryToUse)
     }
 }
 
+void ParameterBridge::setUserContent (resources::UserContent* contentToUse, resources::ContentLibrary* libraryToUse)
+{
+    // Released first, as the library's handler is: both outlive the bridge, and
+    // a callback left pointing at a destroyed one is a use-after-free.
+    if (userContent != nullptr)
+        userContent->onChanged = {};
+
+    if (contentLibrary != nullptr)
+        contentLibrary->onIndexUpdated = {};
+
+    userContent = contentToUse;
+    contentLibrary = libraryToUse;
+
+    if (userContent != nullptr)
+    {
+        // A load finishes on its own schedule, so what happened is pushed.
+        userContent->onChanged = [this] (const resources::ContentEvent& event)
+        {
+            if (outboundHandler)
+                outboundHandler (createContentSlots (event.token, resources::toToken (event.slot), event.message));
+        };
+    }
+
+    if (contentLibrary != nullptr)
+    {
+        // The index, and the slots after it: which entry a slot came from is
+        // an id into the index, and was not knowable until the scan finished.
+        contentLibrary->onIndexUpdated = [this]
+        {
+            if (! outboundHandler)
+                return;
+
+            outboundHandler (createContentIndex());
+            outboundHandler (createContentSlots ("CURRENT", {}, {}));
+        };
+
+        contentLibrary->rescan();
+    }
+}
+
+juce::String ParameterBridge::createContentIndex() const
+{
+    if (contentLibrary == nullptr)
+        return makeContentIndexMessage ({}, false);
+
+    return makeContentIndexMessage (contentLibrary->getIndex(), contentLibrary->isScanning());
+}
+
+juce::String ParameterBridge::createContentSlots (const juce::String& token,
+                                                  const juce::String& slot,
+                                                  const juce::String& message) const
+{
+    std::vector<ContentSlotDescription> slots;
+
+    if (userContent != nullptr)
+    {
+        const auto index = contentLibrary != nullptr ? contentLibrary->getIndex() : resources::ContentIndex {};
+
+        for (const auto which : { resources::ContentSlot::osc1, resources::ContentSlot::osc2, resources::ContentSlot::noise })
+        {
+            ContentSlotDescription description;
+            description.slot = which;
+            description.info = userContent->getInfo (which);
+
+            if (description.info.loaded)
+                if (const auto* entry = resources::findContent (index, resources::kindOf (which), description.info.source))
+                    description.entry = entry->id;
+
+            slots.push_back (std::move (description));
+        }
+    }
+
+    return makeContentSlotsMessage (slots, token, slot, message);
+}
+
+juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
+{
+    if (userContent == nullptr || contentLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    const auto slot = command.contentSlot;
+    const auto kind = resources::kindOf (slot);
+
+    switch (command.type)
+    {
+        case BridgeCommandType::requestContent:
+            if (outboundHandler)
+                outboundHandler (createContentIndex());
+
+            return createContentSlots ("CURRENT", {}, {});
+
+        case BridgeCommandType::rescanContent:
+            // Answered with the index as it stands, marked as scanning; the
+            // finished one arrives through onIndexUpdated.
+            contentLibrary->rescan();
+            return createContentIndex();
+
+        case BridgeCommandType::loadContent:
+        {
+            const auto index = contentLibrary->getIndex();
+            const auto* entry = resources::findContent (index, command.contentId);
+
+            // A number the index does not have, or a sample offered to an
+            // oscillator: refused, with nothing opened.
+            if (entry == nullptr || entry->kind != kind)
+                return makeErrorMessage (BridgeErrorCode::unknownContent);
+
+            resources::ContentSource source;
+            source.name = entry->name;
+            source.origin = entry->factory ? resources::ContentOrigin::factoryLibrary : resources::ContentOrigin::library;
+            source.libraryPath = entry->libraryPath;
+
+            userContent->loadFile (slot, entry->file, source);
+            return {};
+        }
+
+        case BridgeCommandType::chooseContentFile:
+            if (onChooseContentFile)
+                onChooseContentFile (slot);
+
+            return {};
+
+        case BridgeCommandType::clearContent:
+            userContent->clear (slot);
+            return {};
+
+        case BridgeCommandType::saveContentToLibrary:
+        {
+            const auto info = userContent->getInfo (slot);
+            const auto locations = contentLibrary->getLocations();
+
+            juce::File written;
+            const auto result = resources::saveContent (userContent->getStoredAudio (slot), kind,
+                                                        info.source.name, locations.userRoot (kind), written);
+
+            if (result != resources::ContentSaveResult::ok)
+                return createContentSlots ("SAVE_FAILED", resources::toToken (slot), resources::describe (result));
+
+            // The slot now comes from the library, which is what makes the
+            // browser highlight the row the save created once the scan lands.
+            userContent->adoptSource (slot, resources::sourceFor (locations, kind, written));
+            contentLibrary->rescan();
+
+            return createContentSlots ("SAVED", resources::toToken (slot),
+                                       written.getFileNameWithoutExtension() + " is in your library now.");
+        }
+
+        case BridgeCommandType::revealContentFolder:
+            if (onRevealContentFolder)
+                onRevealContentFolder (command.contentKind);
+            else
+                (void) contentLibrary->revealFolder (command.contentKind);
+
+            return {};
+
+        default:
+            return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+    }
+}
+
 int ParameterBridge::indexOfParameter (const juce::String& parameterID)
 {
     return params::indexOfParameter (parameterID.toStdString());
@@ -163,6 +323,15 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
             return createLfoCurves();
         }
+
+        case BridgeCommandType::requestContent:
+        case BridgeCommandType::rescanContent:
+        case BridgeCommandType::loadContent:
+        case BridgeCommandType::chooseContentFile:
+        case BridgeCommandType::clearContent:
+        case BridgeCommandType::saveContentToLibrary:
+        case BridgeCommandType::revealContentFolder:
+            return applyContentCommand (command);
 
         case BridgeCommandType::toggleFullscreen:
             // The bridge knows nothing about windows and should not: it owns

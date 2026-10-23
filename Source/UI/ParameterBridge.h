@@ -147,6 +147,32 @@ public:
     /** @returns every LFO's drawn curve, described for the frontend. */
     [[nodiscard]] juce::String createLfoCurves() const;
 
+    /** Attaches the user's content and the library it is chosen from (Phase
+        13g). Pass nullptrs to detach. Borrowed: the processor owns both,
+        because content has to keep sounding, and a scan started from an open
+        editor has to survive it closing. Without them the content commands are
+        answered with a structured error. Attaching starts a scan. */
+    void setUserContent (resources::UserContent* contentToUse, resources::ContentLibrary* libraryToUse);
+
+    /** What to do when the page asks for a file dialog for a slot. A hook,
+        because a dialog is the editor's: the bridge owns parameters and knows
+        nothing about windows. With none set the command is accepted and does
+        nothing, as Fullscreen is. MESSAGE THREAD. */
+    std::function<void (resources::ContentSlot)> onChooseContentFile;
+
+    /** What to do when the page asks to open a library folder. Defaults, when
+        unset, to opening it in the system's file manager; tests set it so that
+        a test run does not open windows. MESSAGE THREAD. */
+    std::function<void (resources::ContentKind)> onRevealContentFolder;
+
+    /** @returns the wavetable and noise libraries, described for the page. */
+    [[nodiscard]] juce::String createContentIndex() const;
+
+    /** @returns every content slot, with what just happened. */
+    [[nodiscard]] juce::String createContentSlots (const juce::String& token,
+                                                   const juce::String& slot,
+                                                   const juce::String& message) const;
+
     [[nodiscard]] juce::String createMidiMappings() const;
 
     /** As above, but with an explicit status — used when what just happened was
@@ -190,6 +216,9 @@ private:
     /** Applies a validated preset command. @returns the reply. */
     [[nodiscard]] juce::String applyPresetCommand (const BridgeCommand& command);
 
+    /** Applies a validated content command. @returns the reply. */
+    [[nodiscard]] juce::String applyContentCommand (const BridgeCommand& command);
+
     /** @returns the index id of the loaded preset, or 0 if it is not in the
         library — a sound that has never been saved, or one restored from a host
         project by a build that has not scanned yet.
@@ -221,6 +250,10 @@ private:
 
     /** Borrowed, not owned, and null when there are no curves to edit. */
     state::LfoCurveStore* lfoCurves = nullptr;
+
+    /** Borrowed, not owned, and null when there is no user content. */
+    resources::UserContent* userContent = nullptr;
+    resources::ContentLibrary* contentLibrary = nullptr;
 
     /** What the current sound was loaded from or saved to, if anything.
 

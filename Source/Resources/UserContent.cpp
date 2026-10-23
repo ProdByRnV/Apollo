@@ -240,6 +240,37 @@ ContentSlotInfo UserContent::getInfo (ContentSlot slot) const
     return info[indexOf (slot)];
 }
 
+void UserContent::adoptSource (ContentSlot slot, const ContentSource& source)
+{
+    {
+        const std::lock_guard<std::mutex> guard (lock);
+        auto& slotInfo = info[indexOf (slot)];
+
+        if (! slotInfo.loaded)
+            return;
+
+        slotInfo.source = source;
+    }
+
+    auto content = apvts.state.getChildWithName (juce::Identifier (contentTreeType));
+
+    for (int i = 0; i < content.getNumChildren(); ++i)
+    {
+        auto item = content.getChild (i);
+
+        if (item.getProperty (juce::Identifier (slotProperty)).toString() != toToken (slot))
+            continue;
+
+        item.setProperty (juce::Identifier (nameProperty), source.name, nullptr);
+        item.setProperty (juce::Identifier (originProperty), toToken (source.origin), nullptr);
+
+        if (source.libraryPath.isNotEmpty())
+            item.setProperty (juce::Identifier (pathProperty), source.libraryPath, nullptr);
+        else
+            item.removeProperty (juce::Identifier (pathProperty), nullptr);
+    }
+}
+
 juce::String UserContent::getStoredAudio (ContentSlot slot) const
 {
     const std::lock_guard<std::mutex> guard (lock);
@@ -523,8 +554,15 @@ void UserContent::deliver (Result& result)
         playing[indexOf (slot)] = result.audio;
     }
 
+    // A restore says only that it finished, so a browser can show the name
+    // of what the project brought with it.
     if (result.fromDocument)
+    {
+        if (onChanged)
+            onChanged ({ slot, "RESTORED", {} });
+
         return;
+    }
 
     writeItem (result);
     select (slot);

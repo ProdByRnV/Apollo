@@ -52,6 +52,8 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::unknownPreset:              return "UNKNOWN_PRESET";
         case BridgeErrorCode::invalidPresetName:          return "INVALID_PRESET_NAME";
         case BridgeErrorCode::invalidLfoCurve:            return "INVALID_LFO_CURVE";
+        case BridgeErrorCode::unknownContent:             return "UNKNOWN_CONTENT";
+        case BridgeErrorCode::invalidContentSlot:         return "INVALID_CONTENT_SLOT";
     }
 
     return "MALFORMED_MESSAGE";
@@ -78,6 +80,8 @@ juce::String describe (BridgeErrorCode code)
             return "That name cannot be saved. Use at least one letter or number, in under "
                  + juce::String (presets::maximumNameLength) + " characters.";
         case BridgeErrorCode::invalidLfoCurve:            return "That curve could not be used.";
+        case BridgeErrorCode::unknownContent:             return "That file is no longer in the library.";
+        case BridgeErrorCode::invalidContentSlot:         return "That is not somewhere content can go.";
     }
 
     return "The message could not be read.";
@@ -262,6 +266,72 @@ BridgeParseResult parseMessage (const juce::String& json)
         if (! dsp::isValid (command.lfoCurve))
             return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
 
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    // The user's content (Phase 13g). Tokens in, enums out: nothing past
+    // here sees the page's strings.
+    const auto readSlot = [&object] (BridgeCommand& command) -> bool
+    {
+        const auto value = object->getProperty ("slot");
+        return value.isString() && resources::slotFromToken (value.toString(), command.contentSlot);
+    };
+
+    if (messageType == "requestContent" || messageType == "rescanContent")
+    {
+        BridgeCommand command;
+        command.type = messageType == "requestContent" ? BridgeCommandType::requestContent
+                                                       : BridgeCommandType::rescanContent;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "chooseContentFile" || messageType == "clearContent" || messageType == "saveContentToLibrary")
+    {
+        BridgeCommand command;
+        command.type = messageType == "chooseContentFile" ? BridgeCommandType::chooseContentFile
+                     : messageType == "clearContent"      ? BridgeCommandType::clearContent
+                                                          : BridgeCommandType::saveContentToLibrary;
+
+        if (! readSlot (command))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidContentSlot);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "revealContentFolder")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::revealContentFolder;
+
+        const auto kind = object->getProperty ("kind");
+
+        if (! kind.isString() || ! resources::kindFromToken (kind.toString(), command.contentKind))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidContentSlot);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "loadContent")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::loadContent;
+
+        if (! readSlot (command))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidContentSlot);
+
+        const auto entryValue = object->getProperty ("entry");
+
+        if (! isNumber (entryValue))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        // Checked as a double before it is narrowed, as a preset id is.
+        const auto id = static_cast<double> (entryValue);
+
+        if (! std::isfinite (id) || id < 1.0 || id > static_cast<double> (resources::maximumContentEntries)
+            || id != std::floor (id))
+            return BridgeParseResult::failure (BridgeErrorCode::unknownContent);
+
+        command.contentId = static_cast<int> (id);
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -963,6 +1033,79 @@ juce::String makePresetIndexMessage (const resources::PresetIndex& index, bool s
     object->setProperty ("userMissing", index.userDirectoryMissing);
     object->setProperty ("factoryMissing", index.factoryDirectoryMissing);
     object->setProperty ("scanning", scanning);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makeContentIndexMessage (const resources::ContentIndex& index, bool scanning)
+{
+    juce::Array<juce::var> wavetables;
+    juce::Array<juce::var> noise;
+
+    for (const auto& content : index.entries)
+    {
+        auto* entry = new juce::DynamicObject();
+
+        entry->setProperty (idProperty, content.id);
+        entry->setProperty ("name", content.name);
+        entry->setProperty ("bank", content.bank);
+        entry->setProperty ("factory", content.factory);
+
+        if (content.kind == resources::ContentKind::wavetable)
+            entry->setProperty ("frames", content.frames);
+        else
+            entry->setProperty ("seconds", std::round (content.seconds * 100.0) / 100.0);
+
+        entry->setProperty ("problem", content.problem);
+
+        // The file and its library path stay here: a path in the document is
+        // a path in a screenshot (UI_BINDINGS.md §13).
+        (content.kind == resources::ContentKind::wavetable ? wavetables : noise).add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "contentIndex");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("wavetables", wavetables);
+    object->setProperty ("noise", noise);
+    object->setProperty ("truncated", index.truncated);
+    object->setProperty ("scanning", scanning);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makeContentSlotsMessage (const std::vector<ContentSlotDescription>& slots,
+                                      const juce::String& token,
+                                      const juce::String& slot,
+                                      const juce::String& message)
+{
+    juce::Array<juce::var> described;
+
+    for (const auto& item : slots)
+    {
+        auto* entry = new juce::DynamicObject();
+        const auto& info = item.info;
+
+        entry->setProperty ("slot", resources::toToken (item.slot));
+        entry->setProperty ("loaded", info.loaded);
+        entry->setProperty ("name", info.loaded ? info.source.name : juce::String());
+        entry->setProperty ("origin", info.loaded ? resources::toToken (info.source.origin) : juce::String());
+        entry->setProperty ("frames", info.frames);
+        entry->setProperty ("seconds", std::round (info.seconds * 100.0) / 100.0);
+        entry->setProperty ("entry", item.entry);
+        entry->setProperty ("loading", info.loading);
+        entry->setProperty ("loadingName", info.loading ? info.loadingName : juce::String());
+
+        described.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "contentSlots");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("slots", described);
+    object->setProperty ("status", token);
+    object->setProperty ("slot", slot);
+    object->setProperty ("statusMessage", message);
 
     return juce::JSON::toString (juce::var (object));
 }

@@ -165,6 +165,8 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Parameters/ParameterLayout.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/FactoryPresets.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ContentLibrary.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ContentLibrary.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/EmbeddedAudio.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/EmbeddedAudio.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/NoiseSampleFile.cpp"

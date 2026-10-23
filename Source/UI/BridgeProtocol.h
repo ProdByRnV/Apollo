@@ -22,7 +22,9 @@
 
 #include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
+#include "Resources/ContentLibrary.h"
 #include "Resources/PresetLibrary.h"
+#include "Resources/UserContent.h"
 #include "State/PresetDocument.h"
 #include "DSP/LFO/LfoCurve.h"
 #include "Engine/SpectrumFrame.h"
@@ -87,7 +89,17 @@ enum class BridgeErrorCode
         number out of range, positions out of order, or ends that do not reach
         the start and end of the cycle (Phase 13f-1).
     */
-    invalidLfoCurve
+    invalidLfoCurve,
+
+    /** The page named a wavetable or noise sample the current index does not
+        contain, or one of the wrong kind for the slot (Phase 13g). Like an
+        unknown preset, something a user can cause by renaming a file while the
+        browser is open. */
+    unknownContent,
+
+    /** A content slot or kind that is not one: not osc1, osc2 or noise, or not
+        wavetable or noise. */
+    invalidContentSlot
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -152,7 +164,20 @@ enum class BridgeCommandType
     // Drawn LFO curves (Phase 13f-1). A curve is not a parameter, so it has
     // commands of its own: the page can ask for all four and replace one.
     requestLfoCurves, ///< Send every LFO's curve.
-    setLfoCurve       ///< Replace one LFO's curve.
+    setLfoCurve,      ///< Replace one LFO's curve.
+
+    // The user's wavetables and noise sample (Phase 13g). Like the preset
+    // commands, intents rather than file operations: the page names a slot,
+    // and a library entry by the number the backend gave it. Choosing a file
+    // anywhere else is the native dialog's job, which the page can only ask
+    // to be opened. Nothing here can express a path, and nothing deletes.
+    requestContent,       ///< Send the library and what every slot holds.
+    rescanContent,        ///< Look at the library folders again.
+    loadContent,          ///< Load a library entry into a slot.
+    chooseContentFile,    ///< Open the native file dialog for a slot.
+    clearContent,         ///< Empty a slot.
+    saveContentToLibrary, ///< Write a slot's audio into the user's library.
+    revealContentFolder   ///< Open the user's library folder for a kind.
 };
 
 /** A validated command.
@@ -213,6 +238,14 @@ struct BridgeCommand
         is here — `dsp::isValid` holds — so the store has nothing to repair. */
     int lfoIndex = 0;
     dsp::LfoCurve lfoCurve {};
+
+    /** For the content commands: which slot, which kind, which library entry.
+        The slot and kind arrive as tokens and are validated into these; the
+        entry is a number from the index, resolved against it before anything
+        is opened. */
+    resources::ContentSlot contentSlot = resources::ContentSlot::osc1;
+    resources::ContentKind contentKind = resources::ContentKind::wavetable;
+    int contentId = 0;
 };
 
 /** The outcome of parsing one inbound message. */
@@ -307,6 +340,38 @@ struct BridgeParseResult
 */
 [[nodiscard]] juce::String makePresetIndexMessage (const resources::PresetIndex& index,
                                                    bool scanning);
+
+/** `{"type":"contentIndex", ...}`
+
+    The wavetable and noise libraries as the browsers draw them: each entry's
+    number, name, bank, whether it is factory content, its frames or length,
+    and why its header says it will not load, if it will not. No paths.
+*/
+[[nodiscard]] juce::String makeContentIndexMessage (const resources::ContentIndex& index, bool scanning);
+
+/** What one content slot is playing, for `contentSlots`. */
+struct ContentSlotDescription
+{
+    resources::ContentSlot slot = resources::ContentSlot::osc1;
+    resources::ContentSlotInfo info;
+
+    /** The library entry it came from, if that is still in the index; else 0. */
+    int entry = 0;
+};
+
+/** `{"type":"contentSlots", ...}`
+
+    Every slot, and what just happened to one of them.
+
+    @param token    LOADED, LOAD_FAILED, RESTORE_FAILED, CLEARED, LOADING,
+                    SAVED, SAVE_FAILED, or CURRENT when nothing happened.
+    @param slot     the slot it happened to, when there was one.
+    @param message  a sentence naming no path.
+*/
+[[nodiscard]] juce::String makeContentSlotsMessage (const std::vector<ContentSlotDescription>& slots,
+                                                    const juce::String& token,
+                                                    const juce::String& slot,
+                                                    const juce::String& message);
 
 /** `{"type":"presetStatus", ...}`
 

@@ -181,6 +181,11 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // commands of their own rather than through the parameter snapshot.
     bridge.setLfoCurves (&processor.getLfoCurves());
 
+    // The user's wavetables and noise sample, and the library they come from.
+    // Attaching starts a scan, as the preset library's does.
+    bridge.setUserContent (&processor.getUserContent(), &processor.getContentLibrary());
+    bridge.onChooseContentFile = [this] (resources::ContentSlot slot) { chooseContentFile (slot); };
+
     // Loading a preset replaces the whole state tree, which is the processor's
     // event to handle rather than the bridge's: the bridge owns parameters and
     // knows nothing about the MIDI table hanging off the same tree.
@@ -234,6 +239,51 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     bridge.setPresetLibrary (nullptr);
     bridge.onStateReplaced = {};
     bridge.setLfoCurves (nullptr);
+
+    // Before the chooser below is destroyed with the editor: a dialog that
+    // finishes during teardown must not find a bridge that still points here.
+    bridge.onChooseContentFile = {};
+    bridge.setUserContent (nullptr, nullptr);
+}
+
+void ApolloWebViewEditor::chooseContentFile (resources::ContentSlot slot)
+{
+    // MESSAGE THREAD, from the bridge.
+    const auto kind = resources::kindOf (slot);
+    const auto locations = processor.getContentLibrary().getLocations();
+
+    // Where it opened last; otherwise the library, if there is one yet;
+    // otherwise home.
+    auto start = kind == resources::ContentKind::noise ? lastNoiseFolder : lastWavetableFolder;
+
+    if (! start.isDirectory())
+        start = locations.userRoot (kind);
+
+    if (! start.isDirectory())
+        start = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+
+    const auto title = kind == resources::ContentKind::noise
+                         ? juce::String ("Choose a noise sample")
+                         : "Choose a wavetable for " + resources::describe (slot).toLowerCase();
+
+    contentChooser = std::make_unique<juce::FileChooser> (title, start, resources::wildcardFor (kind));
+
+    contentChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                 [this, slot, kind] (const juce::FileChooser& chooser)
+                                 {
+                                     const auto file = chooser.getResult();
+
+                                     // Cancelled: nothing happens, and nothing is said.
+                                     if (file == juce::File())
+                                         return;
+
+                                     (kind == resources::ContentKind::noise ? lastNoiseFolder : lastWavetableFolder)
+                                         = file.getParentDirectory();
+
+                                     const auto locations = processor.getContentLibrary().getLocations();
+                                     processor.getUserContent().loadFile (slot, file,
+                                                                          resources::sourceFor (locations, kind, file));
+                                 });
 }
 
 void ApolloWebViewEditor::paint (juce::Graphics& g)
@@ -321,6 +371,10 @@ void ApolloWebViewEditor::timerCallback()
     // The drawn LFO curves live in the same tree, and a load replaces them as
     // well, with the default wherever the document had none.
     sendToWebView (bridge.createLfoCurves());
+
+    // So does the user's content. What the slots hold now may still be loading;
+    // the store says when each one lands.
+    sendToWebView (bridge.createContentSlots ("CURRENT", {}, {}));
 
     // And so does the preset name, which lives in the same tree so that an
     // instrument reopens showing the sound it was on rather than "Init". The

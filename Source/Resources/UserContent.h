@@ -124,7 +124,7 @@ struct ContentEvent
 {
     ContentSlot slot = ContentSlot::osc1;
 
-    /** LOADED, LOAD_FAILED, RESTORE_FAILED, CLEARED or LOADING. */
+    /** LOADED, LOAD_FAILED, RESTORED, RESTORE_FAILED, CLEARED or LOADING. */
     juce::String token;
 
     /** A sentence, naming no path (UI_BINDINGS.md §13). */
@@ -159,6 +159,11 @@ public:
     void restoreFromState();
 
     [[nodiscard]] ContentSlotInfo getInfo (ContentSlot slot) const;
+
+    /** Records that @p slot's content now also lives at @p source — after it
+        was saved into the library — in the slot and in the patch. The audio
+        is unchanged. MESSAGE THREAD. */
+    void adoptSource (ContentSlot slot, const ContentSource& source);
 
     /** The audio stored in the patch for @p slot, as encoded, or empty. */
     [[nodiscard]] juce::String getStoredAudio (ContentSlot slot) const;

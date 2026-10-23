@@ -70,6 +70,7 @@ target_sources(ApolloTests PRIVATE
     Resources/WavetableResourceTests.cpp
     Resources/NoiseSampleFileTests.cpp
     Resources/UserContentTests.cpp
+    Resources/ContentLibraryTests.cpp
     Package/BinaryImage.cpp
     Package/BinaryImage.h
     Package/BinaryImageTests.cpp
@@ -93,7 +94,8 @@ target_sources(ApolloTests PRIVATE
     State/StateSerializationTests.cpp
     UI/EditorSizingTests.cpp
     UI/BridgeProtocolTests.cpp
-    UI/ParameterBridgeTests.cpp)
+    UI/ParameterBridgeTests.cpp
+    UI/ContentBridgeTests.cpp)
 
 target_compile_definitions(ApolloTests PRIVATE
     JUCE_STANDALONE_APPLICATION=1

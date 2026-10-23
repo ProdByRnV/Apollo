@@ -55,6 +55,18 @@ private:
     */
     void toggleFullscreen();
 
+    /** Opens the system's own file dialog for a content slot, and loads what
+        is chosen (Phase 13g). The page can only ask: a path never crosses the
+        bridge in either direction (CLAUDE.md §40). */
+    void chooseContentFile (resources::ContentSlot slot);
+
+    /** The dialog while it is open. Owned here, so it closes with the editor. */
+    std::unique_ptr<juce::FileChooser> contentChooser;
+
+    /** Where each kind's dialog opened last, so the next one starts there. */
+    juce::File lastWavetableFolder;
+    juce::File lastNoiseFolder;
+
     bool fullscreen = false;
 
     /** The size to go back to. Captured on the way in rather than recomputed,

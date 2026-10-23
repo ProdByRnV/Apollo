@@ -21,6 +21,7 @@
 #include "MIDI/MpeZone.h"
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
+#include "Resources/ContentLibrary.h"
 #include "Resources/PresetLibrary.h"
 #include "Resources/UserContent.h"
 #include "State/LfoCurveState.h"
@@ -184,6 +185,9 @@ public:
 
     /** The user's wavetables and noise sample (Phase 13g). */
     [[nodiscard]] resources::UserContent& getUserContent() noexcept { return *userContent; }
+
+    /** The wavetable and noise libraries the user's content is chosen from. */
+    [[nodiscard]] resources::ContentLibrary& getContentLibrary() noexcept { return contentLibrary; }
 
     [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
     [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
@@ -653,6 +657,10 @@ private:
         touch on its way out has gone.
     */
     resources::PresetLibrary presetLibrary;
+
+    /** The wavetable and noise libraries. It owns a scanning thread too, and
+        touches nothing else, so its place matters only in being late. */
+    resources::ContentLibrary contentLibrary;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ApolloAudioProcessor)
 };
