@@ -177,6 +177,8 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/UserContent.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/PresetLibrary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/PresetLibrary.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProgramChanges.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProgramChanges.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/PresetDocument.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/LfoCurveState.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/LfoCurveState.h"

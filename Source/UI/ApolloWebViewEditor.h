@@ -92,6 +92,10 @@ private:
 
     void timerCallback() override;
 
+    /** Sends the page everything a wholesale state replacement moved, once per
+        replacement. */
+    void resynchroniseAfterReload();
+
     /** Serves the built-in placeholder page. Replaced by the built frontend
         bundle in Phase 7.
     */
@@ -116,6 +120,11 @@ private:
         rather than inferred from a burst of individual changes.
     */
     int lastSeenStateReload = 0;
+
+    /** The serial of the last program-change event passed to the page, so each
+        is announced once. Starts at the processor's, so opening the editor does
+        not repeat a program change that happened while it was closed. */
+    int lastSeenProgramEvent = 0;
 
     /** True once the page has loaded and it is safe to emit events to it.
         Before that, emitEventIfBrowserIsVisible has nothing to deliver to.

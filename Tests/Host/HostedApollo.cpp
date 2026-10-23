@@ -165,10 +165,23 @@ std::vector<juce::AudioProcessorParameter*> userParameters (juce::AudioPluginIns
         if (parameter->getName (256).startsWith ("MIDI CC "))
             continue;
 
+        // The wrapper's program list, since Apollo has one (Phase 13h-2).
+        if (vst3ParameterId (*parameter) == programParameterId)
+            continue;
+
         result.push_back (parameter);
     }
 
     return result;
+}
+
+juce::AudioProcessorParameter* programParameter (juce::AudioPluginInstance& instance)
+{
+    for (auto* parameter : instance.getParameters())
+        if (vst3ParameterId (*parameter) == programParameterId)
+            return parameter;
+
+    return nullptr;
 }
 
 juce::uint32 vst3ParameterId (const juce::AudioProcessorParameter& parameter)

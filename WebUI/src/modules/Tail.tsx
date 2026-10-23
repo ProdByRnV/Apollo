@@ -116,6 +116,17 @@ export function Expression(): JSX.Element {
 
             <div className="cluster cluster--banner">
                 <Segmented id="mpe_zone" label="MPE Zone" table={LABELS.mpe_zone} />
+                {/*
+                    Beside the zone because both decide what a message from the
+                    controller is taken to mean. A program change loads a preset
+                    by number: bank 0 is the built-in sounds, banks from 1 the
+                    rest of the library as the browser lists it (ADR-0106).
+                */}
+                <Segmented
+                    id="midi_program_change"
+                    label="Program Change"
+                    table={LABELS.midi_program_change}
+                />
             </div>
 
             <Knob id="mpe_members" label="Members" />

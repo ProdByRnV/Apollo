@@ -7037,3 +7037,108 @@ benchmark as `delay, split and modulated`, for a steadier machine to resolve.
   be rediscovered.
 - **Two sines from two phase accumulators.** Two calls to `sin` per sample, for
   the same result.
+
+---
+
+## ADR-0106 — A program change chooses a preset by number, from MIDI or from the host's program list
+
+**Phase 13h-2 · Accepted**
+
+### What was built
+
+PRD §34 asks for "program/preset navigation where supported". A program change
+now loads a preset by number, and a host is shown Apollo's built-in sounds as
+its program list.
+
+- **The host's program list** is the ten built-in sounds, in the order they are
+  compiled in: program 0 is Init, program 8 Wire Pluck. Before, Apollo reported
+  one program called "Default".
+- **A MIDI program change** loads by the same numbering. Bank select
+  (controller 0) chooses which list it counts in.
+- **`midi_program_change`**, IGNORE or OBEY, obeyed by default: a new
+  non-automatable setting beside the MPE zone.
+
+### Two routes, because a VST3 host has only one of them
+
+A VST3 host never hands a plugin a MIDI program change. It turns one into a
+choice from the plugin's program list, and drops it if there is no list. So
+without a program list, a program change sent from a DAW would reach nothing,
+whatever Apollo did with MIDI. The standalone, and any host that passes MIDI
+through, delivers the message itself. Apollo handles both, and counts the same
+way in both, so a number means one sound whichever route it took.
+
+### What the numbers mean
+
+- **Bank 0 is the built-in sounds**, and it is the only bank the host's list
+  shows. A host caches its program list, and the built-ins are the only presets
+  guaranteed to be there, in the same order, on every machine.
+- **Banks 1 and up are the rest of the library**, 128 to a bank, in the order
+  the browser lists it. A user's presets do move when one is added, which is in
+  the nature of a list that grows; the built-ins never do.
+- **Bank select is controller 0 alone.** Controller 32, the fine half, is not
+  read: most controllers that send a bank at all send controller 0, and a
+  controller that sends only 32 would otherwise reach banks nobody has.
+- **A number with nothing behind it changes nothing**, and the interface says
+  so: "Nothing is stored at bank 1, program 12." The numbers are the ones the
+  message carried, counting from 0, which is what the wire carries.
+
+### Nothing loads on the audio thread
+
+The audio thread remembers the latest request in one atomic and does nothing
+else. A timer on the message thread, thirty times a second, loads it through
+`applyPreset`, the function the browser now uses too, so the two cannot load a
+preset differently. Two program changes inside one tick load the second. A
+request for a user bank arriving before the library has ever been scanned (no
+scan starts until something needs one) starts the scan and waits for it, rather
+than finding an empty list and calling the slot empty. A program change works
+with no editor open; with one open, the page announces what it did.
+
+### The host must never undo the user's work
+
+A host that sets a program again after reopening a project would, if Apollo
+reported a different current program, load that built-in over the user's
+sound. Two things prevent it:
+- **The current program follows the state.** A sound that is a built-in, by its
+  name, author and category, is that program, however it was loaded.
+- **Otherwise the project says.** The program last shown is saved in the
+  project as `hostProgram` and read back, so an edited or user sound reopens on
+  the program the host remembers. A preset never carries it: it describes the
+  instrument, not the sound.
+
+A stored number is untrusted like the rest of a document: anything but a plain
+number in range is ignored.
+
+### Obeyed by default
+
+Program change is what the PRD asks for, so it works without being found
+first. The setting exists for the controller that sends a program change when
+it is switched on, which would otherwise replace the sound being worked on. It
+is non-automatable, saved with the project and never carried by a preset, like
+the MPE settings (ADR-0045), so loading a preset cannot turn it back on.
+
+No existing project changes behaviour because of the default. A VST3 host
+never delivers MIDI program changes, so none can have reached Apollo through
+one, and the standalone has no projects.
+
+The host's own program list ignores the setting. Choosing a program there is
+something the user did on purpose.
+
+### What this costs later
+
+The program list is permanent in the way a discrete parameter's choices are
+(ADR-0054): **a new built-in sound is appended, never inserted**. Even appended,
+it changes the number of programs, and a host that stored its Program parameter
+as a fraction of the list may land on a neighbour. That matters only once there
+are projects in the world, so it is a question for the first factory content
+added after the first release.
+
+### Alternatives considered
+
+- **The whole library as the host's program list.** The list would change
+  whenever the user saved a preset, and a host caches it.
+- **Ignoring program changes by default.** Safer for one kind of controller,
+  and invisible to everyone who wanted the feature.
+- **Loading on the audio thread.** Parsing a document and replacing the state
+  tree allocates, and CLAUDE.md §7 forbids it.
+- **Bank select from controllers 0 and 32 together**, as fourteen bits. Banks
+  1 and up would then need both controllers, which few devices send.

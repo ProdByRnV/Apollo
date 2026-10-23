@@ -630,25 +630,18 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
             if (entry == nullptr)
                 return makeErrorMessage (BridgeErrorCode::unknownPreset);
 
-            juce::String text;
+            // The same call a MIDI program change makes (Phase 13h-2), so the
+            // two cannot load a preset differently.
+            auto failedToRead = false;
 
-            // One call for both kinds. A built-in is rendered from the table, a
-            // user preset is read off the disk, and from here down the two are
-            // indistinguishable: the same validator, the same migration, and
-            // the same guarantee that a refusal leaves the sound alone.
-            if (const auto opened = resources::readPreset (*entry, text);
-                opened != state::StateLoadResult::ok)
-                return createPresetStatus ("LOAD_FAILED",
-                                           "Could not read that preset: "
-                                               + state::describe (opened));
-
-            if (const auto applied = presets::read (apvts, text);
+            if (const auto applied = resources::applyPreset (apvts, *entry, failedToRead);
                 applied != state::StateLoadResult::ok)
-                // The current sound is untouched, because presets::read applies
-                // nothing unless every check passes. So this says what did not
-                // happen rather than what was lost (CLAUDE.md §33).
+                // The current sound is untouched, because nothing is applied
+                // unless every check passes. So this says what did not happen
+                // rather than what was lost (CLAUDE.md §33).
                 return createPresetStatus ("LOAD_FAILED",
-                                           "That preset could not be loaded: "
+                                           (failedToRead ? "Could not read that preset: "
+                                                         : "That preset could not be loaded: ")
                                                + state::describe (applied));
 
             loadedPresetKey = entry->key();

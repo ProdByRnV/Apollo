@@ -221,7 +221,8 @@ export interface PresetStatusMessage {
     type: 'presetStatus';
     version: number;
     /** "LOADED", "SAVED", "ALREADY_EXISTS", "LOAD_FAILED", "SAVE_FAILED",
-        "STATE_RELOADED" — branched on, so they are part of the contract. */
+        "STATE_RELOADED", and since 13h-2 "PROGRAM_EMPTY" for a program change
+        that named nothing — branched on, so they are part of the contract. */
     status: string;
     statusMessage: string;
     name: string;

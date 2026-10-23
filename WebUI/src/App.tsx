@@ -558,6 +558,6 @@ function formatSampleRate(rate: number): string {
     caution; a load or save that failed is an error; the rest is news. */
 function presetTone(status: string): StatusTone {
     if (status === 'LOAD_FAILED' || status === 'SAVE_FAILED') return 'error';
-    if (status === 'ALREADY_EXISTS') return 'caution';
+    if (status === 'ALREADY_EXISTS' || status === 'PROGRAM_EMPTY') return 'caution';
     return 'info';
 }

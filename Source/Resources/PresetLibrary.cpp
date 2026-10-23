@@ -453,6 +453,28 @@ state::StateLoadResult readPreset (const PresetEntry& entry, juce::String& desti
                                     : state::StateLoadResult::malformed;
 }
 
+state::StateLoadResult applyPreset (juce::AudioProcessorValueTreeState& apvts,
+                                    const PresetEntry& entry,
+                                    bool& failedToRead)
+{
+    failedToRead = false;
+
+    juce::String text;
+
+    // One call for both kinds. A built-in is rendered from the table, a user
+    // preset is read off the disk, and from here down the two are
+    // indistinguishable: the same validator, the same migration, and the same
+    // guarantee that a refusal leaves the sound alone.
+    if (const auto opened = readPreset (entry, text); opened != state::StateLoadResult::ok)
+    {
+        failedToRead = true;
+        return opened;
+    }
+
+    // presets::read applies nothing unless every check passes.
+    return presets::read (apvts, text);
+}
+
 const PresetEntry* findPreset (const PresetIndex& index, int id)
 {
     // Zero is "no preset" by construction and is not searched for, so a page
@@ -596,6 +618,8 @@ void PresetLibrary::publish (PresetIndex&& scanned)
 
         index = std::move (scanned);
     }
+
+    completedScans.fetch_add (1);
 
     delivery->schedule();
 }

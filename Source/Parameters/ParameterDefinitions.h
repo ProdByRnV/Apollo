@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 304> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 305> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -2236,6 +2236,18 @@ inline constexpr std::array<ParameterDefinition, 304> parameterDefinitions { {
     { "mpe_bend_range", "MPE Note Bend Range",
       ParameterType::integer, ParameterUnit::semitones,
       1.0f, 96.0f, 48.0f,
+      1.0f, 1.0f,
+      false, false, false },
+
+    // Phase 13h-2. 0 ignores MIDI program changes, 1 obeys them. Obeyed by
+    // default: it is what a program change is for. The switch is for the
+    // controller that sends one on power-up, which would otherwise replace the
+    // sound being worked on. Setup, like the rest of this section, so a preset
+    // neither carries it nor changes it. The host's own program list does not
+    // read it (resources::ProgramChanges).
+    { "midi_program_change", "Program Change",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
       1.0f, 1.0f,
       false, false, false },
 

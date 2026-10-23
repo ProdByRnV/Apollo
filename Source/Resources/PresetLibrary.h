@@ -212,6 +212,25 @@ void addBuiltInPresets (PresetIndex& index);
 [[nodiscard]] state::StateLoadResult readPreset (const PresetEntry& entry,
                                                  juce::String& destination);
 
+/** Reads @p entry and applies it to @p apvts.
+
+    THE ONE WAY A PRESET IS LOADED, whoever asks: the browser naming a number,
+    a MIDI program change, or the host choosing a program (Phase 13h-2). Reading
+    and applying are the two steps that can refuse, and both leave the current
+    sound untouched when they do (CLAUDE.md §33).
+
+    Applies and nothing more. The caller still owes the processor the work any
+    wholesale replacement needs (`ApolloAudioProcessor::notifyStateReplaced`).
+
+    @returns ok, or why the preset did not load. `failedToRead` says which of
+             the two steps refused.
+
+    MESSAGE THREAD.
+*/
+[[nodiscard]] state::StateLoadResult applyPreset (juce::AudioProcessorValueTreeState& apvts,
+                                                  const PresetEntry& entry,
+                                                  bool& failedToRead);
+
 /** @returns the entry with @p id, or nullptr if the index has no such preset.
 
     The lookup that turns a number from the interface back into a file, and the
@@ -327,6 +346,12 @@ public:
 
     [[nodiscard]] bool isScanning() const noexcept { return isThreadRunning(); }
 
+    /** How many scans have finished and been published. Zero means the index
+        is empty because nobody has looked yet, not because the library is.
+        Any thread.
+    */
+    [[nodiscard]] int getCompletedScans() const noexcept { return completedScans.load(); }
+
     /** Called on the message thread after a scan finishes. */
     std::function<void()> onIndexUpdated;
 
@@ -345,6 +370,8 @@ private:
         never sees this class at all.
     */
     mutable juce::CriticalSection lock;
+
+    std::atomic<int> completedScans { 0 };
 
     /** Message-thread delivery, so `onIndexUpdated` is never called from the
         scan thread. Cancelled in the destructor before the thread stops.

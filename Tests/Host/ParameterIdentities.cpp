@@ -316,6 +316,7 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "mpe_zone", 291986089u },
         { "mpe_members", 161469692u },
         { "mpe_bend_range", 1192519668u },
+        { "midi_program_change", 1479662249u },
         { "master_gain", 1220740924u },
     };
 

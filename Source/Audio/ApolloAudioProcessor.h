@@ -23,6 +23,7 @@
 #include "Parameters/ParameterLayout.h"
 #include "Resources/ContentLibrary.h"
 #include "Resources/PresetLibrary.h"
+#include "Resources/ProgramChanges.h"
 #include "Resources/UserContent.h"
 #include "State/LfoCurveState.h"
 #include "State/StateSerialization.h"
@@ -207,6 +208,11 @@ public:
     */
     [[nodiscard]] resources::PresetLibrary& getPresetLibrary() noexcept { return presetLibrary; }
     [[nodiscard]] const resources::PresetLibrary& getPresetLibrary() const noexcept { return presetLibrary; }
+
+    /** Presets chosen by number, from MIDI or from the host's program list
+        (Phase 13h-2). Owned here because a program change must work with no
+        editor open. */
+    [[nodiscard]] resources::ProgramChanges& getProgramChanges() noexcept { return *programChanges; }
 
     /** The visualisation taps.
 
@@ -573,6 +579,9 @@ private:
     std::atomic<float>* mpeMembersParameter = nullptr;
     std::atomic<float>* mpeBendRangeParameter = nullptr;
 
+    /** Whether MIDI program changes are obeyed (Phase 13h-2). */
+    std::atomic<float>* programChangeParameter = nullptr;
+
     /** Registry indices of the two settings a controller may configure over
         RPN, resolved once so the audio thread never looks a parameter up by
         string.
@@ -666,6 +675,10 @@ private:
     /** The wavetable and noise libraries. It owns a scanning thread too, and
         touches nothing else, so its place matters only in being late. */
     resources::ContentLibrary contentLibrary;
+
+    /** Program changes (Phase 13h-2). After the preset library, so destroyed
+        first: it loads from the library and asks it to scan. */
+    std::unique_ptr<resources::ProgramChanges> programChanges;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ApolloAudioProcessor)
 };

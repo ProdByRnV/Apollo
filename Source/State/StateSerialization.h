@@ -40,6 +40,12 @@ inline constexpr const char* schemaVersionProperty = "schemaVersion";
 inline constexpr const char* productProperty = "product";
 inline constexpr const char* productVersionProperty = "productVersion";
 
+/** The program the host was last shown (Phase 13h-2). An optional field: a
+    document without one leaves the program where it was. Written into a
+    project, never into a preset, which is a sound rather than an instrument
+    setting. */
+inline constexpr const char* hostProgramProperty = "hostProgram";
+
 /** Why a state document was rejected. */
 enum class StateLoadResult
 {

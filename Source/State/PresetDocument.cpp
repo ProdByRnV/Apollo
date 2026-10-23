@@ -194,6 +194,10 @@ juce::String write (juce::AudioProcessorValueTreeState& apvts, const Metadata& m
                            juce::Identifier (midi::MidiControlManager::mappingsTreeType)),
                        nullptr);
 
+    // Which host program was showing describes the instrument it was saved
+    // from, not the sound (Phase 13h-2).
+    state.removeProperty (juce::Identifier (state::hostProgramProperty), nullptr);
+
     for (auto i = state.getNumChildren(); --i >= 0;)
     {
         const auto child = state.getChild (i);

@@ -38,6 +38,7 @@ public:
         testParameterIdentityIsPinned();
         testParameterMetadata();
         testBusLayouts();
+        testProgramList();
     }
 
 private:
@@ -266,15 +267,16 @@ private:
 
         expectEquals (missing, 0, "Every registry parameter is reachable by its name");
 
-        // The wrapper's own additions: a bypass, which a host needs, and the
-        // emulated MIDI controllers. There is no program-change parameter,
-        // because Apollo reports one program — its presets are its own.
+        // The wrapper's own additions: a bypass, which a host needs, the
+        // program list since Phase 13h-2, and the emulated MIDI controllers.
         expect (instance->getBypassParameter() != nullptr,
                 "The host is given a bypass parameter to drive");
+        expect (programParameter (*instance) != nullptr,
+                "The host is given the program list's parameter");
 
         logMessage ("    host-visible parameters: " + juce::String (instance->getParameters().size())
-                    + " (" + juce::String (listed.size()) + " Apollo, 1 bypass, "
-                    + juce::String (instance->getParameters().size() - static_cast<int> (listed.size()) - 1)
+                    + " (" + juce::String (listed.size()) + " Apollo, 1 bypass, 1 program, "
+                    + juce::String (instance->getParameters().size() - static_cast<int> (listed.size()) - 2)
                     + " emulated MIDI controllers)");
     }
 
@@ -403,10 +405,54 @@ private:
         expectEquals (wrongSteps, 0, "Every discrete parameter keeps its step count");
         expectEquals (wrongAutomation, 0, "Automatability matches the registry");
 
-        // The bend range and the MPE zone describe the controller on the desk,
-        // not the patch, and are the only parameters a host may not automate
+        // The bend range, the MPE zone and since Phase 13h-2 whether program
+        // changes are obeyed describe the controller on the desk, not the
+        // patch, and are the only parameters a host may not automate
         // (ADR-0045).
-        expectEquals (nonAutomatable, 4, "Exactly the four MIDI expression settings are not automatable");
+        expectEquals (nonAutomatable, 5, "Exactly the five MIDI settings are not automatable");
+    }
+
+    //==========================================================================
+    void testProgramList()
+    {
+        beginTest ("The host is shown the built-in sounds as programs, and choosing one loads it");
+
+        juce::String error;
+        auto instance = loadPrepared (48000.0, 512, error);
+        expect (instance != nullptr, error);
+
+        if (instance == nullptr)
+            return;
+
+        const auto programs = instance->getNumPrograms();
+        expectEquals (programs, 10, "Init and the nine factory sounds");
+        expectEquals (instance->getProgramName (0), juce::String ("Init"));
+
+        auto wirePluck = -1;
+
+        for (int i = 0; i < programs; ++i)
+            if (instance->getProgramName (i) == "Wire Pluck")
+                wirePluck = i;
+
+        expect (wirePluck > 0, "Wire Pluck is in the list");
+
+        if (auto* program = programParameter (*instance))
+        {
+            expectEquals (program->getNumSteps(), programs, "one step per program");
+            expect (program->isAutomatable(), "a program change can be recorded");
+        }
+
+        const auto before = render (*instance, 24000, 512, note (57, 0, 20000));
+
+        instance->setCurrentProgram (wirePluck);
+        pumpMessages (200);
+
+        expectEquals (instance->getCurrentProgram(), wirePluck);
+
+        const auto after = render (*instance, 24000, 512, note (57, 0, 20000));
+
+        expect (allFinite (after));
+        expect (maxDifference (before, after) > 0.01f, "a different program sounds different");
     }
 
     void testBusLayouts()

@@ -817,7 +817,7 @@ Parameter mapping is created.
 Mapping is saved.
 Mappings should be removable and editable.
 
-> **Status, 0.1.0:** ✅ Notes, velocity, pitch bend, the mod wheel, sustain, CC, channel and polyphonic aftertouch, and MPE. ❌ No program change. §34.1: ✅ MIDI Learn on any automatable control, saved with the project, released one at a time or all at once (ADR-0085).
+> **Status, 0.1.0 to 13h-2:** ✅ Notes, velocity, pitch bend, the mod wheel, sustain, CC, channel and polyphonic aftertouch, and MPE. ✅ Since Phase 13h-2, program change: the host is shown the built-in sounds as its program list, and a MIDI program change loads a preset by number, bank 0 being the built-ins and banks from 1 the rest of the library, unless switched to IGNORE (ADR-0106). §34.1: ✅ MIDI Learn on any automatable control, saved with the project, released one at a time or all at once (ADR-0085).
 
 ---
 35. Controller Profiles

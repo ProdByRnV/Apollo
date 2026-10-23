@@ -41,6 +41,16 @@ ApolloAudioProcessor::ApolloAudioProcessor()
                                                             voiceEngine.getWavetableLibrary(),
                                                             voiceEngine.getNoiseSampleSlot());
 
+    // A program change replaces the state exactly as a preset load does, and
+    // is followed by the same work. When the program the host should show
+    // moves, the host is told.
+    programChanges = std::make_unique<resources::ProgramChanges> (apvts, presetLibrary,
+                                                                 [this] { notifyStateReplaced(); });
+    programChanges->onCurrentProgramChanged = [this]
+    {
+        updateHostDisplay (ChangeDetails().withProgramChanged (true));
+    };
+
     // The per-source taps live inside the voice loop, so the engine is the only
     // thing that can take them. It holds the hub without owning it, and reads
     // once per block whether anything is watching.
@@ -105,6 +115,7 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     mpeZoneParameter = apvts.getRawParameterValue ("mpe_zone");
     mpeMembersParameter = apvts.getRawParameterValue ("mpe_members");
     mpeBendRangeParameter = apvts.getRawParameterValue ("mpe_bend_range");
+    programChangeParameter = apvts.getRawParameterValue ("midi_program_change");
 
     // Resolved once, for the same reason the pointers above are: an RPN arrives
     // on the audio thread, and looking its parameter up by string there would be
@@ -911,6 +922,11 @@ void ApolloAudioProcessor::handleMidiMessage (const juce::MidiMessage& message) 
     // on below, so a sustain pedal can never be taken over by a mapping.
     const auto channel = message.getChannel();
 
+    // Bank selects and program changes go to the program-change handler as
+    // well as wherever else they go: controller 0 is still a controller. The
+    // handler only remembers what was asked for; nothing loads here.
+    programChanges->handleMidi (message, readParameter (programChangeParameter, 1.0f) >= 0.5f);
+
     if (message.isController())
     {
         const auto controller = message.getControllerNumber();
@@ -1440,30 +1456,30 @@ double ApolloAudioProcessor::getTailLengthSeconds() const
 //==============================================================================
 // Programs
 //
-// Apollo exposes a single program. Preset management is Apollo's own, delivered
-// through the preset system in Phase 9 rather than through the host's flat
-// program list, which cannot represent preset metadata or wavetable references.
+// The host is shown the built-in sounds as programs, in their compiled order
+// (Phase 13h-2, ADR-0106). A VST3 host turns a MIDI program change into a
+// choice from this list rather than passing it on, so without one a program
+// change from a DAW would reach nothing. The browser is still where presets
+// are managed; this is the part of it a host can reach.
 
 int ApolloAudioProcessor::getNumPrograms()
 {
-    // At least 1: some hosts misbehave when a plugin reports zero programs.
-    return 1;
+    return resources::ProgramChanges::getNumHostPrograms();
 }
 
 int ApolloAudioProcessor::getCurrentProgram()
 {
-    return 0;
+    return programChanges->getCurrentProgram();
 }
 
 void ApolloAudioProcessor::setCurrentProgram (int index)
 {
-    juce::ignoreUnused (index);
+    programChanges->selectHostProgram (index);
 }
 
 const juce::String ApolloAudioProcessor::getProgramName (int index)
 {
-    juce::ignoreUnused (index);
-    return "Default";
+    return resources::ProgramChanges::getHostProgramName (index);
 }
 
 void ApolloAudioProcessor::changeProgramName (int index, const juce::String& newName)
@@ -1512,6 +1528,10 @@ void ApolloAudioProcessor::notifyStateReplaced()
     // And the user's own content: a document that carries none empties every
     // slot, and one that carries some is rebuilt from it, off this thread.
     userContent->restoreFromState();
+
+    // And which built-in, if any, the sound now is, so the host's program
+    // display follows a preset chosen in the browser or a project reopened.
+    programChanges->stateReplaced();
 
     // Every parameter may have moved at once. Bumping the counter lets an
     // attached editor resynchronise wholesale instead of inferring a preset

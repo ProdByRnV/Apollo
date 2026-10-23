@@ -666,8 +666,9 @@ change about them is already an ordinary parameter:
 | `mpe_zone` | 0 off, 1 lower, 2 upper. Default off. |
 | `mpe_members` | Member channels in the zone, 1-15. |
 | `mpe_bend_range` | Per-note bend range in semitones. Default 48. |
+| `midi_program_change` | Since 13h-2: 0 ignores MIDI program changes, 1 obeys them. Default 1. The host's own program list does not read it (ADR-0106). |
 
-All four are **not automatable**: they describe the controller on the desk
+All five are **not automatable**: they describe the controller on the desk
 rather than the patch, and a pitch-bend range moving on an automation lane is a
 bug being recorded. They are still registered parameters, so they are saved with
 the project and reach the page through the normal metadata and snapshot path.
@@ -1150,9 +1151,15 @@ than appearing to be complete and wrong.
 Two things at once, and deliberately: what the instrument is currently called,
 and what just happened to it. Every event that changes one can change the other.
 `status` is a stable token the page may branch on — `LOADED`, `SAVED`,
-`ALREADY_EXISTS`, `LOAD_FAILED`, `SAVE_FAILED`, `CURRENT`, `STATE_RELOADED` —
+`ALREADY_EXISTS`, `LOAD_FAILED`, `SAVE_FAILED`, `CURRENT`, `STATE_RELOADED`, and
+since 13h-2 `PROGRAM_EMPTY` —
 and `statusMessage` is its displayable form, naming no path (§13). An empty
 `statusMessage` means "this is the current state, not news".
+
+A MIDI program change or a host's program choice sends the same message, with
+no command from the page (ADR-0106): `LOADED` or `LOAD_FAILED` with a message
+beginning "Program change:", or `PROGRAM_EMPTY` when the number named nothing
+and the sound did not change. The page shows `PROGRAM_EMPTY` as a caution.
 
 `loaded` is the index id of the preset currently in front of the user, or 0 for
 a sound that did not come from the library. It is **derived each time** rather

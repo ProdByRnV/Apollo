@@ -134,6 +134,9 @@ export const LABELS: Record<string, readonly string[]> = {
     // Matches midi::MpeZoneType.
     mpe_zone: ['OFF', 'LOWER', 'UPPER'],
 
+    // 0 ignores MIDI program changes, 1 obeys them (Phase 13h-2).
+    midi_program_change: ['IGNORE', 'OBEY'],
+
     // Matches dsp::ModDestination.
     modDestination: ['—', 'All Pitch', 'Osc 1 Pitch', 'Osc 2 Pitch',
                      'Osc 1 Position', 'Osc 2 Position',

@@ -104,6 +104,13 @@ bool setPlain (juce::AudioPluginInstance& instance, std::string_view registryId,
 */
 [[nodiscard]] std::vector<juce::AudioProcessorParameter*> userParameters (juce::AudioPluginInstance& instance);
 
+/** The VST3 ParamID JUCE's wrapper gives its program-change parameter, 'prst'. */
+inline constexpr juce::uint32 programParameterId = 0x70727374u;
+
+/** @returns the wrapper's program-change parameter, or nullptr if the plugin
+    reports a single program and so has none (Phase 13h-2). */
+[[nodiscard]] juce::AudioProcessorParameter* programParameter (juce::AudioPluginInstance& instance);
+
 /** @returns the VST3 parameter ID a host stores automation against. */
 [[nodiscard]] juce::uint32 vst3ParameterId (const juce::AudioProcessorParameter& parameter);
 

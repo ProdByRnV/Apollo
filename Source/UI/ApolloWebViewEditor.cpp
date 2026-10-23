@@ -192,6 +192,7 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     bridge.onStateReplaced = [this] { processor.notifyStateReplaced(); };
 
     lastSeenStateReload = processor.getStateReloadCounter();
+    lastSeenProgramEvent = processor.getProgramChanges().getLastEvent().serial;
 
     setResizable (true, true);
     setResizeLimits (ui::minimumEditorSize.width, ui::minimumEditorSize.height,
@@ -351,6 +352,21 @@ void ApolloWebViewEditor::resized()
 }
 
 void ApolloWebViewEditor::timerCallback()
+{
+    resynchroniseAfterReload();
+
+    // After the resynchronisation, so a program change that loaded something
+    // is announced once the page already shows it.
+    const auto& programEvent = processor.getProgramChanges().getLastEvent();
+
+    if (programEvent.serial != lastSeenProgramEvent)
+    {
+        lastSeenProgramEvent = programEvent.serial;
+        sendToWebView (bridge.createPresetStatus (programEvent.token, programEvent.message));
+    }
+}
+
+void ApolloWebViewEditor::resynchroniseAfterReload()
 {
     const auto reloadCounter = processor.getStateReloadCounter();
 

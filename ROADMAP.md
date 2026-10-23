@@ -175,7 +175,7 @@ front of it is better understood, the way 8f was.
 | 13g-4 | The interface — a line and a browser on each oscillator and the noise, driven by hand with the real dialog (ADR-0104) | ✅ |
 | 13h | The rest, in four parts — the delay's two sides and its modulation, program change, editable and exportable controller profiles, drag-and-drop modulation. A spectrum analyser was here and is done, as the equaliser's display (ADR-0101) | ⬜ |
 | 13h-1 | The delay's two sides and its modulation — a link switch and the right side's own time and note value; a sine on the time, a quarter of a cycle apart on the two sides; linked and unmodulated, the old delay sample for sample (ADR-0105) | ✅ |
-| 13h-2 | Program change | ⬜ |
+| 13h-2 | Program change — the built-in sounds as the host's program list, MIDI program changes and bank select by the same numbering, loaded off the audio thread through the browser's path (ADR-0106) | ✅ |
 | 13h-3 | Controller profiles that can be edited, exported and imported | ⬜ |
 | 13h-4 | Drag-and-drop modulation | ⬜ |
 | **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
@@ -1039,7 +1039,7 @@ them; each sub-phase removes its rows from that list as it lands.
 ### The rest (13h)
 
 - [x] Independent left and right delay times, and delay modulation (PRD §20). — a link switch, linked by default, and the right side's own time and note value; a sine on the read position up to 10 ms either way, the right side a quarter of a cycle behind. Linked and unmodulated, the delay is the old one sample for sample (13h-1, ADR-0105)
-- [ ] Program change (PRD §34).
+- [x] Program change (PRD §34). — the built-in sounds as the host's program list, and MIDI program changes by the same numbering with bank select; loaded on the message thread through the browser's own path; a switch to ignore them; a project remembers its program so a host setting it again cannot load over the user's sound (13h-2, ADR-0106)
 - [ ] Controller profiles that can be edited, exported and imported (PRD §35).
 - [ ] Drag-and-drop modulation (PRD §42.4).
 - [x] A spectrum analyser (PRD §30, optional). — built early, as the equaliser's input and output spectra behind its curve (ADR-0101).
