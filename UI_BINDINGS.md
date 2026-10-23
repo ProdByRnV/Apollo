@@ -686,7 +686,7 @@ to be applied and cannot describe one.
 
 | Message | Payload | Meaning |
 |---|---|---|
-| `requestControllerProfiles` | — | Send the built-in profiles. |
+| `requestControllerProfiles` | — | Send the profiles: the built-ins, and since 13h-3 the user's, read again from their folder. |
 | `applyControllerProfile` | `profile`, optional `mode` | Fill the mapping table from one. `mode` is `"replace"` (the default) or `"merge"`; anything else is rejected. |
 | `toggleFullscreen` | *(none)* | Grow the editor to fill the display it is on, or return it to the size it was. The only command about the *window* rather than the instrument, and it carries no payload at all — the page asks for the display's size and cannot name one of its own. |
 
@@ -719,7 +719,26 @@ the page went on announcing an assignment after it had been undone.
 }
 ```
 
-The list is fixed at build time and never pushed unprompted.
+The list is never pushed unprompted.
+
+**Since 13h-3 (ADR-0107)** each entry also carries `user`, true for one of the
+user's, and the message carries `unreadable` (files in the user's folder that
+could not be read), `status`, `statusMessage` and `selected`, the profile the
+picker should now show. A user profile's id is `user-N`, numbered by the last
+scan and resolved when it is acted on: one that is no longer there is refused
+with `UNKNOWN_PROFILE`. Five more commands:
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `saveControllerProfile` | `name`, optional `description`, optional `overwrite` | Save the current assignments as one of the user's. Replies `controllerProfiles` with `SAVED` and `selected`, `ALREADY_EXISTS` unless `overwrite` is true, or `SAVE_FAILED`, which includes there being nothing to save. |
+| `deleteControllerProfile` | `profile` | Remove one of the user's: `DELETED`, or `DELETE_FAILED` for a built-in. The assignments it made stay. |
+| `exportControllerProfile` | `profile` | Ask the editor to open the system's save dialog. No reply; when the dialog closes, `EXPORTED` or `EXPORT_FAILED` arrives, or nothing if it was cancelled. |
+| `importControllerProfile` | — | Ask the editor to open the system's open dialog. Later, `IMPORTED` with `selected`, or `IMPORT_FAILED` saying why. An import is added, not applied. |
+| `midiMappingEdit` | `id`, `controller` (0-127), `channel` (0 for any, 1-16), `min`, `max` (0-1) | Change an assignment that exists. Replies `midiMappings` with `EDITED`, naming any parameter that lost its control to the edit, or `EDIT_FAILED` for a reserved controller or a parameter with no assignment. Malformed numbers are `INVALID_MAPPING`. |
+
+No message carries a path, in either direction. A change notification pushed
+after anything but a learn carries an empty `status`: the command that caused it
+has already been answered.
 
 ---
 
@@ -1315,6 +1334,9 @@ the user, not for a developer, since the page displays it as given:
 | `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
 | `INVALID_LFO_CURVE` | A drawn curve for an LFO other than 1 to 4, or one that breaks a curve's rules (§10.8) | No: the editor only makes valid curves |
 | `UNKNOWN_CONTENT` | `loadContent` named an entry the current index does not have, or a noise sample for an oscillator or a table for the noise (§10.10) | Yes: a file renamed or removed while the browser was open |
+| `UNKNOWN_PROFILE` | A controller profile that is not a built-in or one of the user's, or one removed since the list was sent (§10.3) | Yes: a profile deleted in a file manager while the picker was open |
+| `INVALID_PROFILE_NAME` | A profile name with nothing usable in it, longer than 64 characters, or a description longer than 200 (§10.3) | Yes: the save form keeps what was typed |
+| `INVALID_MAPPING` | An edited assignment with a controller, channel or range that is not one (§10.3) | No: the table only sends numbers it has checked |
 | `INVALID_CONTENT_SLOT` | A content command named a slot other than `osc1`, `osc2` or `noise`, or a kind other than `wavetable` or `noise` (§10.10) | No: the browsers only send their own slot |
 
 **How the page shows them (12c-3).** The status line shows an error with a

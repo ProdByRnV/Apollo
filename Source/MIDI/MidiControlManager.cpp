@@ -244,14 +244,21 @@ void MidiControlManager::clearAllMappings()
 ProfileApplyResult MidiControlManager::applyProfile (const ControllerProfile& profile,
                                                     ProfileMode mode)
 {
+    return applyProfile (toProfileData (profile), mode, params::toJuceString (profile.id));
+}
+
+ProfileApplyResult MidiControlManager::applyProfile (const ProfileData& profile,
+                                                    ProfileMode mode,
+                                                    const juce::String& profileId)
+{
     ProfileApplyResult result;
 
     if (mode == ProfileMode::replace)
         table.clear();
 
-    for (const auto& entry : profile.entries)
+    for (const auto& entry : profile.assignments)
     {
-        const auto parameterIndex = params::indexOfParameter (entry.parameterId);
+        const auto parameterIndex = params::indexOfParameter (entry.parameterId.toStdString());
 
         if (parameterIndex < 0)
         {
@@ -282,7 +289,7 @@ ProfileApplyResult MidiControlManager::applyProfile (const ControllerProfile& pr
             ++result.replaced;
     }
 
-    lastAppliedProfile = params::toJuceString (profile.id);
+    lastAppliedProfile = profileId;
     lastProfileResult = result;
 
     commitEdit();
@@ -352,6 +359,7 @@ void MidiControlManager::flushPendingChanges()
             mapping.address.channel = omniChannel;
 
             lastAssignResult = table.assign (mapping);
+            learnOutcomePending = true;
 
             if (succeeded (lastAssignResult))
             {

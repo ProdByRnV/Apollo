@@ -186,6 +186,15 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     bridge.setUserContent (&processor.getUserContent(), &processor.getContentLibrary());
     bridge.onChooseContentFile = [this] (resources::ContentSlot slot) { chooseContentFile (slot); };
 
+    // The user's controller profiles, and the two dialogs that move one in or
+    // out of Apollo. Nothing is read until the page asks for the list.
+    bridge.setProfileLibrary (&processor.getProfileLibrary());
+    bridge.onExportControllerProfile = [this] (const juce::String& id, const juce::String& name)
+    {
+        exportControllerProfile (id, name);
+    };
+    bridge.onImportControllerProfile = [this] { importControllerProfile(); };
+
     // Loading a preset replaces the whole state tree, which is the processor's
     // event to handle rather than the bridge's: the bridge owns parameters and
     // knows nothing about the MIDI table hanging off the same tree.
@@ -245,6 +254,69 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     // finishes during teardown must not find a bridge that still points here.
     bridge.onChooseContentFile = {};
     bridge.setUserContent (nullptr, nullptr);
+
+    bridge.onExportControllerProfile = {};
+    bridge.onImportControllerProfile = {};
+    bridge.setProfileLibrary (nullptr);
+}
+
+void ApolloWebViewEditor::exportControllerProfile (const juce::String& profileId, const juce::String& suggestedName)
+{
+    // MESSAGE THREAD, from the bridge. Where it saved last, or the documents
+    // folder, which is where a file meant for someone else usually starts.
+    auto start = lastProfileFolder.isDirectory()
+                   ? lastProfileFolder
+                   : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+    const auto fileName = resources::toSafeFileName (suggestedName);
+    start = start.getChildFile ((fileName.isNotEmpty() ? fileName : juce::String ("Profile"))
+                                + midi::profileFileExtension);
+
+    profileChooser = std::make_unique<juce::FileChooser> ("Export the profile " + suggestedName, start,
+                                                          juce::String ("*") + midi::profileFileExtension);
+
+    profileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                     | juce::FileBrowserComponent::canSelectFiles
+                                     | juce::FileBrowserComponent::warnAboutOverwriting,
+                                 [this, profileId] (const juce::FileChooser& chooser)
+                                 {
+                                     auto file = chooser.getResult();
+
+                                     // Cancelled: nothing happens, and nothing is said.
+                                     if (file == juce::File())
+                                         return;
+
+                                     // A name typed without the extension still
+                                     // becomes a profile the open dialog will list.
+                                     if (! file.hasFileExtension (midi::profileFileExtension))
+                                         file = file.withFileExtension (midi::profileFileExtension);
+
+                                     lastProfileFolder = file.getParentDirectory();
+                                     sendToWebView (bridge.exportControllerProfileTo (profileId, file));
+                                 });
+}
+
+void ApolloWebViewEditor::importControllerProfile()
+{
+    // MESSAGE THREAD, from the bridge.
+    const auto start = lastProfileFolder.isDirectory()
+                         ? lastProfileFolder
+                         : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+    profileChooser = std::make_unique<juce::FileChooser> ("Import a controller profile", start,
+                                                          juce::String ("*") + midi::profileFileExtension);
+
+    profileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                                 [this] (const juce::FileChooser& chooser)
+                                 {
+                                     const auto file = chooser.getResult();
+
+                                     if (file == juce::File())
+                                         return;
+
+                                     lastProfileFolder = file.getParentDirectory();
+                                     sendToWebView (bridge.importControllerProfileFrom (file));
+                                 });
 }
 
 void ApolloWebViewEditor::chooseContentFile (resources::ContentSlot slot)

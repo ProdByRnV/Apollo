@@ -63,7 +63,8 @@ of the sound going in and coming out behind it.
 your own presets saved as `.rnv` files and browsed by name, category and bank.
 
 **Playing it.** Any MIDI keyboard or controller. MIDI Learn on any control,
-controller profiles, MPE, program changes that choose a preset, and a standalone
+a table of every assignment to edit, controller profiles you can save, export
+and import, MPE, program changes that choose a preset, and a standalone
 that opens the keyboards it finds and follows the system's output device.
 
 **Seeing it.** An oscilloscope for each sound source and for the output, a live

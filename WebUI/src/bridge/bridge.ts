@@ -153,6 +153,30 @@ export function applyControllerProfile(profile: string, mode: ProfileMode): void
     send({ type: 'applyControllerProfile', version: PROTOCOL_VERSION, profile, mode });
 }
 
+/** Saves the current assignments as a profile of the user's (13h-3). */
+export function saveControllerProfile(name: string, description: string, overwrite: boolean): void {
+    send({ type: 'saveControllerProfile', version: PROTOCOL_VERSION, name, description, overwrite });
+}
+
+export function deleteControllerProfile(profile: string): void {
+    send({ type: 'deleteControllerProfile', version: PROTOCOL_VERSION, profile });
+}
+
+/** Asks the editor to open the system's save dialog for a profile. */
+export function exportControllerProfile(profile: string): void {
+    send({ type: 'exportControllerProfile', version: PROTOCOL_VERSION, profile });
+}
+
+/** Asks the editor to open the system's open dialog for a profile. */
+export function importControllerProfile(): void {
+    send({ type: 'importControllerProfile', version: PROTOCOL_VERSION });
+}
+
+/** Changes the controller, channel or range of an existing assignment. */
+export function midiMappingEdit(id: string, controller: number, channel: number, min: number, max: number): void {
+    send({ type: 'midiMappingEdit', version: PROTOCOL_VERSION, id, controller, channel, min, max });
+}
+
 /** Asks for every LFO's drawn curve. */
 export function requestLfoCurves(): void {
     send({ type: 'requestLfoCurves', version: PROTOCOL_VERSION });

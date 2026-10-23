@@ -23,6 +23,7 @@
 #include "Parameters/ParameterLayout.h"
 #include "Resources/ContentLibrary.h"
 #include "Resources/PresetLibrary.h"
+#include "Resources/ProfileLibrary.h"
 #include "Resources/ProgramChanges.h"
 #include "Resources/UserContent.h"
 #include "State/LfoCurveState.h"
@@ -213,6 +214,11 @@ public:
         (Phase 13h-2). Owned here because a program change must work with no
         editor open. */
     [[nodiscard]] resources::ProgramChanges& getProgramChanges() noexcept { return *programChanges; }
+
+    /** The user's controller profiles, beside the built-in ones (Phase 13h-3).
+        Owned here with the presets; nothing reads the folder until the page
+        asks for the list. MESSAGE THREAD. */
+    [[nodiscard]] resources::ProfileLibrary& getProfileLibrary() noexcept { return profileLibrary; }
 
     /** The visualisation taps.
 
@@ -675,6 +681,10 @@ private:
     /** The wavetable and noise libraries. It owns a scanning thread too, and
         touches nothing else, so its place matters only in being late. */
     resources::ContentLibrary contentLibrary;
+
+    /** The user's controller profiles (Phase 13h-3). No thread, so its place
+        matters only in being after the things it does not touch. */
+    resources::ProfileLibrary profileLibrary;
 
     /** Program changes (Phase 13h-2). After the preset library, so destroyed
         first: it loads from the library and asks it to scan. */

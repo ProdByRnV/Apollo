@@ -60,6 +60,18 @@ private:
         bridge in either direction (CLAUDE.md §40). */
     void chooseContentFile (resources::ContentSlot slot);
 
+    /** Opens the system's save dialog for a controller profile, and writes it
+        where the user chooses (Phase 13h-3). */
+    void exportControllerProfile (const juce::String& profileId, const juce::String& suggestedName);
+
+    /** Opens the system's open dialog for a controller profile, and copies
+        what is chosen into the user's profiles (Phase 13h-3). */
+    void importControllerProfile();
+
+    /** The profile dialog while it is open, and where it last opened. */
+    std::unique_ptr<juce::FileChooser> profileChooser;
+    juce::File lastProfileFolder;
+
     /** The dialog while it is open. Owned here, so it closes with the editor. */
     std::unique_ptr<juce::FileChooser> contentChooser;
 

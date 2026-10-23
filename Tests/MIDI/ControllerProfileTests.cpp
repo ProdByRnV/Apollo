@@ -363,9 +363,9 @@ private:
         bridge.setMidiControl (&processor.getMidiControl());
 
         // An unknown profile is refused by the protocol layer, before anything
-        // can act on it.
+        // can act on it, by its own code since Phase 13h-3.
         expect (bridge.handleMessage (profileMessage ("applyControllerProfile", "no_such_profile"))
-                    .contains ("UNKNOWN_PARAMETER"));
+                    .contains ("UNKNOWN_PROFILE"));
         expectEquals (processor.getMidiControl().getMappings().size(), 0);
 
         // As is a mode that is neither of the two.

@@ -22,6 +22,7 @@
 
 #include "MIDI/ControllerProfile.h"
 #include "MIDI/MidiMapping.h"
+#include "Resources/ProfileLibrary.h"
 #include "Resources/ContentLibrary.h"
 #include "Resources/PresetLibrary.h"
 #include "Resources/UserContent.h"
@@ -99,7 +100,20 @@ enum class BridgeErrorCode
 
     /** A content slot or kind that is not one: not osc1, osc2 or noise, or not
         wavetable or noise. */
-    invalidContentSlot
+    invalidContentSlot,
+
+    /** The page named a controller profile that is not there: not a built-in,
+        or a profile of the user's that has since been renamed or deleted
+        (Phase 13h-3). */
+    unknownProfile,
+
+    /** Nothing usable was left of a profile name, or a description was longer
+        than a description may be. */
+    invalidProfileName,
+
+    /** An edited MIDI assignment with a controller, channel or range that is
+        not one. */
+    invalidMapping
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -137,8 +151,21 @@ enum class BridgeCommandType
     midiMappingClearAll, ///< Release every control.
 
     // Controller profiles (Phase 6c).
-    requestControllerProfiles, ///< Send the list of built-in profiles.
+    requestControllerProfiles, ///< Send the list of profiles, built-in and the user's.
     applyControllerProfile,    ///< Fill the mapping table from one.
+
+    // Editing them (Phase 13h-3). The page names a profile by the id it was
+    // shown and a new one by a name; it cannot express a path. A file anywhere
+    // else is the native dialog's business, which only the editor opens.
+    saveControllerProfile,   ///< Save the current assignments as a profile of the user's.
+    deleteControllerProfile, ///< Remove one of the user's profiles.
+    exportControllerProfile, ///< Ask the editor to write a profile wherever the user chooses.
+    importControllerProfile, ///< Ask the editor to read a profile from wherever the user chooses.
+
+    /** Change the controller, channel or range of an assignment that exists.
+        Like learn, it goes through the table's own validation and bijection;
+        it cannot create an assignment for a parameter that has none. */
+    midiMappingEdit,
 
     /** Fill the display, or go back to the size before that.
 
@@ -202,6 +229,16 @@ struct BridgeCommand
         rather than merge into them.
     */
     bool replaceExisting = true;
+
+    /** For saveControllerProfile: the name and description, bounded. */
+    juce::String profileName;
+    juce::String profileDescription;
+
+    /** For midiMappingEdit: the assignment as it should now be. */
+    int mappingController = -1;
+    int mappingChannel = 0;
+    float mappingMinimum = 0.0f;
+    float mappingMaximum = 1.0f;
 
     /** Which preset to load, as an id from the index the backend published.
 
@@ -321,6 +358,16 @@ struct BridgeParseResult
     is running.
 */
 [[nodiscard]] juce::String makeControllerProfilesMessage();
+
+/** The same message, listing @p library's profiles, built-in and the user's,
+    with what just happened to them (Phase 13h-3).
+
+    @param selected the id the picker should now show, or empty.
+*/
+[[nodiscard]] juce::String makeControllerProfilesMessage (const resources::ProfileLibrary& library,
+                                                          const juce::String& statusToken,
+                                                          const juce::String& statusMessage,
+                                                          const juce::String& selected);
 
 /** `{"type":"presetIndex", ...}`
 

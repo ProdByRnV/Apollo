@@ -34,12 +34,14 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "MIDI/ControllerProfile.h"
+#include "MIDI/ProfileFile.h"
 #include "MIDI/MidiMapping.h"
 #include "Parameters/ParameterDefinitions.h"
 
 #include <array>
 #include <atomic>
 #include <functional>
+#include <utility>
 
 namespace apollo::midi
 {
@@ -137,6 +139,11 @@ public:
     */
     ProfileApplyResult applyProfile (const ControllerProfile& profile, ProfileMode mode);
 
+    /** Applies a profile held at run time: one the user saved or imported
+        (Phase 13h-3). The same door a built-in enters by. @p profileId is
+        what getLastAppliedProfile reports. */
+    ProfileApplyResult applyProfile (const ProfileData& profile, ProfileMode mode, const juce::String& profileId);
+
     /** Applies the built-in profile with this ID.
 
         @returns a result whose `total()` is zero if there is no such profile,
@@ -162,6 +169,13 @@ public:
         rather than discovering it later (CLAUDE.md §33).
     */
     [[nodiscard]] AssignResult getLastAssignResult() const noexcept { return lastAssignResult; }
+
+    /** True once after a learn has completed or been refused, and false after
+        any other change. A change pushed to the interface carries an outcome
+        only then: every other change was a command, and the command's own
+        reply already said what happened (13h-3, which found an edit's reply
+        overwritten by the previous assignment's outcome). MESSAGE THREAD. */
+    [[nodiscard]] bool takeLearnOutcome() noexcept { return std::exchange (learnOutcomePending, false); }
 
     /** Applies queued controller values to APVTS and completes an armed learn.
 
@@ -308,6 +322,9 @@ private:
         may arrive on whichever thread the host chose.
     */
     std::atomic<bool> changePending { false };
+
+    /** See takeLearnOutcome. Message thread. */
+    bool learnOutcomePending = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiControlManager)
 };

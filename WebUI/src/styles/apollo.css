@@ -1489,6 +1489,115 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     color: var(--text-dim);
 }
 
+.profiles__actions {
+    flex-wrap: wrap;
+}
+
+/* Saving the assignments as a profile (13h-3): the preset form's fields, in a
+   row that wraps. */
+.profiles__save {
+    display: flex;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding-top: var(--s-2);
+    border-top: 1px solid var(--line-faint);
+}
+
+.profiles__save .presets__save-actions {
+    flex: 1 1 100%;
+}
+
+/* Every assignment, editable (13h-3). The full width of the MIDI panel, as
+   the profile picker is. */
+.assignments {
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.assignments__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text);
+}
+
+.assignments__table th,
+.assignments__table td {
+    padding: 3px 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--line-faint);
+    white-space: nowrap;
+}
+
+.assignments__table thead th {
+    font-weight: normal;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.assignments__table tbody th {
+    font-family: var(--font-ui);
+    font-size: var(--t-body);
+    font-weight: normal;
+    color: var(--text-bright);
+    white-space: normal;
+}
+
+.assignments__number {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.assignments__number input {
+    /* Three digits and the padding; 100 must not clip. */
+    box-sizing: content-box;
+    width: 3.2ch;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text-bright);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 2px 4px;
+    text-align: right;
+}
+
+.assignments__number input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.assignments__channel {
+    padding: 2px 4px;
+    font-size: var(--t-label);
+}
+
+.assignments__remove {
+    font-size: var(--t-body);
+    line-height: 1;
+    color: var(--text-dim);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    padding: 1px 6px;
+    cursor: pointer;
+}
+
+.assignments__remove:hover,
+.assignments__remove:focus-visible {
+    color: var(--danger);
+    border-color: var(--line);
+    outline: none;
+}
+
 /* ==========================================================================
    ACCESSIBILITY
    ========================================================================== */

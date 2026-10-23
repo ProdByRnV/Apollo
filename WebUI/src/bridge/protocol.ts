@@ -174,16 +174,27 @@ export interface MidiMappingsMessage {
 }
 
 export interface ControllerProfileEntry {
+    /** A built-in's permanent id, or `user-N`, numbered by the last scan. */
     id: string;
     name: string;
     description: string;
     assignments: number;
+    /** True for one of the user's, which can be replaced and removed. */
+    user: boolean;
 }
 
 export interface ControllerProfilesMessage {
     type: 'controllerProfiles';
     version: number;
     profiles: ControllerProfileEntry[];
+    /** Since 13h-3. Files in the user's folder that could not be read. */
+    unreadable?: number;
+    /** SAVED, ALREADY_EXISTS, SAVE_FAILED, DELETED, DELETE_FAILED, EXPORTED,
+        EXPORT_FAILED, IMPORTED, IMPORT_FAILED, or empty for the list alone. */
+    status?: string;
+    statusMessage?: string;
+    /** The profile the picker should now show, or empty. */
+    selected?: string;
 }
 
 /** One preset as the browser lists it.
@@ -334,6 +345,20 @@ export type OutboundMessage =
     | { type: 'requestControllerProfiles'; version: number }
     | { type: 'toggleFullscreen'; version: number }
     | { type: 'applyControllerProfile'; version: number; profile: string; mode: ProfileMode }
+    | { type: 'saveControllerProfile'; version: number; name: string; description: string; overwrite: boolean }
+    | { type: 'deleteControllerProfile'; version: number; profile: string }
+    | { type: 'exportControllerProfile'; version: number; profile: string }
+    | { type: 'importControllerProfile'; version: number }
+    | {
+          type: 'midiMappingEdit';
+          version: number;
+          id: string;
+          controller: number;
+          /** 0 is any channel. */
+          channel: number;
+          min: number;
+          max: number;
+      }
     | { type: 'requestPresets'; version: number }
     | { type: 'rescanPresets'; version: number }
     | { type: 'loadPreset'; version: number; preset: number }

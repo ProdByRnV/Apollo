@@ -57,8 +57,14 @@ void ParameterBridge::setMidiControl (midi::MidiControlManager* controlToUse)
         // to poll for it.
         midiControl->setChangeHandler ([this]
         {
-            if (outboundHandler)
-                outboundHandler (createMidiMappings());
+            if (! outboundHandler)
+                return;
+
+            // A learn's outcome is news; any other change answers a command
+            // that has already been replied to, and repeating the last
+            // assignment's outcome then would say something untrue.
+            outboundHandler (midiControl->takeLearnOutcome() ? createMidiMappings()
+                                                             : createMidiMappings ({}, {}));
         });
     }
 }
@@ -290,10 +296,24 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
             return createParameterMetadata();
 
         case BridgeCommandType::requestControllerProfiles:
-            // Answered without needing the MIDI subsystem: the profile list is
-            // fixed at build time and describes what Apollo *could* be set to,
-            // which is meaningful even where nothing can apply it.
-            return makeControllerProfilesMessage();
+            // Answered without needing the MIDI subsystem: the profile list
+            // describes what Apollo *could* be set to, which is meaningful even
+            // where nothing can apply it. The user's folder is read again each
+            // time, so a profile copied in by hand appears when the page asks.
+            if (profileLibrary == nullptr)
+                return makeControllerProfilesMessage();
+
+            profileLibrary->rescan();
+            return createControllerProfiles ({}, {}, {});
+
+        case BridgeCommandType::saveControllerProfile:
+        case BridgeCommandType::deleteControllerProfile:
+        case BridgeCommandType::exportControllerProfile:
+        case BridgeCommandType::importControllerProfile:
+            return applyProfileCommand (command);
+
+        case BridgeCommandType::midiMappingEdit:
+            return applyMappingEdit (command);
 
         case BridgeCommandType::requestMidiMappings:
         case BridgeCommandType::midiLearnBegin:
@@ -449,15 +469,26 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
 
         case BridgeCommandType::applyControllerProfile:
         {
-            // parseMessage has already established that the profile exists.
-            const auto result = midiControl->applyProfile (
-                command.profileId,
-                command.replaceExisting ? midi::ProfileMode::replace
-                                        : midi::ProfileMode::merge);
+            const auto mode = command.replaceExisting ? midi::ProfileMode::replace
+                                                      : midi::ProfileMode::merge;
 
-            return createMidiMappings (
-                "PROFILE_APPLIED",
-                describeProfileResult (command.profileId, result));
+            // A built-in by its permanent id; anything else is one of the
+            // user's, resolved against the list the page was last shown.
+            if (const auto* builtIn = midi::findControllerProfile (command.profileId.toStdString()))
+                return createMidiMappings ("PROFILE_APPLIED",
+                                           describeProfileResult (params::toJuceString (builtIn->name),
+                                                                  midiControl->applyProfile (*builtIn, mode)));
+
+            const auto* listing = profileLibrary != nullptr ? profileLibrary->find (command.profileId) : nullptr;
+
+            if (listing == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownProfile);
+
+            const auto data = listing->data;
+
+            return createMidiMappings ("PROFILE_APPLIED",
+                                       describeProfileResult (data.name,
+                                                              midiControl->applyProfile (data, mode, command.profileId)));
         }
 
         case BridgeCommandType::requestControllerProfiles:
@@ -484,12 +515,9 @@ juce::String ParameterBridge::applyMidiCommand (const BridgeCommand& command)
     return createMidiMappings();
 }
 
-juce::String ParameterBridge::describeProfileResult (const juce::String& profileId,
+juce::String ParameterBridge::describeProfileResult (const juce::String& name,
                                                      const midi::ProfileApplyResult& result)
 {
-    const auto* profile = midi::findControllerProfile (profileId.toStdString());
-    const auto name = profile != nullptr ? params::toJuceString (profile->name) : profileId;
-
     // Counted rather than merely "done": "eight of eight" and "five of eight,
     // three taken from something else" are very different outcomes, and the
     // user is entitled to know which one they got.
@@ -507,6 +535,196 @@ juce::String ParameterBridge::describeProfileResult (const juce::String& profile
         text += " " + juce::String (result.rejected) + " could not be assigned.";
 
     return text;
+}
+
+//==============================================================================
+// Controller profiles (Phase 13h-3).
+
+void ParameterBridge::setProfileLibrary (resources::ProfileLibrary* libraryToUse)
+{
+    profileLibrary = libraryToUse;
+}
+
+juce::String ParameterBridge::createControllerProfiles (const juce::String& statusToken,
+                                                        const juce::String& statusMessage,
+                                                        const juce::String& selected) const
+{
+    if (profileLibrary == nullptr)
+        return makeControllerProfilesMessage();
+
+    return makeControllerProfilesMessage (*profileLibrary, statusToken, statusMessage, selected);
+}
+
+juce::String ParameterBridge::applyProfileCommand (const BridgeCommand& command)
+{
+    // Refused rather than ignored, as a preset command is without a library.
+    if (profileLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    switch (command.type)
+    {
+        case BridgeCommandType::saveControllerProfile:
+        {
+            if (midiControl == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+            const auto mappings = midiControl->getMappings();
+
+            // A profile of nothing would apply as "release everything", which
+            // is what Clear all is for.
+            if (mappings.isEmpty())
+                return createControllerProfiles ("SAVE_FAILED",
+                                                 "There are no assignments to save. Learn some, or apply a profile, first.",
+                                                 {});
+
+            juce::String savedId;
+            const auto result = profileLibrary->save (midi::captureProfile (mappings,
+                                                                            command.profileName,
+                                                                            command.profileDescription),
+                                                      command.overwriteExisting,
+                                                      savedId);
+
+            if (result == resources::ProfileSaveResult::alreadyExists)
+                return createControllerProfiles ("ALREADY_EXISTS",
+                                                 "A profile called " + command.profileName + " is already there.",
+                                                 {});
+
+            if (result != resources::ProfileSaveResult::ok)
+                return createControllerProfiles ("SAVE_FAILED", "Could not save: " + resources::describe (result), {});
+
+            return createControllerProfiles ("SAVED",
+                                             "Saved " + juce::String (mappings.size()) + " assignments as "
+                                                 + command.profileName + ".",
+                                             savedId);
+        }
+
+        case BridgeCommandType::deleteControllerProfile:
+        {
+            const auto* listing = profileLibrary->find (command.profileId);
+
+            if (listing == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownProfile);
+
+            // The built-ins are compiled in; there is nothing to delete.
+            if (! listing->user)
+                return createControllerProfiles ("DELETE_FAILED", "Apollo's own profiles cannot be removed.", {});
+
+            const auto name = listing->data.name;
+
+            if (! profileLibrary->remove (command.profileId))
+                return createControllerProfiles ("DELETE_FAILED", "Could not remove " + name + ".", {});
+
+            // The assignments it made stay where they are: a profile is a
+            // shortcut to them, not a mode they depend on (ADR-0046).
+            return createControllerProfiles ("DELETED", "Removed the profile " + name + ".", {});
+        }
+
+        case BridgeCommandType::exportControllerProfile:
+        {
+            const auto* listing = profileLibrary->find (command.profileId);
+
+            if (listing == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownProfile);
+
+            // The dialog answers later; the editor sends what came of it.
+            if (onExportControllerProfile)
+                onExportControllerProfile (command.profileId, listing->data.name);
+
+            return {};
+        }
+
+        case BridgeCommandType::importControllerProfile:
+            if (onImportControllerProfile)
+                onImportControllerProfile();
+
+            return {};
+
+        default:
+            jassertfalse;
+            return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+    }
+}
+
+juce::String ParameterBridge::exportControllerProfileTo (const juce::String& profileId, const juce::File& destination)
+{
+    if (profileLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    const auto* listing = profileLibrary->find (profileId);
+
+    if (listing == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownProfile);
+
+    const auto name = listing->data.name;
+
+    // The message names the profile, never where it went (UI_BINDINGS.md §13).
+    if (! profileLibrary->exportTo (profileId, destination))
+        return createControllerProfiles ("EXPORT_FAILED", "Could not write " + name + " there.", profileId);
+
+    return createControllerProfiles ("EXPORTED", "Exported " + name + ".", profileId);
+}
+
+juce::String ParameterBridge::importControllerProfileFrom (const juce::File& source)
+{
+    if (profileLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    juce::String importedId;
+    auto saved = resources::ProfileSaveResult::couldNotWrite;
+
+    if (const auto read = profileLibrary->importFile (source, importedId, saved); read != midi::ProfileReadResult::ok)
+        return createControllerProfiles ("IMPORT_FAILED", "Could not import that file. " + midi::describe (read), {});
+
+    if (saved != resources::ProfileSaveResult::ok)
+        return createControllerProfiles ("IMPORT_FAILED", "Could not import that file. " + resources::describe (saved), {});
+
+    const auto* listing = profileLibrary->find (importedId);
+    const auto name = listing != nullptr ? listing->data.name : juce::String ("the profile");
+
+    // Added to the list, not applied: what to do with it is the next choice,
+    // and Replace and Merge are both one click away.
+    return createControllerProfiles ("IMPORTED", "Imported " + name + ". Apply it with Replace or Merge.", importedId);
+}
+
+juce::String ParameterBridge::applyMappingEdit (const BridgeCommand& command)
+{
+    if (midiControl == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    const auto index = params::indexOfParameter (command.parameterId.toStdString());
+    const auto mappings = midiControl->getMappings();
+
+    // An edit changes an assignment that exists; making one is what learn and
+    // the profiles are for.
+    if (mappings.findForParameter (index) == nullptr)
+        return createMidiMappings ("EDIT_FAILED", "That control has no MIDI assignment to change.");
+
+    midi::Mapping mapping;
+    mapping.address.controller = command.mappingController;
+    mapping.address.channel = command.mappingChannel;
+    mapping.parameterIndex = index;
+    mapping.minimum = command.mappingMinimum;
+    mapping.maximum = command.mappingMaximum;
+
+    // What sat on the new control, before the edit takes it.
+    const auto* displaced = mappings.findForAddress (mapping.address);
+    const auto displacedIndex = displaced != nullptr && displaced->parameterIndex != index ? displaced->parameterIndex : -1;
+
+    const auto result = midiControl->assign (mapping);
+
+    if (! midi::succeeded (result))
+        return createMidiMappings ("EDIT_FAILED", midi::describe (result));
+
+    const auto& definition = params::parameterDefinitions[static_cast<std::size_t> (index)];
+    auto text = "Changed the MIDI control on " + params::toJuceString (definition.name) + ".";
+
+    // The one thing an edit can do that the user did not ask for, so it is
+    // said rather than discovered (CLAUDE.md §33).
+    if (displacedIndex >= 0)
+        text += " " + params::toJuceString (params::parameterDefinitions[static_cast<std::size_t> (displacedIndex)].name)
+              + " no longer has one: that control now drives this.";
+
+    return createMidiMappings ("EDITED", text);
 }
 
 //==============================================================================

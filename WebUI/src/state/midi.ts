@@ -15,8 +15,11 @@
 
 import { useSyncExternalStore } from 'react';
 
-import type { ControllerProfileEntry, MidiMappingEntry } from '../bridge/protocol';
+import type { ControllerProfileEntry, ControllerProfilesMessage, MidiMappingEntry } from '../bridge/protocol';
 import { midiLearnBegin, midiLearnCancel } from '../bridge/bridge';
+import { profileFieldsFrom } from '../params/profiles';
+
+export { mappingRows, profileTone } from '../params/profiles';
 
 export interface MidiMapping {
     controller: number;
@@ -33,6 +36,14 @@ export interface MidiState {
     capacity: number;
     mappings: ReadonlyMap<string, MidiMapping>;
     profiles: readonly ControllerProfileEntry[];
+    /** What last happened to the profiles, e.g. "ALREADY_EXISTS", and its sentence. */
+    profileStatus: string;
+    profileStatusMessage: string;
+    /** The profile the engine last said the picker should show. Bumped with
+        a serial so the same id selected twice still reaches the picker. */
+    selectedProfile: string;
+    selectedSerial: number;
+    unreadableProfiles: number;
 }
 
 let state: MidiState = {
@@ -41,6 +52,11 @@ let state: MidiState = {
     capacity: 0,
     mappings: new Map(),
     profiles: [],
+    profileStatus: '',
+    profileStatusMessage: '',
+    selectedProfile: '',
+    selectedSerial: 0,
+    unreadableProfiles: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -92,8 +108,13 @@ export function applyMappings(
     set({ mappings: next, learning: learning || '', capacity });
 }
 
-export function applyProfiles(profiles: ControllerProfileEntry[]): void {
-    set({ profiles });
+export function applyProfiles(message: ControllerProfilesMessage): void {
+    set(profileFieldsFrom(message, state.selectedSerial));
+}
+
+/** Forgets the last profile outcome, as a changed name makes it stale. */
+export function clearProfileStatus(): void {
+    if (state.profileStatus !== '') set({ profileStatus: '', profileStatusMessage: '' });
 }
 
 /** Arms, or disarms, learn for one control. */

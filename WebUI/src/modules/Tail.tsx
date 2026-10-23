@@ -2,16 +2,13 @@
     What leaves, and how the controller on the desk is read.
 */
 
-import { useState } from 'react';
-
+import { AssignmentList, ProfilePicker } from '../components/ControllerProfiles';
 import { Knob } from '../components/Knob';
 import { Meter } from '../components/Meter';
 import { Module } from '../components/Module';
 import { Scope } from '../components/Scope';
 import { Segmented } from '../components/Segmented';
 import { LABELS } from '../params/labels';
-import { applyControllerProfile } from '../bridge/bridge';
-import { useMidi } from '../state/midi';
 
 export function Output(): JSX.Element {
     return (
@@ -35,63 +32,6 @@ export function Output(): JSX.Element {
             */}
             <Knob id="master_gain" label="Master" />
         </Module>
-    );
-}
-
-/*
-    The controller-profile picker.
-
-    Not built from parameter metadata, because a profile is not a parameter: it
-    is a one-shot action with two outcomes the user has to choose between. Two
-    buttons rather than a mode switch and one button, so what each does is
-    readable without having to look anywhere else first.
-*/
-function ProfilePicker(): JSX.Element {
-    const { profiles } = useMidi();
-    const [chosen, setChosen] = useState('');
-
-    const selected = profiles.find((profile) => profile.id === chosen) ?? profiles[0];
-
-    return (
-        <div className="cluster cluster--banner profiles">
-            <div className="segmented__label">Controller Profile</div>
-
-            <select
-                className="select"
-                aria-label="Controller profile"
-                value={selected?.id ?? ''}
-                onChange={(event) => setChosen(event.target.value)}
-            >
-                {profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>{profile.name}</option>
-                ))}
-            </select>
-
-            <div className="profiles__actions">
-                <button
-                    type="button"
-                    className="masthead__button"
-                    title="Release every existing assignment, then apply this profile"
-                    onClick={() => { if (selected) applyControllerProfile(selected.id, 'replace'); }}
-                >
-                    REPLACE
-                </button>
-                <button
-                    type="button"
-                    className="masthead__button"
-                    title="Add this profile to the assignments already made"
-                    onClick={() => { if (selected) applyControllerProfile(selected.id, 'merge'); }}
-                >
-                    MERGE
-                </button>
-            </div>
-
-            <div className="profiles__note">
-                {selected
-                    ? `${selected.description} · ${selected.assignments} assignments`
-                    : 'No profiles available.'}
-            </div>
-        </div>
     );
 }
 
@@ -131,6 +71,13 @@ export function Expression(): JSX.Element {
 
             <Knob id="mpe_members" label="Members" />
             <Knob id="mpe_bend_range" label="Note Bend" />
+
+            {/*
+                Last, and the full width of the panel: every assignment Apollo
+                is listening to, whichever way it was made, and the one place
+                to change a controller number, a channel or a range (13h-3).
+            */}
+            <AssignmentList />
         </Module>
     );
 }

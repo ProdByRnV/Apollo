@@ -90,6 +90,34 @@ public:
     */
     void setPresetLibrary (resources::PresetLibrary* libraryToUse);
 
+    /** Attaches the user's controller profiles (Phase 13h-3). Pass nullptr to
+        detach; the built-in profiles are still listed and applied without it,
+        and the commands that save, delete, export or import are refused. */
+    void setProfileLibrary (resources::ProfileLibrary* libraryToUse);
+
+    /** The page asked to export a profile: the editor opens the system's save
+        dialog, suggesting @p suggestedName, and calls exportControllerProfileTo
+        with what the user chose. MESSAGE THREAD. */
+    std::function<void (const juce::String& profileId, const juce::String& suggestedName)> onExportControllerProfile;
+
+    /** The page asked to import a profile: the editor opens the system's open
+        dialog and calls importControllerProfileFrom with what the user chose.
+        MESSAGE THREAD. */
+    std::function<void()> onImportControllerProfile;
+
+    /** Writes the profile with @p profileId to @p destination. @returns the
+        controllerProfiles message saying whether it was written. */
+    [[nodiscard]] juce::String exportControllerProfileTo (const juce::String& profileId, const juce::File& destination);
+
+    /** Copies the profile in @p source into the user's profiles. @returns the
+        controllerProfiles message saying what came of it. */
+    [[nodiscard]] juce::String importControllerProfileFrom (const juce::File& source);
+
+    /** @returns every profile, built-in and the user's, with a status. */
+    [[nodiscard]] juce::String createControllerProfiles (const juce::String& statusToken,
+                                                         const juce::String& statusMessage,
+                                                         const juce::String& selected) const;
+
     /** What to do when a preset load has replaced the whole state tree.
 
         A hook rather than something the bridge does, because what has to happen
@@ -236,7 +264,13 @@ private:
 
     /** @returns a displayable summary of an applied controller profile. */
     [[nodiscard]] static juce::String describeProfileResult (
-        const juce::String& profileId, const midi::ProfileApplyResult& result);
+        const juce::String& profileName, const midi::ProfileApplyResult& result);
+
+    /** Saves, deletes, exports and imports controller profiles (Phase 13h-3). */
+    [[nodiscard]] juce::String applyProfileCommand (const BridgeCommand& command);
+
+    /** Changes one assignment's controller, channel or range (Phase 13h-3). */
+    [[nodiscard]] juce::String applyMappingEdit (const BridgeCommand& command);
 
     [[nodiscard]] static int indexOfParameter (const juce::String& parameterID);
 
@@ -253,6 +287,7 @@ private:
 
     /** Borrowed, not owned, and null when there is no user content. */
     resources::UserContent* userContent = nullptr;
+    resources::ProfileLibrary* profileLibrary = nullptr;
     resources::ContentLibrary* contentLibrary = nullptr;
 
     /** What the current sound was loaded from or saved to, if anything.

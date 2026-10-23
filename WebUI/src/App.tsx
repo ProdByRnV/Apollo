@@ -51,7 +51,7 @@ import { Noise, Oscillator, SubOscillator } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
 
-import { applyProfiles, applyMappings, midiState, setMidiMode, toggleLearn, useMidi } from './state/midi';
+import { applyProfiles, applyMappings, midiState, profileTone, setMidiMode, toggleLearn, useMidi } from './state/midi';
 import { useAssignedRoutings } from './state/modulation';
 import {
     applySnapshot,
@@ -183,15 +183,24 @@ export function App(): JSX.Element {
                 if (message.status === 'PROFILE_APPLIED'
                     || message.status === 'RELEASED'
                     || message.status === 'CLEARED'
+                    || message.status === 'EDITED'
+                    || message.status === 'EDIT_FAILED'
                     || message.status.startsWith('REPLACED')
                     || message.status.startsWith('REJECTED')) {
                     announce(message.statusMessage,
-                             message.status.startsWith('REJECTED') ? 'error' : 'info');
+                             message.status.startsWith('REJECTED') || message.status === 'EDIT_FAILED'
+                                 ? 'error' : 'info');
                 }
                 break;
 
             case 'controllerProfiles':
-                applyProfiles(message.profiles);
+                applyProfiles(message);
+
+                // The list alone is not news; a save, a removal, an export or
+                // an import is something the user just asked for.
+                if (message.status && message.statusMessage) {
+                    announce(message.statusMessage, profileTone(message.status));
+                }
                 break;
 
             case 'presetIndex':

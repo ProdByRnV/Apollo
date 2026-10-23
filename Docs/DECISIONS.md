@@ -1402,7 +1402,7 @@ user library path, and the failure modes of both — missing, corrupt, moved —
 belong with the resource work in Phase 9 (CLAUDE.md §30). The seam is already
 in place: `ControllerProfile` is plain data and `applyProfile` takes one by
 reference, so a profile read from disk enters by exactly the same door a
-built-in one does.
+built-in one does. *(Built in Phase 13h-3, through that door: ADR-0107.)*
 
 ---
 
@@ -7142,3 +7142,114 @@ added after the first release.
   tree allocates, and CLAUDE.md §7 forbids it.
 - **Bank select from controllers 0 and 32 together**, as fourteen bits. Banks
   1 and up would then need both controllers, which few devices send.
+
+---
+
+## ADR-0107 — Controller profiles become files the user keeps, edits through the assignment table, and exports and imports
+
+**Phase 13h-3 · Accepted**
+
+### What was built
+
+PRD §35 asks for controller profiles that are user-selectable, editable, and
+exportable and importable. ADR-0046 built the first and left the rest for the
+resource work. This is the rest.
+
+- **Your own profiles**, listed after Apollo's two under "Yours", kept as
+  `.rnvprofile` files in `Apollo/Profiles` beside the presets. Applied with
+  Replace or Merge exactly as a built-in is.
+- **Save profile** writes the current assignments under a name and an optional
+  description. Saving over one of yours asks first, as a preset save does.
+- **Export…** writes any profile, Apollo's or yours, wherever the system's save
+  dialog says. **Import…** reads one through the open dialog and adds it to
+  yours, as "Name (2)" if the name is taken. **Delete** removes one of yours.
+- **The assignment table** lists every assignment Apollo is listening to, in
+  controller order, and edits the controller number, the channel and the two
+  ends of the range. Before, an assignment could only be learned again or
+  released.
+
+### Editing a profile is editing its assignments
+
+A profile could have had an editor of its own, a list of rows that is not the
+mapping table. It would be a second copy of the same information, and the
+first would win: what Apollo listens to is the table. So a profile is edited the
+way a sound is. Apply it, change the assignments, and save it under its name.
+Choosing one of yours in the picker fills the save form with its name and
+description, so that path is three clicks and a confirmation. The table is also
+what PRD §34.1 and CLAUDE.md §16.2 asked for: assignments that are "editable",
+which until now meant learnable again.
+
+**An edit changes an assignment; it cannot make one.** Learning and the
+profiles make assignments; `midiMappingEdit` names a parameter that already has
+one, and is refused otherwise. It goes through the table's own validation and
+bijection (ADR-0041), so a reserved controller is refused, and moving a
+parameter onto a control another parameter uses takes it from that parameter,
+and the reply says so.
+
+### The file
+
+JSON, because a profile is short and somebody may reasonably want to change a
+controller number in a text editor or send it to a friend whose keyboard
+numbers its knobs differently:
+
+```json
+{
+  "format": "apollo-controller-profile",
+  "version": 1,
+  "name": "Studio Desk",
+  "description": "The eight knobs on the left.",
+  "assignments": [
+    { "controller": 74, "channel": 0, "parameter": "filter1_cutoff", "min": 0.0, "max": 1.0 }
+  ]
+}
+```
+
+Ranges are written to four decimal places, because a float's own digits
+(`0.600000023841858`) are noise to anyone reading the file, and four places is
+far finer than a controller's 128 steps.
+
+**A file is untrusted wherever it came from** (CLAUDE.md §40). Its size is
+checked before it is read (64 kB, about ten times the largest real profile),
+and it is refused whole for any malformed field, more assignments than the table
+holds, or a version from a later Apollo. The one thing not refused is a
+parameter this build does not have, because that is not malformed: a later
+Apollo's profile names parameters this one lacks. Those entries are dropped when
+the profile is applied, counted, and the rest applied (ADR-0046). Four hundred
+randomly damaged profiles were each either refused or read as a valid profile.
+
+### The page names numbers, never paths
+
+The page names a built-in by its permanent id and one of yours as `user-N`,
+numbered by the last scan, as presets are numbered (ADR-0063). Export and import
+are requests the editor answers by opening the system's own dialog, as the user
+wavetables are (ADR-0104). No message in either direction carries a location:
+"Exported Test Desk." says what happened, not where.
+
+**Scanned on the caller's thread.** The preset and content libraries scan on
+threads of their own, because they read thousands of files that can be
+megabytes each. This reads at most 500, each at most 64 kB and in practice one
+or two, from a folder only Apollo writes to, and only when the page asks for
+the list. A thread would cost more than the reading does.
+
+### Found while driving it
+
+- **The status line contradicted every edit.** The manager's change
+  notification pushed the table with the last assignment's outcome, which
+  after an edit read "this parameter's previous control was released" over the
+  edit's own reply. A pushed update now carries an outcome only after a learn,
+  which no command answers; every other change was a command, already
+  answered. The same notification had followed every profile apply with
+  "Control assigned", unannounced.
+- **"100" was clipped to "10(" in the range fields.** Widened.
+
+### Alternatives considered
+
+- **A profile editor separate from the table.** See above.
+- **XML, as presets are.** A preset is a state document and is read by the
+  state reader; a profile is a short list a person may edit, and JSON is the
+  kinder format for that.
+- **Applying an imported profile straight away.** Whether to replace or merge
+  is the user's choice, and an import that replaced their assignments
+  unannounced would be the wrong default for the commoner case.
+- **Deleting a profile's assignments with it.** A profile is a shortcut to
+  assignments, not a mode they depend on (ADR-0046).

@@ -54,6 +54,9 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::invalidLfoCurve:            return "INVALID_LFO_CURVE";
         case BridgeErrorCode::unknownContent:             return "UNKNOWN_CONTENT";
         case BridgeErrorCode::invalidContentSlot:         return "INVALID_CONTENT_SLOT";
+        case BridgeErrorCode::unknownProfile:             return "UNKNOWN_PROFILE";
+        case BridgeErrorCode::invalidProfileName:         return "INVALID_PROFILE_NAME";
+        case BridgeErrorCode::invalidMapping:             return "INVALID_MAPPING";
     }
 
     return "MALFORMED_MESSAGE";
@@ -82,6 +85,9 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::invalidLfoCurve:            return "That curve could not be used.";
         case BridgeErrorCode::unknownContent:             return "That file is no longer in the library.";
         case BridgeErrorCode::invalidContentSlot:         return "That is not somewhere content can go.";
+        case BridgeErrorCode::unknownProfile:             return "That controller profile is not there any more.";
+        case BridgeErrorCode::invalidProfileName:         return "That name cannot be used for a profile.";
+        case BridgeErrorCode::invalidMapping:             return "That is not an assignment Apollo can make.";
     }
 
     return "The message could not be read.";
@@ -444,32 +450,105 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    /** Reads a profile id: a built-in's, or `user-N` (Phase 13h-3).
+
+        Bounded and checked for shape here; a user id is resolved against the
+        library when it is acted on, because the library lives behind the
+        bridge and a scan renumbers it. Nothing past this point holds a string
+        that could be anything but one of those two shapes (UI_BINDINGS.md §14).
+    */
+    const auto readProfileId = [&object] (juce::String& outId) -> BridgeErrorCode
+    {
+        if (! object->hasProperty ("profile"))
+            return BridgeErrorCode::malformedMessage;
+
+        const auto profileValue = object->getProperty ("profile");
+
+        if (! profileValue.isString())
+            return BridgeErrorCode::malformedMessage;
+
+        const auto profileId = profileValue.toString();
+
+        if (profileId.getNumBytesAsUTF8() > params::maxParameterIdLength)
+            return BridgeErrorCode::unknownProfile;
+
+        const auto userNumber = profileId.fromFirstOccurrenceOf ("user-", false, false);
+        const auto isUser = profileId.startsWith ("user-") && userNumber.isNotEmpty()
+                            && userNumber.length() <= 4 && userNumber.containsOnly ("0123456789");
+
+        if (! isUser && midi::findControllerProfile (profileId.toStdString()) == nullptr)
+            return BridgeErrorCode::unknownProfile;
+
+        outId = profileId;
+        return BridgeErrorCode::none;
+    };
+
+    if (messageType == "deleteControllerProfile" || messageType == "exportControllerProfile")
+    {
+        BridgeCommand command;
+        command.type = messageType == "deleteControllerProfile" ? BridgeCommandType::deleteControllerProfile
+                                                                : BridgeCommandType::exportControllerProfile;
+
+        if (const auto error = readProfileId (command.profileId); error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "importControllerProfile")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::importControllerProfile;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "saveControllerProfile")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::saveControllerProfile;
+
+        const auto name = object->getProperty ("name");
+
+        if (! name.isString())
+            return BridgeParseResult::failure (BridgeErrorCode::invalidProfileName);
+
+        command.profileName = midi::cleanProfileName (name.toString());
+
+        if (command.profileName.isEmpty())
+            return BridgeParseResult::failure (BridgeErrorCode::invalidProfileName);
+
+        if (object->hasProperty ("description"))
+        {
+            const auto description = object->getProperty ("description");
+
+            if (! description.isString() || description.toString().length() > midi::maximumProfileDescriptionLength)
+                return BridgeParseResult::failure (BridgeErrorCode::invalidProfileName);
+
+            command.profileDescription = description.toString().trim();
+        }
+
+        // Absent means no, as for a preset: replacing a profile has to be
+        // asked for in as many words.
+        if (object->hasProperty ("overwrite"))
+        {
+            const auto overwriteValue = object->getProperty ("overwrite");
+
+            if (! overwriteValue.isBool())
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+            command.overwriteExisting = static_cast<bool> (overwriteValue);
+        }
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "applyControllerProfile")
     {
         BridgeCommand command;
         command.type = BridgeCommandType::applyControllerProfile;
 
-        if (! object->hasProperty ("profile"))
-            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
-
-        const auto profileValue = object->getProperty ("profile");
-
-        if (! profileValue.isString())
-            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
-
-        const auto profileId = profileValue.toString();
-
-        // Bounded before it is used as a lookup key, and resolved against the
-        // built-in registry here rather than downstream — so nothing past this
-        // point ever holds a profile identifier that does not exist
-        // (UI_BINDINGS.md §14).
-        if (profileId.getNumBytesAsUTF8() > params::maxParameterIdLength)
-            return BridgeParseResult::failure (BridgeErrorCode::unknownParameter);
-
-        if (midi::findControllerProfile (profileId.toStdString()) == nullptr)
-            return BridgeParseResult::failure (BridgeErrorCode::unknownParameter);
-
-        command.profileId = profileId;
+        if (const auto error = readProfileId (command.profileId); error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
 
         // Absent means replace, which is what "set my controller up" means when
         // it is said about a controller that was set up for something else.
@@ -585,6 +664,56 @@ BridgeParseResult parseMessage (const juce::String& json)
     }
 
     //--------------------------------------------------------------------------
+    if (messageType == "midiMappingEdit")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::midiMappingEdit;
+
+        if (const auto error = readParameterId (command.parameterId); error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        const auto wholeIn = [&object] (const char* property, int low, int high, int& out) -> bool
+        {
+            const auto value = object->getProperty (property);
+
+            if (! isNumber (value))
+                return false;
+
+            const auto number = static_cast<double> (value);
+
+            if (! std::isfinite (number) || number != std::floor (number)
+                || number < static_cast<double> (low) || number > static_cast<double> (high))
+                return false;
+
+            out = static_cast<int> (number);
+            return true;
+        };
+
+        const auto shareIn = [&object] (const char* property, float& out) -> bool
+        {
+            const auto value = object->getProperty (property);
+
+            if (! isNumber (value))
+                return false;
+
+            const auto number = static_cast<double> (value);
+
+            if (! std::isfinite (number) || number < 0.0 || number > 1.0)
+                return false;
+
+            out = static_cast<float> (number);
+            return true;
+        };
+
+        if (! wholeIn ("controller", 0, midi::controllerCount - 1, command.mappingController)
+            || ! wholeIn ("channel", midi::omniChannel, midi::lastChannel, command.mappingChannel)
+            || ! shareIn ("min", command.mappingMinimum)
+            || ! shareIn ("max", command.mappingMaximum))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidMapping);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "midiLearnBegin" || messageType == "midiMappingRemove")
     {
         BridgeCommand command;
@@ -977,6 +1106,39 @@ juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame)
     return juce::JSON::toString (juce::var (object), oneLine);
 }
 
+juce::String makeControllerProfilesMessage (const resources::ProfileLibrary& library,
+                                           const juce::String& statusToken,
+                                           const juce::String& statusMessage,
+                                           const juce::String& selected)
+{
+    juce::Array<juce::var> entries;
+
+    for (const auto& listing : library.getProfiles())
+    {
+        auto* entry = new juce::DynamicObject();
+
+        // The id and what the picker shows. Never the file (ADR-0063).
+        entry->setProperty (idProperty, listing.id);
+        entry->setProperty ("name", listing.data.name);
+        entry->setProperty ("description", listing.data.description);
+        entry->setProperty ("assignments", static_cast<int> (listing.data.assignments.size()));
+        entry->setProperty ("user", listing.user);
+
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "controllerProfiles");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("profiles", entries);
+    object->setProperty ("unreadable", library.getUnreadable());
+    object->setProperty ("status", statusToken);
+    object->setProperty ("statusMessage", statusMessage);
+    object->setProperty ("selected", selected);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
 juce::String makeControllerProfilesMessage()
 {
     juce::Array<juce::var> entries;
@@ -989,6 +1151,7 @@ juce::String makeControllerProfilesMessage()
         entry->setProperty ("name", toJuceString (profile.name));
         entry->setProperty ("description", toJuceString (profile.description));
         entry->setProperty ("assignments", static_cast<int> (profile.entries.size()));
+        entry->setProperty ("user", false);
 
         entries.add (juce::var (entry));
     }

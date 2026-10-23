@@ -58,6 +58,7 @@ target_sources(ApolloTests PRIVATE
     MIDI/MidiDeviceAdoptionTests.cpp
     MIDI/MidiMappingTests.cpp
     MIDI/ControllerProfileTests.cpp
+    MIDI/ProfileFileTests.cpp
     MIDI/MpeTests.cpp
     MIDI/MidiLearnTests.cpp
     Telemetry/InstrumentTelemetryTests.cpp
