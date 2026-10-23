@@ -136,6 +136,11 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     delayLowCut = state.getRawParameterValue ("fx_delay_lowcut");
     delayPingPong = state.getRawParameterValue ("fx_delay_pingpong");
     delayMix = state.getRawParameterValue ("fx_delay_mix");
+    delayLink = state.getRawParameterValue ("fx_delay_link");
+    delayRightTime = state.getRawParameterValue ("fx_delay_time_right");
+    delayRightDivision = state.getRawParameterValue ("fx_delay_division_right");
+    delayModRate = state.getRawParameterValue ("fx_delay_mod_rate");
+    delayModDepth = state.getRawParameterValue ("fx_delay_mod_depth");
 
     reverbBypass = state.getRawParameterValue ("fx_reverb_bypass");
     reverbMode = state.getRawParameterValue ("fx_reverb_mode");
@@ -770,13 +775,23 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
 
     dsp::Delay::Settings delay;
 
-    const auto division = static_cast<int> (readParameter (effectParameters.delayDivision, 5.0f));
-    const auto lastDivision = dsp::Delay::divisionCount - 1;
+    const auto divisionOf = [] (const std::atomic<float>* parameter)
+    {
+        const auto division = static_cast<int> (readParameter (parameter, 5.0f));
+        const auto lastDivision = dsp::Delay::divisionCount - 1;
+
+        return static_cast<dsp::Delay::Division> (
+            division < 0 ? 0 : (division > lastDivision ? lastDivision : division));
+    };
 
     delay.tempoSynced = readParameter (effectParameters.delaySync, 0.0f) >= 0.5f;
     delay.timeMs = readParameter (effectParameters.delayTime, 500.0f);
-    delay.division = static_cast<dsp::Delay::Division> (
-        division < 0 ? 0 : (division > lastDivision ? lastDivision : division));
+    delay.division = divisionOf (effectParameters.delayDivision);
+    delay.linked = readParameter (effectParameters.delayLink, 1.0f) >= 0.5f;
+    delay.rightTimeMs = readParameter (effectParameters.delayRightTime, 500.0f);
+    delay.rightDivision = divisionOf (effectParameters.delayRightDivision);
+    delay.modulationRateHz = readParameter (effectParameters.delayModRate, 0.5f);
+    delay.modulationDepthMs = readParameter (effectParameters.delayModDepth, 0.0f);
     delay.feedback = within (readParameter (effectParameters.delayFeedback, 0.35f)
                                  + offset (Destination::fxDelayFeedback), 0.0f, 1.0f);
     delay.dampingHz = readParameter (effectParameters.delayDamping, 8000.0f);

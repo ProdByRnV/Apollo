@@ -500,6 +500,11 @@ private:
         std::atomic<float>* delayLowCut = nullptr;
         std::atomic<float>* delayPingPong = nullptr;
         std::atomic<float>* delayMix = nullptr;
+        std::atomic<float>* delayLink = nullptr;
+        std::atomic<float>* delayRightTime = nullptr;
+        std::atomic<float>* delayRightDivision = nullptr;
+        std::atomic<float>* delayModRate = nullptr;
+        std::atomic<float>* delayModDepth = nullptr;
 
         std::atomic<float>* reverbBypass = nullptr;
         std::atomic<float>* reverbMode = nullptr;

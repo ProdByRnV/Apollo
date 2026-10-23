@@ -85,6 +85,11 @@ export const LABELS: Record<string, readonly string[]> = {
     // is how they are written on paper.
     fx_delay_division: ['1/1', '1/2.', '1/2', '1/2T', '1/4.', '1/4', '1/4T',
                         '1/8.', '1/8', '1/8T', '1/16.', '1/16', '1/16T', '1/32'],
+    fx_delay_division_right: ['1/1', '1/2.', '1/2', '1/2T', '1/4.', '1/4', '1/4T',
+                              '1/8.', '1/8', '1/8T', '1/16.', '1/16', '1/16T', '1/32'],
+
+    // 0 split, 1 linked (Phase 13h-1).
+    fx_delay_link: ['SPLIT', 'LINKED'],
 
     // Matches dsp::Reverb::Mode.
     fx_reverb_mode: ['ROOM', 'HALL'],

@@ -12,6 +12,7 @@
 #include <memory>
 #include <utility>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "Audio/ApolloAudioProcessor.h"
@@ -511,6 +512,7 @@ void benchmarkEffects()
         { "distortion, diode (exp at 4x)", dsp::EffectType::distortion, dsp::Distortion::Mode::diode, false },
         { "delay, bypassed", dsp::EffectType::delay, dsp::Distortion::Mode::soft, true },
         { "delay, stereo with feedback", dsp::EffectType::delay, dsp::Distortion::Mode::soft, false },
+        { "delay, split and modulated", dsp::EffectType::delay, dsp::Distortion::Mode::soft, false },
         { "reverb, bypassed", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, true },
         { "reverb, 8-line FDN", dsp::EffectType::reverb, dsp::Distortion::Mode::soft, false },
         { "gate, stereo-linked peak", dsp::EffectType::gate, dsp::Distortion::Mode::soft, false },
@@ -563,6 +565,17 @@ void benchmarkEffects()
         delay.dampingHz = 6000.0f;
         delay.lowCutHz = 120.0f;
         delay.mix = 0.5f;
+
+        // Phase 13h-1: each side its own time and both wandering, which is
+        // every per-sample addition the split and the modulation made.
+        if (std::string_view (testCase.name) == "delay, split and modulated")
+        {
+            delay.linked = false;
+            delay.rightTimeMs = 500.0f;
+            delay.modulationDepthMs = 3.0f;
+            delay.modulationRateHz = 0.7f;
+        }
+
         rack.delay().setSettings (delay);
 
         dsp::Reverb::Settings reverb;

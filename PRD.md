@@ -500,7 +500,7 @@ Free time.
 Tempo-synced time.
 Modulation where CPU budget allows.
 
-> **Status, 0.1.0:** ◐ ✅ Stereo, ping-pong, bounded feedback, mix, damping and low-cut in the loop, milliseconds or fourteen note values synced to the host, with 120 BPM when the host gives no tempo. ❌ One time for both sides rather than independent left and right times, and no modulation.
+> **Status, 0.1.0 to 13h-1:** ✅ Stereo, ping-pong, bounded feedback, mix, damping and low-cut in the loop, milliseconds or fourteen note values synced to the host, with 120 BPM when the host gives no tempo. ✅ Since Phase 13h-1, independent left and right times or note values behind a link switch, and modulation of the time by a sine, a quarter of a cycle apart on the two sides (ADR-0105).
 
 ---
 21. Reverb

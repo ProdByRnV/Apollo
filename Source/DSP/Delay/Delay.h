@@ -31,6 +31,28 @@
     same reason in the other direction: without it, any DC or subsonic content
     that enters the loop is still circulating minutes later.
 
+    EACH SIDE HAS ITS OWN TIME, AND BY DEFAULT THEY ARE ONE (Phase 13h-1).
+    Linked, the right side reads the left side's time and note value, which is
+    the delay as it was before it could be split. Split, the right side has a
+    time and a note value of its own, read in whichever way the timing switch
+    says. Two smoothers rather than one with an offset, so a split delay glides
+    each side from where it was rather than dragging one along behind the other.
+
+    THE TIME CAN WANDER (Phase 13h-1). A sine moves the read position either
+    side of the time that was asked for, by up to `maximumModulationMs`: the
+    slow wobble of a tape machine at low rates, and a chorus on every repeat at
+    higher ones. The right side runs a quarter of a cycle behind the left, so
+    the two sides never bend in step and the repeats spread across the stereo
+    field rather than sliding back and forth together. One oscillator gives both
+    sides: a rotating pair of numbers is a sine and its cosine at once, for four
+    multiplies a sample and no call to `sin`. At zero depth the read position is
+    exactly what it was before the modulation existed, which is what keeps every
+    sound made before it unchanged.
+
+    The swing is held short of the write position, so a one-millisecond delay
+    with ten milliseconds of depth wobbles less rather than flattening against
+    the end of the line.
+
     IT ADDS NO LATENCY. A delay is not a lookahead: the dry path leaves the
     moment it arrives, and the repeats arrive late because that is the effect.
     The rack is told zero, and the tail — how long the repeats take to fall
@@ -91,9 +113,27 @@ public:
         */
         bool tempoSynced = false;
 
+        /** The left side's time, and both sides' while they are linked. */
         float timeMs = 500.0f;
 
         Division division = Division::quarter;
+
+        /** True for one time on both sides; false to give the right side its
+            own `rightTimeMs` and `rightDivision`.
+        */
+        bool linked = true;
+
+        float rightTimeMs = 500.0f;
+
+        Division rightDivision = Division::quarter;
+
+        /** How fast the time wanders, in Hz. */
+        float modulationRateHz = 0.5f;
+
+        /** How far the time wanders either side of where it was set, in
+            milliseconds. Zero is no modulation at all.
+        */
+        float modulationDepthMs = 0.0f;
 
         /** 0 to 1, scaled to `maximumFeedback`. 1 is as close to self-oscillation
             as the effect will go, which is deliberately not all the way there.
@@ -131,6 +171,15 @@ public:
         stopped getting longer.
     */
     static constexpr double maximumDelaySeconds = 4.0;
+
+    /** The furthest the modulation moves the time either way. The line holds
+        this much more than `maximumDelaySeconds`, so the longest delay can
+        still wander.
+    */
+    static constexpr float maximumModulationMs = 10.0f;
+
+    static constexpr float minimumModulationRateHz = 0.05f;
+    static constexpr float maximumModulationRateHz = 10.0f;
 
     /** The most feedback the control can ask for. Below unity by enough that
         the loop decays even with every filter switched out.
@@ -175,17 +224,25 @@ public:
 
     [[nodiscard]] const Settings& getSettings() const noexcept { return settings; }
 
-    /** The delay the settings currently resolve to, in seconds. Exposed so a
-        test can check the tempo arithmetic without measuring an impulse.
+    /** The left side's delay the settings currently resolve to, in seconds,
+        before modulation. Exposed so a test can check the tempo arithmetic
+        without measuring an impulse.
     */
     [[nodiscard]] double getDelaySeconds() const noexcept;
+
+    /** The right side's, which is the left side's while they are linked. */
+    [[nodiscard]] double getRightDelaySeconds() const noexcept;
 
     /** @returns how many beats one repeat of @p division lasts. */
     [[nodiscard]] static double beatsFor (Division division) noexcept;
 
 private:
+    [[nodiscard]] double secondsFor (float timeMs, Division division) const noexcept;
+
     void refreshTime() noexcept;
     void refreshFilters() noexcept;
+    void refreshModulationRate() noexcept;
+    void restartModulation() noexcept;
 
     struct ChannelState
     {
@@ -216,6 +273,25 @@ private:
         a twentieth of a second.
     */
     LinearSmoothedValue delaySamples;
+
+    /** The right side's, ramped the same way. Fed the same targets while the
+        sides are linked, so it is then the left side's value exactly.
+    */
+    LinearSmoothedValue rightDelaySamples;
+
+    /** The modulation depth in samples, ramped so turning it does not click. */
+    LinearSmoothedValue modulationDepth;
+
+    /** The modulation oscillator: a point turning round the unit circle, whose
+        two coordinates are a sine for the left side and, a quarter of a cycle
+        on, a cosine for the right. Double precision and pulled back onto the
+        circle every block, because the rotation's rounding would otherwise
+        spiral it in or out over a long session.
+    */
+    double modulationSine = 0.0;
+    double modulationCosine = 1.0;
+    double rotationSine = 0.0;
+    double rotationCosine = 1.0;
 
     LinearSmoothedValue feedbackGain;
     LinearSmoothedValue mix;

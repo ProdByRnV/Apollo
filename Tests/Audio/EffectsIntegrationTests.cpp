@@ -118,6 +118,7 @@ public:
         testEqualiserChainSurvivesStateRestore();
         testDelayReachesTheAudioAndReportsItsTail();
         testSyncedDelayWorksWithNoTransport();
+        testSplitDelayReachesEachSide();
         testReverbReachesTheAudioAndReportsItsTail();
         testDynamicsReachTheAudio();
         testAFullChainSurvivesStateRestore();
@@ -508,6 +509,62 @@ private:
                 "the fallback tempo must give a usable delay time rather than zero");
     }
 
+    void testSplitDelayReachesEachSide()
+    {
+        beginTest ("split through the parameters, each side of the delay arrives on its own time");
+
+        apollo::ApolloAudioProcessor processor;
+
+        setPlain (processor, "fx_slot1", 2.0f);
+        setPlain (processor, "fx_delay_time", 50.0f);
+        setPlain (processor, "fx_delay_link", 0.0f);
+        setPlain (processor, "fx_delay_time_right", 200.0f);
+        setPlain (processor, "fx_delay_feedback", 0.0f);
+        setPlain (processor, "fx_delay_mix", 1.0f);
+
+        processor.prepareToPlay (testSampleRate, blockSize);
+
+        // Fully wet with no feedback: each side is silent until its one repeat.
+        juce::AudioBuffer<float> buffer (2, blockSize);
+        std::array<int, 2> arrival { -1, -1 };
+
+        for (int block = 0; block < 30; ++block)
+        {
+            buffer.clear();
+
+            juce::MidiBuffer midi;
+
+            if (block == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 57, 0.9f), 0);
+
+            processor.processBlock (buffer, midi);
+
+            for (int channel = 0; channel < 2; ++channel)
+                for (int i = 0; i < blockSize && arrival[static_cast<std::size_t> (channel)] < 0; ++i)
+                    if (std::abs (buffer.getSample (channel, i)) > 1.0e-4f)
+                        arrival[static_cast<std::size_t> (channel)] = block * blockSize + i;
+        }
+
+        // 50 ms and 200 ms, give or take the note's first few samples, which
+        // start from nothing.
+        expect (arrival[0] >= 2400 && arrival[0] < 2400 + 96,
+                "the left side arrived at sample " + juce::String (arrival[0]));
+        expect (arrival[1] >= 9600 && arrival[1] < 9600 + 96,
+                "the right side arrived at sample " + juce::String (arrival[1]));
+
+        beginTest ("the delay's modulation depth reaches the tail the host is told");
+
+        const auto before = processor.getTailLengthSeconds();
+
+        setPlain (processor, "fx_delay_mod_depth", 10.0f);
+        buffer.clear();
+        juce::MidiBuffer none;
+        processor.processBlock (buffer, none);
+
+        expectWithinAbsoluteError (processor.getTailLengthSeconds() - before, 0.01, 1.0e-4,
+                                   "ten milliseconds of wander lengthens the tail by ten milliseconds");
+    }
+
     void testReverbReachesTheAudioAndReportsItsTail()
     {
         beginTest ("a reverb in the chain is still sounding after the note, and says how long for");
@@ -569,7 +626,7 @@ private:
     {
         beginTest ("the compressor turns a loud note down, and the gate shuts a quiet one out");
 
-        const auto peakWith = [this] (float slotEffect, const juce::String& id, float value,
+        const auto peakWith = [] (float slotEffect, const juce::String& id, float value,
                                       float noteVelocity)
         {
             apollo::ApolloAudioProcessor processor;

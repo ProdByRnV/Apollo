@@ -53,7 +53,8 @@ through the system's file dialog. Whatever you load travels inside the project
 or preset, as lossless audio, so moving or deleting the file changes nothing.
 
 **Effects.** A rack of six slots in any order: distortion (soft, hard and diode
-curves, 4× oversampled), a stereo delay with ping-pong and tempo sync, a
+curves, 4× oversampled), a stereo delay with ping-pong, tempo sync, its own
+time on each side if you want one, and a wobble on the repeats, a
 room-and-hall reverb, a noise gate, an RMS compressor, and a seven-band
 parametric equaliser that draws its own response curve, with the live spectrum
 of the sound going in and coming out behind it.

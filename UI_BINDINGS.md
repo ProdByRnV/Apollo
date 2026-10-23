@@ -297,13 +297,18 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_distortion_output` | Rotary Knob | `-24–12 dB` | `0` | 8a | Output trim on the wet path |
 | `fx_delay_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8b | Switched out of circuit; its lines are fed silence so it cannot replay old audio when switched back |
 | `fx_delay_sync` | Segmented | Discrete `[0, 1]` | `0` | 8b | 0 takes the time from `fx_delay_time`, 1 from the host's tempo and `fx_delay_division` |
-| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time when free-running. Connected in 8b |
-| `fx_delay_division` | Segmented | Discrete `[0, 13]` | `5` | 8b | Note value when synced; index into `dsp::Delay::Division`, 5 being a quarter note |
+| `fx_delay_time` | Rotary Knob | `1–2000 ms` | `500` | 2 | Delay time when free-running: the left side's, and both sides' while linked. Connected in 8b |
+| `fx_delay_division` | Segmented | Discrete `[0, 13]` | `5` | 8b | Note value when synced; index into `dsp::Delay::Division`, 5 being a quarter note. The left side's, and both sides' while linked |
 | `fx_delay_feedback` | Rotary Knob | Normalized `[0, 1]` | `0.35` | 8b | Scaled to a loop gain of at most 0.95, so the repeats always decay |
 | `fx_delay_damping` | Rotary Knob | `500–20000 Hz` | `8000` | 8b | Lowpass inside the feedback path; switched out at the top of its range |
 | `fx_delay_lowcut` | Rotary Knob | `20–2000 Hz` | `20` | 8b | Highpass inside the feedback path; switched out at the bottom of its range |
 | `fx_delay_pingpong` | Segmented | Discrete `[0, 1]` | `0` | 8b | Crosses the feedback paths so each repeat alternates channels |
 | `fx_delay_mix` | Rotary Knob | Normalized `[0, 1]` | `0` | 8b | Delay dry/wet mix |
+| `fx_delay_link` | Segmented | Discrete `[0, 1]` | `1` | 13h-1 | 0 SPLIT, 1 LINKED. Linked, the right side reads the left side's time and note value, and its own are kept but not heard (ADR-0105) |
+| `fx_delay_time_right` | Rotary Knob | `1–2000 ms` | `500` | 13h-1 | The right side's free time while split |
+| `fx_delay_division_right` | Segmented | Discrete `[0, 13]` | `5` | 13h-1 | The right side's note value while split and synced |
+| `fx_delay_mod_rate` | Rotary Knob | `0.05–10 Hz` | `0.5` | 13h-1 | How fast the time wanders. The right side runs a quarter of a cycle behind the left |
+| `fx_delay_mod_depth` | Rotary Knob | `0–10 ms` | `0` | 13h-1 | How far the time wanders either side of where it is set; 0 is no modulation. Held short of the write position at short times |
 | `fx_reverb_bypass` | Segmented | Discrete `[0, 1]` | `0` | 8c | Switched out of circuit; the network keeps running so its tail decays rather than freezing |
 | `fx_reverb_mode` | Segmented | Discrete `[0, 1]` | `1` | 8c | 0 room, 1 hall; index into `dsp::Reverb::Mode`. The modes differ in the network's delay lengths |
 | `fx_reverb_size` | Rotary Knob | Normalized `[0, 1]` | `0.5` | 8c | Scales every line length between half and one and a half times the mode's base |

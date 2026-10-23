@@ -240,10 +240,17 @@ export function DelayEffect(): JSX.Element {
                         label="Stereo"
                         table={LABELS.fx_delay_pingpong}
                     />
+                    <Segmented id="fx_delay_link" label="Sides" table={LABELS.fx_delay_link} />
                     <Segmented id="fx_delay_bypass" label="State" table={LABELS.fx_delay_bypass} />
                 </div>
             </div>
 
+            {/*
+                The left side's time is also both sides' while they are linked,
+                so it keeps the plain names; the right side's controls are
+                labelled as the right side's, and stay where they are when
+                linked for the reason the timing controls do (ADR-0052).
+            */}
             <div className="cluster cluster--banner">
                 <Segmented
                     id="fx_delay_division"
@@ -252,10 +259,21 @@ export function DelayEffect(): JSX.Element {
                 />
             </div>
 
+            <div className="cluster cluster--banner">
+                <Segmented
+                    id="fx_delay_division_right"
+                    label="Right Division"
+                    table={LABELS.fx_delay_division_right}
+                />
+            </div>
+
             <Knob id="fx_delay_time" label="Time" />
+            <Knob id="fx_delay_time_right" label="Right Time" />
             <Knob id="fx_delay_feedback" label="Feedback" />
             <Knob id="fx_delay_damping" label="Damping" />
             <Knob id="fx_delay_lowcut" label="Low Cut" />
+            <Knob id="fx_delay_mod_rate" label="Mod Rate" />
+            <Knob id="fx_delay_mod_depth" label="Mod Depth" />
             <Knob id="fx_delay_mix" label="Mix" />
         </Module>
     );

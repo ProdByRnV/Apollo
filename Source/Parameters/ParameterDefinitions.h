@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 299> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 304> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -1713,6 +1713,46 @@ inline constexpr std::array<ParameterDefinition, 299> parameterDefinitions { {
       0.0f, 1.0f, 0.0f,
       1.0f, 0.0f,
       true, true, true },
+
+    // Phase 13h-1. 0 split, 1 linked. Linked by default, so every sound made
+    // before the sides could be split plays as it did: the right side then
+    // reads the left side's time and note value, and its own two controls
+    // below are kept but not heard.
+    { "fx_delay_link", "Delay Link",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 1.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // The right side's time and note value while split. The same ranges as
+    // the left side's, and read the same way the timing switch says.
+    { "fx_delay_time_right", "Delay Right Time",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      1.0f, 2000.0f, 500.0f,
+      0.3327f, 0.0f,
+      true, false, true },
+
+    { "fx_delay_division_right", "Delay Right Division",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 13.0f, 5.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // How fast and how far the time wanders (dsp::Delay). Zero depth is no
+    // modulation at all, and is the default.
+    { "fx_delay_mod_rate", "Delay Mod Rate",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      0.05f, 10.0f, 0.5f,
+      // Places 1 Hz near the centre of the control's travel.
+      0.2951f, 0.0f,
+      true, false, true },
+
+    { "fx_delay_mod_depth", "Delay Mod Depth",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 10.0f, 0.0f,
+      // Places 2 ms near the centre.
+      0.4307f, 0.0f,
+      true, false, true },
 
     // Reverb (Phase 8c) ------------------------------------------------------
     { "fx_reverb_bypass", "Reverb Bypass",

@@ -27,6 +27,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <utility>
 #include <vector>
 
 #include "DSP/Delay/Delay.h"
@@ -116,6 +118,15 @@ public:
         testResetClearsTheTail();
         testExtremeInput();
         testTailReporting();
+        testSplitSidesLandOnTheirOwnTimes();
+        testSplitSyncedSides();
+        testSplitPingPong();
+        testUnmodulatedIsUnchanged();
+        testModulationMovesTheReadPosition();
+        testModulationHoldsOverALongSession();
+        testShortDelaysSwingLess();
+        testSplitAndModulatedTail();
+        testModulationRefusesNonsense();
     }
 
 private:
@@ -206,7 +217,7 @@ private:
 
             render (delay, left, right);
 
-            const auto expected = static_cast<int> (std::lround (timeMs * 0.001 * testSampleRate));
+            const auto expected = static_cast<int> (std::lround (static_cast<double> (timeMs) * 0.001 * testSampleRate));
             const auto found = peakIndex (left, 1);
 
             // One sample of tolerance: the read is interpolated, so a delay that
@@ -625,6 +636,387 @@ private:
         delay.setSettings (settings);
 
         expect (delay.getTailSeconds() >= tail, "more feedback cannot mean a shorter tail");
+    }
+
+    // Phase 13h-1 -----------------------------------------------------------
+
+    void testSplitSidesLandOnTheirOwnTimes()
+    {
+        beginTest ("split, each side repeats after its own time; linked, the right side's own is ignored");
+
+        for (const auto linked : { false, true })
+        {
+            Delay delay;
+
+            auto settings = wetSettings (100.0f);
+            settings.linked = linked;
+            settings.rightTimeMs = 250.0f;
+            delay.setSettings (settings);
+            delay.prepare (testSampleRate, 1 << 15);
+
+            const auto length = 1 << 15;
+            std::vector<float> left (static_cast<std::size_t> (length), 0.0f);
+            std::vector<float> right (static_cast<std::size_t> (length), 0.0f);
+
+            left[0] = 1.0f;
+            right[0] = 1.0f;
+
+            render (delay, left, right);
+
+            const auto expectedRight = linked ? 4800 : 12000;
+
+            expect (std::abs (peakIndex (left, 1) - 4800) <= 1, "the left side keeps its own time");
+            expect (std::abs (peakIndex (right, 1) - expectedRight) <= 1,
+                    juce::String (linked ? "linked" : "split") + ": the right side's repeat landed at "
+                        + juce::String (peakIndex (right, 1)) + " rather than " + juce::String (expectedRight));
+        }
+    }
+
+    void testSplitSyncedSides()
+    {
+        beginTest ("split and synced, each side reads its own note value");
+
+        Delay delay;
+
+        auto settings = wetSettings (500.0f);
+        settings.tempoSynced = true;
+        settings.division = Division::quarter;
+        settings.rightDivision = Division::eighthDotted;
+        settings.rightTimeMs = 30.0f;
+        settings.linked = false;
+        delay.setSettings (settings);
+        delay.setTempo (120.0);
+        delay.prepare (testSampleRate, 512);
+
+        expectWithinAbsoluteError (delay.getDelaySeconds(), 0.5, 1.0e-12);
+        expectWithinAbsoluteError (delay.getRightDelaySeconds(), 0.375, 1.0e-12,
+                                   "a dotted eighth at 120 BPM, not the right side's free time");
+
+        delay.setTempo (90.0);
+        expectWithinAbsoluteError (delay.getRightDelaySeconds(), 0.5, 1.0e-12, "and follows the tempo");
+
+        settings.tempoSynced = false;
+        delay.setSettings (settings);
+        expectWithinAbsoluteError (delay.getRightDelaySeconds(), 0.03, 1.0e-9, "free, the right side's own time");
+
+        settings.linked = true;
+        delay.setSettings (settings);
+        expectWithinAbsoluteError (delay.getRightDelaySeconds(), 0.5, 1.0e-9, "linked, the left side's");
+    }
+
+    void testSplitPingPong()
+    {
+        beginTest ("split ping-pong: each crossing takes the time of the side it lands on");
+
+        Delay delay;
+
+        auto settings = wetSettings (50.0f, 0.7f);
+        settings.pingPong = true;
+        settings.linked = false;
+        settings.rightTimeMs = 120.0f;
+        delay.setSettings (settings);
+        delay.prepare (testSampleRate, 1 << 15);
+
+        const auto length = 1 << 15;
+        std::vector<float> left (static_cast<std::size_t> (length), 0.0f);
+        std::vector<float> right (static_cast<std::size_t> (length), 0.0f);
+
+        left[0] = 1.0f;
+
+        render (delay, left, right);
+
+        // In on the left, out on the left after 50 ms; crossed into the right
+        // line, out on the right 120 ms after that.
+        const auto first = peakIndex (left, 1);
+        const auto second = peakIndex (right, 1);
+
+        expect (std::abs (first - 2400) <= 1, "first repeat at " + juce::String (first));
+        expect (std::abs (second - 8160) <= 1, "second repeat at " + juce::String (second));
+    }
+
+    /** Renders one stereo signal of a long note's worth through @p settings,
+        in blocks, with a change of settings half way through.
+    */
+    [[nodiscard]] static std::vector<float> renderPhrase (const Delay::Settings& first, const Delay::Settings& second)
+    {
+        Delay delay;
+        delay.setSettings (first);
+        delay.prepare (testSampleRate, 256);
+
+        const auto length = 48000;
+        std::vector<float> left (static_cast<std::size_t> (length)), right (static_cast<std::size_t> (length));
+        juce::Random random (5);
+
+        for (int i = 0; i < length; ++i)
+        {
+            left[static_cast<std::size_t> (i)] = i < 4800 ? random.nextFloat() * 2.0f - 1.0f : 0.0f;
+            right[static_cast<std::size_t> (i)] = i < 4800 ? std::sin (static_cast<float> (i) * 0.05f) : 0.0f;
+        }
+
+        for (int start = 0; start < length; start += 256)
+        {
+            if (start / 256 == length / 512)
+                delay.setSettings (second);
+
+            float* channels[2] { left.data() + start, right.data() + start };
+            delay.process (channels, 2, std::min (256, length - start));
+        }
+
+        left.insert (left.end(), right.begin(), right.end());
+        return left;
+    }
+
+    void testUnmodulatedIsUnchanged()
+    {
+        beginTest ("linked and unmodulated is the delay as it was, sample for sample");
+
+        // The delay as it was before 13h-1, by its old fields alone.
+        auto before = wetSettings (180.0f, 0.6f);
+        before.mix = 0.5f;
+        before.pingPong = true;
+        before.dampingHz = 6000.0f;
+
+        auto beforeLater = before;
+        beforeLater.timeMs = 90.0f;
+
+        // The same, with every new control somewhere else but at rest: linked,
+        // and no depth at any rate.
+        auto after = before;
+        after.rightTimeMs = 1300.0f;
+        after.rightDivision = Division::sixteenth;
+        after.modulationRateHz = 7.3f;
+
+        auto afterLater = beforeLater;
+        afterLater.rightTimeMs = 20.0f;
+        afterLater.modulationRateHz = 0.2f;
+
+        const auto reference = renderPhrase (before, beforeLater);
+        const auto changed = renderPhrase (after, afterLater);
+
+        auto differences = 0;
+
+        for (std::size_t i = 0; i < reference.size(); ++i)
+            if (reference[i] != changed[i])
+                ++differences;
+
+        expectEquals (differences, 0, "the new controls at rest must change nothing at all");
+    }
+
+    /** The delay actually read, in samples, at each sample of a block.
+
+        A ramp is the one signal linear interpolation reproduces exactly, so
+        what comes out of a fully wet delay with no feedback is the ramp's value
+        that many samples ago, and subtracting it from where the ramp is now
+        gives the delay that was read — modulation and all. The ramp wraps at
+        16384, where a float still resolves a five-hundredth of a sample through
+        the mix, and the reads that reach
+        back across the wrap are reported as not a number.
+    */
+    [[nodiscard]] static std::vector<double> measuredDelays (Delay& delay, int skipSamples, int measureSamples)
+    {
+        constexpr int wrap = 16384;
+        constexpr int block = 512;
+
+        std::vector<double> leftDelays, rightDelays;
+        std::vector<float> left (block), right (block);
+
+        for (int start = 0; start < skipSamples + measureSamples; start += block)
+        {
+            for (int i = 0; i < block; ++i)
+                left[static_cast<std::size_t> (i)] = right[static_cast<std::size_t> (i)]
+                    = static_cast<float> ((start + i) % wrap);
+
+            float* channels[2] { left.data(), right.data() };
+            delay.process (channels, 2, block);
+
+            for (int i = 0; i < block; ++i)
+            {
+                if (start + i < skipSamples)
+                    continue;
+
+                const auto now = static_cast<double> ((start + i) % wrap);
+
+                for (auto* side : { &leftDelays, &rightDelays })
+                {
+                    const auto read = static_cast<double> ((side == &leftDelays ? left : right)[static_cast<std::size_t> (i)]);
+                    auto measured = now - read;
+
+                    if (measured < 0.0)
+                        measured += wrap;
+
+                    // Just after the wrap, a read reaches back across it and
+                    // interpolates between its top and 0, which means nothing.
+                    // Every delay measured here is under 4096 samples.
+                    side->push_back (now < 4096.0 ? std::numeric_limits<double>::quiet_NaN() : measured);
+                }
+            }
+        }
+
+        leftDelays.insert (leftDelays.end(), rightDelays.begin(), rightDelays.end());
+        return leftDelays;
+    }
+
+    /** The largest difference between the delays @p measured from sample
+        @p from on, and a base of @p base swung by @p depth on a sine for the
+        left side and a cosine for the right.
+    */
+    [[nodiscard]] static double worstModulationError (const std::vector<double>& measured, int from,
+                                                     double base, double depth, double rateHz)
+    {
+        const auto half = measured.size() / 2;
+        auto worst = 0.0;
+
+        for (std::size_t i = 0; i < half; ++i)
+        {
+            const auto phase = 2.0 * pi * rateHz * static_cast<double> (from + static_cast<int> (i)) / testSampleRate;
+
+            for (const auto [value, expected] : { std::pair { measured[i], base + depth * std::sin (phase) },
+                                                  std::pair { measured[half + i], base + depth * std::cos (phase) } })
+                if (! std::isnan (value))
+                    worst = std::max (worst, std::abs (value - expected));
+        }
+
+        return worst;
+    }
+
+    void testModulationMovesTheReadPosition()
+    {
+        beginTest ("modulation swings each side's time by the depth, a quarter of a cycle apart");
+
+        Delay delay;
+
+        auto settings = wetSettings (20.0f);
+        settings.modulationDepthMs = 2.0f;
+        settings.modulationRateHz = 3.0f;
+        delay.setSettings (settings);
+        delay.prepare (testSampleRate, 512);
+
+        const auto skip = 2048;
+        const auto measured = measuredDelays (delay, skip, 48000);
+
+        // 20 ms is 960 samples and 2 ms is 96. Within a hundredth of a sample
+        // of that curve at every sample is the depth, the rate and the quarter
+        // cycle between the sides all at once.
+        const auto worst = worstModulationError (measured, skip, 960.0, 96.0, 3.0);
+
+        logMessage ("  worst read position error: " + juce::String (worst, 5) + " samples");
+        expect (worst < 0.01, "the read position is not a sine of the depth asked for: off by "
+                                  + juce::String (worst, 4) + " samples");
+
+        // And it is not a coincidence of a curve that barely moves.
+        expect (worstModulationError (measured, skip, 960.0, 0.0, 3.0) > 95.0);
+    }
+
+    void testModulationHoldsOverALongSession()
+    {
+        beginTest ("the modulation is the same depth and rate after a minute as at the start");
+
+        Delay delay;
+
+        auto settings = wetSettings (40.0f);
+        settings.modulationDepthMs = 5.0f;
+        settings.modulationRateHz = 9.7f;
+        delay.setSettings (settings);
+        delay.prepare (testSampleRate, 512);
+
+        // Sixty seconds of rotation, then a second measured.
+        const auto skip = 60 * 48000 - (60 * 48000) % 512;
+        const auto measured = measuredDelays (delay, skip, 48000);
+        // At the rate the delay was given, which is a float: 9.7f is 9.6999998
+        // Hz, and over a minute the difference is itself a fiftieth of a sample.
+        const auto worst = worstModulationError (measured, skip, 1920.0, 240.0, static_cast<double> (9.7f));
+
+        logMessage ("  after a minute, worst read position error: " + juce::String (worst, 5) + " samples");
+        expect (worst < 0.01, "the oscillator drifted: off by " + juce::String (worst, 4) + " samples");
+    }
+
+    void testShortDelaysSwingLess()
+    {
+        beginTest ("a delay shorter than the depth swings less rather than pinning to the write");
+
+        Delay delay;
+
+        auto settings = wetSettings (1.0f);
+        settings.modulationDepthMs = 10.0f;
+        settings.modulationRateHz = 5.0f;
+        delay.setSettings (settings);
+        delay.prepare (testSampleRate, 512);
+
+        const auto measured = measuredDelays (delay, 1024, 9600);
+        auto lowest = 1.0e9, highest = 0.0;
+
+        for (const auto value : measured)
+        {
+            if (std::isnan (value))
+                continue;
+
+            lowest = std::min (lowest, value);
+            highest = std::max (highest, value);
+        }
+
+        // 1 ms is 48 samples, so the swing is held to 47 either way.
+        expect (lowest >= 1.0 - 1.0e-3, "never reads closer than one sample: " + juce::String (lowest, 3));
+        expectWithinAbsoluteError (highest, 95.0, 0.05, "and swings as far the other way");
+        expectWithinAbsoluteError (lowest, 1.0, 0.05);
+    }
+
+    void testSplitAndModulatedTail()
+    {
+        beginTest ("the reported tail follows the longer side and the depth");
+
+        Delay delay;
+
+        auto settings = wetSettings (300.0f);
+        settings.linked = false;
+        settings.rightTimeMs = 1000.0f;
+        delay.setSettings (settings);
+        delay.prepare (testSampleRate, 512);
+
+        expectWithinAbsoluteError (delay.getTailSeconds(), 1.0, 1.0e-9, "the right side is the longer");
+
+        settings.modulationDepthMs = 10.0f;
+        delay.setSettings (settings);
+        expectWithinAbsoluteError (delay.getTailSeconds(), 1.01, 1.0e-6, "plus the furthest it can wander");
+
+        settings.timeMs = 2000.0f;
+        settings.linked = true;
+        delay.setSettings (settings);
+        expectWithinAbsoluteError (delay.getTailSeconds(), 2.01, 1.0e-6, "linked, the left side's for both");
+    }
+
+    void testModulationRefusesNonsense()
+    {
+        beginTest ("a NaN or absurd modulation setting leaves the delay finite");
+
+        for (const auto [rate, depth] : { std::pair { std::numeric_limits<float>::quiet_NaN(), 5.0f },
+                                          std::pair { 3.0f, std::numeric_limits<float>::quiet_NaN() },
+                                          std::pair { 1.0e9f, 1.0e9f },
+                                          std::pair { -5.0f, -5.0f } })
+        {
+            Delay delay;
+
+            auto settings = wetSettings (4000.0f, 1.0f);
+            settings.modulationRateHz = rate;
+            settings.modulationDepthMs = depth;
+            delay.setSettings (settings);
+            delay.prepare (testSampleRate, 4096);
+
+            std::vector<float> left (1 << 16), right (1 << 16);
+            juce::Random random (9);
+
+            for (auto& sample : left)
+                sample = random.nextFloat() * 2.0f - 1.0f;
+
+            right = left;
+            render (delay, left, right);
+
+            auto finite = true;
+            for (std::size_t i = 0; i < left.size(); ++i)
+                finite = finite && std::isfinite (left[i]) && std::isfinite (right[i]);
+
+            expect (finite);
+            expect (delay.getTailSeconds() <= 30.0 && delay.getTailSeconds() > 0.0);
+        }
     }
 };
 

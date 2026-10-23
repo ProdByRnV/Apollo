@@ -2041,7 +2041,8 @@ an effect dropped into the chain mid-bar already knows what tempo it is at.
 per-channel delay times — the left and right lines share one time, and a stereo
 offset would be a fourth control on a panel that already has nine. Ping-pong
 gives the stereo behaviour that offset is usually reached for; a true left/right
-split can be added later without changing anything decided here.
+split can be added later without changing anything decided here. *(It was, in
+Phase 13h-1, with modulation of the time: ADR-0105.)*
 
 ---
 
@@ -6924,3 +6925,115 @@ that arrived inside somebody's preset becomes part of your own library.
   twice the size of what is stored, for nothing that can be heard.
 - **FLAC**, through JUCE's libFLAC. Smaller for noise, but see above.
 - **Replacing a built-in table**, as ADR-0066's loader did. See above.
+
+---
+
+## ADR-0105 — The delay's two sides can be given their own times, and its time can wander
+
+**Phase 13h-1 · Accepted**
+
+### What was built
+
+PRD §20 asks for left and right delay times and for "modulation where CPU budget
+allows". ADR-0056 gave both sides one time and left the split for later; this is
+the split, and the modulation.
+
+Five parameters, all appended to the delay's section of the registry:
+- **`fx_delay_link`**, SPLIT or LINKED. **Linked by default.**
+- **`fx_delay_time_right`** and **`fx_delay_division_right`**, the right side's
+  free time and note value while split. Same ranges and defaults as the left
+  side's, and read the way the timing switch says.
+- **`fx_delay_mod_rate`**, 0.05 to 10 Hz, 0.5 by default.
+- **`fx_delay_mod_depth`**, 0 to 10 ms, **0 by default**.
+
+The existing `fx_delay_time` and `fx_delay_division` became the left side's,
+and both sides' while linked. Their IDs and names are unchanged.
+
+### A switch and a second time, not an offset
+
+The usual alternative is one time and a stereo offset: the right side at the
+left side's time plus or minus a percentage. It is one control fewer, but it
+cannot say "a dotted eighth on the left and a quarter on the right", which is
+the reason most people split a delay. With sync on, the offset would have to be
+a fraction of a note value, which is not a note value. Two times can say both,
+free or synced, and the switch says whether the second is heard.
+
+The switch exists so that linking costs nothing to undo. A linked delay keeps
+the right side's settings; switching back to SPLIT finds them where they were.
+
+Each side ramps its own time, through its own smoother. Linked, both are given
+the same targets and so hold the same values exactly. That is why linking needs
+no special case in the loop.
+
+### The modulation is the delay's own, not the matrix's
+
+A sine moves each side's read position either side of the time asked for. The
+right side's is a quarter of a cycle behind the left side's, so the two sides
+never bend in step: the repeats spread across the stereo field rather than
+sliding back and forth together.
+
+**Why not a matrix destination.** The delay time is glided over a tenth of a
+second (ADR-0056), and that glide is the point of the time control: it is what
+makes a moved time sound like tape rather than a click. A matrix routing would
+drive the time through that glide, so anything faster than a few hertz would be
+smoothed away. The modulation here bends the read position after the glide, so
+it is heard at every rate up to its 10 Hz. It also keeps one phase, continuous
+across notes, rather than following whichever note is newest as the effect
+destinations do (ADR-0100).
+
+**Why a sine and not a random wander.** A sine is what "chorus on the repeats"
+and "tape wow" both mean at their two ends of the rate range, and it can be
+measured exactly: the tests check the read position against the curve it
+should follow, at every sample. A random wander can be added as another shape
+later without changing any of this.
+
+**One oscillator for both sides.** A point turning round the unit circle gives a
+sine and its cosine at once, for four multiplies a sample and no call to `sin`.
+It is kept in double precision and pulled back onto the circle once a block, so
+rounding cannot spiral it in or out over a long session. After a minute it was
+still within 0.0006 samples of an ideal sine.
+
+**A short delay swings less.** Each side's swing is held a sample short of the
+write position. Without that, a 1 ms delay with 10 ms of depth would read the
+newest sample for most of every cycle, which sounds like a fault. With it, the
+same setting swings between 1 and 95 samples, as wide as it can go without
+going past the write. The line holds 10 ms more than the four seconds it held
+before, so the longest delay can still wander its full depth.
+
+### Every sound made before is unchanged
+
+Linked with no depth, the read position is exactly what it was: the right side's
+smoother holds the left side's values exactly, and a zero swing adds exactly
+zero. The test is sample for sample, not within a tolerance. A phrase with
+feedback, ping-pong and damping, changed half way through, renders identically
+with every new control set somewhere else but at rest. The fifteen regression
+renders passed against their references unregenerated, and no factory preset
+was touched.
+
+### Cost
+
+Too small for this machine to separate from the delay without it. In one
+sitting, split and modulated measured 0.181 % of real time, and the plain stereo
+delay with feedback beside it 0.201 %. Their passes disagreed by 179 % and 54 %,
+and the harness reported the machine unsteady, so the two are the same number
+and neither is the smaller (CLAUDE.md §35.3). Both are about a twentieth of the
+whole rack. The additions are two smoothers, for the right side's time and the
+depth, and about a dozen multiplies and compares a sample. The row stays in the
+benchmark as `delay, split and modulated`, for a steadier machine to resolve.
+
+### Not built
+
+- **A tempo-synced modulation rate.** The rate is in hertz. The LFOs can sync
+  (ADR-0096); this modulator is the delay's own, and syncing it is a further
+  control nobody has asked for.
+- **The modulation as a matrix destination.** The depth and rate are not
+  destinations; see above for why the time is not one either.
+
+### Alternatives considered
+
+- **A stereo offset control.** See above.
+- **Hiding the right side's controls while linked.** Rejected for the reason
+  ADR-0052 keeps the timing controls visible: a control that disappears has to
+  be rediscovered.
+- **Two sines from two phase accumulators.** Two calls to `sin` per sample, for
+  the same result.
