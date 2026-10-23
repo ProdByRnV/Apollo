@@ -6740,3 +6740,187 @@ are now each drawn exactly where the pointer stopped.
   parameters, so it is a state change, and it is out of scope for an editor.
 - **Choosing between stacked corners by the direction of the first movement.**
   Both directions lengthen the attack, so direction cannot tell the two apart.
+
+---
+
+## ADR-0104 — The user's own wavetables and noise sample travel inside the patch, chosen by number or through the system's own dialog
+
+**Phase 13g · Accepted**
+
+### What was built
+
+Each oscillator can play a wavetable of the user's own, and the noise generator
+a sample of the user's own. They are chosen from a library of folders, or from
+anywhere through the operating system's file dialog, and they are carried
+inside the patch. That is PRD §10's user-loadable noise samples, §32's
+wavetables in presets, and §33's wavetable management.
+
+It was built in four parts, each committed on its own, and one correction:
+- **13g-1, the engine:** user slots, the SAMPLE type, looping, a resampler.
+- **13g-2, the patch:** embedded audio and the content store. The first build
+  stored the audio as FLAC; see "The encoding" below for why it no longer does.
+- **13g-3, the library:** the scan, the dialog and the bridge.
+- **13g-4, the interface.**
+
+### A slot for each oscillator, a choice that plays it
+
+`oscN_wavetable` gains a fifth choice, **USER**, and `noise_type` a seventh,
+**SAMPLE**. Both are appended, so every patch made before keeps its table and
+its noise.
+
+**Each oscillator's USER plays a slot of its own**, after the four built-ins in
+the library. Loading a table into oscillator 1 therefore never changes
+oscillator 2. The alternative, replacing one of the four built-ins in place, is
+what ADR-0066's loader did. It would have changed both oscillators at once and
+left a choice called SWEEP playing something else.
+
+The choice is still a parameter, so a host can automate between a built-in and
+the user's table. **Loading something selects USER or SAMPLE**, as one gesture
+a host records. Choosing a built-in afterwards keeps the user's content loaded,
+ready to come back to, and the interface says so.
+
+**An empty slot sounds.** USER with nothing loaded plays the first built-in.
+SAMPLE with nothing loaded plays white noise. A patch whose content could not
+be restored therefore still makes a sound (CLAUDE.md §33).
+
+### Noise samples, once or looped
+
+A noise sample is built exactly as the transients are (ADR-0095). It is
+converted to 48 kHz and kept as a six-level mipmap, so key tracking can play it
+faster without aliasing.
+
+Files at other rates go through a new offline resampler: a Kaiser-windowed
+sinc whose cutoff sits below the lower Nyquist. It measured within 2×10⁻⁵ of
+the ideal sine across five conversions. A 30 kHz tone taken from 96 to 48 kHz
+came out at −107 dB.
+
+**A new parameter, `noise_loop`, plays a sample type once or round and round.**
+A loaded noise bed needs the loop, and a strike needs it off. The loop reads
+across the seam rather than into silence. It applies to the built-in
+transients too, because one rule is easier to explain than two.
+
+A sample can be at most **ten seconds**. It is kept in memory at six
+bandwidths and carried inside every patch that uses it, and a minute of rain is
+a recording, not a noise source.
+
+### The audio travels in the patch, not a path to it
+
+The roadmap said "references stored in presets, a fallback for a missing
+file". That was the plan when 13g was scheduled. Building it, the reference
+turned out to be the weaker half: a path breaks when
+- the file is moved, renamed or deleted;
+- the project is opened on another computer;
+- the preset is sent to somebody else.
+
+A fallback would only make the breakage quieter. **So the audio itself is
+stored in the state tree**, beside the parameters, as `<CONTENT>`. Serum and
+Vital do the same. The source is still recorded beside the audio, but only so
+that the browser can say where it came from and highlight the library row. It
+is never opened. This is a change to the plan rather than to anything the
+developer specified, and it is recorded here for that reason (CLAUDE.md §42).
+
+What follows from storing the audio:
+- **Host projects and presets carry it**, and a preset load replaces it.
+- **A document without content empties every slot.** A preset is a complete
+  sound, and a factory preset clears what the last one loaded.
+- **A patch with no content writes no element**, so it saves exactly the
+  document it saved before.
+- **An older Apollo ignores the element.** USER and SAMPLE are past the end of
+  an older build's range, so they clamp to FOLD and CHIFF.
+
+**The encoding is a small lossless format of Apollo's own**, in base64
+(EmbeddedAudio.h):
+- every sample is a 24-bit integer, after the audio is scaled to full scale,
+  which uses every bit and means a floating-point file louder than 1 cannot
+  clip;
+- each channel is predicted from its last samples, by whichever of three
+  orders — nothing, the last sample, the line through the last two — leaves
+  the smallest residuals;
+- the residuals are zigzag variable-length integers, compressed with the zlib
+  JUCE already ships.
+
+It is lossless at 24 bits, which covers the 16- and 24-bit files wavetables
+come as. Nothing that plays changes, because the builder normalises every frame
+and a sample is normalised to its peak. A round trip measured within 8.8×10⁻⁸,
+a quantisation step. Another instance restoring a host save played within
+1.5×10⁻⁸ of the original. A 64-frame table stores at 28 % of 24-bit PCM;
+noise, which nothing compresses, at 114 %.
+
+**The first build used FLAC, and the sanitizer job refused it.** Encoding
+through JUCE's bundled libFLAC reaches undefined behaviour in libFLAC's encoder:
+it adds an offset to a buffer that is null whenever escape coding is off, and no
+setting JUCE exposes turns it on. The pointer is never dereferenced, so it is
+harmless in practice, but it is undefined behaviour on a path every load takes,
+and CLAUDE.md's first priority is that there is none. Suppressing the sanitizer
+would have hidden it rather than removed it. The replacement is about two
+hundred lines that can be read in full and are tested against hostile input:
+- every malformed header field, a stream cut short, frames that disagree with
+  the stream, and a decompression bomb are refused;
+- four hundred randomly damaged streams were all refused, mostly by zlib's own
+  checksum.
+Version 1 of the format, the FLAC one, was written only by a development build
+for an hour, and is refused like any unreadable content.
+
+**The preset size bound grows from 4 to 16 MB.** The heaviest patch possible,
+two 256-frame tables and ten seconds of stereo noise, measured 5.5 MB. A
+16-frame table and a short sample add about 50 KB.
+
+**Audio in a document is untrusted.** The text is bounded before it is decoded,
+and what it decodes to is held to exactly the rules a file is, by the same
+readers.
+
+### Loading never waits, and a failure changes nothing
+
+`UserContent` replaces ADR-0066's `WavetableLoader`, which nothing in the
+instrument used.
+- **Every load is a job for one worker thread.** Restoring a project queues one
+  per slot.
+- **A newer request for a slot supersedes an older one** by a serial number,
+  so a stale result is dropped rather than landing.
+- **The engine's slots and the state tree are only touched on the message
+  thread.** A host restoring state from another thread only queues work.
+- **Restoring the content a slot already plays rebuilds nothing.** Some hosts
+  restore the same state on every undo.
+
+A file that cannot be used changes nothing at all, and is reported by name.
+Audio in a document that cannot be read empties its slot, which still sounds,
+is removed from the patch, and is reported too.
+
+One consequence is recorded rather than hidden. A host that restores a project
+and renders it in the same instant hears the fallback for the tens of
+milliseconds a table takes to build (Docs/KNOWN-LIMITATIONS.md).
+
+### The library, and the page naming numbers
+
+Wavetables and noise samples each have a user folder and a factory folder,
+beside the preset folders. A bank is a subfolder, as with presets (ADR-0053).
+Organising means moving files in the file manager the user already knows, and
+**Show folder** opens it.
+
+**A scan reads headers, not audio.** That is enough for the browser to show a
+table's frames and a sample's length, and to say before anyone clicks that a
+file is not a whole number of frames, or is too long.
+
+**The page names a slot by token and an entry by number, never a path**, as it
+does for presets (ADR-0063). A file outside the library is chosen in the
+system's own dialog, which the page can only ask the editor to open. The path
+it returns never crosses the bridge. A sample offered to an oscillator is
+refused before anything is opened.
+
+**Save to library** writes the patch's audio back out as a 24-bit WAV,
+never over another file. A taken name becomes "Name (2)". This is how a table
+that arrived inside somebody's preset becomes part of your own library.
+
+### Alternatives
+
+- **References only, with a search for moved files.** This was rejected for
+  the reasons above. A file that is gone cannot be found, and a project that
+  sounds different on another machine is the failure PRD §33 exists to
+  prevent.
+- **Embedding only in host projects, and referencing from presets.** This
+  would make a preset the one thing that breaks when shared, and sharing is
+  most of what presets are for.
+- **Raw float samples, or the analysed spectrum.** Either would be at least
+  twice the size of what is stored, for nothing that can be heard.
+- **FLAC**, through JUCE's libFLAC. Smaller for noise, but see above.
+- **Replacing a built-in table**, as ADR-0066's loader did. See above.

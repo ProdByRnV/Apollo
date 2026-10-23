@@ -551,6 +551,12 @@ Large resources must not be synchronously loaded from disk during audio processi
 
 Preset operations should be performed asynchronously or outside the real-time callback, with validated handoff of prepared data to the DSP engine.
 
+The user's own wavetables and noise sample are carried inside the patch as
+lossless audio rather than as paths to files, so a project or preset is
+complete on its own (ADR-0104, CLAUDE.md §12.5). They are chosen from user and
+factory library folders by number, or from anywhere through the system's own
+dialog, which only the editor opens; a path never crosses the bridge.
+
 A preset is a single file with the extension **`.rnv`**, holding the same
 versioned state document the plugin writes into a host project plus preset
 metadata. Factory and user presets share the extension and the reader; only
@@ -766,7 +772,7 @@ wrong library fails to compile or link. `Source/CMakeLists.txt`:
 | Library | Kind | Depends on | Holds |
 |---|---|---|---|
 | `apollo_core` | static | **nothing** — no JUCE | All DSP (oscillators, unison, filters, envelopes, LFOs, modulation, every effect, the rack, oversampling, FFT), the voice engine, MIDI mapping and MPE logic, the parameter registry, and the telemetry buffers. Held to the strict warning set |
-| `apollo_engine` | interface | `apollo_core`, JUCE audio | The `AudioProcessor`, APVTS layout, state and preset documents, the preset library, wavetable files and loading, MIDI Learn's manager, and the UI bridge's protocol and parameter layers |
+| `apollo_engine` | interface | `apollo_core`, JUCE audio | The `AudioProcessor`, APVTS layout, state and preset documents, the preset library, the content library and the user content store (wavetables and noise samples, carried in the patch), MIDI Learn's manager, and the UI bridge's protocol and parameter layers |
 | `apollo_editor` | interface | `apollo_engine`, JUCE GUI | The WebView editor and the embedded React bundle. The test runner never links it, which is how the suite stays headless (ADR-0011, ADR-0016) |
 
 `Source/Plugin/` wraps these into the VST3 and the standalone. Two pieces of
@@ -795,7 +801,7 @@ again, and the link would fail on duplicate symbols.
 | Scope rings, modulation traces, the level meter | `Source/Telemetry/` |
 | MIDI mapping, MPE zones, RPN parsing, Learn, device adoption | `Source/MIDI/` |
 | State and preset documents, migration | `Source/State/` |
-| Preset library, factory presets, wavetable files and loading | `Source/Resources/` |
+| Preset library, factory presets, wavetable and noise sample files, the content library, embedded audio and the user content store | `Source/Resources/` |
 | WebView editor, bridge protocol, parameter and telemetry bridges | `Source/UI/` |
 | VST3 and standalone shells | `Source/Plugin/` |
 | The interface: React and TypeScript | `WebUI/src/` |
@@ -832,7 +838,8 @@ host, and everything else adds none (ADR-0028, Docs/OVERSAMPLING.md).
 | **Audio** | `processBlock`: MIDI, voices, the rack | — |
 | **Message** | The editor, the bridge, MIDI Learn's manager, state save and load | APVTS atomics for parameters; a lock-free publication ring for MIDI mappings, updated at 60 Hz; an atomic pointer exchange for wavetables |
 | **Preset scan** | Walking the library folders, bounded three ways (ADR-0062) | Nothing. It publishes an index to the message thread |
-| **Wavetable loader** | Reading, validating, analysing and rendering a table (ADR-0066) | The slot pointer is exchanged atomically and the audio thread is told there is something new. The old table is retired, and freed only after the audio thread has started two more blocks |
+| **Content loader** | Reading a user's wavetable or noise sample from a file or from audio carried in the patch, validating it, and building its table or mipmap (ADR-0066, ADR-0104) | The slot pointer is exchanged atomically on the message thread and the audio thread is told there is something new. The old object is retired, and freed only after the audio thread has started two more blocks |
+| **Content scan** | Walking the wavetable and noise folders and reading each file's header (ADR-0104) | Nothing. It publishes an index to the message thread |
 
 Data from the audio thread to the interface goes into preallocated rings per
 source — six scopes, eight modulator traces and a meter — captured only while

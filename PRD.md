@@ -23,8 +23,8 @@ Phase 12d-2 (ADR-0087).
 
 **In summary:** the instrument, its effects, presets, MIDI, visualisers and
 platforms are built, and since Phase 13f so are drawn LFO curves and envelopes
-edited by dragging. Not built: wavetable management in the interface (§33); and
-user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
+edited by dragging, and since 13g the user's own wavetables and noise samples,
+carried inside the patch. Not built: user-editable controller profiles (§35). Not yet verified: any DAW (§6.2).
 The full list is Docs/KNOWN-LIMITATIONS.md.
 
 ---
@@ -240,7 +240,7 @@ PolyBLEP-style correction where appropriate.
 High-quality interpolation.
 The final implementation should choose the technique that provides the best quality/performance balance.
 
-> **Status, 0.1.0 to 13b:** §8.1: ✅ wavetable selection (four built-in tables), position, level, pan, unison, detune, stereo spread, pitch modulation through the matrix, and — since Phase 13a — coarse and fine tuning and a start phase on both oscillators. ✅ Warp and warp amount since Phase 13b (§12; ADR-0090). §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
+> **Status, 0.1.0 to 13g:** §8.1: ✅ wavetable selection (four built-in tables, and since Phase 13g a table of your own on each oscillator, ADR-0104), position, level, pan, unison, detune, stereo spread, pitch modulation through the matrix, and — since Phase 13a — coarse and fine tuning and a start phase on both oscillators. ✅ Warp and warp amount since Phase 13b (§12; ADR-0090). §8.2: ✅ up to 256 frames, cubic interpolation between samples and frames; ❌ no quality modes. §8.3: ✅ band-limited mipmaps rendered from a spectrum per frame (ADR-0066); aliasing measured at −98.5 dBc worst case.
 
 ---
 9. Sub Oscillator
@@ -275,7 +275,7 @@ User-loadable noise samples where feasible.
 Deterministic behavior when required for preset recall.
 Noise generation must avoid unnecessary allocations on the real-time audio thread.
 
-> **Status, 0.1.0 to 13d-2:** ◐ Stereo noise with its own level, deterministic for recall, and modulatable through the matrix, so an envelope can shape it. ✅ Since Phase 13d-1, white or pink — pink at white's level — and key tracking, which plays the noise slower below middle C, darker and not quieter (ADR-0094). ✅ Since Phase 13d-2, four attack transients — click, pick, thump and chiff — synthesised once per process, played once from each note's start, and pitched by the key tracking without aliasing (ADR-0095). ❌ No user-loadable samples yet (13g).
+> **Status, 0.1.0 to 13g:** ✅ Stereo noise with its own level, deterministic for recall, and modulatable through the matrix, so an envelope can shape it. ✅ Since Phase 13d-1, white or pink — pink at white's level — and key tracking, which plays the noise slower below middle C, darker and not quieter (ADR-0094). ✅ Since Phase 13d-2, four attack transients — click, pick, thump and chiff — synthesised once per process, played once from each note's start, and pitched by the key tracking without aliasing (ADR-0095). ✅ Since Phase 13g, a user-loaded sample: any basic format at any rate, up to ten seconds, converted to 48 kHz by a band-limited resampler, played once from each note or looped, and carried inside the patch (ADR-0104).
 
 ---
 11. Unison Engine
@@ -773,7 +773,7 @@ Example:
 ```
 The exact serialization format may be changed during implementation.
 
-> **Status, 0.1.0:** ✅ Versioned `.rnv` files carrying every parameter, the effects chain and metadata, read by the same validator as host state (ADR-0053, ADR-0061). The file is XML text rather than the JSON sketched here. ❌ Macros and references to user wavetables are not stored, because neither exists yet.
+> **Status, 0.1.0 to 13g:** ✅ Versioned `.rnv` files carrying every parameter, the effects chain and metadata, read by the same validator as host state (ADR-0053, ADR-0061). The file is XML text rather than the JSON sketched here. ✅ Since Phase 13e-3 macros, and since 13g the user's own wavetables and noise sample — as the audio itself, lossless at 24 bits, rather than a reference to a file that could move (ADR-0104).
 
 ---
 33. Wavetable Management
@@ -791,7 +791,7 @@ Embedded content.
 External referenced content.
 Where practical, presets should avoid breaking when a user moves their content directory.
 
-> **Status, 0.1.0:** ◐ The engine reads a wavetable from a WAV file, validates it, and can replace a playing slot without a click, falling back to the built-in table on any failure (ADR-0066). ❌ Nothing in the interface can browse, preview, load or organise a wavetable, and a preset cannot refer to one: a file chooser has to be native rather than a path across the bridge (CLAUDE.md §40).
+> **Status, 0.1.0 to 13g:** ✅ Since Phase 13g (ADR-0104): browse a library of user and factory folders, with banks as subfolders and each file's frames and any problem read from its header; load a table into either oscillator's own USER slot, from the library by number or from anywhere through the system's own dialog; preview it in the wave display, which draws the table playing; organise it in the file manager, which Show folder opens, and Save to library writes a table that arrived in a patch into a file of its own. Factory, user, embedded and external content are told apart. Content is carried inside presets and projects, so moving the content directory breaks nothing.
 
 ---
 34. MIDI System

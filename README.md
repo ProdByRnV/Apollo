@@ -46,6 +46,12 @@ matrix, each slot's depth itself modulatable, whose sources include velocity,
 key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source
 and four macros, each with a range and a curve.
 
+**Your own content.** Each oscillator can play a wavetable of your own, and the
+noise generator a sample of your own, played once or looped. Choose them from
+your library — folders Apollo scans, with subfolders as banks — or from anywhere
+through the system's file dialog. Whatever you load travels inside the project
+or preset, as lossless audio, so moving or deleting the file changes nothing.
+
 **Effects.** A rack of six slots in any order: distortion (soft, hard and diode
 curves, 4× oversampled), a stereo delay with ping-pong and tempo sync, a
 room-and-hall reverb, a noise gate, an RMS compressor, and a seven-band

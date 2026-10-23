@@ -79,7 +79,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 
 | Parameter ID | UI Element | Range / Type | Default | Phase | Description |
 |---|---|---|---:|---|---|
-| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 2 | Wavetable selection for oscillator 1 |
+| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 2, 13g | Wavetable selection for oscillator 1: the four built-ins, then 4, USER, the oscillator's own table (§10.10, ADR-0104) |
 | `osc1_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4a | Wavetable scan position for oscillator 1 |
 | `osc1_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 2 | Unison voice count |
 | `osc1_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | 2 | Unison detune amount (±50 cents at full) |
@@ -92,7 +92,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `osc1_phase_random` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | How much of a cycle each unison voice's start may be randomly moved; reproducible per note |
 | `osc1_detune_curve` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 linear, 1 exponential: the inner unison voices pulled towards the centre |
 | `osc1_unison_blend` | Rotary Knob | Normalized `[0, 1]` | `1` | 13a | The outer unison voices against the centre; 1 is every voice equal, at constant energy |
-| `osc2_wavetable` | Selector / Dropdown | Discrete `[0, 3]` | `0` | 4b | Wavetable selection for oscillator 2 |
+| `osc2_wavetable` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 4b, 13g | Wavetable selection for oscillator 2: the four built-ins, then 4, USER, the oscillator's own table (§10.10, ADR-0104) |
 | `osc2_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Wavetable scan position for oscillator 2 |
 | `osc2_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 4b | Unison voice count |
 | `osc2_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | 4b | Unison detune amount |
@@ -111,8 +111,9 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `sub_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the sub's cycle |
 | `sub_tracking` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 follows the note; 1 follows oscillator 1, its tuning and pitch modulation included |
 | `noise_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Noise generator level (silent by default) |
-| `noise_type` | Selector / Dropdown | Discrete `[0, 5]` | `0` | 13d-1, 13d-2 | 0 white, 1 pink, then the built-in transients: 2 click, 3 pick, 4 thump, 5 chiff. Pink is at white's RMS level (ADR-0094). A transient plays once from each note's start; the transients were appended in 13d-2, so the first two keep their numbers (ADR-0095) |
+| `noise_type` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 13d-1, 13d-2, 13g | 0 white, 1 pink, then the built-in transients: 2 click, 3 pick, 4 thump, 5 chiff; then 6, the user's own sample (§10.10). SAMPLE with nothing loaded plays white. Pink is at white's RMS level (ADR-0094). A transient plays once from each note's start; the transients were appended in 13d-2, so the first two keep their numbers (ADR-0095) |
 | `noise_keytrack` | Rotary Knob | Normalized `[0, 1]` | `0` | 13d-1 | How far the noise's rate follows the played pitch (note and bend), about middle C. Below middle C it plays slower, which darkens white or pink noise at the same level; above, they are already as bright as the sample rate allows. A transient is pitched both ways, as a sampler would |
+| `noise_loop` | Selector | Discrete `[0, 1]` | `0` | 13g | 0 plays a sample type once from each note's start; 1 plays it round and round while the note sounds, reading across the seam. Applies to the built-in transients and the user's sample; a stream ignores it (ADR-0104) |
 | `env1_delay` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 delay before the attack |
 | `env1_attack` | Rotary Knob | `0–10000 ms` | `5` | 5a | Envelope 1 attack time |
 | `env1_hold` | Rotary Knob | `0–2000 ms` | `0` | 5a | Envelope 1 hold at full level |
@@ -1008,6 +1009,66 @@ the knobs.
 
 ---
 
+### 10.10 Your own wavetables and noise sample (Phase 13g)
+
+Each oscillator has a slot for a table of the user's own, played when its
+`oscN_wavetable` is USER (4), and the noise a slot for a sample, played when
+`noise_type` is SAMPLE (6). What fills them is not a parameter: it is audio,
+carried in the patch as `<CONTENT>` (ADR-0104). The store in the processor is
+authoritative, as it is for MIDI mappings and drawn curves.
+
+**The page names a slot and a number, never a path**, as it does for presets
+(§10.6). A file outside the library is chosen in the system's own dialog, which
+the page asks the editor to open; the path it returns stays native.
+
+| Command | Payload | Meaning |
+|---|---|---|
+| `requestContent` | — | Send the index (pushed) and every slot (the reply) |
+| `rescanContent` | — | Look at the library folders again; answered with the index marked `scanning`, and again when the scan lands |
+| `loadContent` | `slot`, `entry` | Load library entry `entry` into `slot` |
+| `chooseContentFile` | `slot` | Open the system's file dialog for `slot` |
+| `clearContent` | `slot` | Empty `slot` and take it out of the patch |
+| `saveContentToLibrary` | `slot` | Write `slot`'s audio into the user's library as a WAV |
+| `revealContentFolder` | `kind` | Open the user's folder for `wavetable` or `noise` |
+
+`slot` is `"osc1"`, `"osc2"` or `"noise"`; `entry` is an id from the
+index, 1 to 10 000, a whole number.
+
+```json
+{
+  "type": "contentIndex", "version": 1, "scanning": false, "truncated": false,
+  "wavetables": [ { "id": 4, "name": "Growl", "bank": "Basses", "factory": false,
+                    "frames": 64, "problem": "" } ],
+  "noise":      [ { "id": 6, "name": "Breath", "bank": "", "factory": false,
+                    "seconds": 0.5, "problem": "" } ]
+}
+```
+
+```json
+{
+  "type": "contentSlots", "version": 1,
+  "status": "LOADED", "slot": "osc1", "statusMessage": "Growl is playing on oscillator 1.",
+  "slots": [ { "slot": "osc1", "loaded": true, "name": "Growl", "origin": "library",
+               "frames": 64, "seconds": 0, "entry": 4, "loading": false, "loadingName": "" },
+             ... ]
+}
+```
+
+- **`problem`** is why a file's header says it will not load — not whole
+  frames, too long — so the browser can say so before anyone clicks.
+- **`entry`** is the library row a slot came from, while that row is still
+  listed; 0 otherwise. It is resolved by the backend on every message, so a
+  rescan that renumbers the index cannot leave it pointing at the wrong row.
+- **`status`** is LOADED, LOAD_FAILED, RESTORED, RESTORE_FAILED, CLEARED,
+  LOADING, SAVED, SAVE_FAILED, or CURRENT when nothing happened. A load,
+  restore or clearing is pushed when it happens; the others are replies.
+- **A successful load selects USER or SAMPLE**, through the parameter, as one
+  gesture a host records. The page sees it as an ordinary parameter echo.
+- **After a host or preset load**, the editor sends `contentSlots` with the
+  state reload, and each slot's restore is pushed as it lands.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
@@ -1241,6 +1302,8 @@ the user, not for a developer, since the page displays it as given:
 | `UNKNOWN_PRESET` | A preset id the current index does not have | **Yes**: a list on screen from before a preset was deleted |
 | `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
 | `INVALID_LFO_CURVE` | A drawn curve for an LFO other than 1 to 4, or one that breaks a curve's rules (§10.8) | No: the editor only makes valid curves |
+| `UNKNOWN_CONTENT` | `loadContent` named an entry the current index does not have, or a noise sample for an oscillator or a table for the noise (§10.10) | Yes: a file renamed or removed while the browser was open |
+| `INVALID_CONTENT_SLOT` | A content command named a slot other than `osc1`, `osc2` or `noise`, or a kind other than `wavetable` or `noise` (§10.10) | No: the browsers only send their own slot |
 
 **How the page shows them (12c-3).** The status line shows an error with a
 warning sign as well as a colour, and a screen reader hears "Error:" before it

@@ -584,6 +584,24 @@ unreadable, silent, the wrong shape or not audio at all is refused by name, and
 the slot keeps Apollo's own table. The instrument never goes quiet because a
 file went away (§30, §33).
 
+## 12.5 The User's Content Travels In The Patch
+
+Each oscillator has a table of the user's own, played on its USER choice, and
+the noise a sample, played on SAMPLE. **What fills them is stored inside the
+project or preset as audio** — lossless at 24 bits — **not as a path to a
+file** (ADR-0104). A path breaks when a file moves, when the project is opened
+on another computer, and when a preset is shared; carried audio breaks in none
+of those. Where the content came from is kept beside it for the browser to
+show, and is never opened.
+
+So a patch is complete on its own, and a document with no content empties
+every slot, which still sounds: USER plays the first built-in and SAMPLE plays
+white noise. Audio arriving in a document is untrusted, and is held to exactly
+the rules a file on disk is, by the same readers (§40).
+
+The page chooses content by slot and number, never by path; a file anywhere
+else comes through the system's own dialog, which only the editor opens.
+
 ---
 
 # 13. Filters

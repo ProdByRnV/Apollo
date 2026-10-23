@@ -168,7 +168,11 @@ front of it is better understood, the way 8f was.
 | 13f | The drawing editors, in two parts | ✅ |
 | 13f-1 | Drawn LFO curves — a DRAWN shape on every LFO: up to 32 points with a bend per segment, dragged on the LFO page, stored in presets and projects beside the parameters, played from a table handed over lock-free. The default curve is the triangle and plays as it (ADR-0102) | ✅ |
 | 13f-2 | Envelopes edited by dragging — every envelope drawn as a note held and released, its corners setting the stage times and the sustain and its diamonds the curve; another way of moving the same knobs, on a time axis scaled as the knobs are. Drawn with the engine's curve, held to it by a test (ADR-0103) | ✅ |
-| 13g | User wavetables and noise samples — a native file chooser, references stored in presets, a fallback for a missing file | ⬜ |
+| 13g | User wavetables and noise samples, in four parts — the engine, the patch, the library, the interface | ✅ |
+| 13g-1 | The engine — a USER choice on each oscillator playing a table of its own, a SAMPLE noise type, ONCE or LOOP, and a band-limited resampler for files at other rates (ADR-0104) | ✅ |
+| 13g-2 | The patch — loaded content carried inside projects and presets as lossless 24-bit audio rather than as a path, built on a worker, a failure changing nothing (ADR-0104) | ✅ |
+| 13g-3 | The library — user and factory folders with banks, scanned by header; the system's own file dialog; Save to library; the page naming numbers, never paths (ADR-0104) | ✅ |
+| 13g-4 | The interface — a line and a browser on each oscillator and the noise, driven by hand with the real dialog (ADR-0104) | ✅ |
 | 13h | The rest — independent left and right delay times and delay modulation, program change, editable and exportable controller profiles, drag-and-drop modulation. A spectrum analyser was here and is done, as the equaliser's display (ADR-0101) | ⬜ |
 | **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
 
@@ -1025,8 +1029,8 @@ them; each sub-phase removes its rows from that list as it lands.
 
 ### Resources (13g)
 
-- [ ] Choose a wavetable or noise sample from a file, through a native chooser rather than a path across the bridge (PRD §33, CLAUDE.md §40).
-- [ ] Presets refer to user wavetables and samples, with a fallback when a file has moved (PRD §32, §33).
+- [x] Choose a wavetable or noise sample from a file, through a native chooser rather than a path across the bridge (PRD §33, CLAUDE.md §40). — from the library by number, or from anywhere through the system's own dialog, which the page can only ask the editor to open; each oscillator has its own USER table, and the noise a SAMPLE played once or looped (13g, ADR-0104)
+- [x] Presets refer to user wavetables and samples, with a fallback when a file has moved (PRD §32, §33). — better than a reference: the audio itself travels in the project or preset, lossless at 24 bits, so a moved or deleted file changes nothing; content that cannot be read empties its slot, which still sounds (13g, ADR-0104)
 
 ### The rest (13h)
 
