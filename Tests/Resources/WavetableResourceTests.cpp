@@ -1,16 +1,17 @@
 /*
     Wavetables that come from somewhere Apollo does not control.
 
-    Three things are under test and they fail in different ways, so they are
-    tested separately and then together:
+    Two things are under test here and they fail in different ways:
 
       - the **reader**, which meets a disk and everything a disk can be — a file
         that is missing, locked, enormous, silent, truncated mid-frame, or a
         photograph wearing a `.wav`;
       - the **library slots**, which have to let a table be replaced while the
-        audio thread is reading one, without freeing anything too early;
-      - the **loader**, which joins them and must leave the instrument playing
-        something whatever happens.
+        audio thread is reading one, without freeing anything too early.
+
+    What joins them — loading a file into an oscillator without anyone
+    waiting, and leaving the instrument playing whatever happens — is the
+    user content store's, and is tested with it (UserContentTests.cpp).
 
     These tests write real audio files, for the reason the preset tests write
     real presets: a reader tested against a mock filesystem is a reader tested
@@ -28,7 +29,6 @@
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Utilities/Fft.h"
 #include "Resources/WavetableFile.h"
-#include "Resources/WavetableLoader.h"
 
 using namespace apollo;
 
@@ -142,8 +142,6 @@ public:
         testAnalysisReproducesTheWaveform();
         testPublishingReplacesWhatIsPlayed();
         testARetiredTableOutlivesTheBlockUsingIt();
-        testLoaderLoadsAsynchronously();
-        testAFailedLoadLeavesTheInstrumentPlaying();
     }
 
 private:
@@ -415,111 +413,6 @@ private:
         // without which a published table would sit in its slot unplayed.
         expect (library.takeGenerationChange(), "a publish must be announced");
         expect (! library.takeGenerationChange(), "and announced only once");
-    }
-
-    void testLoaderLoadsAsynchronously()
-    {
-        beginTest ("A file becomes a playable table without the caller waiting");
-
-        ScratchTree tree { "loader" };
-
-        const auto file = tree.child ("table.wav");
-        expect (writeWav (file, makeTableSamples (8)));
-
-        dsp::WavetableLibrary library;
-        resources::WavetableLoader loader { library };
-
-        auto finished = 0;
-        auto reported = resources::WavetableLoadResult::missing;
-        juce::String reportedName;
-
-        loader.onLoadFinished = [&] (int, resources::WavetableLoadResult result,
-                                     juce::String fileName)
-        {
-            ++finished;
-            reported = result;
-            reportedName = fileName;
-        };
-
-        loader.load (1, file);
-
-        // The point of the whole class: `load` returned before the work was
-        // done. It is not an assertion about timing — the load may genuinely
-        // have finished already on a fast machine — but the delivery must not
-        // have happened, because that only occurs on the message thread.
-        expectEquals (finished, 0, "nothing may be delivered before the message loop runs");
-
-        loader.waitForLoad();
-        loader.flushPendingLoad();
-
-        expectEquals (finished, 1, "a finished load must be delivered exactly once");
-        expect (reported == resources::WavetableLoadResult::ok,
-                "the load should have succeeded: " + resources::describe (reported));
-
-        // A name, never a path: this reaches the interface.
-        expectEquals (reportedName, juce::String ("table.wav"));
-        expect (! reportedName.contains ("/") && ! reportedName.containsChar ('\\'));
-
-        expect (library.isReplaced (1), "the slot should be playing the loaded table");
-        expectEquals (library.getTable (1).getNumFrames(), 8);
-
-        // Every other slot is untouched.
-        for (const int other : { 0, 2, 3 })
-            expect (! library.isReplaced (other), "slot " + juce::String (other) + " moved");
-    }
-
-    void testAFailedLoadLeavesTheInstrumentPlaying()
-    {
-        beginTest ("A file that is not a wavetable leaves the built-in sounding");
-
-        ScratchTree tree { "fallback" };
-
-        dsp::WavetableLibrary library;
-        resources::WavetableLoader loader { library };
-
-        const auto* builtIn = &library.getTable (2);
-
-        auto reported = resources::WavetableLoadResult::ok;
-
-        loader.onLoadFinished = [&reported] (int, resources::WavetableLoadResult result,
-                                             juce::String)
-        {
-            reported = result;
-        };
-
-        // The file was never there.
-        loader.load (2, tree.child ("gone.wav"));
-        loader.waitForLoad();
-        loader.flushPendingLoad();
-
-        expect (reported == resources::WavetableLoadResult::missing);
-        expect (! library.isReplaced (2), "a failed load must not replace anything");
-        expect (&library.getTable (2) == builtIn, "and must leave the built-in exactly as it was");
-        expect (! library.getTable (2).isEmpty(), "the instrument must still have a waveform");
-
-        // And a file that is there but is not audio.
-        const auto rubbish = tree.child ("rubbish.wav");
-        rubbish.replaceWithText ("still not a wavetable");
-
-        loader.load (2, rubbish);
-        loader.waitForLoad();
-        loader.flushPendingLoad();
-
-        expect (reported == resources::WavetableLoadResult::unreadable);
-        expect (! library.isReplaced (2));
-        expect (&library.getTable (2) == builtIn);
-
-        // A loader destroyed while a load is running must not take the process
-        // with it — the case that matters when a plugin is closed mid-load.
-        {
-            const auto file = tree.child ("table.wav");
-            expect (writeWav (file, makeTableSamples (32)));
-
-            resources::WavetableLoader transient { library };
-            transient.load (3, file);
-        }
-
-        expect (true, "destroying a loader mid-load must return cleanly");
     }
 };
 

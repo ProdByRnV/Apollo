@@ -22,6 +22,7 @@
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
 #include "Resources/PresetLibrary.h"
+#include "Resources/UserContent.h"
 #include "State/LfoCurveState.h"
 #include "State/StateSerialization.h"
 #include "Telemetry/TelemetryHub.h"
@@ -180,6 +181,9 @@ public:
     /** The four drawn LFO curves (Phase 13f-1). MESSAGE THREAD, apart from
         what the processor itself reads on the audio thread. */
     [[nodiscard]] state::LfoCurveStore& getLfoCurves() noexcept { return *lfoCurves; }
+
+    /** The user's wavetables and noise sample (Phase 13g). */
+    [[nodiscard]] resources::UserContent& getUserContent() noexcept { return *userContent; }
 
     [[nodiscard]] midi::MidiControlManager& getMidiControl() noexcept { return midiControl; }
     [[nodiscard]] const midi::MidiControlManager& getMidiControl() const noexcept { return midiControl; }
@@ -637,6 +641,12 @@ private:
         hub is: three tables per LFO is fifty kilobytes, which a test that puts
         a processor on its stack should not have to find room for. */
     std::unique_ptr<state::LfoCurveStore> lfoCurves;
+
+    /** The user's wavetables and noise sample, carried in the state tree and
+        published into the engine (Phase 13g). After the engine and APVTS, so
+        destroyed before both: it owns a thread that publishes into one and
+        writes into the other. */
+    std::unique_ptr<resources::UserContent> userContent;
 
     /** Declared last, and therefore destroyed first: it owns a thread, and a
         thread that is still scanning must be stopped before anything it might

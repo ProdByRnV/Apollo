@@ -69,6 +69,7 @@ target_sources(ApolloTests PRIVATE
     Resources/FactoryPresetTests.cpp
     Resources/WavetableResourceTests.cpp
     Resources/NoiseSampleFileTests.cpp
+    Resources/UserContentTests.cpp
     Package/BinaryImage.cpp
     Package/BinaryImage.h
     Package/BinaryImageTests.cpp

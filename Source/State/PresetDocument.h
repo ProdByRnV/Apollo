@@ -100,11 +100,13 @@ inline constexpr int maximumCommentLength = 1024;
 /** Largest document this reader will look at, in bytes.
 
     A preset is the parameter list and four short strings — a few tens of
-    kilobytes. This bound exists so that pointing Apollo at a video file costs a
-    size check rather than an attempt to parse it, and it is generous enough
-    that no real preset can reach it even after the format grows.
+    kilobytes — unless it carries the user's own content (Phase 13g), which can
+    add up to two wavetables of about two megabytes each and a noise sample of
+    about four. This bound exists so that pointing Apollo at a video file costs
+    a size check rather than an attempt to parse it, and it is generous enough
+    that no real preset can reach it.
 */
-inline constexpr int maximumDocumentBytes = 4 * 1024 * 1024;
+inline constexpr int maximumDocumentBytes = 16 * 1024 * 1024;
 
 /** What a preset says about itself.
 
