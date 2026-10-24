@@ -227,3 +227,14 @@ export function saveContentToLibrary(slot: ContentSlot): void {
 export function revealContentFolder(kind: ContentKind): void {
     send({ type: 'revealContentFolder', version: PROTOCOL_VERSION, kind });
 }
+
+/** Routes a dropped source to the control it landed on. The engine chooses
+    the slot; the answer is a modulationRouting message. */
+export function modulationAssign(source: number, id: string): void {
+    send({ type: 'modulationAssign', version: PROTOCOL_VERSION, source, id });
+}
+
+/** Empties one matrix slot, numbered from 1. */
+export function modulationClear(slot: number): void {
+    send({ type: 'modulationClear', version: PROTOCOL_VERSION, slot });
+}

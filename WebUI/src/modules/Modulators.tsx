@@ -18,6 +18,7 @@ import { useId, useState } from 'react';
 import { EnvelopeEditor } from '../components/EnvelopeEditor';
 import { Knob } from '../components/Knob';
 import { LfoCurveEditor } from '../components/LfoCurveEditor';
+import { ModSourceHandle } from '../components/ModSource';
 import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
@@ -35,6 +36,9 @@ export function Envelopes(): JSX.Element {
             title="Envelope"
             index={String(selected + 1)}
             head={(
+                <>
+                {/* The envelope on show, as a source to drag (13h-4). */}
+                <ModSourceHandle source={selected + 1} />
                 <Tabs
                     count={4}
                     prefix="ENV "
@@ -43,6 +47,7 @@ export function Envelopes(): JSX.Element {
                     label="Envelope"
                     idBase={idBase}
                 />
+                </>
             )}
         >
             {INDICES.map((index) => {
@@ -149,6 +154,8 @@ export function Lfos(): JSX.Element {
             title="LFO"
             index={String(selected + 1)}
             head={(
+                <>
+                <ModSourceHandle source={selected + 5} />
                 <Tabs
                     count={4}
                     prefix="LFO "
@@ -157,6 +164,7 @@ export function Lfos(): JSX.Element {
                     label="LFO"
                     idBase={idBase}
                 />
+                </>
             )}
         >
             {INDICES.map((index) => (
@@ -175,7 +183,10 @@ export function Lfos(): JSX.Element {
 */
 export function Macros(): JSX.Element {
     return (
-        <Module title="Macros">
+        <Module
+            title="Macros"
+            head={INDICES.map((index) => <ModSourceHandle key={index} source={15 + index} />)}
+        >
             {INDICES.map((index) => {
                 const p = `macro${index}`;
 

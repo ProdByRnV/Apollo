@@ -50,6 +50,7 @@ import { Presets } from './modules/Presets';
 import { Noise, Oscillator, SubOscillator } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
+import { ModCarryLayer } from './components/ModSource';
 
 import { applyProfiles, applyMappings, midiState, profileTone, setMidiMode, toggleLearn, useMidi } from './state/midi';
 import { useAssignedRoutings } from './state/modulation';
@@ -205,6 +206,12 @@ export function App(): JSX.Element {
 
             case 'presetIndex':
                 applyPresetIndex(message);
+                break;
+
+            // A drop or a cleared slot: the slots arrive as parameters, and
+            // this is what to say about them (13h-4).
+            case 'modulationRouting':
+                announce(message.statusMessage, message.status === 'MATRIX_FULL' ? 'caution' : 'info');
                 break;
 
             case 'presetStatus':
@@ -536,6 +543,9 @@ export function App(): JSX.Element {
                     </>
                 ) : null}
             </main>
+
+            {/* A modulation source being carried to a control (13h-4). */}
+            <ModCarryLayer />
 
             <footer className="footer">
                 <span role="status" className="footer__status" data-tone={statusTone}>

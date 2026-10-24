@@ -42,6 +42,9 @@ export interface ParameterDefinition {
     automatable: boolean;
     modulatable: boolean;
     smoothed: boolean;
+    /** The matrix destination this control is, or 0 (Phase 13h-4): which
+        knobs take a dropped source, and which one a routing lights. */
+    destination: number;
 }
 
 //==============================================================================
@@ -299,6 +302,18 @@ export interface ContentSlotsMessage {
     statusMessage: string;
 }
 
+/** What a dropped source or a cleared slot did (Phase 13h-4). The slots are
+    parameters and arrive as parameters do; this is the sentence. */
+export interface ModulationRoutingMessage {
+    type: 'modulationRouting';
+    version: number;
+    /** ASSIGNED, ALREADY_ROUTED, MATRIX_FULL or CLEARED. */
+    status: string;
+    statusMessage: string;
+    /** From 1, or 0 for none. */
+    slot: number;
+}
+
 export interface ErrorMessage {
     type: 'error';
     version: number;
@@ -320,6 +335,7 @@ export type InboundMessage =
     | PresetStatusMessage
     | ContentIndexMessage
     | ContentSlotsMessage
+    | ModulationRoutingMessage
     | ErrorMessage;
 
 //==============================================================================
@@ -371,6 +387,8 @@ export type OutboundMessage =
     | { type: 'saveContentToLibrary'; version: number; slot: ContentSlot }
     | { type: 'revealContentFolder'; version: number; kind: ContentKind }
     | { type: 'setLfoCurve'; version: number; lfo: number; points: LfoCurvePoint[] }
+    | { type: 'modulationAssign'; version: number; source: number; id: string }
+    | { type: 'modulationClear'; version: number; slot: number }
     | {
           type: 'savePreset';
           version: number;

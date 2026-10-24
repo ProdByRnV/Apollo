@@ -1,5 +1,6 @@
 #include "UI/ParameterBridge.h"
 
+#include "Parameters/ModulationTargets.h"
 #include "Parameters/ParameterLayout.h"
 #include "Resources/PresetLibrary.h"
 #include "State/PresetDocument.h"
@@ -314,6 +315,10 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
         case BridgeCommandType::midiMappingEdit:
             return applyMappingEdit (command);
+
+        case BridgeCommandType::modulationAssign:
+        case BridgeCommandType::modulationClear:
+            return applyModulationCommand (command);
 
         case BridgeCommandType::requestMidiMappings:
         case BridgeCommandType::midiLearnBegin:
@@ -1072,6 +1077,145 @@ void ParameterBridge::flushPendingUpdates()
 
         if (const auto* parameter = apvts.getParameter (id))
             outboundHandler (makeParameterChangedMessage (id, parameter->getValue()));
+    }
+}
+
+//==============================================================================
+
+namespace
+{
+
+juce::String slotPrefix (int slot)
+{
+    return "mod" + juce::String (slot + 1).paddedLeft ('0', 2) + "_";
+}
+
+juce::String nameOfSource (dsp::ModSource source)
+{
+    return params::toJuceString (params::sourceName (source));
+}
+
+juce::String nameOfDestination (dsp::ModDestination destination)
+{
+    const auto* definition = params::findParameter (params::parameterForDestination (destination));
+    return definition != nullptr ? params::toJuceString (definition->name) : juce::String ("that control");
+}
+
+juce::String percentage (float depth)
+{
+    const auto percent = juce::roundToInt (depth * 100.0f);
+    return (percent > 0 ? "+" : "") + juce::String (percent) + "%";
+}
+
+} // namespace
+
+void ParameterBridge::setPlainValue (const juce::String& parameterId, float plain)
+{
+    auto* parameter = apvts.getParameter (parameterId);
+
+    if (parameter == nullptr)
+    {
+        jassertfalse;
+        return;
+    }
+
+    parameter->beginChangeGesture();
+    parameter->setValueNotifyingHost (parameter->convertTo0to1 (plain));
+    parameter->endChangeGesture();
+}
+
+juce::String ParameterBridge::applyModulationCommand (const BridgeCommand& command)
+{
+    // The matrix as it stands now, read from the parameters that are it. The
+    // page's copy may be a frame behind; this one is not.
+    dsp::ModulationRouting routing;
+
+    for (int i = 0; i < dsp::maxModulationSlots; ++i)
+    {
+        const auto prefix = slotPrefix (i);
+        const auto plainOf = [this, &prefix] (const char* part)
+        {
+            const auto* value = apvts.getRawParameterValue (prefix + part);
+            return value != nullptr ? value->load() : 0.0f;
+        };
+
+        auto& slot = routing.slots[static_cast<std::size_t> (i)];
+        slot.source = static_cast<dsp::ModSource> (juce::roundToInt (plainOf ("source")));
+        slot.destination = static_cast<dsp::ModDestination> (juce::roundToInt (plainOf ("destination")));
+        slot.depth = plainOf ("depth");
+        slot.via = static_cast<dsp::ModSource> (juce::roundToInt (plainOf ("via")));
+    }
+
+    if (command.type == BridgeCommandType::modulationClear)
+    {
+        const auto index = command.modulationSlot;
+        const auto& slot = routing.slots[static_cast<std::size_t> (index)];
+        const auto prefix = slotPrefix (index);
+
+        const auto message = slot.source != dsp::ModSource::none && slot.destination != dsp::ModDestination::none
+            ? nameOfSource (slot.source) + " no longer moves " + nameOfDestination (slot.destination)
+                  + "; slot " + juce::String (index + 1) + " is empty."
+            : "Slot " + juce::String (index + 1) + " is empty.";
+
+        // The source first, so the slot stops doing anything with the first
+        // write rather than the last.
+        setPlainValue (prefix + "source", 0.0f);
+        setPlainValue (prefix + "destination", 0.0f);
+        setPlainValue (prefix + "depth", 0.0f);
+        setPlainValue (prefix + "via", 0.0f);
+
+        return makeModulationRoutingMessage ("CLEARED", message, index + 1);
+    }
+
+    const auto source = static_cast<dsp::ModSource> (command.modulationSource);
+    const auto destination = params::destinationForParameter (command.parameterId.toStdString());
+    const auto plan = params::planDrop (routing, source, destination);
+    const auto pairing = nameOfSource (source) + " → " + nameOfDestination (destination);
+
+    switch (plan.outcome)
+    {
+        case params::DropOutcome::assigned:
+        {
+            const auto prefix = slotPrefix (plan.slot);
+
+            // The source last, so the slot does nothing until all of it is
+            // there: a block that read it half written would route a source at
+            // whatever depth the empty slot happened to hold.
+            setPlainValue (prefix + "via", 0.0f);
+            setPlainValue (prefix + "depth", params::dropDepth);
+            setPlainValue (prefix + "destination", static_cast<float> (destination));
+            setPlainValue (prefix + "source", static_cast<float> (source));
+
+            return makeModulationRoutingMessage (
+                "ASSIGNED",
+                pairing + " in slot " + juce::String (plan.slot + 1) + ", at " + percentage (params::dropDepth)
+                    + ". Drag its tag on the control to change how far.",
+                plan.slot + 1);
+        }
+
+        case params::DropOutcome::revived:
+            setPlainValue (slotPrefix (plan.slot) + "depth", params::dropDepth);
+
+            return makeModulationRoutingMessage (
+                "ASSIGNED",
+                pairing + " in slot " + juce::String (plan.slot + 1) + ", now at "
+                    + percentage (params::dropDepth) + ".",
+                plan.slot + 1);
+
+        case params::DropOutcome::alreadyRouted:
+            return makeModulationRoutingMessage (
+                "ALREADY_ROUTED",
+                pairing + " is already in slot " + juce::String (plan.slot + 1) + ", at "
+                    + percentage (routing.slots[static_cast<std::size_t> (plan.slot)].depth) + ".",
+                plan.slot + 1);
+
+        case params::DropOutcome::matrixFull:
+        default:
+            return makeModulationRoutingMessage (
+                "MATRIX_FULL",
+                "All " + juce::String (dsp::maxModulationSlots)
+                    + " slots are in use. Clear one in the matrix to make room for " + pairing + ".",
+                0);
     }
 }
 

@@ -7253,3 +7253,115 @@ the list. A thread would cost more than the reading does.
   unannounced would be the wrong default for the commoner case.
 - **Deleting a profile's assignments with it.** A profile is a shortcut to
   assignments, not a mode they depend on (ADR-0046).
+
+---
+
+## ADR-0108 — A modulation source is dragged onto the control it should move, and the engine chooses the slot
+
+**Phase 13h-4 · Accepted**
+
+### What was built
+
+PRD §42.4 and the Phase 5 list in PRD §44 ask for drag-and-drop modulation.
+Until now a routing was made in the matrix alone: choose a source, choose a
+destination by name from thirty, set a depth. This puts the source on the
+control.
+
+- **Sources to pick up.** Every source, in matrix order, in a strip at the top
+  of the matrix; the envelope and the LFO on show, in their headings; and the
+  four macros, in theirs. Green, because modulation is green (CLAUDE.md §24.2).
+- **Controls that take one.** The 28 controls that are matrix destinations.
+  While a source is carried they are outlined in gold and every other control
+  steps back; the one under the pointer is drawn as held, and the source under
+  the pointer says where it would go ("LFO 1 → Filter 1 Cutoff").
+- **Dropped,** the engine routes it in the first free slot at +25% and says so:
+  "LFO 1 → Filter 1 Cutoff in slot 3, at +25%."
+- **A tag on the control** for every routing that moves it: "L1" for LFO 1,
+  green while it moves something, with a bar under it leaning right for a
+  positive depth and left for a negative one. Dragged up or down it changes
+  that routing's depth, and the control's readout shows the depth while it
+  does ("+85%", "ENV 1 depth"). Right-click inverts or removes it.
+- **The control's own menu** removes any routing on it, which is how it is done
+  from the keyboard.
+
+### The engine chooses the slot
+
+The page says only which source landed on which control:
+`modulationAssign {source, id}`. Which slot that becomes is the engine's
+answer, because the engine has the matrix as it is at the moment the drop
+arrives; the page's copy is up to a frame old, and a drop made by the page from
+it could land in a slot a host's automation had filled since.
+
+- **A free slot has neither a source nor a destination.** A slot with only one
+  of them is somebody's unfinished routing, and a drop has no business
+  finishing it differently. Its via is cleared, so a source left in an unused
+  slot's via does not quietly scale the new routing.
+- **A pairing is never doubled.** If a slot already routes that source to that
+  destination, the drop says so and changes nothing: a second slot would add
+  depth nothing on screen shows. If that slot's depth is zero, it moved
+  nothing, and the drop sets it to +25% rather than adding another.
+- **A full matrix is refused** in words, naming what could not be routed.
+- **The source is written last,** so the slot does nothing until all of it is
+  there. Each part is a parameter written on the message thread with a gesture
+  around it, exactly as the matrix's own controls write it, so a host records
+  it, automation sees it, and the project saves it. Clearing writes the source
+  first, for the same reason.
+
+### +25%, not zero
+
+Some instruments make a dropped routing at zero and leave the user to drag it
+open. A drop that changes nothing is indistinguishable from a drop that failed,
+and the user has to find out which. A quarter of the destination's range is two
+octaves of cutoff either way from an LFO, six semitones of pitch, a quarter of a
+level: heard at once, and rarely the wrong order of magnitude.
+
+### The tag says the depth, not the range the control will sweep
+
+A ring drawn round the dial from where the knob sits to where the modulation
+takes it would be the obvious picture. It would also have to know every
+destination's units — cutoff moves in octaves, pitch in semitones, resonance and
+drive in their own — and convert each into the knob's skewed travel, through a
+source that may be unipolar or bipolar and a via that scales it. Any of those
+wrong, and the ring is a picture of something the engine is not doing, which is
+worse than no picture (UI_BINDINGS.md §11). The depth is the number the matrix
+shows and the engine uses, and the tag says that.
+
+### Which control a destination is, said once
+
+A destination is an engine concept and not a parameter id
+(`DSP/Modulation/ModulationTypes.h`): All Pitch and Amplitude have no knob of their own. The
+correspondence for the other 28 was a table in the page, written to light the
+knob a routing moves. It is now `params::modulationTargets`, beside the
+registry, and the metadata carries each control's `destination`. The page's
+table is gone, so the knobs that take a drop, the knob a routing lights and the
+destination the engine routes are one list.
+
+### Carried two ways
+
+Dragged, with pointer capture: the source follows the pointer and lands where
+the button comes up. Held near the top or bottom of the page it scrolls, so a
+source in the matrix reaches an oscillator. Or picked up: a click on a source,
+or Enter on it, and it is held until a control is clicked or given Enter, and
+Escape or a click on anything else puts it down. That is the way that works
+from the keyboard and on a trackpad, and it is the same command.
+
+Not the browser's drag and drop. It draws a ghost of the operating system's
+choosing, cannot be driven from the keyboard, and inside a plugin's web view
+depends on what the host does with a drag that leaves its window.
+
+### Alternatives considered
+
+- **The page choosing the slot.** See above.
+- **Any `modulatable` parameter as a target.** That flag predates the matrix
+  and does not match it: detune is marked modulatable and is not a destination,
+  and Osc 1 Semitones is a destination and is not marked. The destination
+  table is what the engine routes.
+- **A ring showing the swept range.** See above.
+- **Starting at zero depth.** See above.
+
+### Not yet checked
+
+A host's undo history. A drop is four parameter edits, each its own gesture, so
+a host that records them may show four steps where the user took one. That
+would want the engine to group them, which no plugin format offers directly.
+Deferred with the rest of the DAW work.

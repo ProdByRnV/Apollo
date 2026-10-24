@@ -98,7 +98,8 @@ target_sources(ApolloTests PRIVATE
     UI/EditorSizingTests.cpp
     UI/BridgeProtocolTests.cpp
     UI/ParameterBridgeTests.cpp
-    UI/ContentBridgeTests.cpp)
+    UI/ContentBridgeTests.cpp
+    UI/ModulationDropTests.cpp)
 
 target_compile_definitions(ApolloTests PRIVATE
     JUCE_STANDALONE_APPLICATION=1

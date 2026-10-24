@@ -23,6 +23,9 @@ import { toPlain } from '../params/mapping';
 const definitions = new Map<string, ParameterDefinition>();
 const values = new Map<string, number>();
 
+/** Matrix destination to the control it moves, from the metadata. */
+const controls = new Map<number, string>();
+
 const valueListeners = new Map<string, Set<() => void>>();
 const metadataListeners = new Set<() => void>();
 
@@ -49,8 +52,14 @@ function notify(id: string): void {
 
 export function setDefinitions(incoming: ParameterDefinition[]): void {
     definitions.clear();
+    controls.clear();
 
-    for (const definition of incoming) definitions.set(definition.id, definition);
+    for (const definition of incoming) {
+        definitions.set(definition.id, definition);
+
+        // An older engine sends no destination; then nothing takes a drop.
+        if (definition.destination > 0) controls.set(definition.destination, definition.id);
+    }
 
     metadataVersion += 1;
     for (const listener of metadataListeners) listener();
@@ -107,6 +116,13 @@ export function valueOf(id: string): number {
 export function plainOf(id: string): number {
     const definition = definitions.get(id);
     return definition ? toPlain(definition, valueOf(id)) : 0;
+}
+
+/** The control a matrix destination moves, or undefined for one that is no
+    single control (All Pitch, Amplitude). The engine's table, from the
+    metadata. */
+export function controlForDestination(destination: number): string | undefined {
+    return controls.get(destination);
 }
 
 export function definitionCount(): number {

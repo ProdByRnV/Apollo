@@ -1,37 +1,51 @@
 /*
-    Which knobs a live routing actually moves.
+    Which routings land on which knob.
 
     The matrix knows this and the knobs need it, and they are half a page apart
     in the tree. Passing it down would mean every knob re-rendering whenever any
     slot changed — a hundred and forty-three of them, thirty times a second while
     a depth rail is being dragged.
 
-    So it is a store, and the hook a knob uses returns a **boolean**:
-    `useSyncExternalStore` compares snapshots with `Object.is`, so a knob
-    re-renders when its own answer flips and at no other time. Publishing is
-    likewise a no-op unless the set genuinely changed, which during a drag is
-    once — as the depth crosses zero.
+    So it is a store, and a knob reads only its own entry. `useSyncExternalStore`
+    compares snapshots with `Object.is`, so an entry keeps its identity until
+    something about that knob's routings changes, and a knob re-renders then and
+    at no other time. Since Phase 13h-4 the entry is the routings themselves,
+    not only whether there are any: a knob draws a tag for each, and dragging one
+    is how its depth is changed on the control (ADR-0108).
 */
 
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
-let lit: ReadonlySet<string> = new Set();
+import { sameRoutings } from '../params/modulationRouting';
+import type { ControlRouting } from '../params/modulationRouting';
+
+const NONE: readonly ControlRouting[] = [];
+
+let byControl: ReadonlyMap<string, readonly ControlRouting[]> = new Map();
 let assigned = 0;
 
 const listeners = new Set<() => void>();
 
-function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-    if (a.size !== b.size) return false;
+/** Replaces the routings. Entries that did not change keep their identity, so
+    only the knobs whose routings moved are told. */
+export function publishRouting(next: ReadonlyMap<string, readonly ControlRouting[]>, nextAssigned: number): void {
+    let changed = nextAssigned !== assigned || next.size !== byControl.size;
+    const merged = new Map<string, readonly ControlRouting[]>();
 
-    for (const value of a) if (!b.has(value)) return false;
+    for (const [id, routings] of next) {
+        const previous = byControl.get(id);
 
-    return true;
-}
+        if (previous !== undefined && sameRoutings(previous, routings)) {
+            merged.set(id, previous);
+        } else {
+            merged.set(id, routings);
+            changed = true;
+        }
+    }
 
-export function publishRouting(nextLit: ReadonlySet<string>, nextAssigned: number): void {
-    if (nextAssigned === assigned && sameSet(nextLit, lit)) return;
+    if (!changed) return;
 
-    lit = nextLit;
+    byControl = merged;
     assigned = nextAssigned;
 
     for (const listener of listeners) listener();
@@ -42,8 +56,21 @@ function subscribe(listener: () => void): () => void {
     return () => { listeners.delete(listener); };
 }
 
+/** Every routing on one control, for a menu that is not rendering. */
+export function routingsOf(id: string): readonly ControlRouting[] {
+    return byControl.get(id) ?? NONE;
+}
+
+export function useRoutingsOf(id: string): readonly ControlRouting[] {
+    const snapshot = useCallback(() => routingsOf(id), [id]);
+    return useSyncExternalStore(subscribe, snapshot);
+}
+
+/** True when a routing is actually moving the control: a boolean, so a knob
+    re-renders when its answer flips and not while a depth is dragged. */
 export function useIsModulated(id: string): boolean {
-    return useSyncExternalStore(subscribe, () => lit.has(id));
+    const snapshot = useCallback(() => routingsOf(id).some((routing) => routing.live), [id]);
+    return useSyncExternalStore(subscribe, snapshot);
 }
 
 export function useAssignedRoutings(): number {

@@ -272,6 +272,13 @@ private:
     /** Changes one assignment's controller, channel or range (Phase 13h-3). */
     [[nodiscard]] juce::String applyMappingEdit (const BridgeCommand& command);
 
+    /** Routes a dropped source, or empties a slot (Phase 13h-4). */
+    [[nodiscard]] juce::String applyModulationCommand (const BridgeCommand& command);
+
+    /** Sets one parameter to @p plain as a whole gesture, so a host records it
+        as an edit of its own. MESSAGE THREAD. */
+    void setPlainValue (const juce::String& parameterId, float plain);
+
     [[nodiscard]] static int indexOfParameter (const juce::String& parameterID);
 
     juce::AudioProcessorValueTreeState& apvts;

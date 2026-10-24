@@ -438,7 +438,7 @@ LFO 1 → ENV 2 Depth
 ```
 The matrix must be designed so additional sources and destinations can be added without rewriting the modulation engine.
 
-> **Status, 0.1.0 to 13e-5:** ✅ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, since Phase 13b each oscillator's warp amount, since Phase 13e-4 each filter's drive, mix and key tracking (ADR-0099), and since Phase 13e-5 six effect controls — distortion drive and mix, delay feedback and mix, reverb mix and compressor mix — which follow the newest sounding note, or the engine-wide sources when nothing sounds (ADR-0100). ✅ Modulation of depth: since Phase 13e-4 every slot has a via source that scales its contribution, so "LFO 1 → ENV 2 depth" is ENV 2's routing with LFO 1 as its via. Not every effect control is a destination: only the ones the effects smooth per sample. New sources and destinations are added without rewriting the engine, as required.
+> **Status, 0.1.0 to 13e-5:** ✅ Sixteen bipolar routings. ✅ Sources: the four envelopes and four LFOs, velocity, key tracking, the mod wheel, pitch bend, aftertouch (per note), a random source and MPE timbre, and since Phase 13e-3 the four macros (ADR-0098). ✅ Destinations: pitch (both oscillators or either), wavetable position, level and pan, sub and noise level, both filters' cutoff and resonance, amplitude, since Phase 13b each oscillator's warp amount, since Phase 13e-4 each filter's drive, mix and key tracking (ADR-0099), and since Phase 13e-5 six effect controls — distortion drive and mix, delay feedback and mix, reverb mix and compressor mix — which follow the newest sounding note, or the engine-wide sources when nothing sounds (ADR-0100). ✅ Modulation of depth: since Phase 13e-4 every slot has a via source that scales its contribution, so "LFO 1 → ENV 2 depth" is ENV 2's routing with LFO 1 as its via. Not every effect control is a destination: only the ones the effects smooth per sample. New sources and destinations are added without rewriting the engine, as required. ✅ Since Phase 13h-4 a routing is also made by dragging a source onto the control it should move, and its depth changed by dragging its tag on that control (ADR-0108).
 
 ---
 17. Macro Controls
@@ -981,7 +981,7 @@ Error states.
 42.5 Host Compatibility Tests
 Test multiple standards-compliant DAWs rather than optimizing exclusively for one DAW.
 
-> **Status, 0.1.0:** ✅ §42.1–§42.3, in over two million assertions, regression renders and a host harness. ◐ §42.4 the interface has unit tests for its logic and is otherwise driven in the running application (Docs/TESTING.md §10); drag-and-drop modulation does not exist. ❌ §42.5 no DAW yet.
+> **Status, 0.1.0:** ✅ §42.1–§42.3, in over two million assertions, regression renders and a host harness. ◐ §42.4 the interface has unit tests for its logic and is otherwise driven in the running application (Docs/TESTING.md §10); drag-and-drop modulation exists since Phase 13h-4 and is tested both ways, the engine's half in the unit suite and the page's half in the interface tests, and was driven by hand (ADR-0108). ❌ §42.5 no DAW yet.
 
 ---
 43. Accessibility

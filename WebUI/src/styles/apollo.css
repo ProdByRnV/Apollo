@@ -2291,3 +2291,174 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     color: var(--text-dim);
     font-size: var(--t-body);
 }
+
+/* ==========================================================================
+   DRAG-AND-DROP MODULATION (Phase 13h-4, ADR-0108)
+   A source is green, because modulation is green everywhere else in the
+   interface (§24.2). Where it can go is gold, because gold is where the hand
+   is: the controls that would take it are outlined while it is carried, and
+   the one under the pointer is drawn as held.
+   ========================================================================== */
+
+.mod-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px 2px 5px;
+    font: inherit;
+    font-size: var(--t-label);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--active);
+    background: var(--surface-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.mod-source:hover {
+    border-color: var(--active);
+    background: var(--active-glow);
+}
+
+.mod-source:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Picked up: filled, and pressed for a screen reader, so "I am holding this"
+   is said in a shape and a state as well as in a colour. */
+.mod-source[data-held="true"] {
+    color: var(--surface-void);
+    background: var(--active);
+    border-color: var(--active);
+}
+
+.mod-source__grip {
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1;
+}
+
+.mod-source[data-held="true"] .mod-source__grip {
+    color: inherit;
+}
+
+.mod-source--compact {
+    padding: 1px 6px 1px 4px;
+}
+
+.mod-sources {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-1);
+    margin-bottom: var(--s-3);
+}
+
+.mod-sources__hint {
+    margin-right: var(--s-1);
+    font-size: var(--t-label);
+    color: var(--text-dim);
+}
+
+body[data-carrying="true"] .knob[data-mod-target] {
+    outline: 1px dashed var(--accent);
+    outline-offset: 1px;
+    cursor: copy;
+}
+
+/* The rest step back rather than vanish, so the layout does not move under a
+   hand that is in the middle of aiming. */
+body[data-carrying="true"] .knob:not([data-mod-target]) {
+    opacity: 0.35;
+}
+
+body[data-carrying="true"] .knob[data-carried-over="true"] {
+    outline: 2px solid var(--accent-bright);
+    outline-offset: 1px;
+    background: var(--accent-glow);
+}
+
+.mod-ghost {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    padding: 3px 8px;
+    font-size: var(--t-label);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--surface-void);
+    background: var(--active);
+    border-radius: var(--r-sm);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.mod-ghost__target {
+    text-transform: none;
+}
+
+/* The routings on a control: a column of tags in the corner the MIDI badge
+   does not use, clear of the dial. */
+.mod-tags {
+    position: absolute;
+    top: 2px;
+    left: 1px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mod-tag {
+    position: relative;
+    width: 15px;
+    height: 11px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    line-height: 9px;
+    text-align: center;
+    color: var(--text-dim);
+    background: var(--surface-void);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+}
+
+.mod-tag[data-live="true"] {
+    color: var(--active);
+    border-color: rgba(61, 220, 132, 0.55);
+}
+
+.mod-tag:hover {
+    color: var(--text-bright);
+    border-color: var(--active);
+}
+
+/* The depth, under the letters: right of centre for positive, left for
+   negative, as far as the depth goes. */
+.mod-tag::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: var(--depth-left, 50%);
+    width: var(--depth-width, 0);
+    height: 2px;
+    background: var(--active);
+}
+
+.mod-tag--more {
+    cursor: default;
+}
+
+.mod-tag--more::after {
+    display: none;
+}

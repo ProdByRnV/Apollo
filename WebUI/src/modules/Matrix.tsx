@@ -4,15 +4,21 @@
     Two banks of eight rather than one column of sixteen: a routing should read
     as a single line from source to depth, and across a wide window one table
     puts half a screen between the two ends of the same statement.
+
+    Above them, every source as a handle (Phase 13h-4): drag one onto a control
+    and the engine fills the first free slot here.
 */
 
 import { useEffect } from 'react';
 
 import { BipolarRail } from '../components/BipolarRail';
+import { ModSourceStrip } from '../components/ModSource';
 import { Module } from '../components/Module';
 import { Select } from '../components/Select';
-import { DESTINATION_PARAMETER, LABELS } from '../params/labels';
-import { plainOf, useParameterValue } from '../state/parameters';
+import { LABELS } from '../params/labels';
+import { liveSlotCount, routingsByControl, SILENT_DEPTH } from '../params/modulationRouting';
+import type { SlotState } from '../params/modulationRouting';
+import { controlForDestination, plainOf, useMetadataVersion, useParameterValue } from '../state/parameters';
 import { publishRouting } from '../state/modulation';
 
 export const SLOT_COUNT = 16;
@@ -53,7 +59,7 @@ function Row({ slot }: RowProps): JSX.Element {
     // the slot moves nothing, and showing it as live would be a lie.
     const live = Math.round(plainOf(sourceId)) > 0
         && Math.round(plainOf(destinationId)) > 0
-        && Math.abs(plainOf(depthId)) > 0.0005;
+        && Math.abs(plainOf(depthId)) > SILENT_DEPTH;
 
     return (
         <tr data-assigned={live ? 'true' : 'false'}>
@@ -117,28 +123,23 @@ export function Matrix(): JSX.Element {
     // actually redraw; this is the one subscription that has to see all of them.
     for (const id of MATRIX_PARAMETER_IDS) useParameterValue(id);
 
+    // And the metadata, which says which control each destination is.
+    useMetadataVersion();
+
     useEffect(() => {
-        const lit = new Set<string>();
-        let assigned = 0;
+        const slots: SlotState[] = Array.from({ length: SLOT_COUNT }, (_, index) => ({
+            source: plainOf(slotId(index + 1, 'source')),
+            destination: plainOf(slotId(index + 1, 'destination')),
+            depth: plainOf(slotId(index + 1, 'depth')),
+        }));
 
-        for (let slot = 1; slot <= SLOT_COUNT; ++slot) {
-            const source = Math.round(plainOf(slotId(slot, 'source')));
-            const destination = Math.round(plainOf(slotId(slot, 'destination')));
-            const depth = plainOf(slotId(slot, 'depth'));
-
-            if (!(source > 0 && destination > 0 && Math.abs(depth) > 0.0005)) continue;
-
-            ++assigned;
-
-            const target = DESTINATION_PARAMETER[destination];
-            if (target) lit.add(target);
-        }
-
-        publishRouting(lit, assigned);
+        publishRouting(routingsByControl(slots, controlForDestination), liveSlotCount(slots));
     });
 
     return (
         <Module title="Modulation Matrix" bodyClassName="module__body--block">
+            <ModSourceStrip />
+
             <div className="matrix-banks">
                 <Bank bank={0} />
                 <Bank bank={1} />

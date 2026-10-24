@@ -44,7 +44,8 @@ curves, shaped by dragging them; four LFOs with seven built-in shapes and one
 you draw, which can follow the host's tempo; and a sixteen-slot modulation
 matrix, each slot's depth itself modulatable, whose sources include velocity,
 key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source
-and four macros, each with a range and a curve.
+and four macros, each with a range and a curve. Drag a source onto a control to
+modulate it, and drag the tag that appears to set how far.
 
 **Your own content.** Each oscillator can play a wavetable of your own, and the
 noise generator a sample of your own, played once or looped. Choose them from

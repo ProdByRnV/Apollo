@@ -113,7 +113,10 @@ enum class BridgeErrorCode
 
     /** An edited MIDI assignment with a controller, channel or range that is
         not one. */
-    invalidMapping
+    invalidMapping,
+    /** A dropped modulation source that is not one, a control that is not a
+        destination, or a matrix slot that does not exist (Phase 13h-4). */
+    invalidModulation
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -204,7 +207,12 @@ enum class BridgeCommandType
     chooseContentFile,    ///< Open the native file dialog for a slot.
     clearContent,         ///< Empty a slot.
     saveContentToLibrary, ///< Write a slot's audio into the user's library.
-    revealContentFolder   ///< Open the user's library folder for a kind.
+    revealContentFolder,  ///< Open the user's library folder for a kind.
+    // Drag-and-drop modulation (Phase 13h-4). The page says which source was
+    // dropped on which control; the engine chooses the slot, because only it
+    // knows which are free at the moment the drop lands.
+    modulationAssign, ///< Route a source to the destination a control is.
+    modulationClear   ///< Empty one matrix slot.
 };
 
 /** A validated command.
@@ -283,6 +291,12 @@ struct BridgeCommand
     resources::ContentSlot contentSlot = resources::ContentSlot::osc1;
     resources::ContentKind contentKind = resources::ContentKind::wavetable;
     int contentId = 0;
+
+    /** For modulationAssign: the source, a dsp::ModSource other than none;
+        the control is parameterId, which is a destination. For
+        modulationClear: the slot, from 0. */
+    int modulationSource = 0;
+    int modulationSlot = 0;
 };
 
 /** The outcome of parsing one inbound message. */
@@ -495,5 +509,15 @@ struct ContentSlotDescription
     being the authoritative one), and after a state load replaces them.
 */
 [[nodiscard]] juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves);
+
+/** `{"type":"modulationRouting", ...}`
+    What a drop or a clear did (Phase 13h-4). The slots themselves are
+    parameters and reach the page as parameters do; this is the sentence.
+    @param token    ASSIGNED, ALREADY_ROUTED, MATRIX_FULL or CLEARED.
+    @param slot     the slot it concerns, from 1, or 0 for none.
+*/
+[[nodiscard]] juce::String makeModulationRoutingMessage (const juce::String& token,
+                                                         const juce::String& message,
+                                                         int slot);
 
 } // namespace apollo::ui

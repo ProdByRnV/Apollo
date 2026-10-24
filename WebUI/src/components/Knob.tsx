@@ -15,6 +15,11 @@
     Enter or clicking away sets it; Escape leaves the knob as it was. Text the
     control cannot read keeps the field open and says so in the label, in words
     rather than only in red (params/parse.ts, CLAUDE.md §24.2).
+
+    A SOURCE CAN BE DROPPED ON IT, when it is a modulation destination (Phase
+    13h-4, ADR-0108). While one is carried the knob is outlined; dropped, the
+    engine routes it, and a tag appears on the knob for the routing — dragged
+    to change its depth, which the readout shows while it moves.
 */
 
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -30,9 +35,14 @@ import {
     useParameterValue,
     valueOf,
 } from '../state/parameters';
-import { gesture } from '../bridge/bridge';
-import { useIsModulated } from '../state/modulation';
+import { gesture, modulationClear } from '../bridge/bridge';
+import { depthText } from '../params/modulationRouting';
+import { currentCarry, useCarriedOver } from '../state/modDrag';
+import { routingsOf, useIsModulated } from '../state/modulation';
 import { useMidiChrome } from './midiChrome';
+import { dropOn, sourceName } from './ModSource';
+import { RoutingTags } from './RoutingTags';
+import type { Readout } from './RoutingTags';
 
 const START_ANGLE = -135;
 const END_ANGLE = 135;
@@ -109,7 +119,17 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
     // interface: a knob lights when a routing is actually moving it (§24.2).
     const modulated = useIsModulated(id);
 
+    /** True while a carried source is over this knob. */
+    const carriedOver = useCarriedOver(id);
+
+    /** What a routing's tag says while it is dragged, in place of the value. */
+    const [readout, setReadout] = useState<Readout | null>(null);
+
     if (!definition) return null;
+
+    // A destination takes a dropped source. The engine says which knobs are;
+    // one that sends no destination makes none of them targets.
+    const isTarget = (definition.destination ?? 0) > 0;
 
     // A parameter whose range crosses zero fills outward from the centre, so a
     // detune of zero looks like a centred control rather than a quarter turn.
@@ -127,6 +147,13 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
 
     const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
         if (event.button !== 0) return;
+
+        // A source picked up is put down here, not turned into a drag.
+        if (isTarget && currentCarry()?.mode === 'pick') {
+            event.preventDefault();
+            dropOn(id);
+            return;
+        }
 
         rootRef.current?.setPointerCapture(event.pointerId);
 
@@ -249,7 +276,12 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
     const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            beginEntry();
+
+            // With a source picked up, Enter puts it here rather than opening
+            // the value for typing.
+            if (isTarget && currentCarry() !== null) dropOn(id);
+            else beginEntry();
+
             return;
         }
 
@@ -298,7 +330,9 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
             data-midi-id={id}
             data-midi={chrome.state}
             data-modulated={modulated ? 'true' : 'false'}
-            data-held={dragging ? 'true' : 'false'}
+            data-held={dragging || readout !== null ? 'true' : 'false'}
+            data-mod-target={isTarget ? id : undefined}
+            data-carried-over={carriedOver ? 'true' : undefined}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={release}
@@ -349,11 +383,13 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
                     onContextMenu={(event) => event.stopPropagation()}
                 />
             ) : (
-                <div className="knob__value">{text}</div>
+                <div className="knob__value">{readout?.value ?? text}</div>
             )}
             <div className="knob__label" data-refused={entryRefused ? 'true' : 'false'}>
-                {entryRefused ? 'Not understood' : label}
+                {entryRefused ? 'Not understood' : readout?.label ?? label}
             </div>
+
+            <RoutingTags id={id} controlName={definition.name} onReadout={setReadout} />
 
             <span
                 className="midi-badge"
@@ -382,6 +418,13 @@ export function Knob({ id, label }: KnobProps): JSX.Element | null {
                             // control happens to be.
                             disabled: Math.abs (normalized - defaultNormalized) < 1.0e-6,
                         },
+                        // Every routing that moves it can be taken off here,
+                        // which is how it is done from the keyboard: the tags
+                        // are not Tab stops.
+                        ...routingsOf (id).map ((routing) => ({
+                            label: `Remove ${sourceName (routing.source)} ${depthText (routing.depth)} (slot ${routing.slot})`,
+                            onChoose: () => modulationClear (routing.slot),
+                        })),
                     ]}
                     onClose={() => setMenuAt (null)}
                 />

@@ -1,5 +1,6 @@
 #include "UI/BridgeProtocol.h"
 
+#include "Parameters/ModulationTargets.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "Parameters/ParameterId.h"
 
@@ -57,6 +58,7 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::unknownProfile:             return "UNKNOWN_PROFILE";
         case BridgeErrorCode::invalidProfileName:         return "INVALID_PROFILE_NAME";
         case BridgeErrorCode::invalidMapping:             return "INVALID_MAPPING";
+        case BridgeErrorCode::invalidModulation:          return "INVALID_MODULATION";
     }
 
     return "MALFORMED_MESSAGE";
@@ -88,6 +90,7 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::unknownProfile:             return "That controller profile is not there any more.";
         case BridgeErrorCode::invalidProfileName:         return "That name cannot be used for a profile.";
         case BridgeErrorCode::invalidMapping:             return "That is not an assignment Apollo can make.";
+        case BridgeErrorCode::invalidModulation:          return "That is not a routing Apollo can make.";
     }
 
     return "The message could not be read.";
@@ -542,6 +545,42 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    // A whole number in [low, high], or false. Shared by the commands below.
+    const auto wholeNumberIn = [&object] (const char* property, int low, int high, int& out) -> bool
+    {
+        if (! object->hasProperty (property))
+            return false;
+
+        const auto value = object->getProperty (property);
+
+        if (! isNumber (value))
+            return false;
+
+        const auto number = static_cast<double> (value);
+
+        if (! std::isfinite (number) || number != std::floor (number)
+            || number < static_cast<double> (low) || number > static_cast<double> (high))
+            return false;
+
+        out = static_cast<int> (number);
+        return true;
+    };
+
+    if (messageType == "modulationClear")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::modulationClear;
+
+        // From 1 on the wire, as the matrix numbers its rows.
+        int slot = 0;
+
+        if (! wholeNumberIn ("slot", 1, dsp::maxModulationSlots, slot))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidModulation);
+
+        command.modulationSlot = slot - 1;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "applyControllerProfile")
     {
         BridgeCommand command;
@@ -714,6 +753,25 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "modulationAssign")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::modulationAssign;
+
+        if (const auto error = readParameterId (command.parameterId); error != BridgeErrorCode::none)
+            return BridgeParseResult::failure (error);
+
+        // A real parameter that is not a destination is refused here, so
+        // nothing past this point has to ask.
+        if (params::destinationForParameter (command.parameterId.toStdString()) == dsp::ModDestination::none)
+            return BridgeParseResult::failure (BridgeErrorCode::invalidModulation);
+
+        if (! wholeNumberIn ("source", 1, static_cast<int> (dsp::ModSource::count) - 1, command.modulationSource))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidModulation);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "midiLearnBegin" || messageType == "midiMappingRemove")
     {
         BridgeCommand command;
@@ -788,6 +846,11 @@ juce::String makeParameterMetadataMessage()
         entry->setProperty ("automatable", definition.automatable);
         entry->setProperty ("modulatable", definition.modulatable);
         entry->setProperty ("smoothed", definition.smoothed);
+
+        // The matrix destination this control is, or 0: which knobs accept a
+        // dropped source, and which one a routing lights (ADR-0108).
+        entry->setProperty ("destination",
+                            static_cast<int> (params::destinationForParameter (definition.id)));
 
         entries.add (juce::var (entry));
     }
@@ -1295,6 +1358,18 @@ juce::String makePresetStatusMessage (const juce::String& token,
     object->setProperty ("category", clean.category);
     object->setProperty ("comment", clean.comment);
     object->setProperty ("loaded", loadedId);
+
+    return juce::JSON::toString (juce::var (object));
+}
+
+juce::String makeModulationRoutingMessage (const juce::String& token, const juce::String& message, int slot)
+{
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "modulationRouting");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("status", token);
+    object->setProperty ("statusMessage", message);
+    object->setProperty ("slot", slot);
 
     return juce::JSON::toString (juce::var (object));
 }

@@ -158,42 +158,6 @@ export const LABELS: Record<string, readonly string[]> = {
     osc2_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],
 };
 
-/** Which knob a modulation destination points at, so an assigned routing can
-    light up the control it actually moves. Destinations with no single parameter
-    of their own — All Pitch and voice Amplitude — are absent rather than guessed
-    at. Osc 1 Pitch joined in 13a, when oscillator 1 gained a tuning control.
-*/
-export const DESTINATION_PARAMETER: Record<number, string> = {
-    2: 'osc1_semitones',
-    3: 'osc2_semitones',
-    4: 'osc1_position',
-    5: 'osc2_position',
-    6: 'osc1_level',
-    7: 'osc2_level',
-    8: 'osc1_pan',
-    9: 'osc2_pan',
-    10: 'sub_level',
-    11: 'noise_level',
-    12: 'filter1_cutoff',
-    13: 'filter1_resonance',
-    14: 'filter2_cutoff',
-    15: 'filter2_resonance',
-    17: 'osc1_warp_amount',
-    18: 'osc2_warp_amount',
-    19: 'filter1_drive',
-    20: 'filter1_mix',
-    21: 'filter1_keytrack',
-    22: 'filter2_drive',
-    23: 'filter2_mix',
-    24: 'filter2_keytrack',
-    25: 'fx_distortion_drive',
-    26: 'fx_distortion_mix',
-    27: 'fx_delay_feedback',
-    28: 'fx_delay_mix',
-    29: 'fx_reverb_mix',
-    30: 'fx_compressor_mix',
-};
-
 /** `dsp::EnvelopeStage`, in its own numeric order. Shown as a word because a
     colour cannot say "decay" (CLAUDE.md §39).
 */

@@ -1094,6 +1094,39 @@ index, 1 to 10 000, a whole number.
 
 ---
 
+### 10.11 Drag-and-drop modulation (Phase 13h-4)
+
+A source dropped on a control is routed by the engine (ADR-0108). The page says
+what landed where; the engine chooses the slot.
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `modulationAssign` | `source` (1-19, `dsp::ModSource`), `id` (a control that is a destination) | Route the source to that control's destination, in the first slot with neither a source nor a destination, at +25%. A control that is not a destination, or a source that is not one, is `INVALID_MODULATION`. |
+| `modulationClear` | `slot` (1-16) | Empty a slot: source, destination, depth and via back to nothing. |
+
+Both are answered with:
+
+```json
+{ "type": "modulationRouting", "version": 1,
+  "status": "ASSIGNED", "slot": 3,
+  "statusMessage": "LFO 1 → Filter 1 Cutoff in slot 3, at +25%. Drag its tag on the control to change how far." }
+```
+
+- **`status`** is ASSIGNED, ALREADY_ROUTED (the pairing is in `slot` and
+  nothing changed), MATRIX_FULL (`slot` is 0) or CLEARED. A pairing whose slot
+  had a depth of zero is set to +25% and reported as ASSIGNED.
+- **The slots are parameters**, written on the message thread each with a
+  gesture, and reach the page as parameter echoes. The source is written last on
+  an assignment and first on a clear, so no block plays a slot half written.
+- **Which controls take a drop is the engine's.** Every parameter's metadata
+  carries `destination`, the `dsp::ModDestination` it is, or 0. There are 28;
+  All Pitch and Amplitude are no single control. The page keeps no table of its
+  own.
+- **A routing's depth is changed on the control** by dragging its tag, which
+  writes the slot's `modNN_depth` like any other control, gesture and all.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
@@ -1240,6 +1273,13 @@ The UI may display:
 
 The frontend must not overwrite the base APVTS value simply to visualize modulation.
 
+**As built.** A control a live routing moves has a green arc. Since 13h-4 it
+also carries a tag for each routing on it, saying the source in two letters and
+the depth as a bar, and dragging the tag changes that depth (§10.11, ADR-0108).
+The tag shows the depth rather than the range the control will sweep, which
+would need every destination's units converted into the knob's travel; a sweep
+drawn wrongly would be a picture of something the engine is not doing.
+
 Audio-rate or extremely high-frequency modulation should be represented by sampled/smoothed UI data rather than every DSP update.
 
 ---
@@ -1337,6 +1377,7 @@ the user, not for a developer, since the page displays it as given:
 | `UNKNOWN_PROFILE` | A controller profile that is not a built-in or one of the user's, or one removed since the list was sent (§10.3) | Yes: a profile deleted in a file manager while the picker was open |
 | `INVALID_PROFILE_NAME` | A profile name with nothing usable in it, longer than 64 characters, or a description longer than 200 (§10.3) | Yes: the save form keeps what was typed |
 | `INVALID_MAPPING` | An edited assignment with a controller, channel or range that is not one (§10.3) | No: the table only sends numbers it has checked |
+| `INVALID_MODULATION` | A dropped source that is not one, a control that is not a destination, or a slot that does not exist (§10.11) | No: only destinations take a drop |
 | `INVALID_CONTENT_SLOT` | A content command named a slot other than `osc1`, `osc2` or `noise`, or a kind other than `wavetable` or `noise` (§10.10) | No: the browsers only send their own slot |
 
 **How the page shows them (12c-3).** The status line shows an error with a
@@ -1441,9 +1482,11 @@ its own value moves and at no other time.
 
 Three more stores follow the same shape with the granularity each frequency
 deserves. MIDI mappings change a few times a minute and share one listener set.
-Which knobs a live routing lights is published by the matrix and read by each
-knob as a **boolean**, so a knob re-renders when its own answer flips rather than
-whenever any slot moves. Telemetry frames do not go through React at all
+Which routings land on which knob is published by the matrix and read by each
+knob as its own entry, which keeps its identity until that knob's routings
+change, so a knob re-renders then rather than whenever any slot moves; whether
+it is lit is read as a **boolean**. Since 13h-4 another store holds a
+modulation source being carried to a control (`state/modDrag.ts`). Telemetry frames do not go through React at all
 (§10.4, §10.5): a frame is delivered by call to whoever subscribed to that
 source, and the canvas is drawn imperatively.
 
