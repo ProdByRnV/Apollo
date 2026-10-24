@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 14 — Release candidate & release**, in four parts: **14a (the release candidate) done**; 14b installation, 14c release artifacts and 14d the tag to come (ADR-0109). Phase 13 (completing the specification) is complete: 13a to 13h, every feature the specification described that 0.1.0 lacked (ADR-0089 to ADR-0108). Phases 0 to 12 are complete; the DAW work in Phase 10 was closed by the developer's own testing in FL Studio (10e-2) |
-| **Status** | **Version 1.0.0, the release candidate.** It builds, passes its tests, packages and plays through a VST3 host on Windows, macOS, Linux and Linux ARM64 in CI; on Windows it has been played from two MIDI keyboards, its interface driven by hand, and the developer has made beats with it in FL Studio. Nothing open is P0 or P1 (ADR-0109). What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What 1.0.0 contains, for its users, is [CHANGELOG.md](CHANGELOG.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
-| **Milestone** | **M11 — Release Candidate is met** with 14a. Working toward the release itself (14b to 14d). M10 (Beta) is met, its representative-host testing included since the developer's FL Studio session |
-| **Next step** | **Phase 14b — installation**: the 1.0.0 package installed on a clean machine, found by hosts, the standalone launched, then uninstalled and updated. 14a made the candidate: version 1.0.0, every open issue read against the gate with nothing P0 or P1 left, symbol visibility closed with a CI check on what the plugin exports, the release notes (CHANGELOG.md), and the documents brought to the truth (ADR-0109). 13h-4, the last of Phase 13, made modulation something you drag: a source dropped on a control is routed by the engine in the first free matrix slot, a tag on the control shows each routing on it, and dragging the tag sets its depth (ADR-0108). 13h-3 gave the user profiles of their own: the current assignments saved under a name, edited through a new table of every assignment (controller, channel and range), exported and imported as `.rnvprofile` files through the system's dialogs, and removed (ADR-0107). 13h-2 made a program change choose a preset: the host is shown the built-in sounds as its program list, and a MIDI program change loads by the same numbering, bank 0 the built-ins and banks from 1 the rest of the library, off the audio thread and through the browser's own path (ADR-0106). 13h-1 gave the delay a link switch and the right side its own time and note value, and a sine that moves the time either side of where it is set, a quarter of a cycle apart on the two sides; linked and unmodulated it is the old delay sample for sample (ADR-0105). 13g is complete: each oscillator plays a wavetable of the user's own on USER and the noise a sample of their own on SAMPLE, once or looped; whatever is loaded travels inside the project or preset as lossless audio rather than as a path; and it is chosen from a library of folders by number or from anywhere through the system's own dialog (ADR-0104). 13f is complete: 13f-2 drew every envelope as a shape that can be dragged, another way of moving its knobs, on a time axis scaled as the knobs are (ADR-0103); 13f-1 gave every LFO a drawn shape: up to 32 points with a bend per segment, stored in presets and handed to the audio thread as a table (ADR-0102). Since 13e, at the developer's request, the equaliser draws the live spectrum of its input and output behind its curve (ADR-0101). 13e is complete: 13e-5 made six effect controls destinations, following the newest note or, in silence, the engine-wide sources (ADR-0100); 13e-4 made each filter's drive, mix and key tracking destinations and gave every slot a via source that modulates its depth (ADR-0099); 13e-3 added four macros, matrix sources with a range and a curve each (ADR-0098); 13e-2 gave each envelope a retrigger option, CONTINUE by default as before, and stopped a continuing steal from stepping (ADR-0097); 13e-1 gave the LFOs tempo sync, a free-running synced LFO locked to the bar (ADR-0096). 13d is complete: 13d-2 added four synthesised attack transients, played once per note and pitched by the key tracking without aliasing (ADR-0095); 13d-1 gave the noise a pink type at white's level and key tracking that plays it slower below middle C (ADR-0094). 13c is complete: 13c-3 added split routing, in which each source chooses filter 1, filter 2 or neither (ADR-0093); 13c-2 gave each filter a mix and key tracking (ADR-0092); 13c-1 gave both filter slots a comb, tuned by its cutoff, and a formant filter whose cutoff sweeps through five vowels (ADR-0091). 13b gave each oscillator five warp modes — sync, asym, PWM, bend, mirror — with a modulatable amount, aliasing treated three ways and pinned, and the wave display drawing the warp as it plays (ADR-0090). 13a before it gave both oscillators tuning and a start phase, the unison stack a detune curve, blend and phase randomisation, and the sub two more waveforms and tracking (ADR-0089). Deferred at the developer's direction: 10e-2 and 10e-3, everything to do with running Apollo inside a DAW |
+| **Phase** | **Phase 14 — Release candidate & release, complete.** Apollo **1.0.1** is published on the repository's Releases page, after 1.0.0 the same day, for Windows, macOS (universal), Linux and Linux ARM64 (ADR-0109, ADR-0110). Every phase in the roadmap is complete |
+| **Status** | **Released: version 1.0.1.** Built, tested and packaged by CI on four platforms, published with checksums, and installed from the Releases page on Windows by following the README. It has been played from two MIDI keyboards and in FL Studio by the developer. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
+| **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0 and 1.0.1 are published |
+| **Next step** | **None scheduled: the roadmap is complete.** What comes next is the developer's to choose. Candidates already written down: other DAWs (Ableton Live, Reaper and others); the interface seen on macOS and Linux; a Developer ID and notarisation for macOS, which would remove the Terminal step from the install guide; and the carried items in §8. 14b to 14d published Apollo: CI builds every platform as Release on a version tag and publishes the packages, checksums and notes when everything passes; installing the published 1.0.0 found JUCE's development files in every package, fixed and released as 1.0.1; the README gained a step-by-step guide (ADR-0110). 14a made the candidate (ADR-0109). Phase 13 built every feature the specification described that 0.1.0 lacked (ADR-0089 to ADR-0108) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2242,6 +2242,30 @@ Tested in: the whole suite and the host suite, unchanged at 1.0.0; CI's new
 export check on macOS and Linux; the Windows version read back from the built
 standalone, the built plugin and the copy in the plugin folder.
 
+### The release (Phase 14b to 14d)
+
+Apollo is on the repository's Releases page (ADR-0110).
+
+- **A release is a CI run on a version tag.** The ordinary workflow, built as
+  Release rather than RelWithDebInfo, and then a job that runs only when every
+  platform and the sanitizers passed: the tag checked against the version, the
+  four packages collected and refused if one is missing, `SHA256SUMS.txt`
+  written, the notes taken from `CHANGELOG.md`, and the release created. A
+  manual run can build as a release without publishing, and did, before the
+  first tag.
+- **Released: 1.0.0, then 1.0.1**, the same day. Installing the published 1.0.0
+  showed each package also held 65 MB of JUCE's development files; packaging
+  now takes Apollo's three components by name, and a package test refuses
+  anything else at the package root. Windows went from 23 MB to 7.3 MB.
+- **"Getting started" in the README**: the download for each system; installing
+  on Windows, macOS and Linux, including what the operating system says about
+  an unsigned download; finding Apollo in FL Studio, Ableton Live, Reaper or
+  any DAW; the standalone; first sounds; updating, uninstalling, and fixes for
+  what can go wrong.
+
+Tested in: `Tests/Host/PackageTests.cpp` (the package holds Apollo and nothing
+else), CI's release job on both tags, and by hand on Windows (§5a).
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -2343,7 +2367,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,345,400 assertions, 0 failures**, across 71 test classes, in `ApolloTests`; **52 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests`, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,345,400 assertions, 0 failures**, across 71 test classes, in `ApolloTests`; **52 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3423,6 +3447,26 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The published release, installed by the README, 2026-10-24
+
+Apollo 1.0.1 from the Releases page, on the development machine, as somebody the
+repository is shared with would get it: the README's Windows steps, followed in
+order. Done with 1.0.0 first, which is how its packages were found to carry
+JUCE's development files.
+
+| Checked | Result |
+|---|---|
+| Download | `releases/latest` resolved to v1.0.1 without signing in; the Windows zip, 7.4 MB, matched its line in `SHA256SUMS.txt` |
+| Step 1, unblock | The zip marked as downloaded from the internet, as a browser marks it; unblocking cleared it, and nothing extracted carried the mark |
+| Step 2, extract | Exactly `INSTALL.txt`, `README.md`, `Standalone/Apollo.exe` and `VST3/Apollo.vst3`, version 1.0.1 |
+| Step 3, the plugin | Copied into `C:\Program Files\Common Files\VST3`, identical to the download; the host suite found and loaded it there: 221 of 221 |
+| Step 4, the standalone | Copied to a folder of its own and run: "Ready.", 48 kHz, every control and source present |
+| Step 5, a preset | A click on Glass Bell: "Loaded Glass Bell."; Wire Pluck put back afterwards |
+
+**Not done by hand: macOS and Linux.** No machine here. CI installs each staged
+package and drives it through the host suite, but nobody has followed the guide
+on either, including the Terminal step on macOS.
 
 ### Apollo in FL Studio, by the developer, 2026-10-24
 
@@ -4554,24 +4598,25 @@ rather than stopping progress:
 
 ## 8. Recommended next action
 
-**Phase 14b — installation.** 14a made the candidate (ADR-0109); 14b tests the
-package rather than the code. On a machine that has never had Apollo or its
-build tools on it: install from the 1.0.0 package as `INSTALL.txt` says, see
-that hosts find the plugin, launch the standalone, then uninstall, and install
-over an older build to see that an update behaves. Windows is the platform
-this machine can do by hand; for macOS and Linux, CI already installs the staged
-package and drives it through the host suite, and what a person must do there
-is named rather than claimed.
+**The roadmap is complete; what follows is the developer's choice.** Apollo
+1.0.1 is published (ADR-0110). Written down and not scheduled:
 
-Then 14c (the release artifacts, from the candidate, with checksums) and 14d
-(the tag and the release).
-
-1. **Carried, none blocking**: issue 6, no allocation or lock detector on the
+1. **Other DAWs.** FL Studio is the one Apollo has been seen in. Ableton Live
+   and Reaper are in the install guide as those hosts' ordinary rescan, not
+   because Apollo was tried in them.
+2. **macOS and Linux by a person.** The interface has never been seen on
+   either, and nobody has followed the install guide there.
+3. **A Developer ID and notarisation for macOS**, which would remove the
+   Terminal step from the guide and the warning macOS shows. Needs an Apple
+   developer account.
+4. **Carried, none blocking**: issue 6, no allocation or lock detector on the
    audio thread; interface reload inside a host (12a); the structure-of-arrays
-   taps declined in ADR-0074; the desktop-only checks Phase 11 named rather than
-   ticked; DAWs other than FL Studio; and the FL Studio items the developer did
-   not report separately — automation, a project reopened, bypass, Steinberg's
-   validator.
+   taps declined in ADR-0074; the FL Studio items the developer did not report
+   separately — automation, a project reopened, bypass, Steinberg's validator;
+   and undo after a drag-and-drop in a host (ADR-0108).
+
+**Making the next release** is Docs/VERSIONING.md §7: set the version, write its
+section of CHANGELOG.md, optionally run CI with **release_build**, push the tag.
 
 **A standing note on where this is measured.** The development machine is a
 15 W i7-1255U running an antivirus, a VPN, a browser and an IDE, and it cannot

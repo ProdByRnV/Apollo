@@ -178,11 +178,11 @@ front of it is better understood, the way 8f was.
 | 13h-2 | Program change — the built-in sounds as the host's program list, MIDI program changes and bank select by the same numbering, loaded off the audio thread through the browser's path (ADR-0106) | ✅ |
 | 13h-3 | Controller profiles that can be edited, exported and imported — your own, saved from the assignments and edited through a table of them, moved in and out through the system's dialogs (ADR-0107) | ✅ |
 | 13h-4 | Drag-and-drop modulation — a source dragged onto a control, or picked up and put down from the keyboard, routed by the engine in the first free slot; a tag on the control for each routing, dragged to change its depth (ADR-0108) | ✅ |
-| **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
+| **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** — Apollo 1.0.0 and 1.0.1 published on the Releases page (ADR-0109, ADR-0110) | ✅ |
 | 14a | The release candidate — version 1.0.0, every open issue read against the gate and none P0 or P1, symbol visibility closed, the release notes, the documents brought to the truth, all of it passing on every platform (ADR-0109) | ✅ |
-| 14b | Installation — the package installed on a clean machine, found by hosts, the standalone launched, uninstalled and updated | ⬜ |
-| 14c | Release artifacts — the packages built from the candidate for every platform, with checksums | ⬜ |
-| 14d | The tag and the release | ⬜ |
+| 14b | Installation — the published Windows package downloaded, checked against its checksum, unblocked, extracted, installed into the system VST3 folder and loaded from there through the host suite, and the standalone run from where a user would put it, all by following the README. It found the 1.0.0 packages carrying JUCE's development files, fixed in 1.0.1. macOS and Linux are installed and loaded from their staged packages in CI; nobody has installed them by hand (ADR-0110) | ✅ |
+| 14c | Release artifacts — built by CI from the tagged commit as Release on every platform, only when everything passed, with `SHA256SUMS.txt`; each package holds only Apollo, and a package test says so (ADR-0110) | ✅ |
+| 14d | The tag and the release — `v1.0.0`, then `v1.0.1`, the release notes taken from CHANGELOG.md, and "Getting started" in the README (ADR-0110) | ✅ |
 
 ### Carried forward
 
@@ -961,12 +961,12 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 written, and Phase 14 below takes them.
 
 - [x] Create release candidate. — 1.0.0, the gate passed with nothing P0 or P1 open, CHANGELOG.md written (14a, ADR-0109)
-- [ ] Perform clean-machine installation tests.
-- [ ] Verify plugin discovery.
-- [ ] Verify standalone launch.
-- [ ] Verify uninstall/update behavior where applicable.
-- [ ] Generate release artifacts.
-- [ ] Tag the release in version control.
+- [x] Perform clean-machine installation tests. — the published Windows package, by the README, on the development machine; macOS and Linux from the staged package in CI (14b, ADR-0110). Not a machine that never had Apollo on it
+- [x] Verify plugin discovery. — the downloaded plugin installed into the system VST3 folder and scanned from there by the host suite (14b); FL Studio by the developer (ADR-0109)
+- [x] Verify standalone launch. — the downloaded standalone run from a folder of its own, its interface ready and a preset loaded (14b)
+- [x] Verify uninstall/update behavior where applicable. — an update is the bundle's contents replaced, done four times by the build and once from the download; uninstalling is deleting the folder; presets live elsewhere and are untouched (14b, ADR-0110)
+- [x] Generate release artifacts. — by CI on the tag, with checksums (14c, ADR-0110)
+- [x] Tag the release in version control. — `v1.0.0` and `v1.0.1` (14d)
 
 ## Exit Criteria
 

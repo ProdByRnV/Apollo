@@ -7557,6 +7557,22 @@ Docs/VERSIONING.md §2 makes a backward-compatible fix a patch. The README now
 names downloads by platform rather than by version, so it does not need editing
 at each release.
 
+### Installed, and what was not
+
+The published 1.0.1 was installed on Windows by following the README in order:
+downloaded from `releases/latest` without signing in and checked against
+`SHA256SUMS.txt`, marked as a browser marks a download and unblocked,
+extracted, the plugin copied into the system VST3 folder and loaded from there
+by the host suite, and the standalone run from a folder of its own and a preset
+loaded (PROJECT-STATE §5a).
+
+**Not checked by a person: macOS and Linux.** CI installs each staged package
+and drives it through the host suite; nobody has followed the guide there, and
+the Terminal step on macOS is untried. **Not a clean machine either**: the
+Windows install was on the development machine, so a missing runtime would not
+show. The package test that reads each binary's import table (ADR-0076) is
+what stands for that.
+
 ### Alternatives considered
 
 - **A separate release workflow.** See above.
