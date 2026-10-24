@@ -40,7 +40,9 @@ juce_add_plugin(Apollo
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     VST3_CATEGORIES             "Instrument" "Synth"
     # Never install into the user's system plugin folders as a build side
-    # effect. Installation is an explicit, packaged step (Phase 11).
+    # effect. Installation is an explicit, packaged step (Phase 11). A
+    # developer who wants each build in a host turns on
+    # APOLLO_COPY_VST3_TO_PLUGIN_FOLDER below, which is off by default.
     COPY_PLUGIN_AFTER_BUILD     FALSE)
 
 target_sources(Apollo PRIVATE
@@ -105,5 +107,48 @@ if(APOLLO_COPY_STANDALONE_TO_ROOT AND TARGET Apollo_Standalone)
                 -D "APOLLO_STANDALONE_IS_BUNDLE=${APOLLO_STANDALONE_IS_BUNDLE}"
                 -P "${CMAKE_SOURCE_DIR}/CMake/CopyStandaloneToRoot.cmake"
         COMMENT "Copying the standalone into the project root"
+        VERBATIM)
+endif()
+
+# ---------------------------------------------------------------------------
+# The VST3 in a plugin folder, for opening each build in a host.
+#
+# Requested by the developer, who loads Apollo in FL Studio. Off by default,
+# because installing into a system folder is not something a build does to
+# anyone who did not ask (see COPY_PLUGIN_AFTER_BUILD above), and a CI or
+# packaging job has no host to open it in.
+#
+# The folder is the platform's standard VST3 location unless set. On Windows
+# that location needs administrator rights, so the bundle folder is set up once
+# by hand and the build only replaces what is inside it (Docs/BUILD.md).
+option(APOLLO_COPY_VST3_TO_PLUGIN_FOLDER
+       "After building, replace the VST3 in APOLLO_VST3_PLUGIN_FOLDER with the new one"
+       OFF)
+
+if(WIN32)
+    set(_apollo_default_vst3_folder "$ENV{CommonProgramFiles}/VST3")
+elseif(APPLE)
+    set(_apollo_default_vst3_folder "$ENV{HOME}/Library/Audio/Plug-Ins/VST3")
+else()
+    set(_apollo_default_vst3_folder "$ENV{HOME}/.vst3")
+endif()
+
+file(TO_CMAKE_PATH "${_apollo_default_vst3_folder}" _apollo_default_vst3_folder)
+
+set(APOLLO_VST3_PLUGIN_FOLDER "${_apollo_default_vst3_folder}" CACHE PATH
+    "Where APOLLO_COPY_VST3_TO_PLUGIN_FOLDER puts the VST3")
+
+if(APOLLO_COPY_VST3_TO_PLUGIN_FOLDER AND TARGET Apollo_VST3)
+    # JUCE's own record of the bundle, as packaging uses: the VST3 is a folder
+    # on every platform, but CMake only calls it a bundle on macOS.
+    set(_apollo_vst3_bundle
+        "$<TARGET_GENEX_EVAL:Apollo_VST3,$<TARGET_PROPERTY:Apollo_VST3,JUCE_PLUGIN_ARTEFACT_FILE>>")
+
+    add_custom_command(TARGET Apollo_VST3 POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+                -D "APOLLO_VST3_SOURCE=${_apollo_vst3_bundle}"
+                -D "APOLLO_VST3_FOLDER=${APOLLO_VST3_PLUGIN_FOLDER}"
+                -P "${CMAKE_SOURCE_DIR}/CMake/CopyVst3ToPluginFolder.cmake"
+        COMMENT "Replacing the VST3 in the plugin folder"
         VERBATIM)
 endif()

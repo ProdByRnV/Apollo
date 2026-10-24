@@ -119,6 +119,8 @@ All options are ordinary CMake cache variables (`-DOPTION=ON`).
 | `APOLLO_JUCE_SOURCE_DIR` | *(empty)* | Use an existing JUCE checkout instead of fetching. |
 | `APOLLO_ALLOW_UNPINNED_JUCE` | `OFF` | Permit a JUCE checkout that does not match the pinned commit. |
 | `APOLLO_COPY_STANDALONE_TO_ROOT` | `ON` | After building, copy the standalone application into the project root. |
+| `APOLLO_COPY_VST3_TO_PLUGIN_FOLDER` | `OFF` | After building, replace the VST3 in `APOLLO_VST3_PLUGIN_FOLDER` with the new one, for opening each build in a host. |
+| `APOLLO_VST3_PLUGIN_FOLDER` | the platform's VST3 folder | Where the option above puts it: `%CommonProgramFiles%\VST3` on Windows, `~/Library/Audio/Plug-Ins/VST3` on macOS, `~/.vst3` on Linux. |
 
 ### The standalone in the project root
 
@@ -136,6 +138,29 @@ there, rebuild the one you want.
 
 Turn it off with `-DAPOLLO_COPY_STANDALONE_TO_ROOT=OFF`, which is what a
 packaging or CI job should do: neither has any use for the copy.
+
+### The plugin in a host
+
+With `-DAPOLLO_COPY_VST3_TO_PLUGIN_FOLDER=ON`, every build of the VST3 replaces
+the one in the plugin folder, so a host's next scan, or its next load of the
+plugin, gets the build just made. Off by default: installing into a system
+folder is not something a build should do to anyone who did not ask.
+
+**On Windows the folder needs administrator rights**, and a build has none. So
+the bundle folder is put there once, by hand, from an administrator PowerShell,
+and your account is given rights to that one folder:
+
+```powershell
+Copy-Item -Recurse "build\Source\Plugin\Apollo_artefacts\Release\VST3\Apollo.vst3" "$env:CommonProgramFiles\VST3\"
+icacls "$env:CommonProgramFiles\VST3\Apollo.vst3" /grant "$env:USERDOMAIN\$env:USERNAME:(OI)(CI)M"
+```
+
+After that the build replaces what is inside it without asking.
+
+**Close the host before building**, or at least remove Apollo from the project.
+A host with the plugin loaded holds the file open; the copy is then refused,
+the build says so and still succeeds, and the plugin folder keeps the previous
+build.
 
 ### Sanitizer builds
 
