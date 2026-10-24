@@ -1,7 +1,6 @@
 # Known Limitations
 
-What Apollo does not do, or has not been shown to do, as of version 1.0.0, the
-first release.
+What Apollo does not do, or has not been shown to do, as of version 1.0.1.
 
 Every entry is one of four kinds, kept apart because they mean different things:
 something **not yet verified** may well work; something **specified but not

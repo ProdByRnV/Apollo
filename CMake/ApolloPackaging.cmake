@@ -145,13 +145,22 @@ set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_FILE_NAME "${APOLLO_PACKAGE_NAME}")
 set(CPACK_GENERATOR "ZIP")
-set(CPACK_ARCHIVE_COMPONENT_INSTALL OFF)
+
+# Apollo's three components and nothing else, in one archive. Named rather than
+# taken as "everything installed", because everything installed can include
+# install rules nobody here wrote: the 1.0.0 release carried 65 MB of JUCE's
+# headers, tools and CMake files, from a build that fetched JUCE in a way that
+# kept JUCE's install rules (ADR-0110). Stage with the same three components
+# (Docs/BUILD.md §7) and the package tests see exactly what ships.
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
 set(CPACK_COMPONENTS_ALL vst3 standalone documentation)
 
 # The archive contains the tree directly rather than one directory containing
 # it: the user unzips into the folder they chose, and a wrapper directory only
 # adds a step.
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY OFF)
 
 include(CPack)
 

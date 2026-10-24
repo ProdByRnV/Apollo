@@ -5,6 +5,37 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## 1.0.1 — 2026-10-24
+
+The same Apollo as 1.0.0, in smaller downloads.
+
+### What changed
+
+- **The downloads hold only Apollo.** The 1.0.0 packages also carried about
+  65 MB of the development files of JUCE, the framework Apollo is built with:
+  folders called `bin`, `include` and `lib` beside Apollo's own. Nothing used
+  them and nothing needs them. Each package now holds the plugin, the
+  standalone, `INSTALL.txt` and `README.md`, and nothing else.
+- **Nothing about the instrument changed.** It sounds and behaves exactly as
+  1.0.0, and opens everything 1.0.0 saved.
+
+If you installed 1.0.0, there is nothing you need to do: the plugin and the
+standalone you copied are the same. To tidy up, delete the `bin`, `include`
+and `lib` folders from wherever you unzipped 1.0.0.
+
+### Installing
+
+Download the zip for your system from the assets below. Each holds the plugin,
+the standalone, and `INSTALL.txt`, which says where the plugin goes. The
+step-by-step guide, with what to do in FL Studio, Ableton Live and Reaper, is
+[Getting started](https://github.com/ProdByRnV/Apollo#getting-started) in the
+README. `SHA256SUMS.txt` holds each download's checksum.
+
+What Apollo is and does is in the
+[1.0.0 release notes](https://github.com/ProdByRnV/Apollo/releases/tag/v1.0.0).
+
+---
+
 ## 1.0.0 — 2026-10-24
 
 The first release of Apollo: a wavetable synthesizer by ProdByRnV, as a VST3

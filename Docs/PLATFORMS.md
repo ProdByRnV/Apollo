@@ -4,7 +4,7 @@ What Apollo runs on, and how much of that has been seen working rather than
 built. The second part matters as much as the first: a platform can be built,
 tested and packaged in CI and still never have had a person look at it.
 
-Status as of version 1.0.0, the first release. The packages are on the
+Status as of version 1.0.1. The packages are on the
 repository's Releases page, and the README's "Getting started" says how to
 install them.
 

@@ -7532,6 +7532,31 @@ when something goes wrong. FL Studio is the one DAW Apollo has been seen in; the
 Ableton Live and Reaper steps are those hosts' ordinary rescan, not something
 tested with Apollo.
 
+### Found by installing it, and released again as 1.0.1
+
+Downloading the published 1.0.0 Windows package from the Releases page, as a
+user would, showed it held 65 MB of JUCE's own development files — headers,
+`juceaide`, CMake package files, in folders called `bin`, `include` and `lib`
+— beside Apollo's 18 MB. CI fetches JUCE through FetchContent, which keeps JUCE's
+install rules, and both the staging and the archive took "everything
+installed". A local build passed JUCE in as a checkout through
+`add_subdirectory(... EXCLUDE_FROM_ALL)`, which leaves them out, so nothing here
+could see it; every CI archive since Phase 11 had carried them.
+
+Two changes. The archive and the staging now take Apollo's three install
+components by name — plugin, standalone, documentation — and nothing a
+dependency brought. And a package test lists the package root and refuses
+anything but `INSTALL.txt`, `README.md`, `Standalone` and `VST3`, each holding
+only Apollo; it was shown to refuse a planted `include` folder. The Windows
+package went from 23 MB to 7.4 MB.
+
+The fix shipped as **1.0.1** rather than by replacing 1.0.0's files or moving
+its tag. 1.0.0 had been published, its Apollo is the same and works, and a
+release that changes after it is downloaded is worse than one more release.
+Docs/VERSIONING.md §2 makes a backward-compatible fix a patch. The README now
+names downloads by platform rather than by version, so it does not need editing
+at each release.
+
 ### Alternatives considered
 
 - **A separate release workflow.** See above.

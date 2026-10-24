@@ -27,7 +27,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 # Versioning conventions (product / plugin / state schema / bridge protocol) are
 # described in Docs/VERSIONING.md.
 project(Apollo
-    VERSION 1.0.0
+    VERSION 1.0.1
     DESCRIPTION "Apollo — cross-platform wavetable synthesizer"
     LANGUAGES C CXX)
 

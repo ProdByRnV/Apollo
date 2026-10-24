@@ -12,9 +12,9 @@ written in React and shown through the platform's own WebView.
 
 ## Status
 
-**Version 1.0.0, the first release.** Download it from the
+**Version 1.0.1.** Download it from the
 [Releases page](https://github.com/ProdByRnV/Apollo/releases/latest); how to
-install and use it is just below. What 1.0.0 contains is in
+install and use it is just below. What each release contains is in
 [CHANGELOG.md](CHANGELOG.md).
 
 It is a complete instrument: it plays, every one of its 305 parameters affects
@@ -35,14 +35,15 @@ which runs on its own with no DAW at all. Use either, or both.
 ### 1. Download
 
 Open the [latest release](https://github.com/ProdByRnV/Apollo/releases/latest)
-and, under **Assets**, download the file for your computer:
+and, under **Assets**, download the file for your computer. The number after
+"Apollo-" is the version:
 
-| Your computer | Download |
+| Your computer | Download the file ending in |
 |---|---|
-| Windows 10 or 11 | `Apollo-1.0.0-windows-x86_64.zip` |
-| Mac, Apple silicon or Intel (macOS 11 or later) | `Apollo-1.0.0-macos-universal.zip` |
-| Linux on a PC | `Apollo-1.0.0-linux-x86_64.zip` |
-| Linux on ARM64 | `Apollo-1.0.0-linux-arm64.zip` |
+| Windows 10 or 11 | `-windows-x86_64.zip` |
+| Mac, Apple silicon or Intel (macOS 11 or later) | `-macos-universal.zip` |
+| Linux on a PC | `-linux-x86_64.zip` |
+| Linux on ARM64 | `-linux-arm64.zip` |
 
 Inside each zip are three things: a **`VST3`** folder holding the plugin,
 **`Apollo.vst3`**; a **`Standalone`** folder holding the application; and
@@ -109,7 +110,7 @@ Microsoft's website and open Apollo again. Windows 11 already has it.
    ```
 
    `INSTALL.txt` has the Fedora and Arch equivalents.
-2. **Extract it:** `unzip Apollo-1.0.0-linux-x86_64.zip -d Apollo`
+2. **Extract it:** `unzip Apollo-*-linux-*.zip -d Apollo`
 3. **Install the plugin:** `mkdir -p ~/.vst3 && cp -r Apollo/VST3/Apollo.vst3 ~/.vst3/`
 4. **Run the standalone:** `chmod +x Apollo/Standalone/Apollo && Apollo/Standalone/Apollo`
 

@@ -103,13 +103,13 @@ load.
 
 ## 4. From 1.0
 
-Apollo is at 1.0.0, and from here the rules in §3 are promises rather than
+Apollo is past 1.0, and from 1.0.0 the rules in §3 are promises rather than
 practice: VERSIONING.md §2 allowed breaking changes before 1.0, provided they
 were recorded, and none was needed. The rules in §3 have been followed from
 the start. The single schema change so far, the filter rename in Phase 5b, was
 migrated rather than broken, and Phase 13a added thirteen parameters without
 moving a single regression render. A preset or project from 0.1.0 or any
-later build opens in 1.0.0 and sounds as it did, and the 0.1.0 preset frozen in
+later build opens in every 1.0 release and sounds as it did, and the 0.1.0 preset frozen in
 the suite is how every build shows it.
 
 ---

@@ -155,8 +155,16 @@ jobs:
       # pointed at the *staged* bundle rather than the one in the build tree: a
       # package nobody loaded is a guess, and the install step is exactly where
       # a file can go missing.
+      # Apollo's three components, as the archive takes them, so the package
+      # tests below see exactly what ships. A plain install also runs whatever
+      # install rules the dependencies brought, which is how the 1.0.0 archive
+      # came to carry JUCE's headers and tools (ADR-0110).
       - name: Stage the package
-        run: cmake --install build --config ${{ env.APOLLO_CONFIG }} --prefix staged
+        shell: bash
+        run: |
+          for component in vst3 standalone documentation; do
+            cmake --install build --config ${{ env.APOLLO_CONFIG }} --prefix staged --component "$component"
+          done
 
       # macOS refuses to load code it cannot verify, and on Apple Silicon that
       # includes an unsigned binary. Signed ad-hoc, which needs no certificate
@@ -398,7 +406,7 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           awk -v heading="## $version" '
             index($0, heading) == 1 { found = 1; next }
-            found && /^## / { exit }
+            found && (/^## / || /^---$/) { exit }
             found { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }

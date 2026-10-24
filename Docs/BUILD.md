@@ -241,7 +241,9 @@ saying where to put them (Phase 11a, ADR-0076).
 
 ```sh
 cmake --build build --config Release --target Apollo_All
-cmake --install build --config Release --prefix staged
+for component in vst3 standalone documentation; do
+  cmake --install build --config Release --prefix staged --component $component
+done
 cd build && cpack -C Release -G ZIP
 ```
 
@@ -256,6 +258,13 @@ README.md
 
 The archive is named `Apollo-<version>-<system>-<arch>.zip`, so two downloads
 cannot be confused for each other.
+
+**Only Apollo's three components.** The plugin, the standalone and the two
+documents are install components, and both the staging above and the archive
+take those and nothing else. A plain `cmake --install` also runs any install
+rules a dependency brought with it; JUCE fetched by CMake brings its headers
+and tools, which is how 65 MB of them reached the first 1.0.0 archive
+(ADR-0110). A package test refuses anything else at the package root.
 
 **No installer.** Apollo is a folder to copy, and uninstalling is deleting it.
 An installer would want administrator rights, an uninstaller and a signing
@@ -286,7 +295,9 @@ that built it, and neither happens by default (ADR-0077):
 ```sh
 cmake -S . -B build -DAPOLLO_MACOS_UNIVERSAL=ON
 cmake --build build --target Apollo_All
-cmake --install build --prefix staged
+for component in vst3 standalone documentation; do
+  cmake --install build --prefix staged --component $component
+done
 codesign --force --sign - --deep staged/VST3/Apollo.vst3
 codesign --force --sign - --deep staged/Standalone/Apollo.app
 cd build && cpack -G ZIP

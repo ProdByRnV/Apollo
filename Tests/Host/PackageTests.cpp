@@ -62,6 +62,7 @@ public:
         testBundleDescribesItselfToTheSystem();
         testRuntimeDependencies();
         testEveryArchitectureTheBuildAskedFor();
+        testThePackageHoldsOnlyApollo();
     }
 
 private:
@@ -362,6 +363,62 @@ private:
             check (standalone, "the standalone");
         else
             expect (false, "The staged package has a Standalone folder with no application in it");
+    }
+
+    void testThePackageHoldsOnlyApollo()
+    {
+        beginTest ("The package holds Apollo and nothing else");
+
+        // Found in the 1.0.0 release (ADR-0110): the archive also carried
+        // JUCE's own installed headers, tools and CMake files, 65 MB of them,
+        // because the build that made it fetched JUCE in a way that kept JUCE's
+        // install rules. Nothing that checked the bundle could see it, because
+        // it was beside the bundle rather than in it. Only a staged package has
+        // a root to look at; pointed at the build tree, this has nothing to do.
+        const auto root = bundle().getParentDirectory().getParentDirectory();
+
+        if (! root.getChildFile ("INSTALL.txt").existsAsFile())
+        {
+            logMessage ("    not a staged package; nothing to check");
+            return;
+        }
+
+        const auto namesIn = [] (const juce::File& directory)
+        {
+            std::set<juce::String> names;
+
+            for (const auto& entry : juce::RangedDirectoryIterator (directory, false, "*",
+                                                                    juce::File::findFilesAndDirectories))
+                names.insert (entry.getFile().getFileName());
+
+            return names;
+        };
+
+        const auto describe = [] (const std::set<juce::String>& names)
+        {
+            juce::StringArray list;
+            for (const auto& name : names)
+                list.add (name);
+            return list.joinIntoString (", ");
+        };
+
+        const std::set<juce::String> expectedRoot { "INSTALL.txt", "README.md", "Standalone", "VST3" };
+        const auto atRoot = namesIn (root);
+        expect (atRoot == expectedRoot, "The package root holds " + describe (atRoot));
+
+        const std::set<juce::String> expectedPlugin { "Apollo.vst3" };
+        const auto plugin = namesIn (root.getChildFile ("VST3"));
+        expect (plugin == expectedPlugin, "VST3/ holds " + describe (plugin));
+
+       #if JUCE_MAC
+        const std::set<juce::String> expectedStandalone { "Apollo.app" };
+       #elif JUCE_WINDOWS
+        const std::set<juce::String> expectedStandalone { "Apollo.exe" };
+       #else
+        const std::set<juce::String> expectedStandalone { "Apollo" };
+       #endif
+        const auto standalone = namesIn (root.getChildFile ("Standalone"));
+        expect (standalone == expectedStandalone, "Standalone/ holds " + describe (standalone));
     }
 
     void testEveryArchitectureTheBuildAskedFor()
