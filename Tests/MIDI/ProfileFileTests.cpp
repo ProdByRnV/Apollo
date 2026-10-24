@@ -505,7 +505,10 @@ private:
         auto reply = edit ("filter1_cutoff", 20, 3, 0.2, 0.8);
         expectEquals (field (reply, "status"), juce::String ("EDITED"));
 
-        const auto* edited = processor.getMidiControl().getMappings().findForParameter (cutoff);
+        // Held: getMappings returns a copy, and a pointer into a temporary one
+        // would outlive it (the sanitizer job caught exactly that).
+        const auto table = processor.getMidiControl().getMappings();
+        const auto* edited = table.findForParameter (cutoff);
         expect (edited != nullptr);
 
         if (edited != nullptr)
