@@ -1,11 +1,11 @@
 # Changelog
 
 What changed in each release of Apollo, for the people who use it. How it was
-built and why is in [Docs/DECISIONS.md](Docs/DECISIONS.md).
+built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob/main/Docs/DECISIONS.md).
 
 ---
 
-## 1.0.0 — release candidate, not yet released
+## 1.0.0 — 2026-10-24
 
 The first release of Apollo: a wavetable synthesizer by ProdByRnV, as a VST3
 plugin and a standalone application, for Windows, macOS and Linux.
@@ -39,15 +39,21 @@ plugin and a standalone application, for Windows, macOS and Linux.
 
 ### Installing
 
-Each download is a folder: the plugin, the standalone, and `INSTALL.txt`, which
-says where the plugin goes on your system. There is no installer. To uninstall,
-delete what you copied.
+Download the zip for your system from the assets below. Each holds the plugin,
+the standalone, and `INSTALL.txt`, which says where the plugin goes. There is no
+installer: you copy the plugin into your VST3 folder, and uninstalling is
+deleting it. The step-by-step guide, with what to do in FL Studio, Ableton Live
+and Reaper, is [Getting started](https://github.com/ProdByRnV/Apollo#getting-started)
+in the README.
+
+`SHA256SUMS.txt` holds each download's checksum, for anyone who wants to check
+what they received.
 
 ### Your work from here on
 
 From 1.0.0, a preset or project you save keeps opening, and keeps sounding the
 same, in every later release. Settings added later take the values that leave
-your sound unchanged. The rules are in [Docs/COMPATIBILITY.md](Docs/COMPATIBILITY.md).
+your sound unchanged. The rules are in [Docs/COMPATIBILITY.md](https://github.com/ProdByRnV/Apollo/blob/main/Docs/COMPATIBILITY.md).
 
 ### Known limitations
 
@@ -56,8 +62,9 @@ your sound unchanged. The rules are in [Docs/COMPATIBILITY.md](Docs/COMPATIBILIT
   platform, but have not been tried.
 - The interface has only been seen on Windows. On macOS and Linux it is built
   and tested, but nobody has looked at it yet.
-- macOS downloads are not signed with a Developer ID, so macOS will refuse them
-  as coming from an unidentified developer until you allow them in System
-  Settings. The Windows standalone may show a SmartScreen prompt.
+- macOS downloads are not signed with a Developer ID, so macOS refuses them as
+  coming from an unidentified developer until you clear the download mark with
+  the one Terminal line in the guide. The Windows standalone may show a
+  SmartScreen prompt the first time.
 
-The full list is [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md).
+The full list is [Docs/KNOWN-LIMITATIONS.md](https://github.com/ProdByRnV/Apollo/blob/main/Docs/KNOWN-LIMITATIONS.md).

@@ -13,8 +13,24 @@ name: CI
 on:
   push:
     branches: ["**"]
+    # A version tag builds, tests and packages everything as any push does, and
+    # then publishes the packages as a GitHub release (the release job below).
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_build:
+        description: "Build as a release would (Release), without publishing anything"
+        type: boolean
+        default: false
+
+# A release is built as Release: optimised, with no debug information, which
+# also keeps the build machine's paths out of the binaries and the Linux
+# packages at a fraction of the size. Every other run builds RelWithDebInfo,
+# which is what a failure is easiest to read from. A manual run can ask for a
+# release's build, to try one before a tag is pushed (ADR-0110).
+env:
+  APOLLO_CONFIG: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_build == 'true') && 'Release' || 'RelWithDebInfo' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -100,7 +116,7 @@ jobs:
           key: juce-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('CMake/ApolloDependencies.cmake') }}
 
       - name: Configure
-        run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON ${{ matrix.configure-extra }}
+        run: cmake -S . -B build -DAPOLLO_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=${{ env.APOLLO_CONFIG }} ${{ matrix.configure-extra }}
 
       # Built target by target rather than all at once: the plugin and the test
       # runner each compile their own copy of the JUCE modules, and running both
@@ -108,17 +124,17 @@ jobs:
       # small. Tests first, so a broken engine is reported before the slower
       # plugin link.
       - name: Build tests
-        run: cmake --build build --config RelWithDebInfo --target ApolloTests --parallel ${{ matrix.parallel }}
+        run: cmake --build build --config ${{ env.APOLLO_CONFIG }} --target ApolloTests --parallel ${{ matrix.parallel }}
 
       # Apollo_All, not Apollo: juce_add_plugin makes "Apollo" the shared-code
       # library, while the aggregate target is what actually produces the VST3
       # bundle and the standalone binary. Building "Apollo" alone would quietly
       # stop verifying that the plugin links at all.
       - name: Build plugin
-        run: cmake --build build --config RelWithDebInfo --target Apollo_All --parallel ${{ matrix.parallel }}
+        run: cmake --build build --config ${{ env.APOLLO_CONFIG }} --target Apollo_All --parallel ${{ matrix.parallel }}
 
       - name: Test
-        run: ctest --test-dir build -C RelWithDebInfo -L unit --output-on-failure
+        run: ctest --test-dir build -C ${{ env.APOLLO_CONFIG }} -L unit --output-on-failure
 
       # The host harness (ADR-0075): the VST3 bundle built above, loaded
       # through a VST3 host implementation and driven the way a DAW drives it.
@@ -129,10 +145,10 @@ jobs:
       # Verbose, so a run that passed still records what the host saw: the
       # parameter count, the load time, and the per-case measurements.
       - name: Build host harness
-        run: cmake --build build --config RelWithDebInfo --target ApolloHostTests --parallel ${{ matrix.parallel }}
+        run: cmake --build build --config ${{ env.APOLLO_CONFIG }} --target ApolloHostTests --parallel ${{ matrix.parallel }}
 
       - name: Host tests
-        run: ctest --test-dir build -C RelWithDebInfo -L host -V
+        run: ctest --test-dir build -C ${{ env.APOLLO_CONFIG }} -L host -V
 
       # Packaging: 11a on Windows, 11b on macOS, 11c on Linux (ADR-0076,
       # ADR-0077, ADR-0078). The package is staged, and then the host harness is
@@ -140,7 +156,7 @@ jobs:
       # package nobody loaded is a guess, and the install step is exactly where
       # a file can go missing.
       - name: Stage the package
-        run: cmake --install build --config RelWithDebInfo --prefix staged
+        run: cmake --install build --config ${{ env.APOLLO_CONFIG }} --prefix staged
 
       # macOS refuses to load code it cannot verify, and on Apple Silicon that
       # includes an unsigned binary. Signed ad-hoc, which needs no certificate
@@ -161,9 +177,13 @@ jobs:
           codesign --verify --strict --verbose=2 staged/Standalone/Apollo.app
           codesign --display --verbose=2 staged/VST3/Apollo.vst3
 
-      # What the plugin exports into a host's process: its format's entry
-      # points, and none of Apollo's or JUCE's own code (ADR-0109). On Windows
-      # a DLL exports only what it names, so the question is macOS and Linux.
+      # What the plugin exports into a host's process (ADR-0109): the VST3
+      # entry points, the one function JUCE exports on purpose so that its Linux
+      # web view's helper process can find it, and on Linux the C++ standard
+      # library's template code, which libstdc++ declares visible and no
+      # visibility setting hides. Nothing of Apollo's, and nothing else. On
+      # Windows a DLL exports only what it names, so the question is macOS and
+      # Linux.
       - name: Check what the plugin exports
         if: runner.os != 'Windows'
         run: |
@@ -177,21 +197,29 @@ jobs:
           fi
           echo "Exported by $binary:"
           echo "$exported"
-          if echo "$exported" | grep -Ei 'apollo|juce'; then
-            echo "::error::The plugin exports Apollo's or JUCE's own symbols"
+          names=$(echo "$exported" | sed -nE 's/^[0-9a-fA-F]+ [A-Za-z] _?(.*)$/\1/p' | sort -u)
+          unexpected=$(echo "$names" \
+            | grep -vxE 'GetPluginFactory|ModuleEntry|ModuleExit|bundleEntry|bundleExit|juce_gtkWebkitMain' \
+            | grep -vE '^((typeinfo|typeinfo name|vtable|VTT|construction vtable|guard variable) for )?std::' \
+            || true)
+          if [ -n "$unexpected" ] || echo "$names" | grep -qi apollo; then
+            echo "::error::The plugin exports symbols it should keep to itself:"
+            echo "$unexpected"
+            echo "$names" | grep -i apollo || true
             exit 1
           fi
+          echo "Only the entry points and standard-library code are exported."
 
       - name: Test the staged package (Windows)
         if: runner.os == 'Windows'
         run: >
-          ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests.exe
+          ./build/Tests/ApolloHostTests_artefacts/${{ env.APOLLO_CONFIG }}/ApolloHostTests.exe
           --plugin staged/VST3/Apollo.vst3
 
       - name: Test the staged package (macOS and Linux)
         if: runner.os != 'Windows'
         run: >
-          ./build/Tests/ApolloHostTests_artefacts/RelWithDebInfo/ApolloHostTests
+          ./build/Tests/ApolloHostTests_artefacts/${{ env.APOLLO_CONFIG }}/ApolloHostTests
           --plugin staged/VST3/Apollo.vst3
 
       # The installation notes are checked against a real Linux system: every
@@ -240,18 +268,18 @@ jobs:
 
       - name: Build the archive
         working-directory: build
-        run: cpack -C RelWithDebInfo -G ZIP
+        run: cpack -C ${{ env.APOLLO_CONFIG }} -G ZIP
 
       - name: Keep the archive
         uses: actions/upload-artifact@v4
         with:
-          # Named for the configuration it is: CI gates on RelWithDebInfo, so
-          # these archives are RelWithDebInfo builds and are larger than release
-          # ones. They exist to prove the package builds and loads, not to be
-          # shipped — a release is cut from Release (Docs/BUILD.md §7).
+          # Named for the configuration it is. On a branch these are
+          # RelWithDebInfo builds, larger than a release's, which exist to prove
+          # the package builds and loads; on a version tag they are the Release
+          # packages the release job publishes (Docs/BUILD.md §7).
           # The architecture is in the name for the same reason it is in the
           # cache key: an artefact name has to be unique within a run.
-          name: apollo-${{ runner.os }}-${{ runner.arch }}-relwithdebinfo
+          name: apollo-${{ runner.os }}-${{ runner.arch }}-${{ env.APOLLO_CONFIG }}
           path: build/Apollo-*.zip
           if-no-files-found: error
 
@@ -260,7 +288,7 @@ jobs:
       # only when asked, and this is the one place the cross-platform spread of
       # those figures can be read (Tests/CMakeLists.txt).
       - name: Regression report
-        run: ctest --test-dir build -C RelWithDebInfo -R apollo.regression -V
+        run: ctest --test-dir build -C ${{ env.APOLLO_CONFIG }} -R apollo.regression -V
 
   sanitizers:
     name: Sanitizers (Linux, Clang)
@@ -309,3 +337,78 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --test-dir build-san -L unit --output-on-failure
+
+  # Publishes a version tag as a GitHub release (Phase 14, ADR-0110). Only once
+  # every platform has built, passed the whole suite and the host suite against
+  # its staged package, and the sanitizers have passed: a release is a run that
+  # passed everything, not a separate build.
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-and-test, sanitizers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # Docs/VERSIONING.md §7: the tag must name the version the build calls
+      # itself, or the packages would carry a different number from the page
+      # they are downloaded from.
+      - name: Check the tag matches the version
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(sed -nE 's/^ *VERSION ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' CMakeLists.txt | head -n 1)
+          tag="${GITHUB_REF_NAME}"
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::The tag is $tag but CMakeLists.txt says $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: apollo-*-Release
+          path: dist
+          merge-multiple: true
+
+      # Four packages, one per platform; anything else means a platform did not
+      # package, and a release missing one is not the release that was meant.
+      - name: Check every platform is there
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          for name in windows-x86_64 macos-universal linux-x86_64 linux-arm64; do
+            test -f "dist/Apollo-$version-$name.zip" || { echo "::error::No package for $name"; exit 1; }
+          done
+          ls -l dist
+
+      - name: Write the checksums
+        working-directory: dist
+        run: sha256sum Apollo-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      # The release notes are the version's own section of CHANGELOG.md, so the
+      # page and the repository say the same thing.
+      - name: Take the release notes from the changelog
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          awk -v heading="## $version" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          dist/Apollo-*.zip dist/SHA256SUMS.txt
+          --title "Apollo ${{ steps.version.outputs.version }}"
+          --notes-file notes.md
+          --verify-tag

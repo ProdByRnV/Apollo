@@ -106,3 +106,17 @@ platform.
 
 Releases are tagged `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v1.0.0`). The tag must point
 at a commit whose `project(... VERSION ...)` matches the tag.
+
+Pushing the tag publishes the release. CI builds, tests and packages that commit
+as Release on every platform, and only if all of it passes, publishes the four
+packages, their checksums and the version's section of `CHANGELOG.md` as a
+GitHub release. A tag that does not match the version is refused there, and
+nothing is published (ADR-0110).
+
+So a release is made by:
+
+1. Setting the version in `CMakeLists.txt` and writing its section of
+   `CHANGELOG.md`, headed `## <version> — <date>`.
+2. Optionally, running CI by hand with **release_build** ticked, which builds
+   as a release would and publishes nothing.
+3. Pushing the tag: `git tag v<version> && git push origin v<version>`.

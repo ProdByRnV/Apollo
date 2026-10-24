@@ -7410,7 +7410,7 @@ issue. Every open row of PROJECT-STATE §6, read against it:
 | Issue | Verdict |
 |---|---|
 | 2 — not loaded in a DAW | **Closed by the developer's own testing.** On 2026-10-24 they loaded the VST3 in FL Studio, played it, and made beats with the factory presets, reporting it "works smooth as butter". Recorded as their review, as Phase 12b was. What they did not report separately — automation, a project saved and reopened, bypass, Steinberg's validator — is covered by the host harness on every platform and is fixed as found if a DAW disagrees. Other DAWs are untried and stay a known limitation |
-| 5 — symbol visibility | **Closed here.** Apollo's own code is now hidden by default, as JUCE's plugin targets already were, and CI lists what the packaged plugin exports on macOS and Linux and fails if any of Apollo's or JUCE's code is among it. Before this, the static libraries the plugin links were built with default visibility, so on macOS and Linux their symbols were exported into the host's process, where a second copy of Apollo — another version, in the same host — could bind to them |
+| 5 — symbol visibility | **Closed here.** Apollo's own code is now hidden by default, as JUCE's plugin targets already were, and CI lists what the packaged plugin exports on macOS and Linux and fails if it exports anything but the entry points, the one function JUCE exports on purpose, and the C++ standard library's own template code. Before this, the static libraries the plugin links were built with default visibility, so on macOS and Linux their symbols were exported into the host's process, where a second copy of Apollo — another version, in the same host — could bind to them |
 | 6 — no allocation or lock detector | **Not P0/P1.** No defect has been found; real-time safety is held by construction and review, and the reason a detector was not built is recorded (Docs/KNOWN-LIMITATIONS.md). Carried |
 | 9 — JUCE 9 exists | Informational. JUCE 8 is the specification |
 | 26 — features never built | **Closed.** Phase 13 built them (ADR-0089 to ADR-0108) |
@@ -7435,6 +7435,18 @@ what CI builds from, was never wrong, so no package was affected. The script now
 also depends on the details file, which JUCE rewrites when they change; the
 stale tree regenerated it at once and a second build left it alone.
 
+**The first export check was wrong, and the visibility change was right.** It
+refused any exported name containing "juce", and on Linux two kinds matched:
+`juce_gtkWebkitMain`, which JUCE exports deliberately because its Linux web view
+runs in a helper process that finds the plugin by that name; and the standard
+library's template code — thread states, futures, shared pointers — whose
+template arguments happen to be JUCE types. libstdc++ declares its own namespace
+visible, so no visibility setting hides those, and every JUCE plugin on Linux
+exports them. Nothing of Apollo's own was exported on either Linux processor,
+and macOS exported exactly its three entry points. The check now says what is
+allowed rather than what is not, and was shown to refuse an Apollo or a JUCE
+symbol added to the real lists before it went back to CI.
+
 ### Alternatives considered
 
 - **0.2.0, or 1.0.0-rc.1 in the build.** CMake's project version is three
@@ -7446,3 +7458,83 @@ stale tree regenerated it at once and a second build left it alone.
   closed 12b without them.
 - **Building an allocation detector first (issue 6).** A detector that misses
   JUCE's own buffers would report safety it had not checked.
+
+---
+
+## ADR-0110 — A release is a CI run on a version tag, published to GitHub Releases, with a guide in the README
+
+**Phase 14b to 14d · Accepted**
+
+### What was asked
+
+The developer asked for the standalone and the VST3 to be on the repository's
+Releases page, so that anyone they share the repository with can download Apollo
+without building it, and for a step-by-step guide in the README to setting it
+up and using it. That is the rest of Phase 14 — the artifacts, the release, and
+the part of installation a person following the guide does — and it is done as
+one piece because the developer asked for the outcome.
+
+### A release is the CI run on its tag
+
+Pushing a tag `v<version>` runs the ordinary CI workflow on that commit: every
+platform builds with warnings as errors, passes the whole suite, passes the host
+suite against its *staged package*, checks what the plugin exports, and
+packages; the sanitizers run. Then one more job, which runs only on a tag and
+only when all of that passed:
+
+1. checks the tag names the version `CMakeLists.txt` declares (VERSIONING.md §7);
+2. collects the four packages and refuses to publish if one is missing;
+3. writes `SHA256SUMS.txt`;
+4. takes the release notes from that version's section of `CHANGELOG.md`;
+5. creates the GitHub release with the four zips and the checksums.
+
+A second, separate release workflow was the alternative, and it would have been
+a copy of the build steps that could drift from the ones `main` is held to. As
+it is, a release cannot ship a build the gate on `main` would have refused,
+because it is the same job.
+
+### Built as Release, not RelWithDebInfo
+
+CI builds RelWithDebInfo, which is what a failure is easiest to read from. A
+release is built as Release: optimised, with no debug information. That keeps
+the build machine's paths out of the binaries and the Linux packages at a
+fraction of their 100 MB. The configuration is one workflow variable, chosen by
+the ref, and a manual run can ask for it (`release_build`) so a release's build
+can be tried on every platform before a tag is pushed. It was, before 1.0.0's
+tag: macOS and Linux had never been built in Release with warnings as errors,
+and GCC's heavier optimisation is where new warnings appear.
+
+### Still no installer
+
+Docs/BUILD.md §7's reasons stand: an installer wants administrator rights, an
+uninstaller and a signing identity, for a format whose convention is a folder in
+a known place. The README guide does the job an installer would, per system:
+where the plugin goes, how to make each DAW find it, and what the operating
+system will say about an unsigned download and what to do about it.
+
+That last part is said plainly rather than left to be discovered. **Windows**
+marks a downloaded zip, so the guide unblocks it before extracting, and the
+standalone meets SmartScreen once. **macOS** quarantines the download, and an
+ad-hoc signature does not satisfy Gatekeeper; the guide gives the one Terminal
+line that clears the quarantine from the plugin and the application, because
+"Open Anyway" in System Settings unblocks an application but does nothing for a
+plugin a DAW loads. A Developer ID and notarisation would remove both prompts,
+and need an Apple developer account the project does not have.
+
+### The guide
+
+"Getting started" in the README, for somebody who has never built anything:
+which file to download; installing on Windows, macOS and Linux; finding Apollo
+in FL Studio, Ableton Live, Reaper or any other DAW; the standalone and its
+audio settings; first sounds — presets, knobs, dragging modulation, MIDI Learn,
+saving, their own wavetables; updating, uninstalling; and a table of what to do
+when something goes wrong. FL Studio is the one DAW Apollo has been seen in; the
+Ableton Live and Reaper steps are those hosts' ordinary rescan, not something
+tested with Apollo.
+
+### Alternatives considered
+
+- **A separate release workflow.** See above.
+- **Shipping the RelWithDebInfo packages CI already makes.** Debug information
+  is no use to someone playing music, and on Linux it is most of the download.
+- **An installer per platform.** See above.

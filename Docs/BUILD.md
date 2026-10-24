@@ -273,6 +273,11 @@ against the thing that ships, plus the package tests: the bundle layout,
 `moduleinfo.json`, no debug leftovers, no path from the build machine, and, on
 Windows, the import table of both binaries.
 
+**Releases are packaged by CI, not by hand.** A version tag builds every
+platform as Release, runs all of the above, and publishes the archives to the
+repository's Releases page with a `SHA256SUMS.txt` (Docs/VERSIONING.md §7,
+ADR-0110). The commands here are for trying a package locally.
+
 ### macOS
 
 A macOS release has to run on both processors and on Macs older than the one

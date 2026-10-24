@@ -2217,8 +2217,7 @@ open (ADR-0109).
   carried, neither P0 nor P1.
 - **Symbol visibility** (issue 5, ADR-0009): Apollo's own code is hidden by
   default, as JUCE's plugin targets already were, and CI lists what the packaged
-  plugin exports on macOS and Linux and fails if any of Apollo's or JUCE's own
-  code is among it.
+  plugin exports on macOS and Linux and fails if it exports anything but the entry points, the one function JUCE exports on purpose, and the C++ standard library's own template code.
 - **The release notes**, `CHANGELOG.md`, written for the people who will
   download it: what is in it, what it needs, how to install, what the 1.0
   compatibility promise is, and the limitations that matter most.
@@ -2231,6 +2230,13 @@ open (ADR-0109).
   standalone and plugin said 0.1.0 in their file properties. CI builds fresh
   trees, so no package carried it. The script now depends on the plugin's
   details file as well.
+
+- **The first export check was wrong**: it refused any exported name containing
+  "juce", and on Linux that caught JUCE's deliberately exported web-view helper
+  entry and standard-library template code with JUCE types as arguments, which
+  libstdc++ makes visible regardless. Nothing of Apollo's was exported on
+  either Linux processor; macOS exported exactly its three entry points. The
+  check now lists what is allowed, and refuses a planted Apollo or JUCE symbol.
 
 Tested in: the whole suite and the host suite, unchanged at 1.0.0; CI's new
 export check on macOS and Linux; the Windows version read back from the built
@@ -4493,7 +4499,7 @@ of asserting nothing.
 | 2 | ~~VST3 has not been loaded in a DAW~~ | **Closed** | By the developer, 2026-10-24: loaded in FL Studio on Windows, played, beats made with the factory presets (§5a, ADR-0109). Before that, 10e-1 had loaded the bundle through JUCE's VST3 hosting implementation in CI on every platform and fixed four defects (issues 19-21, ADR-0075). No other DAW has been tried, which is a known limitation rather than an issue. |
 | 3 | ~~Standalone has not been launched against an audio device~~ | **Closed** | Verified 2026-09-08. Windows Audio, Speakers (Realtek) at 48 kHz / 480 samples, output channels 1+2. A MIDI note sent to a virtual port drove Apollo's output to a measured session peak of **0.1829**, against 0.0000 before and after — read from the Windows audio-session meter, not inferred. |
 | 4 | Linux CI job failed twice, both causes fixed and confirmed | Resolved | Kept as a record rather than deleted, because both fixes are load-bearing and neither is obvious from the code. **(a) GTK include paths.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. **(b) Runner memory exhaustion.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. Both fixes are confirmed by the green run recorded in §4. |
-| 5 | ~~Symbol visibility still unresolved~~ | **Closed** | In Phase 14a (ADR-0109). Apollo's own code is hidden by default, as JUCE's plugin targets already were; before, the static libraries the plugin links kept the default visibility, so on macOS and Linux their symbols were exported into the host's process. CI now lists what the packaged plugin exports on both and fails if any of Apollo's or JUCE's own code is among it. |
+| 5 | ~~Symbol visibility still unresolved~~ | **Closed** | In Phase 14a (ADR-0109). Apollo's own code is hidden by default, as JUCE's plugin targets already were; before, the static libraries the plugin links kept the default visibility, so on macOS and Linux their symbols were exported into the host's process. CI now lists what the packaged plugin exports on both and fails if it exports anything but the entry points, the one function JUCE exports on purpose, and the C++ standard library's own template code. |
 | 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Carried into Phase 10 and **still open after 10c**: the obvious mechanism, replacing global `operator new`, would miss `juce::HeapBlock`, which calls `malloc` directly and is what every audio buffer in JUCE is built on — so a detector built that way would report "no allocations" while not watching the allocations most likely to happen. Needs a platform allocator hook rather than a language one. |
 | 7 | ~~ARM64 unverified~~ | **Closed** | An `ubuntu-24.04-arm` job joined the matrix in 11d and passed on its first run: the whole suite, the host suite against a staged `aarch64-linux` package, the fifteen regression renders within 0.0005 dB of their references, and an archive of its own. macOS ships arm64 as half of its universal binary (11b). Windows on ARM64 remains untried — no runner, and JUCE targets `arm64ec` there (ADR-0079). |
 | 8 | ~~`ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md`~~ | **Fixed** | Corrected in 12d-3; no document refers to the hyphenated name. |

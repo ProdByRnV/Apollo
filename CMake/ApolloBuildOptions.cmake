@@ -52,8 +52,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # exported into that process: two plugins built from different versions of the
 # same code can then bind to each other's functions. The plugin needs to export
 # its format's entry points and nothing else, and JUCE marks those visible
-# itself. CI lists what the packaged plugin exports and fails if any of Apollo's
-# or JUCE's code is among it (ADR-0109).
+# itself. CI lists what the packaged plugin exports and fails if it exports
+# anything else of Apollo's or JUCE's (ADR-0109). On Linux the C++ standard
+# library's template code is exported regardless: libstdc++ declares it visible.
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
