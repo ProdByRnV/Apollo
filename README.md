@@ -12,17 +12,17 @@ written in React and shown through the platform's own WebView.
 
 ## Status
 
-**Version 0.1.0, approaching a release candidate (roadmap Phase 12). Not
-released.** There are no downloads yet. Apollo is built from source, below, and
-every CI run also packages it for each platform.
+**Version 1.0.0, the release candidate (roadmap Phase 14). Not released yet.**
+There are no downloads yet. Apollo is built from source, below, and every CI
+run also packages it for each platform. What 1.0.0 contains is in
+[CHANGELOG.md](CHANGELOG.md).
 
-It is a complete instrument: it plays, every one of its 298 parameters affects
-the sound, and it is tested, measured and packaged on four platforms. What is
-not yet true is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md). The
-largest gaps are that it has not been tried inside a DAW, that its interface has
-only ever been seen on Windows, and that several features the specification
-describes (drawn curves) are not built yet. They are
-being built before the first release (Phase 13).
+It is a complete instrument: it plays, every one of its 305 parameters affects
+the sound, and it is tested, measured and packaged on four platforms. It has
+been played in FL Studio. What is not yet true is in
+[Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md); the largest gaps are
+that no other DAW has been tried and that its interface has only ever been seen
+on Windows.
 
 ---
 

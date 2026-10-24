@@ -864,7 +864,7 @@ by a number the engine assigned, and cannot express a filename (ADR-0063).
 | Spectrum visualisation (§5.3) | Built as the equaliser's display: its input and output spectra behind its curve (ADR-0101). No separate analyser on the output |
 | `Source/Platform/` behind interfaces (§9, §10) | Not needed: one conditional in the editor, the rest in CMake (§20.1) |
 | Effects under `Source/Effects/`, frontend under `Web/` (§10) | `Source/DSP/<Effect>/` and `WebUI/` (Docs/REPOSITORY-LAYOUT.md) |
-| Testing against a representative range of hosts (§8, §15) | Against the VST3 interfaces through a host implementation on every platform (ADR-0075); no DAW yet |
+| Testing against a representative range of hosts (§8, §15) | Against the VST3 interfaces through a host implementation on every platform (ADR-0075), and in FL Studio by the developer (ADR-0109); no other DAW yet |
 
 The features the PRD specifies and which were not built are a separate question
 from architecture, recorded in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md).

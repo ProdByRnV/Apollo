@@ -10,11 +10,11 @@ version moved, or hide a breaking schema change behind an unchanged number.
 
 | Axis | Source of truth | Changes when | Now |
 |---|---|---|---|
-| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `0.1.0` |
-| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `0.1.0` |
+| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `1.0.0` |
+| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `1.0.0` |
 | **State / preset schema version** | `currentSchemaVersion` in `Source/State/StateSerialization.h` | The serialized layout changes incompatibly | `2`; reads `1` and `2` |
 | **UI bridge protocol version** | `PROTOCOL_VERSION`, on both sides of the bridge | A bridge message shape changes incompatibly | `1` |
-| **Parameter IDs** | The parameter registry | *Never* — see below | 298 |
+| **Parameter IDs** | The parameter registry | *Never* — see below | 305 |
 
 What these promise a user — which presets and projects open in which version —
 is [COMPATIBILITY.md](COMPATIBILITY.md).

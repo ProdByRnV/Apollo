@@ -123,7 +123,7 @@ front of it is better understood, the way 8f was.
 
 | | | |
 |---|---|---|
-| **10** | **Performance, DSP validation & host compatibility** — complete but for the DAW work, 10e-2 and 10e-3, deferred at the developer's direction | ⏸ |
+| **10** | **Performance, DSP validation & host compatibility** — complete; the DAW work closed by the developer's own testing in FL Studio (ADR-0109) | ✅ |
 | 10a | The DSP validation suite — frequency response, pitch accuracy, aliasing, THD+N, noise floor, impulse and step response, numerical stability, denormals, NaN and infinity | ✅ |
 | 10b | Regression audio renders — golden renders and the harness that compares against them, which is the machinery every later phase leans on | ✅ |
 | 10c | Performance profiling — CPU per voice and at each polyphony level, oversampling, the rack, worst-case callback duration, memory, the interface, resource loading, and worst-case *combinations*. Needs a measurement environment that does not drift (PROJECT-STATE §5b) | ✅ |
@@ -135,8 +135,8 @@ front of it is better understood, the way 8f was.
 | 10d-5 | The flat unison stack — parallel arrays rather than sixteen oscillator objects, rendered as a gather pass and an arithmetic pass, with `read` and the stack sharing one gather and one interpolate. **1.28x on the heaviest patch** (ADR-0074) | ✅ |
 | 10e | Host compatibility — discovery, load and unload, automation, state and preset recall, MIDI, block sizes, sample-rate changes, bypass, transport, latency reporting, offline rendering | ⬜ |
 | 10e-1 | The host harness — the built VST3 bundle loaded through a VST3 host implementation and driven as a DAW drives it, in CI on all three platforms. Found and fixed four defects no direct test could see: every integer parameter published to hosts as continuous, mono output refused, a note or pedal released during a host bypass never ending, and the default bypass asserting under latency. The VST3 parameter IDs a saved project stores are now pinned (ADR-0075) | ✅ |
-| 10e-2 | FL Studio, by hand — scanning, insertion, the editor, automation, project save and reopen, host presets, MIDI from the piano roll, bypass, rendering; and Steinberg's validator alongside it. **Deferred at the developer's direction**: DAW testing is set aside for now | ⏸ |
-| 10e-3 | What 10e-2 finds, and the harness extended to cover it. **Deferred with 10e-2** | ⏸ |
+| 10e-2 | FL Studio, by hand — **by the developer, 2026-10-24**: loaded, played, beats made with the factory presets, "smooth as butter". Automation, a project reopened, bypass and Steinberg's validator were not reported separately; the host harness covers them on every platform, and a DAW that disagrees is fixed as found (ADR-0109) | ✅ |
+| 10e-3 | What 10e-2 finds — nothing was reported (ADR-0109) | ✅ |
 | **12** | **Release candidate & production hardening** | ⬜ |
 | 12a | Reliability — a soak suite in the host harness with `--soak N`, asserting finiteness, boundedness, no upward trend, that it can still stop, that memory comes back and that nothing illegal survives corruption. Found an over-long block silently skipping the oversampled effects, and three of its own assertions wrong — one of which looked exactly like a stuck voice in the engine (ADR-0080) | ✅ |
 | 12b | Audio quality — final listening, aliasing, gain staging, noise floor and transient review. Closed on the developer's hands-on review from two MIDI keyboards, over the measurements 10a already made; a whole-keyboard aliasing sweep and attack timing against the envelope were not run, and issues found later are fixed as they arise | ✅ |
@@ -179,6 +179,10 @@ front of it is better understood, the way 8f was.
 | 13h-3 | Controller profiles that can be edited, exported and imported — your own, saved from the assignments and edited through a table of them, moved in and out through the system's dialogs (ADR-0107) | ✅ |
 | 13h-4 | Drag-and-drop modulation — a source dragged onto a control, or picked up and put down from the keyboard, routed by the engine in the first free slot; a tag on the control for each routing, dragged to change its depth (ADR-0108) | ✅ |
 | **14** | **Release candidate & release — clean-machine installation, discovery, standalone launch, uninstall and update, artifacts, and the tag; formerly 12e** | ⬜ |
+| 14a | The release candidate — version 1.0.0, every open issue read against the gate and none P0 or P1, symbol visibility closed, the release notes, the documents brought to the truth, all of it passing on every platform (ADR-0109) | ✅ |
+| 14b | Installation — the package installed on a clean machine, found by hosts, the standalone launched, uninstalled and updated | ⬜ |
+| 14c | Release artifacts — the packages built from the candidate for every platform, with checksums | ⬜ |
+| 14d | The tag and the release | ⬜ |
 
 ### Carried forward
 
@@ -187,7 +191,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 | From | Item | Lands in |
 |---|---|---|
 | 1 | Resource embedding and packaging | 9d, 9e |
-| 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in a DAW in 10e-2 |
+| 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in FL Studio, by the developer, in 10e-2 |
 | 2 | Thread-safety tests — an allocation and lock detector on the audio thread | unscheduled; 10a did not take it, because the obvious detector would miss the allocations most likely to happen (PROJECT-STATE issue 6) |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
@@ -956,7 +960,7 @@ with `--soak N` to run any of it longer (12a, ADR-0080).
 **Moved to Phase 14** (ADR-0089). The tasks stay listed here, where they were
 written, and Phase 14 below takes them.
 
-- [ ] Create release candidate.
+- [x] Create release candidate. — 1.0.0, the gate passed with nothing P0 or P1 open, CHANGELOG.md written (14a, ADR-0109)
 - [ ] Perform clean-machine installation tests.
 - [ ] Verify plugin discovery.
 - [ ] Verify standalone launch.
@@ -1267,7 +1271,7 @@ A production-ready build must satisfy all of the following:
 - [x] UI telemetry cannot block DSP. — lock-free rings, and audio sample-for-sample identical with capture on and off (7a, 7b) (read in 12d-3)
 - [x] No core subsystem depends on a specific DAW, OS, controller, driver, audio device, or physical connector. — one platform conditional in the whole engine, choosing the WebView (ARCHITECTURE.md §20.1) (read in 12d-3)
 - [x] Supported platforms have reproducible builds. — pinned JUCE and a locked frontend, built on four platforms in CI (0, 11) (read in 12d-3)
-- [ ] Representative hosts have been tested. — only through a VST3 host implementation; no DAW yet (10e-2, deferred by the developer) (read in 12d-3)
+- [x] Representative hosts have been tested. — through a VST3 host implementation on every platform (10e-1), and in FL Studio by the developer (10e-2, ADR-0109). No other DAW yet
 - [x] Long-duration stability testing has passed. — the reliability soak (12a) (read in 12d-3)
 - [x] Known limitations are documented. — Docs/KNOWN-LIMITATIONS.md (12d-1) (read in 12d-3)
 - [x] Release artifacts can be produced from a clean environment. — every CI run packages Apollo on a fresh runner for each platform (11) (read in 12d-3)

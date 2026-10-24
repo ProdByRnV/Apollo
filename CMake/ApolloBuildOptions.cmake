@@ -42,10 +42,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Emitted for clangd / IDE tooling. Ignored by the Visual Studio generator.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# NOTE: symbol visibility is deliberately left at the toolchain default for now.
-# Hidden visibility is the right end state for plugin bundles, but it interacts
-# with the plugin format's exported entry points and must be validated against a
-# real VST3/standalone build. That belongs to Phase 1, not here.
+# ---------------------------------------------------------------------------
+# Symbol visibility (Phase 14a, closing ADR-0009)
+# ---------------------------------------------------------------------------
+#
+# Hidden by default, for Apollo's own libraries as JUCE already makes it for the
+# plugin targets. A plugin is a library loaded into somebody else's process
+# beside other plugins, and on macOS and Linux every symbol it does not hide is
+# exported into that process: two plugins built from different versions of the
+# same code can then bind to each other's functions. The plugin needs to export
+# its format's entry points and nothing else, and JUCE marks those visible
+# itself. CI lists what the packaged plugin exports and fails if any of Apollo's
+# or JUCE's code is among it (ADR-0109).
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 get_property(APOLLO_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 

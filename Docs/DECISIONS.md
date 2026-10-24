@@ -143,6 +143,9 @@ meaningfully validated without a real VST3/standalone build. Setting it now woul
 be an unverified change to link behaviour, so the toolchain default is retained
 and the decision moves to Phase 1, where it can be tested.
 
+*(Closed in Phase 14a: hidden by default, and what the packaged plugin exports is
+checked in CI. ADR-0109.)*
+
 ---
 
 ## ADR-0010 — The engine is an INTERFACE library, not a static library
@@ -7365,3 +7368,81 @@ A host's undo history. A drop is four parameter edits, each its own gesture, so
 a host that records them may show four steps where the user took one. That
 would want the engine to group them, which no plugin format offers directly.
 Deferred with the rest of the DAW work.
+
+---
+
+## ADR-0109 — The first release is 1.0.0, and its candidate is the commit that passes the gate
+
+**Phase 14a · Accepted**
+
+### Phase 14 in four parts
+
+Phase 14 takes the release tasks Phase 12 wrote and ADR-0089 moved here. They
+fall into four parts, done one at a time:
+
+| Part | What | Why separate |
+|---|---|---|
+| **14a** | The release candidate: every open issue read against the gate, the version, the release notes, the documents brought to what is true, and a build of all of it passing on every platform | Everything after it is done *to* the candidate |
+| **14b** | Installation: the package installed on a clean machine, found by hosts, the standalone launched, uninstalled and updated | It tests the package, not the code |
+| **14c** | Release artifacts: the packages built from the candidate for every platform, with checksums | It needs the candidate and what 14b learns about the package |
+| **14d** | The tag and the release | It is the one step that cannot be taken back |
+
+### 1.0.0
+
+Docs/VERSIONING.md §2 makes 1.0 the point at which parameter ids and the preset
+format become permanent, and ADR-0089 recorded the developer's decision that
+the plugin's identity — `ProdByRnV`, `Prnv`, `Apol` — is permanent from the
+first release. The first release is therefore 1.0.0, not 0.2.0: a 0.x release
+would tell its users their presets might stop opening, which is a promise the
+project has kept since 0.1.0 anyway (Docs/COMPATIBILITY.md §3) and now makes.
+
+The version is set in the candidate rather than at the tag, so that what 14b
+installs and 14c packages already calls itself what it will be released as.
+Every document a build writes carries the version (`productVersion` in a preset
+or project); nothing reads it back as a condition, which the whole suite passing
+unchanged at 1.0.0 confirms.
+
+### The gate
+
+Phase 12's exit criterion, which Phase 14 inherits: no unresolved P0 or P1
+issue. Every open row of PROJECT-STATE §6, read against it:
+
+| Issue | Verdict |
+|---|---|
+| 2 — not loaded in a DAW | **Closed by the developer's own testing.** On 2026-10-24 they loaded the VST3 in FL Studio, played it, and made beats with the factory presets, reporting it "works smooth as butter". Recorded as their review, as Phase 12b was. What they did not report separately — automation, a project saved and reopened, bypass, Steinberg's validator — is covered by the host harness on every platform and is fixed as found if a DAW disagrees. Other DAWs are untried and stay a known limitation |
+| 5 — symbol visibility | **Closed here.** Apollo's own code is now hidden by default, as JUCE's plugin targets already were, and CI lists what the packaged plugin exports on macOS and Linux and fails if any of Apollo's or JUCE's code is among it. Before this, the static libraries the plugin links were built with default visibility, so on macOS and Linux their symbols were exported into the host's process, where a second copy of Apollo — another version, in the same host — could bind to them |
+| 6 — no allocation or lock detector | **Not P0/P1.** No defect has been found; real-time safety is held by construction and review, and the reason a detector was not built is recorded (Docs/KNOWN-LIMITATIONS.md). Carried |
+| 9 — JUCE 9 exists | Informational. JUCE 8 is the specification |
+| 26 — features never built | **Closed.** Phase 13 built them (ADR-0089 to ADR-0108) |
+
+Nothing open is P0 or P1, so the gate is passed.
+
+### What the candidate is
+
+The commit that sets 1.0.0 and passes the gate, built and tested on every
+platform by CI, with the packages that run produces. It is not tagged: Docs/
+VERSIONING.md §7 has a tag point at a release, and a candidate that 14b finds a
+fault in is replaced by the next commit, not retagged.
+
+### Found while making it
+
+**Every Windows binary from an existing build tree still called itself 0.1.0.**
+The version Windows shows in a file's properties, and some hosts read, comes
+from a resource script JUCE generates from the plugin's details, and JUCE
+regenerates it only when the icon changes. The plugin's own metadata said
+1.0.0; the standalone and the plugin binary said 0.1.0. A fresh tree, which is
+what CI builds from, was never wrong, so no package was affected. The script now
+also depends on the details file, which JUCE rewrites when they change; the
+stale tree regenerated it at once and a second build left it alone.
+
+### Alternatives considered
+
+- **0.2.0, or 1.0.0-rc.1 in the build.** CMake's project version is three
+  numbers, and a pre-release marker in it would have to be removed at the tag,
+  so the build 14b tests would not be the build released. The candidate is
+  named by its commit instead.
+- **Holding the gate on the measurements 12b proposed and did not run.** They
+  are not issues; nothing they would test has been found wrong. The developer
+  closed 12b without them.
+- **Building an allocation detector first (issue 6).** A detector that misses
+  JUCE's own buffers would report safety it had not checked.

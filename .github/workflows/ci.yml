@@ -161,6 +161,27 @@ jobs:
           codesign --verify --strict --verbose=2 staged/Standalone/Apollo.app
           codesign --display --verbose=2 staged/VST3/Apollo.vst3
 
+      # What the plugin exports into a host's process: its format's entry
+      # points, and none of Apollo's or JUCE's own code (ADR-0109). On Windows
+      # a DLL exports only what it names, so the question is macOS and Linux.
+      - name: Check what the plugin exports
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            binary=staged/VST3/Apollo.vst3/Contents/MacOS/Apollo
+            exported=$(nm -gU "$binary" | c++filt)
+          else
+            binary=$(find staged/VST3/Apollo.vst3/Contents -name 'Apollo.so')
+            exported=$(nm -D --defined-only "$binary" | c++filt)
+          fi
+          echo "Exported by $binary:"
+          echo "$exported"
+          if echo "$exported" | grep -Ei 'apollo|juce'; then
+            echo "::error::The plugin exports Apollo's or JUCE's own symbols"
+            exit 1
+          fi
+
       - name: Test the staged package (Windows)
         if: runner.os == 'Windows'
         run: >

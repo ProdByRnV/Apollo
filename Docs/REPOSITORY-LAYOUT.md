@@ -34,6 +34,7 @@ Apollo/
 ├── CMake/                      Build modules (options, warnings, dependencies)
 ├── PROJECT-STATE.md            Current, verified implementation state
 ├── README.md
+├── CHANGELOG.md                What each release changed, for its users
 │
 ├── CLAUDE.md                   Agent directives and engineering rules
 ├── PRD.md                      Product requirements

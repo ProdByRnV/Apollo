@@ -4,7 +4,8 @@ What Apollo runs on, and how much of that has been seen working rather than
 built. The second part matters as much as the first: a platform can be built,
 tested and packaged in CI and still never have had a person look at it.
 
-Status as of version 0.1.0, Phase 12. Apollo has not been released.
+Status as of version 1.0.0, the release candidate (Phase 14). Apollo has not
+been released yet.
 
 ---
 
@@ -52,7 +53,7 @@ work.
 | Regression renders match the references | ✅ | ✅ | ✅ | ✅ to 0.0005 dB |
 | The interface has been seen on screen | ✅ | ❌ never | ❌ never | ❌ never |
 | Played by hand with a MIDI keyboard | ✅ two keyboards | ❌ | ❌ | ❌ |
-| Inside a DAW | ❌ (see below) | ❌ | ❌ | ❌ |
+| Inside a DAW | ✅ FL Studio, by the developer | ❌ | ❌ | ❌ |
 
 "Through a VST3 host" means the host harness (Docs/TESTING.md §8): the packaged
 bundle loaded through JUCE's VST3 hosting implementation and driven as a DAW
@@ -70,9 +71,10 @@ those machines.
 ## Hosts
 
 Apollo is written against the VST3 standard rather than against any one DAW
-(CLAUDE.md §5.2), and so far it has been tested against the standard rather than
-in any DAW. Testing inside DAWs — FL Studio first, because it is on the
-development machine — is Phase 10e-2, deferred at the developer's direction.
+(CLAUDE.md §5.2), and is tested against the standard on every platform. One DAW
+has been tried: the developer loaded it in **FL Studio** on Windows, played it
+and made beats with the factory presets (2026-10-24, ADR-0109). No other DAW has
+been tried.
 
 Found by the host harness and fixed, so they will not be the first things a DAW
 reports (ADR-0075): every integer parameter had been published as continuous; a

@@ -1,7 +1,7 @@
 # Known Limitations
 
-What Apollo does not do, or has not been shown to do, as of version 0.1.0 in
-Phase 12. Apollo has not been released.
+What Apollo does not do, or has not been shown to do, as of version 1.0.0, the
+release candidate (Phase 14). Apollo has not been released yet.
 
 Every entry is one of four kinds, kept apart because they mean different things:
 something **not yet verified** may well work; something **specified but not
@@ -19,7 +19,8 @@ page is drawn from.
 
 | | What is known instead |
 |---|---|
-| **Apollo inside a DAW** | The packaged VST3 is loaded and driven through a VST3 host implementation in CI on every platform, which found and fixed four defects (ADR-0075). No DAW has been tried: that is Phase 10e-2, deferred at the developer's direction |
+| **Apollo inside DAWs other than FL Studio** | The developer loaded the VST3 in FL Studio on Windows, played it and made beats with the factory presets (2026-10-24, ADR-0109). No other DAW has been tried. The packaged VST3 is loaded and driven through a VST3 host implementation in CI on every platform, which found and fixed four defects (ADR-0075) |
+| **Undo after a drag-and-drop in a host** | A dropped source is four parameter edits, each its own gesture, so a host that records them may show four undo steps for one drop (ADR-0108) |
 | **The interface on macOS and Linux** | Built, packaged and played through a host in CI, but never seen on a screen. Retina is likewise unverified |
 | **A screen reader** | Every panel is a named region with a heading, every control has a name and a value, and keyboard focus is managed (ADR-0083). Nobody has listened to Narrator, VoiceOver or Orca read it |
 | **Closing and reopening the editor many times inside a host** | Attaching and detaching the bridge is tested, and the window was opened and closed by hand on Windows. A headless harness cannot open an editor, so repetition inside a host is not tested (12a) |
@@ -33,10 +34,10 @@ page is drawn from.
 
 Features the product requirements ([PRD.md](../PRD.md)) or the project
 instructions ([CLAUDE.md](../CLAUDE.md)) describe, which Apollo does not have.
-None of them was dropped by a recorded decision except where one is cited. They
-were simply never scheduled. **The developer has decided they all belong in the
-first release**, so they are now Phase 13 of the roadmap, and each row leaves
-this table when its sub-phase lands (ADR-0089).
+Phase 13 built what the specification described and 0.1.0 lacked (ADR-0089 to
+ADR-0108). What is left in this table is the part of each requirement that
+stayed out of 1.0.0: a later option the specification itself names, or an
+extension nobody scheduled. Each row says, in italics, what was built.
 
 | Area | Not built | Spec |
 |---|---|---|
@@ -62,6 +63,7 @@ this table when its sub-phase lands (ADR-0089).
 | **A patch carries its content, not a path to it** | A loaded wavetable or noise sample is stored inside the project or preset as lossless audio, so moving or deleting the file, or opening the project elsewhere, changes nothing. The cost is size: a 16-frame table adds about 50 KB, and the heaviest patch possible is 5.5 MB. A file edited after it was loaded is not picked up until it is loaded again (ADR-0104) |
 | **The library is organised in the file manager** | Banks are folders, as for presets. Apollo lists them, opens the folder, and writes into it with Save to library; renaming, moving and deleting are left to the file manager the user already has (ADR-0104) |
 | **A noise sample is at most ten seconds** | It is kept in memory at six bandwidths and carried inside every patch that uses it. Longer is a recording rather than a noise source (ADR-0104) |
+| **A routing's tag shows its depth, not the range it sweeps** | The control shows the depth the matrix uses. A ring of the swept range would need every destination's units converted through the knob's travel, a source's polarity and a via, and drawn wrongly it would show something the engine is not doing (ADR-0108) |
 | **No SIMD intrinsics** | Measured: most of what vector code would have gained came from data layout alone, which Apollo took instead (ADR-0073, ADR-0074). It is also why ARM64 needed no porting |
 
 ---

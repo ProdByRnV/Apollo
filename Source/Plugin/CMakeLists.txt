@@ -45,6 +45,20 @@ juce_add_plugin(Apollo
     # APOLLO_COPY_VST3_TO_PLUGIN_FOLDER below, which is off by default.
     COPY_PLUGIN_AFTER_BUILD     FALSE)
 
+# The version Windows shows in a file's properties comes from a resource script
+# JUCE generates from the plugin's details, and JUCE regenerates it only when the
+# icon changes. A build tree configured at one version therefore kept stamping
+# that version into every binary after the project moved on: found in 14a, when
+# a 1.0.0 build still called itself 0.1.0 (ADR-0109). A fresh tree, as CI uses,
+# was never affected. The details file is rewritten whenever they change, so it
+# is the dependency the script was missing.
+if(WIN32)
+    get_target_property(_apollo_generated_dir Apollo JUCE_GENERATED_SOURCES_DIRECTORY)
+    get_target_property(_apollo_info_file Apollo JUCE_INFO_FILE)
+    add_custom_command(OUTPUT "${_apollo_generated_dir}/Apollo_resources.rc"
+        APPEND DEPENDS "${_apollo_info_file}")
+endif()
+
 target_sources(Apollo PRIVATE
     PluginEntry.cpp
     StandaloneMidiAdoption.cpp

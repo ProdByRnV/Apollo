@@ -1,6 +1,6 @@
 {
   "name": "apollo-webui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Apollo's interface: React and TypeScript, bundled to the three files the plugin embeds.",
   "license": "UNLICENSED",

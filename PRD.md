@@ -182,7 +182,7 @@ Restore state accurately.
 Handle version migrations.
 Remain backward compatible with older preset/project states where practical.
 
-> **Status, 0.1.0:** ✅ §6.1 VST3, with the engine independent of the format. ◐ §6.2 tested against the VST3 interfaces through a host implementation on every platform, which found and fixed four defects (ADR-0075); not yet in any DAW ❌ — Phase 10e-2, deferred by the developer. ✅ §6.3 APVTS, versioned and migrated state, safe rejection that changes nothing.
+> **Status, 0.1.0:** ✅ §6.1 VST3, with the engine independent of the format. ◐ §6.2 tested against the VST3 interfaces through a host implementation on every platform, which found and fixed four defects (ADR-0075); and since Phase 14a in FL Studio, played by the developer (ADR-0109); no other DAW yet. ✅ §6.3 APVTS, versioned and migrated state, safe rejection that changes nothing.
 
 ---
 7. Core Sound Engine
@@ -981,7 +981,7 @@ Error states.
 42.5 Host Compatibility Tests
 Test multiple standards-compliant DAWs rather than optimizing exclusively for one DAW.
 
-> **Status, 0.1.0:** ✅ §42.1–§42.3, in over two million assertions, regression renders and a host harness. ◐ §42.4 the interface has unit tests for its logic and is otherwise driven in the running application (Docs/TESTING.md §10); drag-and-drop modulation exists since Phase 13h-4 and is tested both ways, the engine's half in the unit suite and the page's half in the interface tests, and was driven by hand (ADR-0108). ❌ §42.5 no DAW yet.
+> **Status, 0.1.0:** ✅ §42.1–§42.3, in over two million assertions, regression renders and a host harness. ◐ §42.4 the interface has unit tests for its logic and is otherwise driven in the running application (Docs/TESTING.md §10); drag-and-drop modulation exists since Phase 13h-4 and is tested both ways, the engine's half in the unit suite and the page's half in the interface tests, and was driven by hand (ADR-0108). ◐ §42.5 FL Studio, by the developer (ADR-0109); no other DAW yet.
 
 ---
 43. Accessibility
@@ -1185,7 +1185,7 @@ Audio configuration changes do not crash the application.
 CPU usage is profiled and documented.
 The application does not require proprietary hardware.
 
-> **Status, 0.1.0:** ✅ Every criterion is met except the first: the VST3 has not yet been loaded in a DAW, only through a VST3 host implementation (§6.2).
+> **Status, 0.1.0 to 14a:** ✅ Every criterion is met. The first since Phase 14a: the VST3 has been loaded and played in FL Studio by the developer, as well as through a VST3 host implementation on every platform (§6.2, ADR-0109).
 
 ---
 48. Future Expansion
