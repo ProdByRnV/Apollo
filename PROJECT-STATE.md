@@ -3475,10 +3475,9 @@ now refreshes, loaded it in FL Studio on Windows, played it, and made beats with
 the factory presets: "it works smooth as butter". Recorded as their review, not
 as a measurement, as 12b was, and it closes 10e-2 and issue 2 (ADR-0109).
 
-Not reported separately, and so not claimed: automation recorded and played
-back, a project saved and reopened, bypass, and Steinberg's validator. The host
-harness covers the first three on every platform; whatever FL Studio does
-differently is fixed as it is found.
+On 2026-10-25 the developer reported testing the rest by hand as well:
+automation recorded and played back, a project saved and reopened, bypass, and
+Steinberg's VST3 validator. Recorded as their review. Nothing was found.
 
 ### Drag-and-drop modulation (Phase 13h-4), 2026-10-24
 
@@ -4611,9 +4610,8 @@ rather than stopping progress:
    developer account.
 4. **Carried, none blocking**: issue 6, no allocation or lock detector on the
    audio thread; interface reload inside a host (12a); the structure-of-arrays
-   taps declined in ADR-0074; the FL Studio items the developer did not report
-   separately — automation, a project reopened, bypass, Steinberg's validator;
-   and undo after a drag-and-drop in a host (ADR-0108).
+   taps declined in ADR-0074; and undo after a drag-and-drop in a host
+   (ADR-0108).
 
 **Making the next release** is Docs/VERSIONING.md §7: set the version, write its
 section of CHANGELOG.md, optionally run CI with **release_build**, push the tag.

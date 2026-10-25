@@ -18,7 +18,7 @@ page is drawn from.
 
 | | What is known instead |
 |---|---|
-| **Apollo inside DAWs other than FL Studio** | The developer loaded the VST3 in FL Studio on Windows, played it and made beats with the factory presets (2026-10-24, ADR-0109). No other DAW has been tried. The packaged VST3 is loaded and driven through a VST3 host implementation in CI on every platform, which found and fixed four defects (ADR-0075) |
+| **Apollo inside DAWs other than FL Studio** | The developer loaded the VST3 in FL Studio on Windows, played it and made beats with the factory presets (2026-10-24), then tested automation, a project saved and reopened, bypass and Steinberg's validator there (2026-10-25, ADR-0109). No other DAW has been tried. The packaged VST3 is loaded and driven through a VST3 host implementation in CI on every platform, which found and fixed four defects (ADR-0075) |
 | **Undo after a drag-and-drop in a host** | A dropped source is four parameter edits, each its own gesture, so a host that records them may show four undo steps for one drop (ADR-0108) |
 | **The interface on macOS and Linux** | Built, packaged and played through a host in CI, but never seen on a screen. Retina is likewise unverified |
 | **A screen reader** | Every panel is a named region with a heading, every control has a name and a value, and keyboard focus is managed (ADR-0083). Nobody has listened to Narrator, VoiceOver or Orca read it |
