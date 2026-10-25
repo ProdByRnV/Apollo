@@ -51,6 +51,8 @@ import { Noise, Oscillator, SubOscillator } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
 import { ModCarryLayer } from './components/ModSource';
+import { PlayStrip } from './components/PlayStrip';
+import { setNotePlaying, useNotePlaying } from './state/notePlaying';
 
 import { applyProfiles, applyMappings, midiState, profileTone, setMidiMode, toggleLearn, useMidi } from './state/midi';
 import { useAssignedRoutings } from './state/modulation';
@@ -84,6 +86,7 @@ export function App(): JSX.Element {
     const metadataVersion = useMetadataVersion();
     const presets = usePresets();
     const sampleRate = useSampleRate();
+    const notePlaying = useNotePlaying();
 
     /** What the connection established, for the readout's tooltip. */
     const [binding, setBinding] = useState('');
@@ -107,6 +110,7 @@ export function App(): JSX.Element {
         switch (message.type) {
             case 'parameterMetadata':
                 setDefinitions(message.parameters);
+                setNotePlaying(message.notePlaying === true);
 
                 // Everything is built from metadata but nothing yet holds a
                 // value, so ask for the state that fills it in.
@@ -546,6 +550,14 @@ export function App(): JSX.Element {
 
             {/* A modulation source being carried to a control (13h-4). */}
             <ModCarryLayer />
+
+            {/*
+                The piano strip, in the standalone only (Phase 15): played with
+                the computer keyboard or the mouse, for anyone without a MIDI
+                keyboard. Between the instrument and the status line, so it
+                never covers a control.
+            */}
+            {notePlaying && ready ? <PlayStrip /> : null}
 
             <footer className="footer">
                 <span role="status" className="footer__status" data-tone={statusTone}>

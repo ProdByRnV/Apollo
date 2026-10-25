@@ -140,8 +140,18 @@ through your computer's speakers or headphones straight away. To choose a
 different audio interface, sample rate or buffer size, press **Options** at the
 top of the window and choose **Audio/MIDI Settings…**.
 
-The standalone has no on-screen keyboard, so you need a MIDI keyboard or
-controller to play it. Without one, use the plugin in a DAW.
+**No MIDI keyboard?** From version 1.1.0 the standalone plays from your
+computer keyboard, and shows a piano strip at the bottom of the window:
+
+- The middle row of letters, **A S D F G H J K L ;**, are the white keys, from
+  middle C. The row above, **W E T Y U O P**, are the black keys.
+- **Z** and **X** move down and up an octave. **C** and **V** play softer and
+  harder.
+- Click or drag along the strip to play with the mouse.
+
+Typing in a text box never plays notes. Inside a DAW, use the DAW's own typing
+keyboard, which Apollo leaves alone. In version 1.0.1 and earlier, the
+standalone needs a MIDI keyboard.
 
 ### 5. Your first sounds
 

@@ -1210,6 +1210,18 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // observe and everyone would have to reason about.
     midiControl.refreshMappings();
 
+    // Notes played from the interface since the last block (Phase 15). At the
+    // block's start, through the same handler as the MIDI below, so a note
+    // typed on the computer keyboard is indistinguishable from one played on
+    // a MIDI keyboard from here on. A three-byte message is held inside
+    // juce::MidiMessage itself, so nothing here allocates.
+    pageNotes.drain ([this] (int note, int velocity)
+    {
+        handleMidiMessage (velocity > 0
+            ? juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity))
+            : juce::MidiMessage::noteOff (1, note));
+    });
+
     int position = 0;
 
     for (const auto metadata : midiMessages)
@@ -1360,6 +1372,14 @@ void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffe
         if (! message.isNoteOn())
             handleMidiMessage (message);
     }
+
+    // The interface's notes, under the same rule: a key let go during the
+    // bypass is let go, and a key pressed during it plays nothing.
+    pageNotes.drain ([this] (int note, int velocity)
+    {
+        if (velocity == 0)
+            handleMidiMessage (juce::MidiMessage::noteOff (1, note));
+    });
 
     // The chain is still read, so a rack rearranged while bypassed reports its
     // latency to the host now rather than on the block the bypass lifts.

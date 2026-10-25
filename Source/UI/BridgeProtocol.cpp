@@ -59,6 +59,8 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::invalidProfileName:         return "INVALID_PROFILE_NAME";
         case BridgeErrorCode::invalidMapping:             return "INVALID_MAPPING";
         case BridgeErrorCode::invalidModulation:          return "INVALID_MODULATION";
+        case BridgeErrorCode::invalidNote:                return "INVALID_NOTE";
+        case BridgeErrorCode::notePlayingUnavailable:     return "NOTE_PLAYING_UNAVAILABLE";
     }
 
     return "MALFORMED_MESSAGE";
@@ -91,6 +93,8 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::invalidProfileName:         return "That name cannot be used for a profile.";
         case BridgeErrorCode::invalidMapping:             return "That is not an assignment Apollo can make.";
         case BridgeErrorCode::invalidModulation:          return "That is not a routing Apollo can make.";
+        case BridgeErrorCode::invalidNote:                return "That is not a note Apollo can play.";
+        case BridgeErrorCode::notePlayingUnavailable:     return "Notes can be played from the window only in the standalone.";
     }
 
     return "The message could not be read.";
@@ -581,6 +585,29 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "notePlay" || messageType == "noteRelease")
+    {
+        BridgeCommand command;
+        command.type = messageType == "notePlay" ? BridgeCommandType::notePlay
+                                                 : BridgeCommandType::noteRelease;
+
+        if (! wholeNumberIn ("note", 0, 127, command.noteNumber))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidNote);
+
+        if (command.type == BridgeCommandType::notePlay
+            && ! wholeNumberIn ("velocity", 1, 127, command.noteVelocity))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidNote);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "noteReleaseAll")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::noteReleaseAll;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "applyControllerProfile")
     {
         BridgeCommand command;
@@ -827,7 +854,7 @@ juce::String makeStateSnapshotMessage (
     return juce::JSON::toString (juce::var (object));
 }
 
-juce::String makeParameterMetadataMessage()
+juce::String makeParameterMetadataMessage (bool notePlaying)
 {
     juce::Array<juce::var> entries;
 
@@ -859,6 +886,9 @@ juce::String makeParameterMetadataMessage()
     object->setProperty (typeProperty, "parameterMetadata");
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("parameters", entries);
+
+    // Whether the page may play notes (Phase 15): true only in the standalone.
+    object->setProperty ("notePlaying", notePlaying);
 
     return juce::JSON::toString (juce::var (object));
 }

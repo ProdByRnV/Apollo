@@ -200,6 +200,14 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // knows nothing about the MIDI table hanging off the same tree.
     bridge.onStateReplaced = [this] { processor.notifyStateReplaced(); };
 
+    // Notes from the computer keyboard and the piano strip, in the standalone
+    // only (Phase 15, ADR-0111). In a DAW the DAW has a keyboard of its own,
+    // and Apollo taking the keys would fight it: typing a track name would
+    // play notes. The bridge lets go of anything still held when it is
+    // destroyed with this editor.
+    if (processor.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+        bridge.setPageNotes (&processor.getPageNotes());
+
     lastSeenStateReload = processor.getStateReloadCounter();
     lastSeenProgramEvent = processor.getProgramChanges().getLastEvent().serial;
 

@@ -664,6 +664,8 @@ void Voice::reset() noexcept
     pendingVelocity = 0.0f;
     pendingChannel = 0;
     pendingStartOrder = 0;
+    pendingReleased = false;
+    pendingSustainHeld = false;
 
     // Per-note expression belongs to the note, so it goes with it. Timbre
     // returns to its centre rather than to zero: it is a position, and zero is
@@ -773,6 +775,8 @@ void Voice::startNote (int midiNote, float velocity, std::uint64_t newStartOrder
                        int midiChannel) noexcept
 {
     pendingNote = -1;
+    pendingReleased = false;
+    pendingSustainHeld = false;
     beginNote (midiNote, velocity, newStartOrder, midiChannel);
 }
 
@@ -785,15 +789,29 @@ void Voice::steal (int midiNote, float velocity, std::uint64_t newStartOrder,
         return;
     }
 
-    // Hold the new note until the fade-out completes.
+    // Hold the new note until the fade-out completes. A note that was itself
+    // waiting is replaced, and so is whatever was recorded about its key.
     pendingNote = midiNote;
     pendingVelocity = velocity;
     pendingChannel = midiChannel;
     pendingStartOrder = newStartOrder;
+    pendingReleased = false;
+    pendingSustainHeld = false;
     stage = VoiceStage::stealing;
 
     // The stolen note no longer belongs to any held key.
     sustainHeld = false;
+}
+
+void Voice::releasePendingNote (bool heldBySustain) noexcept
+{
+    if (stage != VoiceStage::stealing || pendingNote < 0)
+        return;
+
+    if (heldBySustain)
+        pendingSustainHeld = true;
+    else
+        pendingReleased = true;
 }
 
 void Voice::releaseNote() noexcept
@@ -889,8 +907,20 @@ float Voice::nextAmplitude() noexcept
                 const int nextChannel = pendingChannel;
                 const std::uint64_t nextOrder = pendingStartOrder;
 
+                const bool releaseAtOnce = pendingReleased;
+                const bool holdForPedal = pendingSustainHeld;
+
                 pendingNote = -1;
+                pendingReleased = false;
+                pendingSustainHeld = false;
                 beginNote (nextNote, nextVelocity, nextOrder, nextChannel);
+
+                // Its key went up while it waited. It sounds, and ends as any
+                // other released note does.
+                if (holdForPedal)
+                    sustainHeld = true;
+                else if (releaseAtOnce)
+                    releaseNote();
 
                 // An amplitude envelope that continues picks up at the level the
                 // last note left, and the voice is silent here, so going straight

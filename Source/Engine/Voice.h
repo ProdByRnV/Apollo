@@ -342,6 +342,25 @@ public:
     void steal (int midiNote, float velocity, std::uint64_t newStartOrder,
                 int midiChannel = 0) noexcept;
 
+    /** True while the voice is fading out its old note to start a new one. */
+    [[nodiscard]] bool isStealing() const noexcept { return stage == VoiceStage::stealing; }
+
+    /** The note a steal is waiting to start, or -1. While stealing, the voice
+        still reports the old note as its own: this is the one it is about to
+        play. */
+    [[nodiscard]] int getPendingNote() const noexcept { return stage == VoiceStage::stealing ? pendingNote : -1; }
+    [[nodiscard]] int getPendingChannel() const noexcept { return pendingChannel; }
+
+    /** Lets go of the note a steal is waiting to start, before it has.
+
+        It still starts — a key tapped in the few milliseconds of a steal is a
+        note somebody played — and is released the moment it does, or held by
+        the pedal if @p heldBySustain. Without this, the release found no voice
+        playing its note, and the note started afterwards and never ended
+        (Phase 15, ADR-0111).
+    */
+    void releasePendingNote (bool heldBySustain) noexcept;
+
     /** Sets the channel-wide pitch bend, in semitones, applied on the next
         sample.
 
@@ -654,6 +673,11 @@ private:
     float pendingVelocity = 0.0f;
     int pendingChannel = 0;
     std::uint64_t pendingStartOrder = 0;
+
+    // The waiting note's key was let go before it started: release it, or let
+    // the pedal hold it, the moment it does.
+    bool pendingReleased = false;
+    bool pendingSustainHeld = false;
 };
 
 } // namespace apollo::engine

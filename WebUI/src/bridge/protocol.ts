@@ -97,6 +97,9 @@ export interface ParameterMetadataMessage {
     type: 'parameterMetadata';
     version: number;
     parameters: ParameterDefinition[];
+    /** True when the page may play notes: in the standalone only (Phase 15).
+        Absent from an engine older than that, which means no. */
+    notePlaying?: boolean;
 }
 
 export interface StateSnapshotMessage {
@@ -389,6 +392,9 @@ export type OutboundMessage =
     | { type: 'setLfoCurve'; version: number; lfo: number; points: LfoCurvePoint[] }
     | { type: 'modulationAssign'; version: number; source: number; id: string }
     | { type: 'modulationClear'; version: number; slot: number }
+    | { type: 'notePlay'; version: number; note: number; velocity: number }
+    | { type: 'noteRelease'; version: number; note: number }
+    | { type: 'noteReleaseAll'; version: number }
     | {
           type: 'savePreset';
           version: number;

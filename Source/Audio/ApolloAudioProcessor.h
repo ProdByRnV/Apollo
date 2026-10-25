@@ -18,6 +18,7 @@
 #include "DSP/Effects/EffectsRack.h"
 #include "Engine/VoiceEngine.h"
 #include "MIDI/MidiControlManager.h"
+#include "MIDI/PageNoteQueue.h"
 #include "MIDI/MpeZone.h"
 #include "MIDI/RpnParser.h"
 #include "Parameters/ParameterLayout.h"
@@ -219,6 +220,11 @@ public:
         Owned here with the presets; nothing reads the folder until the page
         asks for the list. MESSAGE THREAD. */
     [[nodiscard]] resources::ProfileLibrary& getProfileLibrary() noexcept { return profileLibrary; }
+
+    /** Notes played from the interface — the computer keyboard and the piano
+        strip, in the standalone (Phase 15). Written by the message thread,
+        drained by the audio thread at the start of every block. */
+    [[nodiscard]] midi::PageNoteQueue& getPageNotes() noexcept { return pageNotes; }
 
     /** The visualisation taps.
 
@@ -685,6 +691,9 @@ private:
     /** The user's controller profiles (Phase 13h-3). No thread, so its place
         matters only in being after the things it does not touch. */
     resources::ProfileLibrary profileLibrary;
+
+    /** Notes from the interface (Phase 15). No thread and no allocation. */
+    midi::PageNoteQueue pageNotes;
 
     /** Program changes (Phase 13h-2). After the preset library, so destroyed
         first: it loads from the library and asks it to scan. */

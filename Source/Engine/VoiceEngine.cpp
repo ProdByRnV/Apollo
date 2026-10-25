@@ -217,6 +217,24 @@ void VoiceEngine::noteOff (int midiNote, int midiChannel) noexcept
     {
         auto& voice = voices[static_cast<std::size_t> (i)];
 
+        // A voice fading out its old note to start this one. It still reports
+        // the old note as its own, so without this the release found nothing,
+        // and the note started afterwards and was never released: a stuck note,
+        // whenever a key went up within the few milliseconds of a steal
+        // (Phase 15, ADR-0111).
+        if (voice.getPendingNote() == midiNote
+            && (midiChannel == 0 || voice.getPendingChannel() == 0 || voice.getPendingChannel() == midiChannel))
+        {
+            voice.releasePendingNote (sustainPedalDown);
+            continue;
+        }
+
+        // The old note of a voice being stolen is already being cut, and its
+        // key no longer owns the voice: a pedal hold recorded now would pass to
+        // the note about to start.
+        if (voice.isStealing())
+            continue;
+
         if (! voice.isActive() || voice.getMidiNote() != midiNote)
             continue;
 

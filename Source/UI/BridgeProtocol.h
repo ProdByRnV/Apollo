@@ -116,7 +116,13 @@ enum class BridgeErrorCode
     invalidMapping,
     /** A dropped modulation source that is not one, a control that is not a
         destination, or a matrix slot that does not exist (Phase 13h-4). */
-    invalidModulation
+    invalidModulation,
+    /** A note or velocity that is not a MIDI one (Phase 15). */
+    invalidNote,
+    /** The page asked to play a note where it may not: anywhere but the
+        standalone, whose own window is the only one with no DAW keyboard to
+        fight with (Phase 15). */
+    notePlayingUnavailable
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -212,7 +218,12 @@ enum class BridgeCommandType
     // dropped on which control; the engine chooses the slot, because only it
     // knows which are free at the moment the drop lands.
     modulationAssign, ///< Route a source to the destination a control is.
-    modulationClear   ///< Empty one matrix slot.
+    modulationClear,  ///< Empty one matrix slot.
+    // Playing from the interface (Phase 15): the computer keyboard and the
+    // piano strip, in the standalone only.
+    notePlay,         ///< Press a key.
+    noteRelease,      ///< Let one go.
+    noteReleaseAll    ///< Let every key the page holds go.
 };
 
 /** A validated command.
@@ -297,6 +308,11 @@ struct BridgeCommand
         modulationClear: the slot, from 0. */
     int modulationSource = 0;
     int modulationSlot = 0;
+
+    /** For notePlay and noteRelease: the MIDI note, 0-127, and for notePlay
+        the velocity, 1-127. */
+    int noteNumber = 0;
+    int noteVelocity = 0;
 };
 
 /** The outcome of parsing one inbound message. */
@@ -343,7 +359,7 @@ struct BridgeParseResult
     The registry described for the frontend, so controls consume metadata rather
     than hard-coding ranges (UI_BINDINGS.md §16).
 */
-[[nodiscard]] juce::String makeParameterMetadataMessage();
+[[nodiscard]] juce::String makeParameterMetadataMessage (bool notePlaying = false);
 
 /** `{"type":"midiMappings", ...}`
 

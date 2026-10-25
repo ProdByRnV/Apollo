@@ -26,6 +26,7 @@ ParameterBridge::~ParameterBridge()
     // on a destroyed one.
     setMidiControl (nullptr);
     setPresetLibrary (nullptr);
+    setPageNotes (nullptr);
 
     // Removed explicitly rather than left to teardown order: APVTS outlives the
     // bridge, and a listener that survives its object is a use-after-free that
@@ -319,6 +320,11 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::modulationAssign:
         case BridgeCommandType::modulationClear:
             return applyModulationCommand (command);
+
+        case BridgeCommandType::notePlay:
+        case BridgeCommandType::noteRelease:
+        case BridgeCommandType::noteReleaseAll:
+            return applyNoteCommand (command);
 
         case BridgeCommandType::requestMidiMappings:
         case BridgeCommandType::midiLearnBegin:
@@ -1025,7 +1031,66 @@ juce::String ParameterBridge::createStateSnapshot() const
 
 juce::String ParameterBridge::createParameterMetadata() const
 {
-    return makeParameterMetadataMessage();
+    return makeParameterMetadataMessage (pageNotes != nullptr);
+}
+
+//==============================================================================
+
+void ParameterBridge::setPageNotes (midi::PageNoteQueue* queueToUse)
+{
+    if (queueToUse == pageNotes)
+        return;
+
+    releasePageNotes();
+    pageNotes = queueToUse;
+}
+
+void ParameterBridge::releasePageNotes()
+{
+    if (pageNotes == nullptr)
+    {
+        pageHeldNotes.reset();
+        return;
+    }
+
+    for (std::size_t note = 0; note < pageHeldNotes.size(); ++note)
+        if (pageHeldNotes.test (note))
+            (void) pageNotes->push (static_cast<int> (note), 0);
+
+    pageHeldNotes.reset();
+}
+
+juce::String ParameterBridge::applyNoteCommand (const BridgeCommand& command)
+{
+    if (pageNotes == nullptr)
+        return makeErrorMessage (BridgeErrorCode::notePlayingUnavailable);
+
+    const auto note = static_cast<std::size_t> (command.noteNumber);
+
+    switch (command.type)
+    {
+        case BridgeCommandType::notePlay:
+            // A full queue means the audio thread has not run for a while; the
+            // note is dropped rather than waited for, and is not marked held.
+            if (pageNotes->push (command.noteNumber, command.noteVelocity))
+                pageHeldNotes.set (note);
+            return {};
+
+        case BridgeCommandType::noteRelease:
+            // Released even if it was never recorded as held, so a release
+            // can always stop a note, whatever was dropped before it.
+            (void) pageNotes->push (command.noteNumber, 0);
+            pageHeldNotes.reset (note);
+            return {};
+
+        case BridgeCommandType::noteReleaseAll:
+            releasePageNotes();
+            return {};
+
+        default:
+            jassertfalse;
+            return {};
+    }
 }
 
 //==============================================================================

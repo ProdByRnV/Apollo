@@ -2462,3 +2462,176 @@ body[data-carrying="true"] .knob[data-carried-over="true"] {
 .mod-tag--more::after {
     display: none;
 }
+
+/* ==========================================================================
+   THE PIANO STRIP (Phase 15, ADR-0111)
+   In the standalone only, between the instrument and the status line. A key
+   sounding is gold, because gold is the value being held (§24.1); the keys
+   themselves are the panel's own metal, so the strip does not compete with
+   the instrument above it.
+   ========================================================================== */
+
+.play-strip {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    gap: var(--s-4);
+    height: 76px;
+    padding: var(--s-2) var(--s-5);
+    border-top: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.play-strip__controls {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+}
+
+.play-strip__row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-1);
+}
+
+.play-strip__step {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    font: inherit;
+    font-size: var(--t-body);
+    line-height: 1;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+    cursor: pointer;
+}
+
+.play-strip__step:hover {
+    color: var(--accent-bright);
+    border-color: var(--accent-dim);
+}
+
+.play-strip__step:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+}
+
+.play-strip__value {
+    min-width: 76px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    color: var(--text-bright);
+}
+
+.play-strip__keys-hint,
+.play-strip__hint {
+    font-size: var(--t-label);
+    color: var(--text-dim);
+}
+
+.play-strip__hint {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.play-strip kbd {
+    display: inline-block;
+    min-width: 13px;
+    padding: 0 3px;
+    margin: 0 1px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 13px;
+    text-align: center;
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+}
+
+.play-strip__piano {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    touch-action: none;
+    user-select: none;
+    cursor: pointer;
+}
+
+.play-key {
+    position: absolute;
+    top: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    border-radius: 0 0 var(--r-xs) var(--r-xs);
+    transition: background var(--t-instant) var(--ease);
+}
+
+.play-key--white {
+    z-index: 1;
+    height: 100%;
+    background: #aeb6bf;
+    border: 1px solid var(--surface-void);
+}
+
+.play-key--black {
+    z-index: 2;
+    height: 60%;
+    background: #22272d;
+    border: 1px solid var(--surface-void);
+}
+
+.play-key--white:hover {
+    background: #c3cad2;
+}
+
+.play-key--black:hover {
+    background: #313840;
+}
+
+.play-key[data-lit="true"] {
+    background: var(--accent-bright);
+}
+
+.play-key--black[data-lit="true"] {
+    background: var(--accent);
+}
+
+.play-key__label {
+    margin-bottom: 3px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.play-key--white .play-key__label {
+    color: #3b434c;
+}
+
+.play-key--black .play-key__label {
+    color: var(--text-dim);
+}
+
+.play-key[data-lit="true"] .play-key__label {
+    color: var(--surface-void);
+}
+
+/* Middle C: a dot, so there is somewhere to start from. */
+.play-key__middle {
+    width: 5px;
+    height: 5px;
+    margin-bottom: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    pointer-events: none;
+}

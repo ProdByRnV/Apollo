@@ -238,3 +238,18 @@ export function modulationAssign(source: number, id: string): void {
 export function modulationClear(slot: number): void {
     send({ type: 'modulationClear', version: PROTOCOL_VERSION, slot });
 }
+
+/** Presses a key: the computer keyboard or the piano strip, in the standalone
+    (Phase 15). Answered only if it is refused. */
+export function notePlay(note: number, velocity: number): void {
+    send({ type: 'notePlay', version: PROTOCOL_VERSION, note, velocity });
+}
+
+export function noteRelease(note: number): void {
+    send({ type: 'noteRelease', version: PROTOCOL_VERSION, note });
+}
+
+/** Lets go of every note the page holds. */
+export function noteReleaseAll(): void {
+    send({ type: 'noteReleaseAll', version: PROTOCOL_VERSION });
+}

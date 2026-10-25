@@ -5,6 +5,27 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## 1.1.0 — not yet released
+
+### What is new
+
+- **Play the standalone without a MIDI keyboard.** The computer keyboard plays
+  Apollo: the middle row of letters, A to ;, are the white keys from middle C,
+  and the row above, W to P, the black keys. Z and X move the octave; C and V
+  play softer and harder. A piano strip at the bottom of the window shows what
+  is playing and can be played with the mouse. Typing in a text box never plays
+  notes. Inside a DAW nothing changes: use the DAW's own typing keyboard.
+
+### What is fixed
+
+- **Notes could stick after playing fast.** When every voice was busy and a
+  key was let go within a few milliseconds of its note taking a voice from
+  another, the note started and never stopped. It could happen with a MIDI
+  keyboard or in a DAW, at full polyphony. Fixed: such a note now sounds
+  briefly and ends.
+
+---
+
 ## 1.0.1 — 2026-10-24
 
 The same Apollo as 1.0.0, in smaller downloads.

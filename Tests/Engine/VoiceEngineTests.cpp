@@ -138,6 +138,10 @@ public:
         testStealingIsDeterministic();
         testStealingPrefersReleasingVoices();
         testStealingDoesNotClick();
+        testANoteReleasedDuringItsStealEnds();
+        testANoteReleasedDuringItsStealUnderThePedal();
+        testTheStolenNotesReleaseDoesNotHoldTheNewOne();
+        testAStormOfNotesLeavesNothingHeld();
         testSustainPedalHoldsNotes();
         testPitchBendChangesPitch();
         testVoiceReuseStartsClean();
@@ -238,7 +242,7 @@ private:
     {
         beginTest ("Velocity scales amplitude");
 
-        const auto peakForVelocity = [this] (float velocity)
+        const auto peakForVelocity = [] (float velocity)
         {
             VoiceEngine engine;
             prepareEngine (engine);
@@ -463,6 +467,135 @@ private:
 
         expect (transition.isFinite());
         expect (transition.peak() > 0.05f, "the stolen voice must play the new note");
+    }
+
+    /** Found in Phase 15 (ADR-0111). A stolen voice fades its old note out
+        before starting the new one, and while it does it still reports the old
+        note. A key let go in those milliseconds found no voice playing its note,
+        and the note then started and never ended. */
+    void testANoteReleasedDuringItsStealEnds()
+    {
+        beginTest ("A note released in the milliseconds of its steal still sounds, and ends");
+
+        VoiceEngine engine;
+        prepareEngine (engine, 1);
+
+        engine.noteOn (60, 1.0f);
+        RenderBuffer settle (1, 2400);
+        render (engine, settle);
+
+        engine.noteOn (64, 1.0f);  // steals the only voice
+        expect (engine.getVoice (0).isStealing());
+        expectEquals (engine.getVoice (0).getPendingNote(), 64);
+
+        engine.noteOff (64);       // its key goes up before it has started
+
+        RenderBuffer transition (1, 2400);
+        render (engine, transition);
+        expectEquals (engine.getVoice (0).getMidiNote(), 64, "the tapped note still starts");
+        expect (engine.getVoice (0).isReleasing(), "and is released as it does");
+
+        RenderBuffer after (1, static_cast<int> (testSampleRate * 2.0));
+        render (engine, after);
+        expectEquals (engine.getActiveVoiceCount(), 0, "and then it ends");
+    }
+
+    void testANoteReleasedDuringItsStealUnderThePedal()
+    {
+        beginTest ("Under the pedal, a note released during its steal is held until the pedal lifts");
+
+        VoiceEngine engine;
+        prepareEngine (engine, 1);
+
+        engine.setSustainPedal (true);
+        engine.noteOn (60, 1.0f);
+        engine.noteOn (64, 1.0f);
+        engine.noteOff (64);
+
+        RenderBuffer held (1, static_cast<int> (testSampleRate * 0.5));
+        render (engine, held);
+        expectEquals (engine.getVoice (0).getMidiNote(), 64);
+        expect (engine.getVoice (0).isSustainHeld(), "the pedal holds it");
+        expect (! engine.getVoice (0).isReleasing());
+
+        engine.setSustainPedal (false);
+        RenderBuffer after (1, static_cast<int> (testSampleRate * 2.0));
+        render (engine, after);
+        expectEquals (engine.getActiveVoiceCount(), 0, "lifting the pedal ends it");
+    }
+
+    void testTheStolenNotesReleaseDoesNotHoldTheNewOne()
+    {
+        beginTest ("The old note's release during a steal does not pass its pedal hold to the new note");
+
+        VoiceEngine engine;
+        prepareEngine (engine, 1);
+
+        engine.noteOn (60, 1.0f);
+        engine.noteOn (64, 1.0f);  // steals 60's voice
+        engine.setSustainPedal (true);
+        engine.noteOff (60);       // the old key, which no longer owns the voice
+
+        RenderBuffer transition (1, 2400);
+        render (engine, transition);
+        expectEquals (engine.getVoice (0).getMidiNote(), 64);
+        expect (! engine.getVoice (0).isSustainHeld(), "64's key is still down; nothing holds it for the pedal");
+
+        engine.setSustainPedal (false);
+        engine.noteOff (64);
+        RenderBuffer after (1, static_cast<int> (testSampleRate * 2.0));
+        render (engine, after);
+        expectEquals (engine.getActiveVoiceCount(), 0, "64 ends when its own key goes up");
+    }
+
+    void testAStormOfNotesLeavesNothingHeld()
+    {
+        beginTest ("A storm of overlapping notes, every one released, leaves no voice held");
+
+        // Fast playing against a full polyphony: notes overlap, the same note
+        // is pressed again before its last voice has finished, and many steals
+        // happen with keys going up during them. Before the fix this left
+        // three voices held out of 1,463 notes.
+        VoiceEngine engine;
+        prepareEngine (engine);
+
+        juce::Random random (20261025);
+        std::vector<int> holders (128, 0);
+        std::vector<int> pressed;
+        RenderBuffer block (2, 256);
+
+        for (int step = 0; step < 4000; ++step)
+        {
+            if (! pressed.empty() && (random.nextInt (3) == 0 || pressed.size() > 10))
+            {
+                const auto which = static_cast<std::size_t> (random.nextInt (static_cast<int> (pressed.size())));
+                const auto note = pressed[which];
+                pressed.erase (pressed.begin() + static_cast<std::ptrdiff_t> (which));
+
+                if (--holders[static_cast<std::size_t> (note)] == 0)
+                    engine.noteOff (note, 1);
+            }
+            else
+            {
+                const auto note = 48 + random.nextInt (30);
+                pressed.push_back (note);
+
+                if (holders[static_cast<std::size_t> (note)]++ == 0)
+                    engine.noteOn (note, static_cast<float> (1 + random.nextInt (127)) / 127.0f, 1);
+            }
+
+            if (random.nextInt (4) == 0)
+                render (engine, block);
+        }
+
+        for (const auto note : pressed)
+            if (--holders[static_cast<std::size_t> (note)] == 0)
+                engine.noteOff (note, 1);
+
+        RenderBuffer tail (2, static_cast<int> (testSampleRate * 10.0));
+        render (engine, tail);
+
+        expectEquals (engine.getActiveVoiceCount(), 0);
     }
 
     void testSustainPedalHoldsNotes()

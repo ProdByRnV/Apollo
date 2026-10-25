@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 14 — Release candidate & release, complete.** Apollo **1.0.1** is published on the repository's Releases page, after 1.0.0 the same day, for Windows, macOS (universal), Linux and Linux ARM64 (ADR-0109, ADR-0110). Every phase in the roadmap is complete |
+| **Phase** | **Phase 15 — Playing without a MIDI keyboard, done** (ADR-0111): the standalone plays from the computer keyboard and a piano strip, and the stuck note it found in the engine is fixed. Not yet released: it will be **1.1.0**. Phase 14 (release) is complete: Apollo 1.0.1 is on the Releases page (ADR-0109, ADR-0110) |
 | **Status** | **Released: version 1.0.1.** Built, tested and packaged by CI on four platforms, published with checksums, and installed from the Releases page on Windows by following the README. It has been played from two MIDI keyboards and in FL Studio by the developer. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0 and 1.0.1 are published |
-| **Next step** | **None scheduled: the roadmap is complete.** What comes next is the developer's to choose. Candidates already written down: other DAWs (Ableton Live, Reaper and others); the interface seen on macOS and Linux; a Developer ID and notarisation for macOS, which would remove the Terminal step from the install guide; and the carried items in §8. 14b to 14d published Apollo: CI builds every platform as Release on a version tag and publishes the packages, checksums and notes when everything passes; installing the published 1.0.0 found JUCE's development files in every package, fixed and released as 1.0.1; the README gained a step-by-step guide (ADR-0110). 14a made the candidate (ADR-0109). Phase 13 built every feature the specification described that 0.1.0 lacked (ADR-0089 to ADR-0108) |
+| **Next step** | **Publishing 1.1.0, if the developer wants it out**: Phase 15 is built and tested but not released, and it fixes a stuck note every user of 1.0.1 can meet. Then: the interface on macOS, when the developer's friends with Macs are available. Phase 15 made the standalone playable without a MIDI keyboard — the typing keyboard and a piano strip, in the standalone only — and found and fixed a note that stuck when its key went up during a voice steal, in the engine since stealing was built (ADR-0111). Phase 14 published Apollo (ADR-0109, ADR-0110) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2266,6 +2266,39 @@ Apollo is on the repository's Releases page (ADR-0110).
 Tested in: `Tests/Host/PackageTests.cpp` (the package holds Apollo and nothing
 else), CI's release job on both tags, and by hand on Windows (§5a).
 
+### Playing without a MIDI keyboard (Phase 15)
+
+The standalone plays from the computer keyboard and a piano strip (ADR-0111).
+
+- **The typing keyboard**: A to ; the white keys from middle C, W to P the
+  black, Z and X the octave, C and V the velocity, matched by physical key.
+  Text fields, lists and shortcuts are left alone. `params/typingKeyboard.ts`.
+- **The strip**, `components/PlayStrip.tsx`: two octaves and a top C, labelled,
+  lit while sounding, played and dragged with the mouse; octave and velocity
+  beside it. Drawn only when the engine says the page may play.
+- **The path**: `notePlay`, `noteRelease`, `noteReleaseAll` into
+  `midi::PageNoteQueue`, a lock-free ring the processor drains at the start of
+  each block through the MIDI handler. The editor attaches it in the standalone
+  only; a plugin refuses the commands.
+- **Nothing stays held**: the page counts holders per note and releases all on
+  leaving the window; the bridge releases what the page holds on request, on
+  detach and when the editor closes.
+- **Found and fixed: notes stuck after a steal.** A key let go in the
+  milliseconds a stolen voice spent fading its old note found no voice playing
+  its note, and the note then started and never ended. In the engine since
+  stealing was built, so a MIDI keyboard or a DAW could meet it. A release for
+  a note still waiting to start is now remembered and applied when it starts.
+
+Tested in:
+- `Tests/UI/NotePlayingTests.cpp`: the queue alone and under two threads, the
+  commands and what they refuse, nothing left held, a typed note sounding and
+  stopping, bypass, and a storm of 1,463 notes leaving no voice.
+- `Tests/Engine/VoiceEngineTests.cpp`: a release during a steal, with and
+  without the pedal; the old note's release not holding the new; the storm as
+  MIDI, which left three voices before the fix.
+- `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
+  steps, the strip, what is left alone.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -2367,7 +2400,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,345,400 assertions, 0 failures**, across 71 test classes, in `ApolloTests`; **52 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,346,462 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **58 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3447,6 +3480,24 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Playing without a MIDI keyboard (Phase 15), 2026-10-25
+
+The Release standalone, over the DevTools protocol, with real key events
+carrying physical key codes, and real pointer events.
+
+| Checked | Result |
+|---|---|
+| The strip | Shown in the standalone, 25 keys, labelled A W S E D F T G Y H U J K O L P ; |
+| A key | A held: middle C lit, one voice, -51.4 dB; G added: two voices; both let go: silent, no voice |
+| Octave while held | A held, X pressed: the strip moved up and A's note went on sounding; S played 74; A let go released its own note |
+| Velocity | V, C, C: 100 to 127 to 100 to 80 |
+| A text field | "as" typed into the preset search went into the box and played nothing |
+| The mouse | A drag from E to the C above played E F G A B C in turn, each released as the next began |
+| Leaving the window | Two held keys, then the window's blur: both released at once |
+| A storm | About 120 overlapping notes with octave changes and a mouse note under them, every one released by the page: **two voices stayed held**. Traced to the engine (above), fixed, and three storms after the fix ended with no voice |
+
+The preset and search box were left as found.
 
 ### The published release, installed by the README, 2026-10-24
 
@@ -4564,6 +4615,7 @@ of asserting nothing.
 | 24 | ~~The replace prompt could overwrite a preset nobody was asked about~~ | **Fixed** | Found in 12c-3 by walking the save form. The prompt was drawn from the last save status and editing the name did not clear it, so "Replace it" stayed up naming the old preset while sending the new name with overwrite set. Editing the name or bank now withdraws it (ADR-0085). |
 | 25 | ~~The masthead named a preset the list did not mark as loaded~~ | **Fixed** | After a restart, a host project load or a reopened window, because the highlight lived only in the editor's bridge. It now resolves the state's own claim when it is unambiguous (ADR-0085). |
 | 26 | ~~Features the specification describes were never built~~ | **Closed** | Phase 13 built them, 13a to 13h (ADR-0089 to ADR-0108). The developer decided after 12d that every one belongs in the first release; they are Phase 13, cut into eight sub-phases, and 13a has built the oscillator, sub and unison controls (ADR-0089). Original note: | Found in 12d-1 by reading the PRD against the parameter registry. Warp (PRD §12), macros (§17), LFO tempo sync (the conversion exists, no parameter reaches it), comb and formant filters, sub-oscillator waveforms, pink noise, unison detune curves, filter mix and key tracking, and drawn LFO curves (deferred by ADR-0034). No phase scheduled them and no decision dropped them; earlier phases were ticked against narrower task lists. Listed in full in Docs/KNOWN-LIMITATIONS.md. Which belong before a first release is a scope decision. |
+| 27 | ~~A note could stick after a voice steal~~ | **Fixed** | Found in Phase 15 by a storm of typed notes (ADR-0111). A key let go in the milliseconds a stolen voice spent fading its old note found no voice playing its note, and the note then started and never ended; with the pedal down, releasing the old note during the fade passed its pedal hold to the new one. In the engine since voice stealing was built (Phase 3), so a MIDI keyboard played fast, or a dense DAW pattern at full polyphony, could meet it. Released in no version yet: 1.0.1 has it. |
 
 ---
 

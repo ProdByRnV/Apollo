@@ -23,12 +23,14 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "MIDI/MidiControlManager.h"
+#include "MIDI/PageNoteQueue.h"
 #include "State/LfoCurveState.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "UI/BridgeProtocol.h"
 
 #include <array>
 #include <atomic>
+#include <bitset>
 #include <functional>
 #include <utility>
 
@@ -162,6 +164,18 @@ public:
     */
     std::function<void()> onToggleFullscreen;
 
+    /** Lets the page play notes into @p queueToUse: the computer keyboard and
+        the piano strip (Phase 15). The editor attaches it in the standalone
+        only; anywhere else the note commands are refused, because a DAW has
+        its own keyboard and Apollo taking the keys would fight it. Pass
+        nullptr to detach, which first lets go of every key the page holds, so
+        closing the window cannot leave a note sounding. Borrowed: the
+        processor owns the queue. MESSAGE THREAD. */
+    void setPageNotes (midi::PageNoteQueue* queueToUse);
+
+    /** Lets go of every note the page is holding. MESSAGE THREAD. */
+    void releasePageNotes();
+
     /** @returns the whole MIDI Learn state described for the frontend, with the
         status of the most recent assignment.
     */
@@ -272,6 +286,9 @@ private:
     /** Changes one assignment's controller, channel or range (Phase 13h-3). */
     [[nodiscard]] juce::String applyMappingEdit (const BridgeCommand& command);
 
+    /** Plays or releases a note from the page (Phase 15). */
+    [[nodiscard]] juce::String applyNoteCommand (const BridgeCommand& command);
+
     /** Routes a dropped source, or empties a slot (Phase 13h-4). */
     [[nodiscard]] juce::String applyModulationCommand (const BridgeCommand& command);
 
@@ -295,6 +312,13 @@ private:
     /** Borrowed, not owned, and null when there is no user content. */
     resources::UserContent* userContent = nullptr;
     resources::ProfileLibrary* profileLibrary = nullptr;
+
+    /** Borrowed, and null except in the standalone (Phase 15). */
+    midi::PageNoteQueue* pageNotes = nullptr;
+
+    /** The notes the page has pressed and not released, so that every one of
+        them can be let go when the page or the window goes away. */
+    std::bitset<128> pageHeldNotes;
     resources::ContentLibrary* contentLibrary = nullptr;
 
     /** What the current sound was loaded from or saved to, if anything.

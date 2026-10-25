@@ -1127,6 +1127,30 @@ Both are answered with:
 
 ---
 
+### 10.12 Playing from the window (Phase 15)
+
+The computer keyboard and the piano strip, in the standalone only (ADR-0111).
+`parameterMetadata` carries `notePlaying`: true in the standalone, false in a
+plugin, absent from an older engine, which means false. The page draws the strip
+only when it is true.
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `notePlay` | `note` (0-127), `velocity` (1-127) | Press a key. No reply unless refused. |
+| `noteRelease` | `note` (0-127) | Let it go. Always queued, held or not, so a release can always stop a note. |
+| `noteReleaseAll` | — | Let go of everything the page holds. Sent when the window loses focus or the page closes. |
+
+- **In a plugin all three are refused** with `NOTE_PLAYING_UNAVAILABLE`: a DAW
+  has its own keyboard, and Apollo taking the keys would fight it.
+- **The engine handles them as MIDI.** The bridge writes each into a lock-free
+  queue the processor drains at the start of every block, through the same
+  handler a MIDI keyboard's notes take.
+- **Nothing can stay held.** The bridge records what the page holds and releases
+  it on `noteReleaseAll`, when the queue is detached, and when the editor
+  closes.
+
+---
+
 ### 10.6 Presets (Phase 9c)
 
 The browser is the first part of the interface that reaches a filesystem, and it
@@ -1377,6 +1401,8 @@ the user, not for a developer, since the page displays it as given:
 | `UNKNOWN_PROFILE` | A controller profile that is not a built-in or one of the user's, or one removed since the list was sent (§10.3) | Yes: a profile deleted in a file manager while the picker was open |
 | `INVALID_PROFILE_NAME` | A profile name with nothing usable in it, longer than 64 characters, or a description longer than 200 (§10.3) | Yes: the save form keeps what was typed |
 | `INVALID_MAPPING` | An edited assignment with a controller, channel or range that is not one (§10.3) | No: the table only sends numbers it has checked |
+| `INVALID_NOTE` | A note or velocity that is not a MIDI one (§10.12) | No: the page only sends the notes its keys play |
+| `NOTE_PLAYING_UNAVAILABLE` | A note sent where notes cannot be played: anywhere but the standalone (§10.12) | No: the page plays notes only when told it may |
 | `INVALID_MODULATION` | A dropped source that is not one, a control that is not a destination, or a slot that does not exist (§10.11) | No: only destinations take a drop |
 | `INVALID_CONTENT_SLOT` | A content command named a slot other than `osc1`, `osc2` or `noise`, or a kind other than `wavetable` or `noise` (§10.10) | No: the browsers only send their own slot |
 

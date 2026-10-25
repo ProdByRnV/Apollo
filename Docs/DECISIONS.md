@@ -7579,3 +7579,94 @@ what stands for that.
 - **Shipping the RelWithDebInfo packages CI already makes.** Debug information
   is no use to someone playing music, and on Linux it is most of the download.
 - **An installer per platform.** See above.
+
+---
+
+## ADR-0111 — The standalone plays from the computer keyboard and a piano strip, and a stolen voice no longer loses its note-off
+
+**Phase 15 · Accepted**
+
+### What was asked
+
+The README told people that the standalone needs a MIDI keyboard. The developer
+shares Apollo with musicians, some of whom will not have one, and asked for it to
+be playable from the computer keyboard. They chose, of the options put to them,
+both the typing keyboard and a piano strip on screen, and the standalone only.
+
+### What was built
+
+- **The typing keyboard.** The layout most music software uses: the middle row
+  of letters is the white keys from A, the row above it the black keys where a
+  piano has them, Z and X move an octave, C and V step the velocity through
+  20, 40, 60, 80, 100 and 127. Keys are matched by physical position
+  (`KeyboardEvent.code`), so the piano is in the same place on a French or a
+  German keyboard. A key held repeats nothing; a key let go after the octave
+  moved stops the note it started.
+- **The strip**, between the instrument and the status line: two octaves and a
+  top C, labelled with the keys that play them, middle C marked, lit while a
+  note sounds, played with the mouse too, with a drag along it playing each
+  key it reaches. The octave and velocity beside it, with buttons and the keys
+  that move them. It is on screen as much to say that typing plays notes as to
+  be clicked.
+- **What is left alone.** Typing in a text field, a list or a menu, and any key
+  held with Ctrl, Alt or Cmd, which is a shortcut.
+
+### The standalone only
+
+In a DAW the DAW has a keyboard of its own — FL Studio's typing keyboard to
+piano, Ableton's computer MIDI keyboard — and Apollo taking the keys would fight
+it: typing a track name would play notes. So the editor attaches the note queue
+to the bridge only when the processor is the standalone, the parameter metadata
+says `notePlaying` accordingly, and the plugin refuses the commands with
+`NOTE_PLAYING_UNAVAILABLE`. The page draws the strip only when told it may.
+
+### How a typed note reaches a voice
+
+The page sends `notePlay`, `noteRelease` and `noteReleaseAll`. The bridge writes
+each into a fixed ring the processor owns, one writer and one reader, no lock and
+no allocation, and the audio thread drains it at the start of every block
+through the same handler a MIDI keyboard's notes take. From there a typed note
+is indistinguishable from a played one. Bypassed, a release is honoured and a
+press is not, as for MIDI.
+
+**The page cannot leave a note held.** Each note is counted by its holders — a
+typed key and the mouse can hold the same one — and released when the last lets
+go. Leaving the window releases everything, because a key let go while the
+window is not looking never arrives. The bridge keeps its own record of what the
+page holds and releases all of it on request, when the queue is detached, and
+when the editor closes.
+
+### Found while driving it: notes stuck after a steal
+
+Playing fast in the window left voices held that the page had released.
+Reproduced in a test: a storm of 1,463 overlapping notes, every one released,
+left three voices sounding — and the same storm as plain MIDI, without the new
+queue, left the same three. **It was in the engine, since voice stealing was
+built,** and a MIDI keyboard played fast, or a dense pattern at full polyphony
+in a DAW, could leave a note stuck.
+
+When every voice is busy, a new note takes one, and the voice fades its old note
+out over a few milliseconds before starting the new one. During that fade it
+still reports the old note as its own. A key let go in those milliseconds found
+no voice playing its note, so the release did nothing, and the note then started
+and was never released.
+
+A release that arrives for a note still waiting to start is now remembered: the
+note starts — a key tapped during a steal is a note somebody played — and is
+released the moment it does, or held by the pedal if the pedal is down. A
+second hole in the same place is closed with it: releasing the *old* note during
+the fade, with the pedal down, recorded a pedal hold that passed to the new note.
+
+Tested in the engine with each case exactly, and with the storm, which left
+three voices before and none after; through the processor with the page's storm;
+and in the window, three storms of about 120 notes each, all ending with no voice
+held. The fifteen regression renders did not move.
+
+### Alternatives considered
+
+- **The plugin too.** See above; it was the developer's choice not to.
+- **Cancelling a note released before its steal finished.** It would never
+  sound, and a staccato note during a busy passage would vanish.
+- **The browser's own key events for the strip's keys as buttons.** Fifteen
+  Tab stops for something played with the letters and the mouse; the strip is
+  hidden from the keyboard's focus order and its controls are not.
