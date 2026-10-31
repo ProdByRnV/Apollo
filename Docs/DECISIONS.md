@@ -7670,3 +7670,40 @@ held. The fifteen regression renders did not move.
 - **The browser's own key events for the strip's keys as buttons.** Fifteen
   Tab stops for something played with the letters and the mouse; the strip is
   hidden from the keyboard's focus order and its controls are not.
+
+---
+
+## ADR-0112 — The Releases page lists only the latest release; earlier ones become drafts
+
+**Release 1.1.0 · Accepted**
+
+### What was asked
+
+Publishing 1.1.0, the developer asked for the older versions to be kept, but
+not shown on the Releases page. Apollo is shared with musicians who are not
+used to GitHub, and a page of three releases asks them to choose between
+versions when only one is the right download.
+
+### What was done
+
+When a release is published and its download checked, the one before it is
+turned into a **draft**. A draft is hidden from everyone without write access
+to the repository and keeps everything: its notes, its packages, its checksums
+and its tag. Publishing it again is one command. 1.0.0 and 1.0.1 were drafted
+once 1.1.0 was out.
+
+Nothing was deleted and no tag moved, which keeps the rule that a published
+release's files are never replaced (ADR-0110). Each version stays buildable
+from its tag, and CHANGELOG.md keeps every version's notes.
+
+Because the earlier releases' notes are no longer public, a release's notes
+now stand on their own: what is new, what is in Apollo, what it needs, how to
+install it and how to update to it. 1.0.1's notes pointed at 1.0.0's for what
+Apollo is; in CHANGELOG.md they now point at its section.
+
+### Alternatives considered
+
+- **Deleting the earlier releases.** It would lose their packages for good, and
+  a user of 1.0.1 who wanted it back could not have it.
+- **Marking them pre-releases.** They would still be listed, under a label that
+  says something untrue about them.

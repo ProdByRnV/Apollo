@@ -10,8 +10,8 @@ version moved, or hide a breaking schema change behind an unchanged number.
 
 | Axis | Source of truth | Changes when | Now |
 |---|---|---|---|
-| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `1.0.1` |
-| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `1.0.1` |
+| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `1.1.0` |
+| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `1.1.0` |
 | **State / preset schema version** | `currentSchemaVersion` in `Source/State/StateSerialization.h` | The serialized layout changes incompatibly | `2`; reads `1` and `2` |
 | **UI bridge protocol version** | `PROTOCOL_VERSION`, on both sides of the bridge | A bridge message shape changes incompatibly | `1` |
 | **Parameter IDs** | The parameter registry | *Never* — see below | 305 |
@@ -120,3 +120,7 @@ So a release is made by:
 2. Optionally, running CI by hand with **release_build** ticked, which builds
    as a release would and publishes nothing.
 3. Pushing the tag: `git tag v<version> && git push origin v<version>`.
+4. Once the new release is published and its download checked, turning the
+   previous release into a draft: `gh release edit v<previous> --draft`. The
+   Releases page lists only the latest; a draft keeps its files and its tag,
+   and can be published again (ADR-0112).

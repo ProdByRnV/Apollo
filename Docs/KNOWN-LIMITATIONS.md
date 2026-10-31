@@ -1,6 +1,6 @@
 # Known Limitations
 
-What Apollo does not do, or has not been shown to do, as of version 1.0.1.
+What Apollo does not do, or has not been shown to do, as of version 1.1.0.
 
 Every entry is one of four kinds, kept apart because they mean different things:
 something **not yet verified** may well work; something **specified but not
@@ -20,7 +20,7 @@ page is drawn from.
 |---|---|
 | **Apollo inside DAWs other than FL Studio** | The developer loaded the VST3 in FL Studio on Windows, played it and made beats with the factory presets (2026-10-24), then tested automation, a project saved and reopened, bypass and Steinberg's validator there (2026-10-25, ADR-0109). No other DAW has been tried. The packaged VST3 is loaded and driven through a VST3 host implementation in CI on every platform, which found and fixed four defects (ADR-0075) |
 | **Undo after a drag-and-drop in a host** | A dropped source is four parameter edits, each its own gesture, so a host that records them may show four undo steps for one drop (ADR-0108) |
-| **The interface on macOS and Linux** | Built, packaged and played through a host in CI, but never seen on a screen. Retina is likewise unverified |
+| **The interface on macOS and Linux** | Built, packaged and played through a host in CI, but never seen on a screen. Retina is likewise unverified. That includes the standalone's typing keyboard and piano strip (1.1.0): whether the typing keys reach the page before the window has been clicked is a question for the first Mac to try it (ADR-0111) |
 | **A screen reader** | Every panel is a named region with a heading, every control has a name and a value, and keyboard focus is managed (ADR-0083). Nobody has listened to Narrator, VoiceOver or Orca read it |
 | **Closing and reopening the editor many times inside a host** | Attaching and detaching the bridge is tested, and the window was opened and closed by hand on Windows. A headless harness cannot open an editor, so repetition inside a host is not tested (12a) |
 | **The file dialog on macOS and Linux** | A wavetable or noise sample chosen from anywhere goes through the system's own dialog, opened by JUCE. It was driven by hand on Windows; on macOS and Linux it is built and never seen (ADR-0104) |
@@ -71,6 +71,7 @@ extension nobody scheduled. Each row says, in italics, what was built.
 
 | | |
 |---|---|
+| **Only the latest release is listed** | Earlier releases are kept as drafts rather than deleted, at the developer's request, so the Releases page offers one download. Their tags remain, so any earlier version can still be built from source (ADR-0112) |
 | **No installer** | Each package is a folder to copy into place. Uninstalling is deleting it (Docs/BUILD.md §7) |
 | **Not signed for distribution on macOS** | The macOS bundles are signed ad hoc, which is enough to run where they were built. A downloaded copy is refused as coming from an unidentified developer until it is signed with a Developer ID and notarised, which needs an Apple developer account the project does not have |
 | **Unsigned on Windows** | A plugin is copied, not installed, so Windows does not object. The standalone may meet a SmartScreen prompt |
