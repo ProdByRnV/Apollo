@@ -184,7 +184,7 @@ front of it is better understood, the way 8f was.
 | 14c | Release artifacts — built by CI from the tagged commit as Release on every platform, only when everything passed, with `SHA256SUMS.txt`; each package holds only Apollo, and a package test says so (ADR-0110) | ✅ |
 | 14d | The tag and the release — `v1.0.0`, then `v1.0.1`, the release notes taken from CHANGELOG.md, and "Getting started" in the README (ADR-0110) | ✅ |
 | **15** | **Playing without a MIDI keyboard** — the standalone played from the computer keyboard and a piano strip, at the developer's request; and the stuck note it found, in the engine since voice stealing was built (ADR-0111). Released as **1.1.0**; the Releases page now lists only the latest release (ADR-0112) | ✅ |
-| **16** | **The first feedback, without the layout** — what the musicians the developer shared 1.1.0 with asked for, except the layout, which is Phase 17. Released as **1.2.0** when done | 🔄 |
+| **16** | **The first feedback, without the layout** — what the musicians the developer shared 1.1.0 with asked for, except the layout, which is Phase 17. Released as **1.2.0** | ✅ |
 | 16a | Sharing a sound — **EXPORT…** writes the sound playing as a `.rnv` wherever the user chooses, **IMPORT…** adds received files to the user library, validated and never replacing anything (ADR-0113) | ✅ |
 | 16b | Octave 0 on the sub oscillator, as a switch beside the released octave so no DAW automation moves; and a low cut on the reverb, switched out at its default; both appended to the registry (ADR-0114) | ✅ |
 | 16c | Macros the user can name — up to 16 characters, shown wherever the macro is a source, saved in the project and the preset; the host's name stays "Macro N" (ADR-0115) | ✅ |

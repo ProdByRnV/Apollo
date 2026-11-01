@@ -5,7 +5,12 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
-## 1.2.0 — not yet released
+## 1.2.0 — 2026-11-01
+
+What the first musicians to play Apollo asked for: sounds you can share, more
+wavetables and an easier way to choose them, octave 0 on the sub, a low cut on
+the reverb, and macros with names. Everything 1.0 and 1.1 saved opens and sounds
+the same.
 
 ### What is new
 
@@ -34,6 +39,68 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 Your sounds are unchanged: the new controls start where the sound was before
 they existed, and DAW automation you drew in 1.1.0 plays as it did.
+
+### What is in Apollo
+
+- **Sound.** Two wavetable oscillators with up to sixteen unison voices each,
+  nine built-in tables, five warp modes, and your own tables from a library or
+  any file; a sub oscillator; a noise generator with white, pink, four attack
+  transients, or a sample of your own.
+- **Shaping.** Two filters — low-pass, high-pass, band-pass, notch, comb and
+  formant — with drive, mix and key tracking, in series, in parallel, or split
+  per source.
+- **Movement.** Four envelopes you can shape by dragging, four LFOs with seven
+  shapes and one you draw, tempo sync, four macros you can name, and a
+  sixteen-slot modulation matrix. Drag a source onto a control to modulate it.
+- **Effects.** Distortion, delay, reverb, noise gate, compressor and a
+  seven-band equaliser with a live spectrum, in any order.
+- **Presets.** Nine factory sounds and an init patch built in, and your own
+  saved as `.rnv` files, which you can export to send to someone and import
+  when someone sends you one. Your wavetables and samples travel inside the
+  preset.
+- **Playing.** Any MIDI keyboard or controller: MIDI Learn on every control,
+  controller profiles you can save and share, MPE, and program changes. In the
+  standalone, the computer keyboard and the piano strip as well.
+
+### What you need
+
+- **Windows** 10 or 11, 64-bit. The interface uses Microsoft's WebView2, which
+  is already on almost every Windows machine.
+- **macOS** 11 or later, Apple silicon or Intel.
+- **Linux** on x86-64 or ARM64, with X11, GTK 3 and WebKitGTK.
+- A host that loads VST3 plugins, or none: the standalone plays on its own.
+
+### Installing
+
+Download the zip for your system from the assets below. Each holds the plugin,
+the standalone, and `INSTALL.txt`, which says where the plugin goes. There is no
+installer: you copy the plugin into your VST3 folder, and uninstalling is
+deleting it. The step-by-step guide, with what to do in FL Studio, Ableton Live
+and Reaper, is [Getting started](https://github.com/ProdByRnV/Apollo#getting-started)
+in the README.
+
+**Updating from 1.0 or 1.1:** close your DAW and the standalone, then copy the
+new plugin and standalone over the old ones. Your presets and projects carry
+over, and sound the same.
+
+`SHA256SUMS.txt` holds each download's checksum, for anyone who wants to check
+what they received.
+
+### Known limitations
+
+- Tried in one DAW, FL Studio on Windows. Other hosts are expected to work, as
+  the plugin follows the VST3 standard and is tested against it on every
+  platform, but have not been tried.
+- The interface has only been seen on Windows. On macOS and Linux it is built
+  and tested, but nobody has looked at it yet. If the typing keys do nothing on
+  a Mac, click once inside the window and try again, and please say so.
+- The window takes several seconds to show the interface when it opens.
+- macOS downloads are not signed with a Developer ID, so macOS refuses them as
+  coming from an unidentified developer until you clear the download mark with
+  the one Terminal line in the guide. The Windows standalone may show a
+  SmartScreen prompt the first time.
+
+The full list is [Docs/KNOWN-LIMITATIONS.md](https://github.com/ProdByRnV/Apollo/blob/main/Docs/KNOWN-LIMITATIONS.md).
 
 ---
 
