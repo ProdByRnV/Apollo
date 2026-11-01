@@ -7837,3 +7837,90 @@ identities grew by two lines and changed in none.
   lows out of the tail as well, but only after the network had spent its
   energy on them; before the diffusers is where a reverb's low cut usually
   sits, and where it costs nothing when off.
+
+---
+
+## ADR-0115 — A macro's name belongs to the sound, and the host's name stays "Macro N"
+
+**Phase 16c · Accepted**
+
+### What was asked
+
+From the first feedback: macros the user can name. A macro routed to the
+cutoff, the drive and the reverb's mix is a "Brightness" knob, and a preset
+whose four macros say what they do is one somebody else can play.
+
+### Where a name lives
+
+A name is not a parameter. Nothing automates it and the audio thread never
+reads it, so it is kept where the drawn LFO curves are (ADR-0102): a
+`<MACRONAMES>` child of the state tree, one `<MACRO macro="N" name="…"/>`
+for each macro that has a name, owned by `state::MacroNameStore` in the
+processor. That one decision gives it the rest:
+
+- a host project saves the names;
+- a preset carries them, and so does an exported preset (ADR-0113);
+- a preset without them — every built-in, and every preset saved before
+  16c — puts "Macro 1" to "Macro 4" back, rather than leaving the last
+  sound's labels on knobs that now do something else;
+- an older Apollo reading the document ignores an element it does not know;
+- a patch with no names writes nothing, so its document is the one it was.
+
+No schema change and no new parameter.
+
+### What a name may be
+
+One line of at most **16 characters** — "Filter Sweep", "Reverb Space" —
+long enough to say what a macro does and short enough to sit above its knob.
+Characters, not bytes, so an accented name costs what it looks like it costs.
+Runs of whitespace and control characters become one space and the ends are
+trimmed. An empty name, or a macro's own default, takes the name away.
+
+From the page, a name over the limit is **refused**, with
+`INVALID_MACRO_NAME`: the field cannot hold more, so a longer one is a page
+defect. From a document it is **cut**, as a preset's comment is: the sound is
+still a good sound, and refusing it over a label would punish the user for
+something they cannot see.
+
+### The host's name does not change
+
+A DAW lists the macro as "Macro 1" whatever it is called in Apollo. A host
+parameter's name is fixed for the life of the plugin in JUCE's parameter
+objects, and the hosts that do re-read a name — VST3 has a flag for it — do not
+agree on when, or on what happens to automation lanes already labelled. A name
+that changed in some DAWs and not others would be worse than one that is
+reliably the number, which is also what MIDI Learn and the controller profiles
+are keyed to.
+
+### Telling the host something changed
+
+Renaming moves no parameter, so nothing would tell a DAW the project now
+differs from its saved copy, and closing it would lose the name without a
+prompt. The processor reports a rename as a change of non-parameter state,
+which a VST3 host takes as "this project has unsaved changes". Only a rename
+does; a state load is not an edit.
+
+### On the page
+
+Each macro's name is the heading of its group, a field that reads as a label
+until it is clicked: the whole name is selected, so typing replaces it; Enter
+or leaving the field keeps it; Escape puts it back; empty gives the number
+back. A pencil beside it and a rule under it on hover say it can be changed —
+§24.4's argument, that what nobody finds nobody uses. A name the user gave is
+drawn bright and a number dim. The knob under it is labelled **Amount**.
+
+The name is also how the macro appears everywhere else a person reads a
+source: its handle in the Macros panel and in the matrix's source strip, the
+matrix's source and via lists, and the titles of the tags on a modulated knob.
+The tags themselves keep `M1` to `M4`, which is what fits on them.
+
+### Alternatives considered
+
+- **The name as the host's parameter name.** Above.
+- **Names in the MIDI Learn list as well.** The list names parameters by the
+  host's names, and a mapping is to a parameter; one naming scheme there is
+  clearer than two.
+- **Names left out of presets**, as MIDI mappings are. A mapping describes the
+  desk in front of the user; a name describes the sound, and travels with it.
+- **No limit, ellipsised on screen.** A name nobody can read in full is not
+  doing its job, and a document must not be able to carry a megabyte of label.

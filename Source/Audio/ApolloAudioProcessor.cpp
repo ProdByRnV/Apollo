@@ -37,6 +37,14 @@ ApolloAudioProcessor::ApolloAudioProcessor()
 {
     telemetry = std::make_unique<telemetry::TelemetryHub>();
     lfoCurves = std::make_unique<state::LfoCurveStore> (apvts);
+
+    // Renaming a macro moves no parameter, so nothing else would tell the host
+    // the project now differs from what it saved (Phase 16c).
+    macroNames = std::make_unique<state::MacroNameStore> (apvts);
+    macroNames->onEdited = [this]
+    {
+        updateHostDisplay (ChangeDetails().withNonParameterStateChanged (true));
+    };
     userContent = std::make_unique<resources::UserContent> (apvts,
                                                             voiceEngine.getWavetableLibrary(),
                                                             voiceEngine.getNoiseSampleSlot());
@@ -1550,6 +1558,10 @@ void ApolloAudioProcessor::notifyStateReplaced()
     // LFO back on the default, rather than leaving the last project's drawing
     // under a preset that never had one.
     lfoCurves->restoreFromState();
+
+    // And the macros' names: a document that names none puts every macro back
+    // to "Macro 1" to "Macro 4".
+    macroNames->restoreFromState();
 
     // And the user's own content: a document that carries none empties every
     // slot, and one that carries some is rebuilt from it, off this thread.

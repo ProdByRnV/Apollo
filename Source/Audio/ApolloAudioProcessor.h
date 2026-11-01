@@ -28,6 +28,7 @@
 #include "Resources/ProgramChanges.h"
 #include "Resources/UserContent.h"
 #include "State/LfoCurveState.h"
+#include "State/MacroNames.h"
 #include "State/StateSerialization.h"
 #include "Telemetry/TelemetryHub.h"
 
@@ -185,6 +186,9 @@ public:
     /** The four drawn LFO curves (Phase 13f-1). MESSAGE THREAD, apart from
         what the processor itself reads on the audio thread. */
     [[nodiscard]] state::LfoCurveStore& getLfoCurves() noexcept { return *lfoCurves; }
+
+    /** The names the user gave the four macros (Phase 16c). MESSAGE THREAD. */
+    [[nodiscard]] state::MacroNameStore& getMacroNames() noexcept { return *macroNames; }
 
     /** The user's wavetables and noise sample (Phase 13g). */
     [[nodiscard]] resources::UserContent& getUserContent() noexcept { return *userContent; }
@@ -673,6 +677,9 @@ private:
         hub is: three tables per LFO is fifty kilobytes, which a test that puts
         a processor on its stack should not have to find room for. */
     std::unique_ptr<state::LfoCurveStore> lfoCurves;
+
+    /** The macros' names, kept in the state tree beside the curves. */
+    std::unique_ptr<state::MacroNameStore> macroNames;
 
     /** The user's wavetables and noise sample, carried in the state tree and
         published into the engine (Phase 13g). After the engine and APVTS, so

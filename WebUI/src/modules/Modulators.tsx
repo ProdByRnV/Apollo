@@ -13,8 +13,9 @@
     each one starting from an empty ring every time you looked at it.
 */
 
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
+import { setMacroName } from '../bridge/bridge';
 import { EnvelopeEditor } from '../components/EnvelopeEditor';
 import { Knob } from '../components/Knob';
 import { LfoCurveEditor } from '../components/LfoCurveEditor';
@@ -23,6 +24,8 @@ import { Module, Tabs, tabPanelProps } from '../components/Module';
 import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
 import { LABELS } from '../params/labels';
+import { defaultMacroName, limitMacroName, macroLabel, macroNameToSend } from '../params/macroNames';
+import { setLocalMacroName, useMacroNames } from '../state/macroNames';
 import { plainOf, useParameterValue } from '../state/parameters';
 
 const INDICES = [1, 2, 3, 4];
@@ -175,6 +178,70 @@ export function Lfos(): JSX.Element {
 }
 
 /**
+    A macro's name, as a field that reads as a heading until it is clicked
+    (Phase 16c). Enter or leaving the field keeps what was typed; Escape puts
+    the name back as it was; an empty field gives the macro its number back.
+    What is kept is the engine's answer, which arrives as the macro's names.
+*/
+function MacroName({ macro }: { macro: number }): JSX.Element {
+    const { names, maxLength } = useMacroNames();
+    const stored = names[macro - 1] ?? '';
+    const shown = macroLabel(macro, stored);
+
+    const [draft, setDraft] = useState<string | null>(null);
+    const cancelled = useRef(false);
+
+    const finish = (typed: string): void => {
+        setDraft(null);
+
+        if (cancelled.current) {
+            cancelled.current = false;
+            return;
+        }
+
+        const name = macroNameToSend(macro, typed);
+        if (name === stored) return;
+
+        setLocalMacroName(macro, name);
+        setMacroName(macro, name);
+    };
+
+    return (
+        <label className="macro__name" data-named={stored !== '' ? 'true' : 'false'}>
+            <input
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                aria-label={`${defaultMacroName(macro)} name`}
+                title={`Rename ${defaultMacroName(macro)}: up to ${maxLength} characters. Empty gives it its number back.`}
+                value={draft ?? shown}
+                onFocus={(event) => {
+                    setDraft(shown);
+
+                    // After the click that focused it has placed its caret,
+                    // so the whole name is selected and typing replaces it.
+                    const input = event.currentTarget;
+                    requestAnimationFrame(() => input.select());
+                }}
+                onChange={(event) => setDraft(limitMacroName(event.currentTarget.value, maxLength))}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        event.currentTarget.blur();
+                    } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        cancelled.current = true;
+                        event.currentTarget.blur();
+                    }
+                }}
+                onBlur={(event) => finish(event.currentTarget.value)}
+            />
+            <span className="macro__pencil" aria-hidden="true">✎</span>
+        </label>
+    );
+}
+
+/**
     The four macros. Each is a knob a performer moves — or a controller does,
     once MIDI Learn has assigned one; none is assigned by default — and the
     range and curve between that knob and what the matrix reads. Where a macro
@@ -192,7 +259,8 @@ export function Macros(): JSX.Element {
 
                 return (
                     <div key={index} className="macro" role="group" aria-label={`Macro ${index}`}>
-                        <Knob id={`${p}_value`} label={`Macro ${index}`} />
+                        <MacroName macro={index} />
+                        <Knob id={`${p}_value`} label="Amount" />
                         <Knob id={`${p}_min`} label="Min" />
                         <Knob id={`${p}_max`} label="Max" />
                         <Knob id={`${p}_curve`} label="Curve" />

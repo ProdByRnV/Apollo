@@ -181,6 +181,9 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // commands of their own rather than through the parameter snapshot.
     bridge.setLfoCurves (&processor.getLfoCurves());
 
+    // And the macros' names, for the same reason (Phase 16c).
+    bridge.setMacroNames (&processor.getMacroNames());
+
     // The user's wavetables and noise sample, and the library they come from.
     // Attaching starts a scan, as the preset library's does.
     bridge.setUserContent (&processor.getUserContent(), &processor.getContentLibrary());
@@ -263,6 +266,7 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     bridge.setPresetLibrary (nullptr);
     bridge.onStateReplaced = {};
     bridge.setLfoCurves (nullptr);
+    bridge.setMacroNames (nullptr);
 
     // Before the chooser below is destroyed with the editor: a dialog that
     // finishes during teardown must not find a bridge that still points here.
@@ -541,6 +545,9 @@ void ApolloWebViewEditor::resynchroniseAfterReload()
     // The drawn LFO curves live in the same tree, and a load replaces them as
     // well, with the default wherever the document had none.
     sendToWebView (bridge.createLfoCurves());
+
+    // And the macros' names, with "Macro N" wherever the document named none.
+    sendToWebView (bridge.createMacroNames());
 
     // So does the user's content. What the slots hold now may still be loading;
     // the store says when each one lands.

@@ -23,7 +23,9 @@ import { useEffect, useRef } from 'react';
 
 import { modulationAssign } from '../bridge/bridge';
 import { LABELS } from '../params/labels';
+import { macroLabel, macroOfSource } from '../params/macroNames';
 import { SOURCE_COUNT } from '../params/modulationRouting';
+import { currentMacroNames, useMacroNames } from '../state/macroNames';
 import { definitionOf } from '../state/parameters';
 import { beginCarry, currentCarry, endCarry, moveCarry, useCarry } from '../state/modDrag';
 import { announce } from '../state/status';
@@ -38,7 +40,11 @@ const DRAG_THRESHOLD = 4;
 const SCROLL_EDGE = 56;
 const SCROLL_SPEED = 18;
 
+/** A source as a person reads it: a macro by the name it was given (16c). */
 export function sourceName(source: number): string {
+    const macro = macroOfSource(source);
+    if (macro !== null) return macroLabel(macro, currentMacroNames().names[macro - 1] ?? '');
+
     return LABELS.modSource?.[source] ?? `Source ${source}`;
 }
 
@@ -200,6 +206,8 @@ export function ModSourceHandle({ source, tabIndex = 0, compact = false }: Handl
         }
     };
 
+    // Subscribed, so a renamed macro's handle says its new name.
+    useMacroNames();
     const name = sourceName(source);
 
     return (

@@ -32,6 +32,7 @@ import {
 import type { ControlRouting } from '../params/modulationRouting';
 import { commitValue, definitionOf, setHeld } from '../state/parameters';
 import { useRoutingsOf } from '../state/modulation';
+import { useMacroNames } from '../state/macroNames';
 import { gesture } from '../bridge/bridge';
 import { ContextMenu } from './ContextMenu';
 import { sourceName } from './ModSource';
@@ -61,6 +62,9 @@ export function RoutingTags({ id, controlName, onReadout }: TagsProps): JSX.Elem
     const routings = useRoutingsOf(id);
     const drag = useRef<{ slot: number; source: number; start: number; from: number } | null>(null);
     const [menu, setMenu] = useState<{ x: number; y: number; routing: ControlRouting } | null>(null);
+
+    // Subscribed, so a tag's title follows a macro being renamed.
+    useMacroNames();
 
     if (routings.length === 0) return null;
 

@@ -65,6 +65,7 @@ target_sources(ApolloTests PRIVATE
     Telemetry/ScopeTests.cpp
     Telemetry/SpectrumTests.cpp
     State/LfoCurveStateTests.cpp
+    State/MacroNameTests.cpp
     Parameters/ParameterRegistryTests.cpp
     Resources/PresetLibraryTests.cpp
     Resources/FactoryPresetTests.cpp

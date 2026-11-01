@@ -161,6 +161,17 @@ export interface LfoCurvesMessage {
     curves: { lfo: number; points: LfoCurvePoint[] }[];
 }
 
+/** Every macro's name, all four, as the store holds them (Phase 16c): an
+    empty string for a macro with no name. With the longest name the engine
+    takes, so the field and the engine cannot disagree about it. Sent on
+    request, in answer to every rename, and after a load. */
+export interface MacroNamesMessage {
+    type: 'macroNames';
+    version: number;
+    names: string[];
+    maxLength: number;
+}
+
 export interface MidiMappingEntry {
     id: string;
     controller: number;
@@ -334,6 +345,7 @@ export type InboundMessage =
     | InstrumentFrameMessage
     | SpectrumFrameMessage
     | LfoCurvesMessage
+    | MacroNamesMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
     | PresetIndexMessage
@@ -386,6 +398,8 @@ export type OutboundMessage =
     | { type: 'exportPreset'; version: number }
     | { type: 'importPresets'; version: number }
     | { type: 'requestLfoCurves'; version: number }
+    | { type: 'requestMacroNames'; version: number }
+    | { type: 'setMacroName'; version: number; macro: number; name: string }
     | { type: 'requestContent'; version: number }
     | { type: 'rescanContent'; version: number }
     | { type: 'loadContent'; version: number; slot: ContentSlot; entry: number }

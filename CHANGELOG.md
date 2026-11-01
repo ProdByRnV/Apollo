@@ -20,8 +20,13 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 - **A low cut on the reverb.** Turn up **Low Cut** in the Reverb panel and the
   low end stays out of the reverb, so a bass or a kick keeps its weight without
   the room turning it to mud. At its lowest it is off.
+- **Name your macros.** Click a macro's name in the Macros panel and type —
+  "Brightness", "Wobble", up to 16 characters — and press Enter. The name is
+  shown wherever you pick the macro as a source, and is saved with your project
+  and in your presets, so a sound you share says what its macros do. Your DAW
+  still lists them as Macro 1 to Macro 4.
 
-Your sounds are unchanged: both new controls start where the sound was before
+Your sounds are unchanged: the new controls start where the sound was before
 they existed, and DAW automation you drew in 1.1.0 plays as it did.
 
 ---

@@ -201,6 +201,17 @@ export function setLfoCurve(lfo: number, points: LfoCurvePoint[]): void {
     send({ type: 'setLfoCurve', version: PROTOCOL_VERSION, lfo, points });
 }
 
+/** Asks for every macro's name. */
+export function requestMacroNames(): void {
+    send({ type: 'requestMacroNames', version: PROTOCOL_VERSION });
+}
+
+/** Names one macro, from 1, or takes its name away with an empty string.
+    Answered with all four. */
+export function setMacroName(macro: number, name: string): void {
+    send({ type: 'setMacroName', version: PROTOCOL_VERSION, macro, name });
+}
+
 //==============================================================================
 // The user's wavetables and noise sample (Phase 13g). As with presets, the
 // page names a slot and a number from the index; it never names a file. A file

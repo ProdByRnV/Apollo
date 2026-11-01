@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 16 — The first feedback, 16a and 16b done**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114). Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
+| **Phase** | **Phase 16 — The first feedback, 16a to 16c done**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114); macros the user can name (ADR-0115). Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
 | **Status** | **Released: version 1.1.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1 and 1.1.0 published; only 1.1.0 is listed |
-| **Next step** | **16c: macros the user can name**, saved in the preset; then 16d (one wavetable list, and a few more built-in tables), released together as 1.2.0. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28), and the interface on macOS. 16b added the sub's octave 0 and the reverb's low cut without moving any released parameter (ADR-0114) |
+| **Next step** | **16d: one wavetable list**, the built-in tables and the user's library together with Add wavetable…, and a few more built-in tables; then 1.2.0 is released. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28); the interface on macOS; and whether a rename marks a project unsaved in FL Studio, which has not been tried in a host (ADR-0115) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,41 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Macros the user can name (Phase 16c)
+
+Each macro can be given a name of up to 16 characters (ADR-0115). Not a
+parameter: a `<MACRONAMES>` child of the state tree, written only for named
+macros, owned by `state::MacroNameStore` (`Source/State/MacroNames.h`) in the
+processor, beside the drawn LFO curves and on the same terms.
+
+- **Saved and loaded with everything else.** A host project and a preset carry
+  the names; a document without them — every built-in, everything saved before
+  16c — calls every macro by its number. Restored after every state load in
+  `notifyStateReplaced`. A name too long in a document is cut, not refused.
+- **The host is told.** A rename moves no parameter, so the processor reports
+  it as a change of non-parameter state, which a VST3 host takes as unsaved
+  changes. The host's parameter names stay "Macro 1" to "Macro 4".
+- **The bridge.** `requestMacroNames` and `setMacroName`, answered with
+  `macroNames`: all four names and the limit. A name for a macro that does not
+  exist, or one over the limit once cleaned, is refused as `INVALID_MACRO_NAME`.
+  Sent again after every reload (UI_BINDINGS.md §10.8a).
+- **The page.** Each macro's group is headed by its name, a field
+  (`MacroName` in `modules/Modulators.tsx`): click selects it, Enter or leaving
+  keeps it, Escape restores it, empty gives the number back. The knob below is
+  **Amount**. The name is shown on the macro's source handles, in the matrix's
+  source and via lists, and in tag titles (`state/macroNames.ts`,
+  `params/macroNames.ts`).
+
+Tested in:
+- `Tests/State/MacroNameTests.cpp`: the store, the limit in characters, a name
+  as one line, a rename announced once and only when something changed, an
+  unnamed patch writing nothing, a host save and a preset carrying names and a
+  built-in clearing them, a hand-edited document cleaned and cut, the commands
+  and the parser.
+- `WebUI/test/macroNames.test.mjs`: what an unnamed macro is called, cleaning
+  and the limit as the engine applies them, and the source list.
+- The regression renders, unchanged: a name changes nothing that sounds.
+
 ### Octave 0 on the sub, and a low cut on the reverb (Phase 16b)
 
 The first parameters added after release (ADR-0114), both appended to the
@@ -2462,7 +2497,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,346,637 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **63 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,346,736 assertions, 0 failures**, across 73 test classes, in `ApolloTests`; **69 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3542,6 +3577,20 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Macro names (Phase 16c), 2026-11-01
+
+The Release standalone, over the DevTools protocol, with real clicks and keys.
+
+| Checked | Result |
+|---|---|
+| Opening | The four groups headed Macro 1 to Macro 4, dim, each with a pencil; the knob below labelled Amount |
+| Click Macro 2's name, type "Wobble", Enter | The click selected the whole name; the engine's echo showed Wobble, bright. Both of its source handles and the matrix's source list said Wobble |
+| Macro 3, type "Nope", Escape | Still Macro 3 |
+| Macro 2, delete everything, Tab | Macro 2 again, dim |
+| Type "Brightness of everything" into Macro 1 | The field stopped at "Brightness of ev", 16 characters |
+| Macro 1 Brightness, Macro 4 Space; closed and reopened | Both names back, Macros 2 and 3 by number |
+| Wire Pluck chosen in the browser | All four by number again; left on Wire Pluck |
 
 ### Octave 0 and the reverb's low cut (Phase 16b), 2026-11-01
 

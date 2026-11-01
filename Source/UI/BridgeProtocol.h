@@ -92,6 +92,10 @@ enum class BridgeErrorCode
     */
     invalidLfoCurve,
 
+    /** A macro name for a macro that does not exist, or one longer than a
+        macro name may be (Phase 16c). */
+    invalidMacroName,
+
     /** The page named a wavetable or noise sample the current index does not
         contain, or one of the wrong kind for the slot (Phase 13g). Like an
         unknown preset, something a user can cause by renaming a file while the
@@ -207,6 +211,11 @@ enum class BridgeCommandType
     requestLfoCurves, ///< Send every LFO's curve.
     setLfoCurve,      ///< Replace one LFO's curve.
 
+    // Macro names (Phase 16c). Not parameters either: the page can ask for all
+    // four and rename one.
+    requestMacroNames, ///< Send every macro's name.
+    setMacroName,      ///< Name one macro, or take its name away.
+
     // The user's wavetables and noise sample (Phase 13g). Like the preset
     // commands, intents rather than file operations: the page names a slot,
     // and a library entry by the number the backend gave it. Choosing a file
@@ -299,6 +308,12 @@ struct BridgeCommand
         is here — `dsp::isValid` holds — so the store has nothing to repair. */
     int lfoIndex = 0;
     dsp::LfoCurve lfoCurve {};
+
+    /** For setMacroName: which macro, from 0, and its name, already cleaned to
+        one line and no longer than a macro name may be. Empty takes the name
+        away. */
+    int macroIndex = 0;
+    juce::String macroName;
 
     /** For the content commands: which slot, which kind, which library entry.
         The slot and kind arrive as tokens and are validated into these; the
@@ -530,6 +545,18 @@ struct ContentSlotDescription
     being the authoritative one), and after a state load replaces them.
 */
 [[nodiscard]] juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves);
+
+/** `{"type":"macroNames", ...}`
+
+    The name each macro was given, in order, with an empty string for one that
+    has none — the page says "Macro N" for those, as the host does. All four,
+    always, and the longest name the engine will take, so the page's text
+    field and the engine cannot disagree about it (Phase 16c).
+
+    Sent when the page asks, in answer to every rename, and after a state load
+    replaces them.
+*/
+[[nodiscard]] juce::String makeMacroNamesMessage (const std::array<juce::String, 4>& names);
 
 /** `{"type":"modulationRouting", ...}`
     What a drop or a clear did (Phase 13h-4). The slots themselves are

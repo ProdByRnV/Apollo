@@ -203,7 +203,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `lfo4_smoothing` | Rotary Knob | Normalized `[0, 1]` | `0` | 5d | LFO 4 output slew |
 | `lfo4_polarity` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 5d | LFO 4: 0 unipolar, 1 bipolar |
 | `lfo4_steps` | Rotary Knob | Integer `[2, 32]` | `8` | 5d | LFO 4 steps, for the step shape |
-| `macro1_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 1's knob. Through its curve and range it is the matrix source "Macro 1", which can be routed to any number of destinations, each with its own depth. No controller is assigned by default; MIDI Learn assigns one (ADR-0098) |
+| `macro1_value` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Macro 1's knob, labelled **Amount** under the macro's name (16c). Through its curve and range it is the matrix source "Macro 1", or whatever the user named it (§10.8a), which can be routed to any number of destinations, each with its own depth. No controller is assigned by default; MIDI Learn assigns one (ADR-0098) |
 | `macro1_min` | Rotary Knob | Normalized `[0, 1]` | `0` | 13e-3 | Where the knob's bottom lands. Above the maximum turns the macro round |
 | `macro1_max` | Rotary Knob | Normalized `[0, 1]` | `1` | 13e-3 | Where the knob's top lands |
 | `macro1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0` | 13e-3 | The knob's travel bent before the range: positive moves fast then slowly (a fourth root at 1), negative the reverse (a fourth power at -1) |
@@ -1017,6 +1017,44 @@ drawn shape costs what a built-in one costs.
 
 ---
 
+### 10.8a Macro names (Phase 16c)
+
+Each macro can be given a name, which is how it reads on the page: as the
+heading of its group in the Macros panel, on its source handles, in the
+matrix's source and via lists, and in the titles of the tags on a knob it
+modulates. A name is not a parameter, so it has commands of its own, and the
+store in the processor is authoritative (ADR-0115).
+
+```json
+{ "type": "requestMacroNames", "version": 1 }
+{ "type": "setMacroName", "version": 1, "macro": 2, "name": "Wobble" }
+```
+
+```json
+{ "type": "macroNames", "version": 1, "names": ["", "Wobble", "", ""], "maxLength": 16 }
+```
+
+- **`macro` is 1 to 4.** `name` is a string; an empty one, or the macro's own
+  default ("Macro 2"), takes the name away.
+- **A name is one line of at most `maxLength` characters**, counted as
+  characters rather than UTF-16 units. Whitespace and control characters are
+  folded to single spaces and the ends trimmed before it is measured.
+- **`setMacroName` is refused, not cut,** with `INVALID_MACRO_NAME` if the
+  macro is not 1 to 4 or the name is too long. Nothing changes when it is
+  refused.
+- **`macroNames` always carries all four**, an empty string for a macro with
+  no name, and the limit, which the page's field uses. It is sent:
+  - when the page asks;
+  - in answer to every `setMacroName`, as the echo the page shows;
+  - after a host or preset load, beside the parameter snapshot.
+- **The host's name stays "Macro N".** So does the name in the MIDI Learn
+  list, which names parameters as the host does.
+
+**In the document**, names are a `<MACRONAMES>` child of the state root, one
+`<MACRO macro="N" name="…"/>` for each named macro. Presets carry them; a
+document without one calls every macro by its number (Docs/COMPATIBILITY.md
+§1). A rename tells the host the project has unsaved changes.
+
 ### 10.9 The envelope shape (Phase 13f-2)
 
 **No messages of its own.** The envelope editor is another way of moving the
@@ -1416,6 +1454,7 @@ the user, not for a developer, since the page displays it as given:
 | `UNKNOWN_PRESET` | A preset id the current index does not have | **Yes**: a list on screen from before a preset was deleted |
 | `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
 | `INVALID_LFO_CURVE` | A drawn curve for an LFO other than 1 to 4, or one that breaks a curve's rules (§10.8) | No: the editor only makes valid curves |
+| `INVALID_MACRO_NAME` | A name for a macro other than 1 to 4, or one longer than `maxLength` (§10.8a) | No: the field holds no more than the limit |
 | `UNKNOWN_CONTENT` | `loadContent` named an entry the current index does not have, or a noise sample for an oscillator or a table for the noise (§10.10) | Yes: a file renamed or removed while the browser was open |
 | `UNKNOWN_PROFILE` | A controller profile that is not a built-in or one of the user's, or one removed since the list was sent (§10.3) | Yes: a profile deleted in a file manager while the picker was open |
 | `INVALID_PROFILE_NAME` | A profile name with nothing usable in it, longer than 64 characters, or a description longer than 200 (§10.3) | Yes: the save form keeps what was typed |

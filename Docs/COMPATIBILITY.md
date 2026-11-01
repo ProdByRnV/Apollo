@@ -40,6 +40,13 @@ past the end of its range. That is how the parameter clamps; it has not been
 tried against an older build. No schema change was needed (ADR-0102). *Held by
 `Drawn LFO curves in the instrument`.*
 
+**So do the macros' names (16c).** A name is stored as a `<MACRONAMES>` element
+beside the parameters, and only for macros that have one. A document without
+one, which is every document written before 16c and every built-in preset,
+loads with every macro called by its number. An earlier Apollo ignores the
+element. A name too long for this build is cut rather than refused. The names
+the host shows never change (ADR-0115). *Held by `Macro names`.*
+
 **The user's own content follows it too (13g).** A loaded wavetable or noise
 sample is stored as a `<CONTENT>` element of lossless audio beside the
 parameters, and only while something is loaded. A document without one, which

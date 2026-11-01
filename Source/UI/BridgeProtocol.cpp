@@ -3,6 +3,7 @@
 #include "Parameters/ModulationTargets.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "Parameters/ParameterId.h"
+#include "State/MacroNames.h"
 
 #include <cmath>
 #include <string>
@@ -53,6 +54,7 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::unknownPreset:              return "UNKNOWN_PRESET";
         case BridgeErrorCode::invalidPresetName:          return "INVALID_PRESET_NAME";
         case BridgeErrorCode::invalidLfoCurve:            return "INVALID_LFO_CURVE";
+        case BridgeErrorCode::invalidMacroName:           return "INVALID_MACRO_NAME";
         case BridgeErrorCode::unknownContent:             return "UNKNOWN_CONTENT";
         case BridgeErrorCode::invalidContentSlot:         return "INVALID_CONTENT_SLOT";
         case BridgeErrorCode::unknownProfile:             return "UNKNOWN_PROFILE";
@@ -87,6 +89,8 @@ juce::String describe (BridgeErrorCode code)
             return "That name cannot be saved. Use at least one letter or number, in under "
                  + juce::String (presets::maximumNameLength) + " characters.";
         case BridgeErrorCode::invalidLfoCurve:            return "That curve could not be used.";
+        case BridgeErrorCode::invalidMacroName:
+            return "A macro name can be up to " + juce::String (state::maxMacroNameLength) + " characters.";
         case BridgeErrorCode::unknownContent:             return "That file is no longer in the library.";
         case BridgeErrorCode::invalidContentSlot:         return "That is not somewhere content can go.";
         case BridgeErrorCode::unknownProfile:             return "That controller profile is not there any more.";
@@ -289,6 +293,44 @@ BridgeParseResult parseMessage (const juce::String& json)
         if (! dsp::isValid (command.lfoCurve))
             return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
 
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "requestMacroNames")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestMacroNames;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "setMacroName")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::setMacroName;
+
+        const auto macroValue = object->getProperty ("macro");
+        const auto nameValue = object->getProperty ("name");
+
+        if (! isNumber (macroValue) || ! nameValue.isString())
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        // One-based on the wire, as the LFOs are.
+        const auto macro = static_cast<double> (macroValue);
+
+        if (! std::isfinite (macro) || macro < 1.0 || macro > static_cast<double> (state::numMacroNames)
+            || macro != std::floor (macro))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidMacroName);
+
+        // Cleaned here so that what is measured is what would be kept: a name
+        // with a stray tab or a trailing space is not too long for that.
+        // Refused rather than cut, because the page's field cannot hold more.
+        const auto name = state::MacroNameStore::clean (nameValue.toString());
+
+        if (name.length() > state::maxMacroNameLength)
+            return BridgeParseResult::failure (BridgeErrorCode::invalidMacroName);
+
+        command.macroIndex = static_cast<int> (macro) - 1;
+        command.macroName = name;
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -1175,6 +1217,22 @@ juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves)
     object->setProperty (typeProperty, "lfoCurves");
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("curves", entries);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeMacroNamesMessage (const std::array<juce::String, 4>& names)
+{
+    juce::Array<juce::var> entries;
+
+    for (const auto& name : names)
+        entries.add (name);
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "macroNames");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("names", entries);
+    object->setProperty ("maxLength", state::maxMacroNameLength);
 
     return juce::JSON::toString (juce::var (object), oneLine);
 }

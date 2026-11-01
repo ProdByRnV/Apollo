@@ -2072,6 +2072,61 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     border-radius: var(--r-xs);
 }
 
+/* A macro's name (Phase 16c): the group's heading, and visibly something that
+   can be changed — a pencil beside it, a rule under it on hover — because a
+   rename nobody finds is a rename nobody uses (§24.4's argument). An unnamed
+   macro is dim, so a name the user gave stands out from a number they did not. */
+.macro__name {
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    cursor: text;
+}
+
+.macro__name input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 1px 2px;
+    font: inherit;
+    font-size: var(--t-label);
+    letter-spacing: 0.04em;
+    color: var(--text-bright);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px dashed transparent;
+    border-radius: 0;
+    outline: none;
+    text-overflow: ellipsis;
+}
+
+.macro__name[data-named="false"] input {
+    color: var(--text-dim);
+}
+
+.macro__name:hover input {
+    border-bottom-color: var(--accent-dim);
+}
+
+.macro__name input:focus {
+    color: var(--accent-bright);
+    background: var(--display-ground);
+    border-bottom: 1px solid var(--accent);
+}
+
+.macro__pencil {
+    font-size: 10px;
+    line-height: 1;
+    color: var(--text-dim);
+    transition: color var(--t-fast) var(--ease);
+}
+
+.macro__name:hover .macro__pencil,
+.macro__name:focus-within .macro__pencil {
+    color: var(--accent-bright);
+}
+
 /* ==========================================================================
    YOUR OWN CONTENT (Phase 13g)
 

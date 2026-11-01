@@ -357,6 +357,21 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
             return createLfoCurves();
         }
 
+        case BridgeCommandType::requestMacroNames:
+        case BridgeCommandType::setMacroName:
+        {
+            if (macroNames == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+            // Answered with all four either way, as the curves are: the echo
+            // is what the page shows.
+            if (command.type == BridgeCommandType::setMacroName
+                && ! macroNames->set (command.macroIndex, command.macroName))
+                return makeErrorMessage (BridgeErrorCode::invalidMacroName);
+
+            return createMacroNames();
+        }
+
         case BridgeCommandType::requestContent:
         case BridgeCommandType::rescanContent:
         case BridgeCommandType::loadContent:
@@ -1091,6 +1106,18 @@ juce::String ParameterBridge::createLfoCurves() const
         curves[i] = lfoCurves != nullptr ? lfoCurves->get (static_cast<int> (i)) : dsp::defaultLfoCurve();
 
     return makeLfoCurvesMessage (curves);
+}
+
+juce::String ParameterBridge::createMacroNames() const
+{
+    std::array<juce::String, 4> names;
+    static_assert (std::tuple_size_v<decltype (names)> == static_cast<std::size_t> (state::numMacroNames));
+
+    if (macroNames != nullptr)
+        for (std::size_t i = 0; i < names.size(); ++i)
+            names[i] = macroNames->get (static_cast<int> (i));
+
+    return makeMacroNamesMessage (names);
 }
 
 juce::String ParameterBridge::createMidiMappings() const

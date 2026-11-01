@@ -588,7 +588,8 @@ private:
                                  BridgeErrorCode::invalidGestureState,
                                  BridgeErrorCode::unknownPreset,
                                  BridgeErrorCode::invalidPresetName,
-                                 BridgeErrorCode::invalidLfoCurve })
+                                 BridgeErrorCode::invalidLfoCurve,
+                                 BridgeErrorCode::invalidMacroName })
         {
             const auto text = describe (code);
 

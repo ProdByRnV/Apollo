@@ -21,6 +21,7 @@ import {
     midiMappingRemove,
     requestControllerProfiles,
     requestLfoCurves,
+    requestMacroNames,
     requestMetadata,
     requestMidiMappings,
     requestContent,
@@ -32,6 +33,7 @@ import {
 import { PROTOCOL_VERSION } from './bridge/protocol';
 import { applyContentIndex, applyContentSlots } from './state/content';
 import { applyLfoCurves } from './state/lfoCurves';
+import { applyMacroNames } from './state/macroNames';
 import type { InboundMessage } from './bridge/protocol';
 
 import {
@@ -125,6 +127,9 @@ export function App(): JSX.Element {
                 // document as the parameters but are not parameters.
                 requestLfoCurves();
 
+                // And for the macros' names, which travel the same way.
+                requestMacroNames();
+
                 // And for the library, which was scanned when the editor
                 // attached and so may already be waiting.
                 requestPresets();
@@ -177,6 +182,10 @@ export function App(): JSX.Element {
 
             case 'lfoCurves':
                 applyLfoCurves(message.curves);
+                break;
+
+            case 'macroNames':
+                applyMacroNames(message.names, message.maxLength);
                 break;
 
             case 'midiMappings':
@@ -247,6 +256,10 @@ export function App(): JSX.Element {
                 // A save refused for its name is shown in the save form as
                 // well, which is where the user is looking when it happens.
                 if (message.code === 'INVALID_PRESET_NAME') applyPresetRefusal(message.message);
+
+                // The field showed the name before the engine answered, so a
+                // refusal has to put back what the engine actually holds.
+                if (message.code === 'INVALID_MACRO_NAME') requestMacroNames();
 
                 announce(message.message, 'error');
                 break;

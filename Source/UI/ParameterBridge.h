@@ -25,6 +25,7 @@
 #include "MIDI/MidiControlManager.h"
 #include "MIDI/PageNoteQueue.h"
 #include "State/LfoCurveState.h"
+#include "State/MacroNames.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "UI/BridgeProtocol.h"
 
@@ -210,6 +211,15 @@ public:
     /** @returns every LFO's drawn curve, described for the frontend. */
     [[nodiscard]] juce::String createLfoCurves() const;
 
+    /** Attaches the macros' names (Phase 16c). Pass nullptr to detach; without
+        it the name commands are answered with a structured error. Borrowed:
+        the processor owns the store, because the names are saved with the
+        project whether an editor was ever opened or not. */
+    void setMacroNames (state::MacroNameStore* storeToUse) noexcept { macroNames = storeToUse; }
+
+    /** @returns every macro's name, described for the frontend. */
+    [[nodiscard]] juce::String createMacroNames() const;
+
     /** Attaches the user's content and the library it is chosen from (Phase
         13g). Pass nullptrs to detach. Borrowed: the processor owns both,
         because content has to keep sounding, and a scan started from an open
@@ -329,6 +339,9 @@ private:
 
     /** Borrowed, not owned, and null when there are no curves to edit. */
     state::LfoCurveStore* lfoCurves = nullptr;
+
+    /** Borrowed, not owned, and null when there are no names to edit. */
+    state::MacroNameStore* macroNames = nullptr;
 
     /** Borrowed, not owned, and null when there is no user content. */
     resources::UserContent* userContent = nullptr;

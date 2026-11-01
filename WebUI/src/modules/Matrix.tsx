@@ -20,6 +20,7 @@ import { liveSlotCount, routingsByControl, SILENT_DEPTH } from '../params/modula
 import type { SlotState } from '../params/modulationRouting';
 import { controlForDestination, plainOf, useMetadataVersion, useParameterValue } from '../state/parameters';
 import { publishRouting } from '../state/modulation';
+import { useSourceLabels } from '../state/macroNames';
 
 export const SLOT_COUNT = 16;
 
@@ -54,6 +55,9 @@ function Row({ slot }: RowProps): JSX.Element {
     useParameterValue(depthId);
     useParameterValue(viaId);
 
+    // A macro is listed by the name it was given.
+    const sources = useSourceLabels();
+
     // A routing counts as assigned when it has a source, a destination and a
     // depth that is not zero — all three, because any one of them missing means
     // the slot moves nothing, and showing it as live would be a lie.
@@ -66,7 +70,7 @@ function Row({ slot }: RowProps): JSX.Element {
             <td className="matrix__slot">{String(slot).padStart(2, '0')}</td>
 
             <td className="matrix__source">
-                <Select id={sourceId} table={LABELS.modSource} ariaLabel={`Slot ${slot} source`} />
+                <Select id={sourceId} table={sources} ariaLabel={`Slot ${slot} source`} />
             </td>
 
             <td className="matrix__arrow">→</td>
@@ -88,7 +92,7 @@ function Row({ slot }: RowProps): JSX.Element {
                 (13e-4). "—" leaves the slot as it was.
             */}
             <td className="matrix__via">
-                <Select id={viaId} table={LABELS.modSource} ariaLabel={`Slot ${slot} via`} />
+                <Select id={viaId} table={sources} ariaLabel={`Slot ${slot} via`} />
             </td>
         </tr>
     );
