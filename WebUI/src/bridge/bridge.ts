@@ -233,6 +233,12 @@ export function loadContent(slot: ContentSlot, entry: number): void {
     send({ type: 'loadContent', version: PROTOCOL_VERSION, slot, entry });
 }
 
+/** Loads one of the tables Apollo ships beyond the oscillator's four, by its
+    number from 1 (Phase 16d). What happened arrives as contentSlots. */
+export function loadBuiltInTable(slot: ContentSlot, table: number): void {
+    send({ type: 'loadBuiltInTable', version: PROTOCOL_VERSION, slot, table });
+}
+
 /** Asks for the system's file dialog, for a slot. */
 export function chooseContentFile(slot: ContentSlot): void {
     send({ type: 'chooseContentFile', version: PROTOCOL_VERSION, slot });

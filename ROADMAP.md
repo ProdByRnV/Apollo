@@ -188,7 +188,7 @@ front of it is better understood, the way 8f was.
 | 16a | Sharing a sound — **EXPORT…** writes the sound playing as a `.rnv` wherever the user chooses, **IMPORT…** adds received files to the user library, validated and never replacing anything (ADR-0113) | ✅ |
 | 16b | Octave 0 on the sub oscillator, as a switch beside the released octave so no DAW automation moves; and a low cut on the reverb, switched out at its default; both appended to the registry (ADR-0114) | ✅ |
 | 16c | Macros the user can name — up to 16 characters, shown wherever the macro is a source, saved in the project and the preset; the host's name stays "Macro N" (ADR-0115) | ✅ |
-| 16d | One wavetable list — the built-in tables and the user's library together, with Add wavetable… — and a few more built-in tables | ⬜ |
+| 16d | One wavetable list — Apollo's tables and the user's library together, ‹ › to step through them, Add wavetable… — and five more of Apollo's own, carried as audio because the switch's range cannot grow (ADR-0116) | ✅ |
 | **17** | **The layout** — tabs in place of the scrolling column, panels of fixed size, a presets panel that folds away, the space used better; from mock-ups the developer chooses between. Released as **1.3.0** | ⬜ |
 
 ### Carried forward

@@ -25,6 +25,12 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   shown wherever you pick the macro as a source, and is saved with your project
   and in your presets, so a sound you share says what its macros do. Your DAW
   still lists them as Macro 1 to Macro 4.
+- **Every wavetable in one list, and five new ones.** Click the table's name on
+  an oscillator to see all of them — Apollo's and your own library together —
+  or step through them with **‹** and **›** while you hold a note. **ADD
+  WAVETABLE…** plays one from anywhere on your computer. New: **Analog** (sine,
+  triangle, square, saw), **Sync**, **Organ**, **Chime** and **Digital**. A
+  preset that uses one still opens in Apollo 1.1.
 
 Your sounds are unchanged: the new controls start where the sound was before
 they existed, and DAW automation you drew in 1.1.0 plays as it did.

@@ -1,5 +1,6 @@
 #include "UI/ParameterBridge.h"
 
+#include "DSP/Oscillators/ExtraTables.h"
 #include "Parameters/ModulationTargets.h"
 #include "Parameters/ParameterLayout.h"
 #include "Resources/PresetLibrary.h"
@@ -178,6 +179,13 @@ juce::String ParameterBridge::createContentSlots (const juce::String& token,
                 if (const auto* entry = resources::findContent (index, resources::kindOf (which), description.info.source))
                     description.entry = entry->id;
 
+            // One of Apollo's extra tables is known by its name, which is all
+            // a patch keeps of where it came from.
+            if (description.info.loaded && description.info.source.origin == resources::ContentOrigin::builtIn)
+                for (int table = 0; table < dsp::numExtraTables; ++table)
+                    if (description.info.source.name == dsp::extraTableName (table))
+                        description.builtIn = table + 1;
+
             slots.push_back (std::move (description));
         }
     }
@@ -225,6 +233,12 @@ juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
             userContent->loadFile (slot, entry->file, source);
             return {};
         }
+
+        case BridgeCommandType::loadBuiltInTable:
+            if (! userContent->loadExtraTable (slot, command.contentId - 1))
+                return makeErrorMessage (BridgeErrorCode::unknownContent);
+
+            return {};
 
         case BridgeCommandType::chooseContentFile:
             if (onChooseContentFile)
@@ -375,6 +389,7 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::requestContent:
         case BridgeCommandType::rescanContent:
         case BridgeCommandType::loadContent:
+        case BridgeCommandType::loadBuiltInTable:
         case BridgeCommandType::chooseContentFile:
         case BridgeCommandType::clearContent:
         case BridgeCommandType::saveContentToLibrary:

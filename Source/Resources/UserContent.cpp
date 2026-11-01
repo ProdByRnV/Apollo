@@ -1,6 +1,7 @@
 #include "Resources/UserContent.h"
 
 #include "DSP/Noise/NoiseSource.h"
+#include "DSP/Oscillators/ExtraTables.h"
 #include "DSP/Oscillators/WavetableBuilder.h"
 #include "Resources/EmbeddedAudio.h"
 #include "Resources/NoiseSampleFile.h"
@@ -54,6 +55,7 @@ juce::String toToken (ContentOrigin origin)
         case ContentOrigin::library:        return "library";
         case ContentOrigin::factoryLibrary: return "factory";
         case ContentOrigin::file:           return "file";
+        case ContentOrigin::builtIn:        return "builtin";
     }
 
     return "file";
@@ -64,7 +66,8 @@ namespace
 
 [[nodiscard]] ContentOrigin originFromToken (const juce::String& token)
 {
-    for (const auto origin : { ContentOrigin::library, ContentOrigin::factoryLibrary, ContentOrigin::file })
+    for (const auto origin : { ContentOrigin::library, ContentOrigin::factoryLibrary, ContentOrigin::file,
+                               ContentOrigin::builtIn })
         if (token == toToken (origin))
             return origin;
 
@@ -82,6 +85,33 @@ namespace
         cleaned = cleaned.replace ("..", "");
 
     return cleaned;
+}
+
+/** One of Apollo's extra tables as the audio a patch carries: built, and its
+    top mip level — every harmonic, normalised — written out frame by frame.
+
+    Through audio rather than straight into a slot, so that loading one and
+    reopening a patch that carries one are the same path, and play the same
+    table. */
+[[nodiscard]] juce::String renderExtraTable (int index)
+{
+    static_assert (dsp::Wavetable::samplesAtLevel (0) == wavetableFrameSamples,
+                   "a frame of the table must be a frame of a wavetable file");
+
+    dsp::Wavetable table;
+    dsp::buildWavetable (table, dsp::makeExtraTable (index));
+
+    if (table.isEmpty())
+        return {};
+
+    std::vector<double> joined;
+    joined.reserve (static_cast<std::size_t> (table.getNumFrames() * wavetableFrameSamples));
+
+    for (int frame = 0; frame < table.getNumFrames(); ++frame)
+        if (const auto* samples = table.getReadPointer (0, frame))
+            joined.insert (joined.end(), samples, samples + wavetableFrameSamples);
+
+    return encodeAudio ({ joined }, 48000.0);
 }
 
 /** The name a file is shown as. */
@@ -148,6 +178,31 @@ void UserContent::loadFile (ContentSlot slot, const juce::File& file, const Cont
     queueJob (std::move (job));
 }
 
+bool UserContent::loadExtraTable (ContentSlot slot, int table)
+{
+    if (! isWavetableSlot (slot) || table < 0 || table >= dsp::numExtraTables)
+        return false;
+
+    Job job;
+    job.slot = slot;
+    job.serial = latest[indexOf (slot)].fetch_add (1) + 1;
+    job.extraTable = table;
+    job.source.name = dsp::extraTableName (table);
+    job.source.origin = ContentOrigin::builtIn;
+
+    {
+        const std::lock_guard<std::mutex> guard (lock);
+        info[indexOf (slot)].loading = true;
+        info[indexOf (slot)].loadingName = job.source.name;
+    }
+
+    if (onChanged)
+        onChanged ({ slot, "LOADING", "Loading " + job.source.name + "." });
+
+    queueJob (std::move (job));
+    return true;
+}
+
 void UserContent::clear (ContentSlot slot)
 {
     // Abandons anything on its way to this slot.
@@ -207,7 +262,7 @@ void UserContent::restoreFromState()
         job.source.origin = originFromToken (item.getProperty (juce::Identifier (originProperty)).toString());
         job.source.libraryPath = cleanText (item.getProperty (juce::Identifier (pathProperty)).toString(), maximumPathLength);
 
-        if (job.source.origin == ContentOrigin::file)
+        if (job.source.origin == ContentOrigin::file || job.source.origin == ContentOrigin::builtIn)
             job.source.libraryPath = {};
 
         {
@@ -360,15 +415,32 @@ UserContent::Result UserContent::process (const Job& job) const
              + " could not be read, so it is playing Apollo's own table instead.";
     };
 
+    // Audio to decode: what a document carried, or one of Apollo's extra
+    // tables rendered as the audio a patch would carry. A file is read from
+    // disk instead.
+    auto audioText = job.audio;
+
+    if (job.extraTable >= 0)
+    {
+        audioText = renderExtraTable (job.extraTable);
+
+        if (audioText.isEmpty())
+        {
+            result.failure = job.source.name + ": the table could not be built.";
+            return result;
+        }
+    }
+
     std::unique_ptr<juce::AudioFormatReader> embedded;
 
-    if (job.fromDocument)
+    if (audioText.isNotEmpty())
     {
-        embedded = decodeAudio (job.audio);
+        embedded = decodeAudio (audioText);
 
         if (embedded == nullptr)
         {
-            result.failure = unreadableInDocument();
+            result.failure = job.fromDocument ? unreadableInDocument()
+                                              : job.source.name + ": the table could not be built.";
             return result;
         }
     }
@@ -377,8 +449,8 @@ UserContent::Result UserContent::process (const Job& job) const
     {
         WavetableFrames frames;
 
-        const auto read = job.fromDocument ? readWavetable (*embedded, frames)
-                                           : readWavetableFile (job.file, frames);
+        const auto read = embedded != nullptr ? readWavetable (*embedded, frames)
+                                              : readWavetableFile (job.file, frames);
 
         if (read != WavetableLoadResult::ok)
         {
@@ -400,9 +472,9 @@ UserContent::Result UserContent::process (const Job& job) const
             return result;
         }
 
-        if (job.fromDocument)
+        if (embedded != nullptr)
         {
-            result.audio = job.audio;
+            result.audio = audioText;
         }
         else
         {
@@ -430,8 +502,8 @@ UserContent::Result UserContent::process (const Job& job) const
 
     NoiseSampleAudio audio;
 
-    const auto read = job.fromDocument ? readNoiseSample (*embedded, audio)
-                                       : readNoiseSampleFile (job.file, audio);
+    const auto read = embedded != nullptr ? readNoiseSample (*embedded, audio)
+                                          : readNoiseSampleFile (job.file, audio);
 
     if (read != NoiseSampleLoadResult::ok)
     {
@@ -445,9 +517,9 @@ UserContent::Result UserContent::process (const Job& job) const
 
     result.sample = std::make_unique<dsp::TransientSample> (dsp::makeTransient (audio.left, audio.right));
 
-    if (job.fromDocument)
+    if (embedded != nullptr)
     {
-        result.audio = job.audio;
+        result.audio = audioText;
     }
     else
     {

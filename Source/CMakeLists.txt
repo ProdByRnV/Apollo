@@ -35,6 +35,8 @@ add_library(apollo_core STATIC
     DSP/Oscillators/UnisonOscillator.h
     DSP/Oscillators/Wavetable.cpp
     DSP/Oscillators/Wavetable.h
+    DSP/Oscillators/ExtraTables.cpp
+    DSP/Oscillators/ExtraTables.h
     DSP/Oscillators/WavetableBuilder.cpp
     DSP/Oscillators/WavetableBuilder.h
     DSP/Oscillators/WavetableLibrary.cpp

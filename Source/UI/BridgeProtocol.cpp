@@ -2,6 +2,7 @@
 
 #include "Parameters/ModulationTargets.h"
 #include "Parameters/ParameterDefinitions.h"
+#include "DSP/Oscillators/ExtraTables.h"
 #include "Parameters/ParameterId.h"
 #include "State/MacroNames.h"
 
@@ -397,6 +398,31 @@ BridgeParseResult parseMessage (const juce::String& json)
             return BridgeParseResult::failure (BridgeErrorCode::unknownContent);
 
         command.contentId = static_cast<int> (id);
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    // One of Apollo's extra tables (Phase 16d): a slot and a number from 1,
+    // never anything else.
+    if (messageType == "loadBuiltInTable")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::loadBuiltInTable;
+
+        if (! readSlot (command) || ! resources::isWavetableSlot (command.contentSlot))
+            return BridgeParseResult::failure (BridgeErrorCode::invalidContentSlot);
+
+        const auto tableValue = object->getProperty ("table");
+
+        if (! isNumber (tableValue))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto table = static_cast<double> (tableValue);
+
+        if (! std::isfinite (table) || table < 1.0 || table > static_cast<double> (dsp::numExtraTables)
+            || table != std::floor (table))
+            return BridgeParseResult::failure (BridgeErrorCode::unknownContent);
+
+        command.contentId = static_cast<int> (table);
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -1387,9 +1413,21 @@ juce::String makeContentIndexMessage (const resources::ContentIndex& index, bool
         (content.kind == resources::ContentKind::wavetable ? wavetables : noise).add (juce::var (entry));
     }
 
+    juce::Array<juce::var> builtIn;
+
+    for (int table = 0; table < dsp::numExtraTables; ++table)
+    {
+        auto* entry = new juce::DynamicObject();
+        entry->setProperty ("table", table + 1);
+        entry->setProperty ("name", juce::String (dsp::extraTableName (table)));
+        entry->setProperty ("frames", dsp::extraTableFrames);
+        builtIn.add (juce::var (entry));
+    }
+
     auto* object = new juce::DynamicObject();
     object->setProperty (typeProperty, "contentIndex");
     object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("builtInTables", builtIn);
     object->setProperty ("wavetables", wavetables);
     object->setProperty ("noise", noise);
     object->setProperty ("truncated", index.truncated);
@@ -1417,6 +1455,7 @@ juce::String makeContentSlotsMessage (const std::vector<ContentSlotDescription>&
         entry->setProperty ("frames", info.frames);
         entry->setProperty ("seconds", std::round (info.seconds * 100.0) / 100.0);
         entry->setProperty ("entry", item.entry);
+        entry->setProperty ("builtIn", item.builtIn);
         entry->setProperty ("loading", info.loading);
         entry->setProperty ("loadingName", info.loading ? info.loadingName : juce::String());
 

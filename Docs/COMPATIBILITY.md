@@ -57,6 +57,12 @@ are past the end of its ranges, so they should clamp to FOLD and CHIFF, which
 has not been tried against an older build. No schema change was needed
 (ADR-0104). *Held by `User content`.*
 
+**Apollo's five extra tables are content (16d).** ANALOG, SYNC, ORGAN, CHIME and
+DIGITAL are loaded into the oscillator's own slot and carried as audio with
+`origin="builtin"`, rather than being new values of `oscN_wavetable`, whose
+range cannot grow. An earlier Apollo reads the origin as a file and plays the
+table. *Held by `Extra wavetables`.*
+
 **Two things a preset deliberately does not carry**, because they describe your
 setup rather than the sound (ADR-0061):
 

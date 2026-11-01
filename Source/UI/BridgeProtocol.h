@@ -224,6 +224,7 @@ enum class BridgeCommandType
     requestContent,       ///< Send the library and what every slot holds.
     rescanContent,        ///< Look at the library folders again.
     loadContent,          ///< Load a library entry into a slot.
+    loadBuiltInTable,     ///< Load one of Apollo's extra tables into an oscillator (16d).
     chooseContentFile,    ///< Open the native file dialog for a slot.
     clearContent,         ///< Empty a slot.
     saveContentToLibrary, ///< Write a slot's audio into the user's library.
@@ -443,6 +444,10 @@ struct BridgeParseResult
     The wavetable and noise libraries as the browsers draw them: each entry's
     number, name, bank, whether it is factory content, its frames or length,
     and why its header says it will not load, if it will not. No paths.
+
+    And, as `builtInTables`, the tables Apollo ships beyond the oscillator's
+    four, by number from 1, which `loadBuiltInTable` asks for (Phase 16d).
+    They are compiled in, so they are listed whether or not a scan has run.
 */
 [[nodiscard]] juce::String makeContentIndexMessage (const resources::ContentIndex& index, bool scanning);
 
@@ -454,6 +459,9 @@ struct ContentSlotDescription
 
     /** The library entry it came from, if that is still in the index; else 0. */
     int entry = 0;
+
+    /** Which of Apollo's extra tables it is, from 1, or 0 (Phase 16d). */
+    int builtIn = 0;
 };
 
 /** `{"type":"contentSlots", ...}`

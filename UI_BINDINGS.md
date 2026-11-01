@@ -79,7 +79,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 
 | Parameter ID | UI Element | Range / Type | Default | Phase | Description |
 |---|---|---|---:|---|---|
-| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 2, 13g | Wavetable selection for oscillator 1: the four built-ins, then 4, USER, the oscillator's own table (§10.10, ADR-0104) |
+| `osc1_wavetable` | Selector / Dropdown | Discrete `[0, 4]` | `0` | 2, 13g, 16d | Wavetable selection for oscillator 1: the four built-ins, then 4, USER, the oscillator's own table (§10.10, ADR-0104). Shown as one picker with Apollo's extra tables and the user's library; choosing one of those loads it into the slot USER plays (ADR-0116) |
 | `osc1_position` | Rotary Knob | Normalized `[0, 1]` | `0` | 4a | Wavetable scan position for oscillator 1 |
 | `osc1_unison` | Rotary Knob | Integer `[1, 16]` | `1` | 2 | Unison voice count |
 | `osc1_detune` | Rotary Knob | Normalized `[0, 1]` | `0.2` | 2 | Unison detune amount (±50 cents at full) |
@@ -1091,6 +1091,7 @@ the page asks the editor to open; the path it returns stays native.
 | `requestContent` | — | Send the index (pushed) and every slot (the reply) |
 | `rescanContent` | — | Look at the library folders again; answered with the index marked `scanning`, and again when the scan lands |
 | `loadContent` | `slot`, `entry` | Load library entry `entry` into `slot` |
+| `loadBuiltInTable` | `slot`, `table` | Load Apollo's extra table `table`, 1 to 5, into `osc1` or `osc2` (16d) |
 | `chooseContentFile` | `slot` | Open the system's file dialog for `slot` |
 | `clearContent` | `slot` | Empty `slot` and take it out of the patch |
 | `saveContentToLibrary` | `slot` | Write `slot`'s audio into the user's library as a WAV |
@@ -1102,6 +1103,7 @@ index, 1 to 10 000, a whole number.
 ```json
 {
   "type": "contentIndex", "version": 1, "scanning": false, "truncated": false,
+  "builtInTables": [ { "table": 1, "name": "Analog", "frames": 16 }, ... ],
   "wavetables": [ { "id": 4, "name": "Growl", "bank": "Basses", "factory": false,
                     "frames": 64, "problem": "" } ],
   "noise":      [ { "id": 6, "name": "Breath", "bank": "", "factory": false,
@@ -1114,11 +1116,15 @@ index, 1 to 10 000, a whole number.
   "type": "contentSlots", "version": 1,
   "status": "LOADED", "slot": "osc1", "statusMessage": "Growl is playing on oscillator 1.",
   "slots": [ { "slot": "osc1", "loaded": true, "name": "Growl", "origin": "library",
-               "frames": 64, "seconds": 0, "entry": 4, "loading": false, "loadingName": "" },
+               "frames": 64, "seconds": 0, "entry": 4, "builtIn": 0, "loading": false, "loadingName": "" },
              ... ]
 }
 ```
 
+- **`builtInTables`** are Apollo's extra tables (ADR-0116), always all of
+  them, scanned or not. `loadBuiltInTable` names one by `table`; anything but
+  1 to 5 is `UNKNOWN_CONTENT`, and the noise slot `INVALID_CONTENT_SLOT`. A
+  slot playing one has `origin` `"builtin"` and `builtIn` its number.
 - **`problem`** is why a file's header says it will not load — not whole
   frames, too long — so the browser can say so before anyone clicks.
 - **`entry`** is the library row a slot came from, while that row is still

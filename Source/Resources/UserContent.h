@@ -85,7 +85,8 @@ enum class ContentOrigin
 {
     library,        ///< The user's library folder.
     factoryLibrary, ///< The shared factory folder an installer fills.
-    file            ///< Anywhere else, chosen through a file dialog.
+    file,           ///< Anywhere else, chosen through a file dialog.
+    builtIn         ///< One of the tables Apollo ships beyond the switch's four (16d).
 };
 
 [[nodiscard]] juce::String toToken (ContentOrigin origin);
@@ -147,6 +148,16 @@ public:
         record. MESSAGE THREAD. */
     void loadFile (ContentSlot slot, const juce::File& file, const ContentSource& source);
 
+    /** Loads @p table, one of the tables Apollo ships beyond the oscillator's
+        four (dsp::ExtraTables.h), into @p slot, as a file is loaded: built on
+        the worker, stored in the patch as audio, USER selected (Phase 16d,
+        ADR-0116). So a patch that uses one plays in any Apollo that can play
+        a table of the user's own.
+
+        @returns false, doing nothing, for the noise slot or a table that does
+                 not exist. MESSAGE THREAD. */
+    bool loadExtraTable (ContentSlot slot, int table);
+
     /** Empties @p slot and removes it from the patch, at once. Anything still
         loading for it is abandoned. MESSAGE THREAD. */
     void clear (ContentSlot slot);
@@ -203,6 +214,9 @@ private:
         juce::File file;
         juce::String audio;
         ContentSource source;
+
+        /** One of Apollo's extra tables to build, from 0, or -1. */
+        int extraTable = -1;
     };
 
     struct Result

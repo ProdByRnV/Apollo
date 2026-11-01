@@ -1,6 +1,7 @@
 /*
-    Choosing your own wavetable for an oscillator, or your own noise sample
-    (Phase 13g, PRD §33).
+    Choosing your own noise sample (Phase 13g, PRD §33). The oscillators used
+    this until Phase 16d gave them WavetablePicker, one list of every table.
+    It still handles either kind of slot.
 
     A LINE AND A LIST. The line is always there, under the oscillator's
     wavetable switch or the noise type: what this slot holds — name, size,

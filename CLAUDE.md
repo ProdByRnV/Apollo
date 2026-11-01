@@ -550,7 +550,8 @@ that (ADR-0066). This is not an implementation detail: the mipmap needs the same
 waveform at eleven bandwidths, and harmonics cannot be removed from a block of
 samples without knowing what they were.
 
-Apollo's own four tables are written as spectra. A table read from a file is
+Apollo's own tables are written as spectra: the four the oscillator's switch
+names, and five more it ships (ADR-0116). A table read from a file is
 analysed into one. **From that point the engine cannot tell them apart**, which
 is what extends the anti-aliasing guarantee to content Apollo did not write.
 
@@ -593,6 +594,11 @@ file** (ADR-0104). A path breaks when a file moves, when the project is opened
 on another computer, and when a preset is shared; carried audio breaks in none
 of those. Where the content came from is kept beside it for the browser to
 show, and is never opened.
+
+Apollo's five extra tables travel the same way, as audio marked as Apollo's,
+because the switch's range cannot grow (ADR-0114, ADR-0116): a patch that uses
+one plays in a version of Apollo that has never heard of it. The oscillator
+offers every table — Apollo's and the user's library — in one list.
 
 So a patch is complete on its own, and a document with no content empties
 every slot, which still sounds: USER plays the first built-in and SAMPLE plays

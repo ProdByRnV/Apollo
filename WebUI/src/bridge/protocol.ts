@@ -286,6 +286,9 @@ export interface ContentEntry {
 export interface ContentIndexMessage {
     type: 'contentIndex';
     version: number;
+    /** The tables Apollo ships beyond the oscillator's four, by number from 1,
+        for loadBuiltInTable (Phase 16d). Absent from an older engine. */
+    builtInTables?: { table: number; name: string; frames: number }[];
     wavetables: ContentEntry[];
     noise: ContentEntry[];
     truncated: boolean;
@@ -296,12 +299,14 @@ export interface ContentSlotState {
     slot: ContentSlot;
     loaded: boolean;
     name: string;
-    /** "library", "factory" or "file". */
+    /** "library", "factory", "file" or "builtin". */
     origin: string;
     frames: number;
     seconds: number;
     /** The library entry it came from, if it is still listed; else 0. */
     entry: number;
+    /** Which of Apollo's extra tables it is, from 1, or 0 (Phase 16d). */
+    builtIn: number;
     loading: boolean;
     loadingName: string;
 }
@@ -403,6 +408,7 @@ export type OutboundMessage =
     | { type: 'requestContent'; version: number }
     | { type: 'rescanContent'; version: number }
     | { type: 'loadContent'; version: number; slot: ContentSlot; entry: number }
+    | { type: 'loadBuiltInTable'; version: number; slot: ContentSlot; table: number }
     | { type: 'chooseContentFile'; version: number; slot: ContentSlot }
     | { type: 'clearContent'; version: number; slot: ContentSlot }
     | { type: 'saveContentToLibrary'; version: number; slot: ContentSlot }

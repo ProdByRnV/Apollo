@@ -9,6 +9,7 @@ import { Scope } from '../components/Scope';
 import { Segmented } from '../components/Segmented';
 import { SubOctaveSelector } from '../components/SubOctaveSelector';
 import { WavetableDisplay } from '../components/WavetableDisplay';
+import { WavetablePicker } from '../components/WavetablePicker';
 import { LABELS } from '../params/labels';
 import { plainOf, useParameterValue } from '../state/parameters';
 
@@ -21,26 +22,21 @@ function useSilent(id: string): boolean {
     return plainOf(id) <= 0.0001;
 }
 
-/** `oscN_wavetable`'s choice that plays the oscillator's own table, and
-    `noise_type`'s that plays the user's sample (Phase 13g). */
-const USER_TABLE = 4;
+/** `noise_type`'s choice that plays the user's sample (Phase 13g). */
 const USER_SAMPLE = 6;
 
 export function Oscillator({ index }: { index: number }): JSX.Element {
     const p = `osc${index}_`;
 
-    useParameterValue(`${p}wavetable`);
-    const userSelected = Math.round(plainOf(`${p}wavetable`)) === USER_TABLE;
-
     return (
         <Module title="Oscillator" index={String(index)} inactive={useSilent(`${p}level`)}>
+            {/*
+                Every table, Apollo's and the user's, in one list (Phase 16d).
+                It replaced a switch of five and a browser underneath it, which
+                were two places to choose one thing.
+            */}
             <div className="cluster cluster--banner">
-                <Segmented id={`${p}wavetable`} label="Wavetable" table={LABELS[`${p}wavetable`]} />
-            </div>
-
-            {/* The table of your own that USER plays (Phase 13g). */}
-            <div className="cluster cluster--banner">
-                <ContentBrowser slot={index === 2 ? 'osc2' : 'osc1'} selected={userSelected} />
+                <WavetablePicker oscillator={index} />
             </div>
 
             {/*

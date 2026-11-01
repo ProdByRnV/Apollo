@@ -2348,6 +2348,106 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 }
 
 /* ==========================================================================
+   THE WAVETABLE PICKER (Phase 16d, ADR-0116)
+   Every table in one list. The button is the segmented control's well with
+   the chosen table in it as a gold chip, because that is what it replaced and
+   what it still is: the oscillator's choice. The arrows either side step
+   through the list without opening it.
+   ========================================================================== */
+
+.wavetable-picker__bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+}
+
+.wavetable-picker__choice {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    min-width: 0;
+}
+
+.wavetable-picker__current,
+.wavetable-picker__step {
+    appearance: none;
+    border: 0;
+    font-family: var(--font-ui);
+    font-size: var(--t-label);
+    letter-spacing: 0.04em;
+    border-radius: var(--r-xs);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.wavetable-picker__current {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-2);
+    min-width: 150px;
+    max-width: 260px;
+    padding: 4px 8px;
+    color: var(--surface-void);
+    background: var(--accent);
+}
+
+.wavetable-picker__current:hover {
+    background: var(--accent-bright);
+}
+
+.wavetable-picker__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wavetable-picker__caret {
+    font-size: 9px;
+}
+
+.wavetable-picker__step {
+    padding: 3px 8px;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-dim);
+    background: transparent;
+}
+
+.wavetable-picker__step:hover {
+    color: var(--accent-bright);
+    background: var(--surface-hover);
+}
+
+.wavetable-picker__current:focus-visible,
+.wavetable-picker__step:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent-bright);
+}
+
+.wavetable-picker__list {
+    max-height: 40vh;
+}
+
+/* A heading inside the list, not a row: it cannot be chosen or focused. */
+.wavetable-picker__group {
+    padding: 6px var(--s-2) 2px;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.wavetable-picker__group:first-child {
+    padding-top: 2px;
+}
+
+/* ==========================================================================
    DRAG-AND-DROP MODULATION (Phase 13h-4, ADR-0108)
    A source is green, because modulation is green everywhere else in the
    interface (§24.2). Where it can go is gold, because gold is where the hand

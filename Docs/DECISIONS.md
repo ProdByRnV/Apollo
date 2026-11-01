@@ -7924,3 +7924,75 @@ The tags themselves keep `M1` to `M4`, which is what fits on them.
   desk in front of the user; a name describes the sound, and travels with it.
 - **No limit, ellipsised on screen.** A name nobody can read in full is not
   doing its job, and a document must not be able to carry a megabyte of label.
+
+---
+
+## ADR-0116 — Every wavetable in one list, and five more of Apollo's own that travel as audio
+
+**Phase 16d · Accepted**
+
+### What was asked
+
+From the first feedback: more wavetables. The developer's own view, once the
+library was explained, was that a dozen built-ins would be too many and that
+what mattered was adding as many of one's own as a sound needs. Apollo could
+already play any table of the user's, but it took a switch of five, a USER
+choice on it, and a browser underneath: two places to choose one thing.
+
+### One list
+
+Each oscillator's switch and browser are replaced by one picker: a button that
+names the table playing, ‹ and › either side that step to the table before or
+after it, and a list that opens beneath it, searchable, with **Apollo**'s tables
+first and **Your wavetables** after them. **ADD WAVETABLE…** beside it opens the
+system's file dialog, as Open file… did. The arrows are what make a library
+usable: with a note held, a table can be auditioned in one press each.
+
+Choosing a row closes the list and changes nothing until the engine says what
+is playing, as the preset browser does. Choosing one of the switch's four while
+a table of the user's is still in the patch says so, and offers **Remove**:
+it is still carried, and USER would play it again.
+
+### More of Apollo's own, without a sixth choice
+
+Five tables, sixteen frames each, written as spectra like the four (CLAUDE.md
+§12.3): **ANALOG** (sine, triangle, square, saw), **SYNC** (a saw hard-synced
+to the note as its own pitch climbs nearly three octaves), **ORGAN** (drawbar
+registrations on the drawbars that sound at whole harmonics), **CHIME**
+(partials at the square harmonic numbers, glassy rather than clanging) and
+**DIGITAL** (a sine drawn with sixty-four levels, falling to two). Nine in all,
+which keeps "a dozen" in the user's hands rather than the instrument's.
+
+`oscN_wavetable` cannot grow: a DAW stores its automation as a position along
+the range, and a sixth value moves every one of them (ADR-0114). So the five
+are loaded the way a table of the user's is — into the oscillator's own slot,
+which USER plays — and **carried in the patch as audio**, marked
+`origin="builtin"`. They are rendered on the content loader's thread, written
+out as the audio a patch would carry, and loaded from that, so loading one and
+reopening a patch that has one are the same path and play the same table.
+
+That last choice buys compatibility the other way as well: a preset that uses
+ORGAN opens in Apollo 1.1, which has never heard of it, and plays it, as a
+table of the user's. A patch carrying one is about 100 KB larger.
+
+### What a host sees
+
+Unchanged: the parameter's five values. Automation moves among the switch's
+four and USER, and USER plays whichever table the oscillator's slot holds —
+one of the five, or one of the user's. The picker carries the parameter's MIDI
+Learn and badge, as the switch did.
+
+### Alternatives considered
+
+- **A sixth to tenth value of `oscN_wavetable`.** Moves every automation lane
+  drawn on it (ADR-0114).
+- **A second parameter choosing among the extra tables**, as octave 0 was a
+  second parameter. It would work for a host, but two parameters to say one
+  thing is worse to automate than one, and the user's own tables still could
+  not be reached from it.
+- **Storing a reference rather than audio** — "builtin, Organ" and no samples.
+  Smaller, but an older Apollo would open the patch playing its first
+  table instead, and a later change to a table's formula would change every sound
+  using it.
+- **Shipping them as files in the factory library.** Needs an installer to put
+  them somewhere (CLAUDE.md §29.3), and can be deleted.

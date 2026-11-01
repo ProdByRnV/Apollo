@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 16 — The first feedback, 16a to 16c done**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114); macros the user can name (ADR-0115). Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
+| **Phase** | **Phase 16 — The first feedback, done**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114); macros the user can name (ADR-0115); every wavetable in one list, and five more of Apollo's own (ADR-0116). Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
 | **Status** | **Released: version 1.1.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1 and 1.1.0 published; only 1.1.0 is listed |
-| **Next step** | **16d: one wavetable list**, the built-in tables and the user's library together with Add wavetable…, and a few more built-in tables; then 1.2.0 is released. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28); the interface on macOS; and whether a rename marks a project unsaved in FL Studio, which has not been tried in a host (ADR-0115) |
+| **Next step** | **Release 1.2.0**: date the CHANGELOG, set the version, tag, draft 1.1.0, and check the download by following the README. Then Phase 17, the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28); the interface on macOS; and whether a macro rename marks a project unsaved in FL Studio (ADR-0115) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,37 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Every wavetable in one list, and five more of Apollo's own (Phase 16d)
+
+ADR-0116. Each oscillator's switch and browser became one picker,
+`components/WavetablePicker.tsx` over `params/wavetableChoices.ts`: a button
+naming the table playing, ‹ and › to step through the list, the list beneath
+it with Apollo's tables and then the user's, and ADD WAVETABLE… for a file from
+anywhere. The switch's four set `oscN_wavetable`; everything else loads into
+the oscillator's own slot, which USER plays.
+
+- **Five more tables**, `dsp::ExtraTables` (`Source/DSP/Oscillators/ExtraTables.h`):
+  ANALOG, SYNC, ORGAN, CHIME and DIGITAL, sixteen frames each, as spectra; SYNC
+  and DIGITAL drawn sixteen times oversampled and analysed.
+- **Loaded as content**, because `oscN_wavetable` cannot grow (ADR-0114).
+  `UserContent::loadExtraTable` renders one on the loader thread into the audio
+  a patch carries, `origin="builtin"`, and loads it from that, so a first load
+  and a reopened patch take the same path. An older Apollo plays it as a file.
+- **The bridge.** `loadBuiltInTable` with a slot and a number from 1;
+  `contentIndex` lists them as `builtInTables`, scanned or not; `contentSlots`
+  says which one a slot plays as `builtIn` (UI_BINDINGS.md §10.10).
+
+Tested in:
+- `Tests/Resources/ExtraTableTests.cpp`: each table sixteen finite, audible
+  frames under its own name; each measured against what it claims (a triangle's
+  third harmonic at −1/9, drawbars on 1–6 and 8 and not 7, partials only at
+  square numbers, a square's odd harmonics at the end of DIGITAL); a load that
+  selects USER, carries audio marked as Apollo's, plays the table its spectrum
+  builds and sounds identical in another instance; the command and its refusals.
+- `WebUI/test/wavetableChoices.test.mjs`: the list's order and actions, which
+  entry is playing, the arrows skipping what cannot load and wrapping, search.
+- The regression renders, unchanged: no built-in preset uses the new tables.
+
 ### Macros the user can name (Phase 16c)
 
 Each macro can be given a name of up to 16 characters (ADR-0115). Not a
@@ -2497,7 +2528,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,346,736 assertions, 0 failures**, across 73 test classes, in `ApolloTests`; **69 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,444,962 assertions, 0 failures**, across 74 test classes, in `ApolloTests`; **74 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3577,6 +3608,24 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### One wavetable list (Phase 16d), 2026-11-01
+
+The Release standalone, over the DevTools protocol, with real clicks.
+
+| Checked | Result |
+|---|---|
+| Wire Pluck opened | Oscillator 1's button reads FOLD in gold between ‹ and ›, ADD WAVETABLE… beside it |
+| The button | The list opened: APOLLO, nine tables, FOLD marked; YOUR WAVETABLES, empty, saying how to add one |
+| ANALOG clicked | The list closed; ANALOG playing, "Analog · 16 frames · from Apollo" |
+| › six times | SYNC, ORGAN, CHIME, DIGITAL, then SWEEP — wrapped — and PULSE, with "Digital is still in this patch, not playing" and REMOVE |
+| The wave display, each new table | DIGITAL a stepped sine, SYNC a synced saw with its reset, ORGAN a drawbar blend, CHIME a glassy shape |
+| ANALOG, closed and reopened | ANALOG still playing |
+| A test table in the user's library, RESCAN | Listed under YOUR WAVETABLES with 8 frames; a click played it, "from your library" |
+| ADD WAVETABLE… | The system's dialog, "Choose a wavetable for oscillator 1"; cancelled, nothing changed |
+| Afterwards | The test table and its folder removed; Wire Pluck loaded, FOLD |
+
+Opening and closing the list played no note (scope silent throughout).
 
 ### Macro names (Phase 16c), 2026-11-01
 

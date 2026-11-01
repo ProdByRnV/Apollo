@@ -26,7 +26,15 @@ export interface SlotEvent {
     message: string;
 }
 
+export interface BuiltInTableEntry {
+    table: number;
+    name: string;
+    frames: number;
+}
+
 export interface ContentState {
+    /** The tables Apollo ships beyond the oscillator's four (Phase 16d). */
+    builtInTables: readonly BuiltInTableEntry[];
     wavetables: readonly ContentEntry[];
     noise: readonly ContentEntry[];
     scanning: boolean;
@@ -47,11 +55,13 @@ const emptySlot = (slot: ContentSlot): ContentSlotState => ({
     frames: 0,
     seconds: 0,
     entry: 0,
+    builtIn: 0,
     loading: false,
     loadingName: '',
 });
 
 const initial: ContentState = {
+    builtInTables: [],
     wavetables: [],
     noise: [],
     scanning: false,
@@ -86,6 +96,7 @@ export function useContent(): ContentState {
 
 export function applyContentIndex(message: ContentIndexMessage): void {
     set({
+        builtInTables: message.builtInTables ?? [],
         wavetables: message.wavetables,
         noise: message.noise,
         scanning: message.scanning,
@@ -146,7 +157,8 @@ export function describeSlot(slot: ContentSlotState): string {
 
     const origin = slot.origin === 'library' ? 'your library'
         : slot.origin === 'factory' ? 'factory library'
-            : 'a file';
+            : slot.origin === 'builtin' ? 'Apollo'
+                : 'a file';
 
     return `${slot.name} · ${size} · from ${origin}`;
 }

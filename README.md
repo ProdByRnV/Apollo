@@ -171,9 +171,10 @@ standalone needs a MIDI keyboard.
 - **Save your sound.** Press **SAVE…** in the Presets panel and give it a name.
   Your presets are kept in your own settings folder (`%APPDATA%\Apollo\Presets`
   on Windows), so updating Apollo never touches them.
-- **Bring your own sounds.** Choose **USER** on an oscillator and press
-  **OPEN FILE…** to play a wavetable of your own, or choose **SAMPLE** on the
-  noise generator for a sample of your own.
+- **Choose a wavetable.** Click the table's name on an oscillator to see every
+  table, Apollo's and your own, or step through them with **‹** and **›** while
+  you hold a note. **ADD WAVETABLE…** plays one from anywhere on your computer.
+  For a noise sample of your own, choose **SAMPLE** on the noise generator.
 - **Share a sound.** See [Sharing a preset](#sharing-a-preset) below.
 
 ### Sharing a preset
@@ -230,8 +231,8 @@ you saw.
 
 **Sound.** Two wavetable oscillators, each with up to sixteen detuned,
 stereo-spread unison voices with a choice of detune curve and blend, plus a sub
-oscillator (sine, triangle or square) and a stereo noise generator — white, pink, or one of four built-in attack transients — whose rate can follow the keyboard. Four built-in wavetables — Sweep, Pulse, Formant and Fold — scanned
-by position. The tables are band-limited mipmaps, and aliasing is measured, not
+oscillator (sine, triangle or square) and a stereo noise generator — white, pink, or one of four built-in attack transients — whose rate can follow the keyboard. Nine built-in wavetables — Sweep, Pulse, Formant, Fold, Analog, Sync,
+Organ, Chime and Digital — scanned by position. The tables are band-limited mipmaps, and aliasing is measured, not
 assumed: worst case −98.5 dBc. Each oscillator can warp its wave five ways —
 sync, asymmetry, pulse width, bend and mirror — with the amount modulatable;
 warp aliases more than the plain oscillator, and the figures are published.
@@ -249,9 +250,9 @@ source onto a control to modulate it, and drag the tag that appears to set how
 far.
 
 **Your own content.** Each oscillator can play a wavetable of your own, and the
-noise generator a sample of your own, played once or looped. Choose them from
-your library — folders Apollo scans, with subfolders as banks — or from anywhere
-through the system's file dialog. Whatever you load travels inside the project
+noise generator a sample of your own, played once or looped. An oscillator lists
+your library — folders Apollo scans, with subfolders as banks — beside Apollo's
+own tables, and opens anything else through the system's file dialog. Whatever you load travels inside the project
 or preset, as lossless audio, so moving or deleting the file changes nothing.
 
 **Effects.** A rack of six slots in any order: distortion (soft, hard and diode
