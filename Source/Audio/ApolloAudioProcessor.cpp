@@ -103,6 +103,7 @@ ApolloAudioProcessor::ApolloAudioProcessor()
 
     subLevelParameter = apvts.getRawParameterValue ("sub_level");
     subOctaveParameter = apvts.getRawParameterValue ("sub_octave");
+    subOctaveUpParameter = apvts.getRawParameterValue ("sub_octave_up");
     subWaveformParameter = apvts.getRawParameterValue ("sub_waveform");
     subPhaseParameter = apvts.getRawParameterValue ("sub_phase");
     subTrackingParameter = apvts.getRawParameterValue ("sub_tracking");
@@ -161,6 +162,7 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     reverbPreDelay = state.getRawParameterValue ("fx_reverb_predelay");
     reverbWidth = state.getRawParameterValue ("fx_reverb_width");
     reverbMix = state.getRawParameterValue ("fx_reverb_mix");
+    reverbLowCut = state.getRawParameterValue ("fx_reverb_lowcut");
 
     gateBypass = state.getRawParameterValue ("fx_gate_bypass");
     gateThreshold = state.getRawParameterValue ("fx_gate_threshold");
@@ -214,7 +216,7 @@ void ApolloAudioProcessor::EffectParameterPointers::resolve (
     jassert (reverbBypass != nullptr && reverbMode != nullptr && reverbSize != nullptr
              && reverbDecay != nullptr && reverbDamping != nullptr
              && reverbPreDelay != nullptr && reverbWidth != nullptr
-             && reverbMix != nullptr);
+             && reverbMix != nullptr && reverbLowCut != nullptr);
 
     jassert (gateBypass != nullptr && gateThreshold != nullptr && gateAttack != nullptr
              && gateHold != nullptr && gateRelease != nullptr && gateRange != nullptr);
@@ -482,7 +484,10 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
     parameters.osc2 = readOscillator (osc2Parameters, 0.0f);
 
     parameters.subLevel = readParameter (subLevelParameter, 0.0f);
-    parameters.subOctave = static_cast<int> (readParameter (subOctaveParameter, -1.0f));
+    // The octave 1.0 shipped, raised by the switch added after it (Phase 16b,
+    // ADR-0114): -1 with the switch on is 0, the sub at the played pitch.
+    parameters.subOctave = static_cast<int> (readParameter (subOctaveParameter, -1.0f))
+                         + (readParameter (subOctaveUpParameter, 0.0f) >= 0.5f ? 1 : 0);
     parameters.subWaveform = static_cast<int> (readParameter (subWaveformParameter, 0.0f));
     parameters.subPhase = readParameter (subPhaseParameter, 0.0f);
     parameters.subTracksOsc1 = readParameter (subTrackingParameter, 0.0f) >= 0.5f;
@@ -827,6 +832,7 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     reverb.dampingHz = readParameter (effectParameters.reverbDamping, 6000.0f);
     reverb.preDelayMs = readParameter (effectParameters.reverbPreDelay, 20.0f);
     reverb.width = readParameter (effectParameters.reverbWidth, 1.0f);
+    reverb.lowCutHz = readParameter (effectParameters.reverbLowCut, 20.0f);
     reverb.mix = within (readParameter (effectParameters.reverbMix, 0.0f)
                              + offset (Destination::fxReverbMix), 0.0f, 1.0f);
 

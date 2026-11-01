@@ -7,6 +7,7 @@ import { Knob } from '../components/Knob';
 import { Module } from '../components/Module';
 import { Scope } from '../components/Scope';
 import { Segmented } from '../components/Segmented';
+import { SubOctaveSelector } from '../components/SubOctaveSelector';
 import { WavetableDisplay } from '../components/WavetableDisplay';
 import { LABELS } from '../params/labels';
 import { plainOf, useParameterValue } from '../state/parameters';
@@ -104,7 +105,7 @@ export function SubOscillator(): JSX.Element {
         <Module title="Sub Oscillator" inactive={useSilent('sub_level')}>
             <Scope source="sub" />
             <Segmented id="sub_waveform" label="Wave" table={LABELS.sub_waveform} />
-            <Segmented id="sub_octave" label="Octave" table={LABELS.sub_octave} />
+            <SubOctaveSelector />
             <Segmented id="sub_tracking" label="Tracks" table={LABELS.sub_tracking} />
             <Knob id="sub_level" label="Level" />
             <Knob id="sub_phase" label="Phase" />

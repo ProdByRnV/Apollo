@@ -7770,3 +7770,70 @@ discard whatever they had not saved; the row is one click away.
   document carrying audio, and rewriting it to change one attribute is a chance
   to damage what it carries. The filename takes the suffix instead.
 - **Loading what was imported.** See above.
+
+---
+
+## ADR-0114 — Octave 0 on the sub is a switch, a low cut on the reverb, and what is added after release goes at the end
+
+**Phase 16b · Accepted**
+
+### What was asked
+
+From the first feedback: octave 0 on the sub oscillator, so it can sit at the
+played pitch and thicken a sound rather than only underpin it; and a high-pass
+on the reverb, the mixing move that keeps a reverb's low end from muddying
+everything under it.
+
+### The sub's octave cannot simply grow
+
+`sub_octave` was released as −2 or −1. A DAW stores its automation of a
+parameter as a position along the range, 0 to 1: today −2 is 0 and −1 is 1. A
+third value moves −1 to the middle, so a lane drawn at −1 in a released
+project would play an octave higher. COMPATIBILITY.md already said so —
+growing a stepped parameter's range is a breaking change after 1.0 — and this
+is the first time the rule has been met since.
+
+So octave 0 is a new parameter, **`sub_octave_up`**, a switch that raises
+the sub an octave; the engine plays `sub_octave` plus it. Off by default,
+which is every sound saved before it. The page shows the two as one choice of
+**−2, −1 and 0**, setting both underneath, each as a gesture of its own. A host
+can set −2 with the switch on, which plays and shows as −1. MIDI Learn on the
+selector learns `sub_octave`, as it always did.
+
+The engine needed nothing: the voice already accepted octaves from −4 to 0.
+
+### The reverb's low cut
+
+**`fx_reverb_lowcut`**, 20 Hz to 2 kHz: the delay's low cut, with its range,
+its curve and its rule — at or below 25 Hz it is switched out, so the default
+is the reverb exactly as it was, sample for sample, rather than nearly. A
+12 dB-per-octave Butterworth highpass, one per channel, between the pre-delay
+and the diffusers: what enters the room loses its lows, the dry signal keeps
+all of its own, and the network never carries what it would only have to
+decay. Coefficients change once per block, as the delay's do; the state
+variable filter keeps its state across a change of corner, so a sweep is
+smooth. Switched back in, it starts clean.
+
+Measured at 500 Hz: a 60 Hz tone's reverb falls 36.8 dB, a 3 kHz tone's
+0.00 dB. Not a modulation destination, like the delay's.
+
+### What is added after release goes at the end
+
+Both parameters are appended to the registry after `master_gain` rather
+than placed beside their sections. A released parameter keeps its index:
+MIDI Learn assignments are stored by registry index in every project and
+preset, and a host may remember positions as well as IDs. The pinned VST3
+identities grew by two lines and changed in none.
+
+### Alternatives considered
+
+- **Growing `sub_octave` to −2…0.** The lane problem above.
+- **Ordering the three values −2, 0, −1**, which keeps −2 and −1 where a host
+  stored them. A DAW would then show and draw the octave in that order.
+- **A new octave parameter replacing `sub_octave`**, with the old one
+  migrated on load. Projects would load and sound right, but a lane drawn on
+  the old parameter would stop moving anything.
+- **The low cut after the network**, on the wet output. It would take the
+  lows out of the tail as well, but only after the network had spent its
+  energy on them; before the diffusers is where a reverb's low cut usually
+  sits, and where it costs nothing when off.

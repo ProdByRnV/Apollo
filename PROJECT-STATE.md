@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 16 — The first feedback, 16a done** (ADR-0113): a sound is shared as a file, with **EXPORT…** and **IMPORT…** in the Presets panel. Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
+| **Phase** | **Phase 16 — The first feedback, 16a and 16b done**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114). Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
 | **Status** | **Released: version 1.1.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1 and 1.1.0 published; only 1.1.0 is listed |
-| **Next step** | **16b: octave 0 on the sub oscillator, and a high-pass on the reverb**, then 16c (named macros) and 16d (one wavetable list, and a few more built-in tables), released together as 1.2.0. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28), and the interface on macOS. 16a made sharing a sound two buttons (ADR-0113) |
+| **Next step** | **16c: macros the user can name**, saved in the preset; then 16d (one wavetable list, and a few more built-in tables), released together as 1.2.0. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28), and the interface on macOS. 16b added the sub's octave 0 and the reverb's low cut without moving any released parameter (ADR-0114) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,36 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Octave 0 on the sub, and a low cut on the reverb (Phase 16b)
+
+The first parameters added after release (ADR-0114), both appended to the
+registry, now 307, so that no released parameter changes index.
+
+- **`sub_octave_up`**, a switch raising the sub an octave; the processor
+  hands the engine `sub_octave` plus it. `sub_octave` stays −2…−1, because
+  growing it would move −1 in every DAW lane drawn on it. The page shows one
+  choice, −2, −1, 0: `components/SubOctaveSelector.tsx`, over
+  `params/subOctave.ts`.
+- **`fx_reverb_lowcut`**, 20–2000 Hz, the delay's range and rule: switched out
+  at or below 25 Hz, so the default is the old reverb sample for sample. A
+  Butterworth highpass per channel between the pre-delay and the diffusers
+  (`dsp::Reverb`), cleared when switched back in and fed silence when the
+  reverb is bypassed. A **Low Cut** knob in the Reverb panel.
+- **Pinned host identities**: two lines added, none changed.
+
+Tested in:
+- `Tests/DSP/ReverbTests.cpp`: at 500 Hz a 60 Hz tone's reverb falls 36.8 dB
+  and a 3 kHz tone's 0.00 dB; at 20 and at 25 Hz the output is identical to the
+  reverb before the control existed; swept end to end every block, finite and
+  never ringing up.
+- `Tests/Engine/SourceControlsTests.cpp`: through the processor, the sub at
+  −2, −1, 0 and the "−2 raised" a host can set, each at its pitch to a cent;
+  the switch off by default.
+- `WebUI/test/subOctave.test.mjs`: the three choices, what each sets, and how
+  values a host sets are shown.
+- The regression renders, unchanged; the registry count; the host suite with
+  the two new identities.
+
 ### Sharing a sound (Phase 16a)
 
 From the first feedback of the musicians the developer shares Apollo with
@@ -2432,7 +2462,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,346,517 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **58 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,346,637 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **63 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3512,6 +3542,17 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Octave 0 and the reverb's low cut (Phase 16b), 2026-11-01
+
+The Release standalone, over the DevTools protocol.
+
+| Checked | Result |
+|---|---|
+| The sub's Octave | −2, −1 and 0, in the Segmented style beside Wave and Tracks; −1 chosen on opening |
+| Choosing 0 | 0 chosen; closed and reopened, still 0 — both parameters set and stored |
+| −2, then −1 | Each chosen; left on −1 |
+| The reverb | A **Low Cut** knob between Width and Mix, reading 20.0 Hz |
 
 ### Sharing a sound (Phase 16a), 2026-11-01
 

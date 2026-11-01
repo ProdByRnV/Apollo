@@ -143,6 +143,7 @@ public:
         testDecayMatchesTheSetting();
         testTailReachesExactlyZero();
         testDampingShortensTheTail();
+        testLowCutTakesTheBassOutOfTheRoom();
         testPreDelayHoldsTheRoomBack();
         testWidthCollapsesToMono();
         testBypassKeepsDecayingRatherThanFreezing();
@@ -521,6 +522,120 @@ private:
         expect (damped < open,
                 "a damped tail must be quieter after two seconds than an undamped one: "
                     + juce::String (damped, 6) + " against " + juce::String (open, 6));
+    }
+
+    /** Phase 16b (ADR-0114): a highpass on what enters the room. Measured as
+        what it is for — a bass note's reverb gone, a melody's kept — and as
+        what its default must be: the reverb exactly as it was. */
+    void testLowCutTakesTheBassOutOfTheRoom()
+    {
+        beginTest ("the low cut takes a bass note out of the room and leaves a high one");
+
+        // A second of a steady tone at full wet, then the tail's energy.
+        const auto tailOf = [] (double toneHz, float lowCutHz)
+        {
+            Reverb reverb;
+
+            auto settings = wetSettings (2.0f);
+            settings.lowCutHz = lowCutHz;
+            reverb.setSettings (settings);
+            reverb.prepare (testSampleRate, blockSize);
+
+            std::vector<float> left (blockSize, 0.0f);
+            std::vector<float> right (blockSize, 0.0f);
+            std::vector<float> wet;
+
+            auto phase = 0.0;
+
+            for (int block = 0; block < 16; ++block)
+            {
+                for (std::size_t i = 0; i < left.size(); ++i)
+                {
+                    left[i] = right[i] = 0.5f * static_cast<float> (std::sin (2.0 * pi * toneHz * phase / testSampleRate));
+                    phase += 1.0;
+                }
+
+                render (reverb, left, right);
+
+                if (block >= 8)
+                    wet.insert (wet.end(), left.begin(), left.end());
+            }
+
+            return rmsOf (wet);
+        };
+
+        const auto toDb = [] (float ratio) { return 20.0 * std::log10 (static_cast<double> (std::max (ratio, 1.0e-9f))); };
+
+        const auto bassOpen = tailOf (60.0, 20.0f);
+        const auto bassCut = tailOf (60.0, 500.0f);
+        const auto highOpen = tailOf (3000.0, 20.0f);
+        const auto highCut = tailOf (3000.0, 500.0f);
+
+        const auto bassDrop = toDb (bassCut / bassOpen);
+        const auto highDrop = toDb (highCut / highOpen);
+
+        logMessage ("  at 500 Hz: a 60 Hz tone's reverb " + juce::String (bassDrop, 1)
+                    + " dB, a 3 kHz tone's " + juce::String (highDrop, 2) + " dB");
+
+        // Three octaves below a 12 dB-per-octave corner: about 37 dB.
+        expect (bassDrop < -30.0, "a bass note must leave almost no reverb: " + juce::String (bassDrop, 1) + " dB");
+        expect (std::abs (highDrop) < 0.5, "a high note's reverb must be untouched: " + juce::String (highDrop, 2) + " dB");
+
+        // The default is the reverb as it was, sample for sample: switched out,
+        // not merely low. 25 Hz is the threshold and still out.
+        for (const auto flat : { 20.0f, Reverb::lowCutFlatHz })
+        {
+            Reverb before;
+            Reverb now;
+
+            auto old = wetSettings (2.0f);
+            old.mix = 0.6f;
+            before.setSettings (old);
+
+            auto settings = old;
+            settings.lowCutHz = flat;
+            now.setSettings (settings);
+
+            before.prepare (testSampleRate, blockSize);
+            now.prepare (testSampleRate, blockSize);
+
+            std::vector<float> l1 (blockSize), r1 (blockSize), l2 (blockSize), r2 (blockSize);
+            fillBurst (l1, r1, blockSize / 2);
+            fillBurst (l2, r2, blockSize / 2);
+
+            render (before, l1, r1);
+            render (now, l2, r2);
+
+            expect (l1 == l2 && r1 == r2, "at " + juce::String (flat) + " Hz the low cut is switched out");
+        }
+
+        // Swept end to end every block with sound going through: finite, and
+        // never louder than what went in.
+        Reverb swept;
+        swept.setSettings (wetSettings (2.0f));
+        swept.prepare (testSampleRate, 256);
+
+        std::vector<float> left (256), right (256);
+        auto loudest = 0.0f;
+        auto finite = true;
+
+        for (int block = 0; block < 400; ++block)
+        {
+            auto settings = wetSettings (2.0f);
+            settings.lowCutHz = block % 2 == 0 ? 20.0f + static_cast<float> (block) * 5.0f : 2000.0f;
+            swept.setSettings (settings);
+
+            fillBurst (left, right, 256);
+            render (swept, left, right);
+
+            for (const auto sample : left)
+                finite = finite && std::isfinite (sample);
+
+            loudest = std::max (loudest, peakOf (left));
+        }
+
+        expect (finite, "a swept low cut must stay finite");
+        expect (loudest < 2.0f, "a swept low cut must not ring up: peak " + juce::String (loudest, 3));
     }
 
     void testPreDelayHoldsTheRoomBack()

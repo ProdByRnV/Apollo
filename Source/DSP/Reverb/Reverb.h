@@ -21,7 +21,7 @@
 
     THE STRUCTURE, in order:
 
-        in ─► pre-delay ─► 4 diffusion allpasses ─┐
+        in ─► pre-delay ─► low cut ─► 4 diffusion allpasses ─┐
                                                   ▼
                               ┌──────────── feedback network ────────────┐
                               │  8 delay lines, mutually prime lengths   │
@@ -47,6 +47,9 @@
       treated studio, and both are sounds people want.
     - **Mode** chooses the base lengths: a room is tens of milliseconds, a hall
       is more than twice that.
+    - **Low cut** keeps the bottom of the sound out of the room (Phase 16b). A
+      bass note's reverb is mostly mud under the mix; cutting it on the way in
+      leaves the dry signal all of its low end and the tail none of it.
 
     DENORMALS. A reverb tail spends most of its life below -200 dB, which on some
     processors is where every multiply costs orders of magnitude more than it
@@ -62,6 +65,7 @@
 
 #include "DSP/Delay/DelayLine.h"
 #include "DSP/Effects/AudioEffect.h"
+#include "DSP/Filters/StateVariableFilter.h"
 #include "DSP/Reverb/Allpass.h"
 #include "DSP/Utilities/LinearSmoothedValue.h"
 
@@ -105,6 +109,11 @@ public:
 
         float mix = 0.0f;
 
+        /** Highpass corner on what enters the network (Phase 16b). At or below
+            `lowCutFlatHz` it is switched out, which is the reverb as it was.
+        */
+        float lowCutHz = 20.0f;
+
         [[nodiscard]] bool operator== (const Settings&) const = default;
     };
 
@@ -124,6 +133,11 @@ public:
     static constexpr float maximumSizeScale = 1.5f;
 
     static constexpr float dampingOpenHz = 19000.0f;
+
+    /** The delay's threshold, for the delay's reason: a highpass this low is
+        inaudible, and switching it out makes the default exactly the old sound
+        rather than nearly it. */
+    static constexpr float lowCutFlatHz = 25.0f;
 
     static constexpr double maximumPreDelaySeconds = 0.25;
 
@@ -167,6 +181,7 @@ private:
     void refreshLengths() noexcept;
     void refreshDecay() noexcept;
     void refreshDamping() noexcept;
+    void refreshLowCut() noexcept;
 
     /** One-pole lowpass state, one per line. A one-pole rather than the state
         variable filter used elsewhere: this runs eight times per sample, and a
@@ -191,6 +206,13 @@ private:
 
     std::array<std::array<Allpass, diffusionStages>, maxEffectChannels> diffusers;
     std::array<DelayLine, maxEffectChannels> preDelay;
+
+    /** The low cut, one per channel, between the pre-delay and the diffusers:
+        before the diffusion, so the network is never fed what it would only
+        have to carry around. A state variable filter, as the delay's is. */
+    std::array<StateVariableFilter, maxEffectChannels> lowCut;
+    SvfCoefficients lowCutCoefficients;
+    bool lowCutActive = false;
 
     Settings settings;
 

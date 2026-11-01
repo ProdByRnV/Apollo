@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 305> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -2256,7 +2256,36 @@ inline constexpr std::array<ParameterDefinition, 305> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::decibels,
       -60.0f, 6.0f, 0.0f,
       1.0f, 0.0f,
-      true, true, true }
+      true, true, true },
+
+    // Added after release ----------------------------------------------------
+    // At the end of the registry rather than beside their sections (ADR-0114).
+    // A released parameter keeps its place: MIDI Learn assignments are stored
+    // by registry index, and a host may remember positions as well as IDs.
+    // Each default reproduces the sound before it existed.
+
+    // Phase 16b. Raises the sub an octave, so −1 becomes 0: the sub at the
+    // played pitch. A switch rather than a third value of `sub_octave`, whose
+    // range cannot grow: a DAW's automation of it stores a position along the
+    // range, and a third value would move −1 (Docs/COMPATIBILITY.md). The
+    // engine plays the sum, and the page shows one choice of −2, −1 and 0.
+    { "sub_octave_up", "Sub Octave Up",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // Phase 16b. A highpass on what enters the reverb, so the tail has no low
+    // end to muddy the mix while the dry signal keeps all of its own. The
+    // delay's low cut, with the same range and the same rule: at or below
+    // dsp::Reverb::lowCutFlatHz it is switched out, so the default is the
+    // reverb exactly as it was.
+    { "fx_reverb_lowcut", "Reverb Low Cut",
+      ParameterType::floatingPoint, ParameterUnit::hertz,
+      20.0f, 2000.0f, 20.0f,
+      // Places 200 Hz near the centre.
+      0.3868f, 0.0f,
+      true, false, true }
 } };
 
 /** @returns the definition with this ID, or nullptr if there is none.

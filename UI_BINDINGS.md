@@ -106,7 +106,7 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `osc2_detune_curve` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 linear, 1 exponential: the inner unison voices pulled towards the centre |
 | `osc2_unison_blend` | Rotary Knob | Normalized `[0, 1]` | `1` | 13a | The outer unison voices against the centre; 1 is every voice equal, at constant energy |
 | `sub_level` | Rotary Knob | Normalized `[0, 1]` | `0` | 4b | Sub oscillator level (silent by default) |
-| `sub_octave` | Selector / Dropdown | Integer `[-2, -1]` | `-1` | 4b | Sub oscillator octave below the note |
+| `sub_octave` | Selector / Dropdown | Integer `[-2, -1]` | `-1` | 4b | Sub oscillator octave below the note. Raised by `sub_octave_up`; its range cannot grow after release (ADR-0114) |
 | `sub_waveform` | Segmented | Discrete `[0, 2]` | `0` | 13a | 0 sine, 1 triangle, 2 square; band-limited, peak-normalised |
 | `sub_phase` | Rotary Knob | Normalized `[0, 1]` | `0` | 13a | Where a note starts in the sub's cycle |
 | `sub_tracking` | Segmented | Discrete `[0, 1]` | `0` | 13a | 0 follows the note; 1 follows oscillator 1, its tuning and pitch modulation included |
@@ -375,6 +375,8 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `fx_eq_band7_order` | Segmented | Discrete `[1, 4]` | `1` | 8e | Instances of the shape in series: 12, 24, 36 or 48 dB/octave for a pass filter, and that many times the gain for a bell or a shelf |
 | `fx_eq_band7_mute` | Segmented | Discrete `[0, 1]` | `0` | 8e | Takes the band out without losing where it was |
 | `master_gain` | Rotary Knob | `-60–6 dB` | `0` | 2 | Master output gain |
+| `sub_octave_up` | Segmented (with `sub_octave`) | Discrete `[0, 1]` | `0` | 16b | Raises the sub an octave: `sub_octave` −1 with this on is 0, the sub at the played pitch. The page shows the two as one choice of −2, −1 and 0. At the end of the registry, as everything added after release is (ADR-0114) |
+| `fx_reverb_lowcut` | Rotary Knob | `20–2000 Hz` | `20` | 16b | Highpass on what enters the reverb, so the tail has no low end; the dry signal keeps all of its own. Switched out at the bottom of its range, so the default is the reverb as it was (ADR-0114) |
 
 The registry is generated from one authoritative native parameter definition system rather than duplicated manually: `createParameterLayout()` builds the APVTS layout from the definitions above, the bridge derives its metadata from the same source, and `Tests/Parameters/ParameterRegistryTests.cpp` asserts that this documented list and the native registry agree.
 

@@ -161,6 +161,10 @@ void Reverb::prepare (double sampleRate, int maxBlockSize)
 
     refreshLengths();
     refreshDamping();
+    refreshLowCut();
+
+    for (auto& filter : lowCut)
+        filter.reset();
 
     preDelaySamples.reset (preparedSampleRate, preDelayRampSeconds);
     width.reset (preparedSampleRate, controlRampSeconds);
@@ -186,6 +190,9 @@ void Reverb::reset() noexcept
 
     for (auto& line : preDelay)
         line.reset();
+
+    for (auto& filter : lowCut)
+        filter.reset();
 
     // Every smoothed control placed on its target, which is what reset means
     // across the whole rack (ADR-0060).
@@ -259,6 +266,32 @@ void Reverb::refreshDamping() noexcept
     dampingCoefficient = static_cast<float> (coefficient > 1.0 ? 1.0 : (coefficient < 0.0 ? 0.0 : coefficient));
 }
 
+void Reverb::refreshLowCut() noexcept
+{
+    const auto wasActive = lowCutActive;
+    lowCutActive = settings.lowCutHz > lowCutFlatHz;
+
+    // A filter switched back in starts clean rather than from whatever it
+    // held when it was last switched out, which may be minutes ago.
+    if (lowCutActive && ! wasActive)
+        for (auto& filter : lowCut)
+            filter.reset();
+
+    if (preparedSampleRate <= 0.0)
+        return;
+
+    // Butterworth: as flat as a highpass gets above its corner, so the cut
+    // takes the lows and leaves the voice of the room alone.
+    lowCutCoefficients.set (settings.lowCutHz, 0.707f, preparedSampleRate);
+
+    for (auto& filter : lowCut)
+    {
+        filter.setCoefficients (lowCutCoefficients);
+        filter.setMode (lowCutActive ? StateVariableFilter::Mode::highpass
+                                     : StateVariableFilter::Mode::off);
+    }
+}
+
 void Reverb::setSettings (const Settings& newSettings) noexcept
 {
     if (newSettings == settings)
@@ -268,6 +301,7 @@ void Reverb::setSettings (const Settings& newSettings) noexcept
                              || newSettings.size != settings.size;
     const auto decayChanged = newSettings.decaySeconds != settings.decaySeconds;
     const auto dampingChanged = newSettings.dampingHz != settings.dampingHz;
+    const auto lowCutChanged = newSettings.lowCutHz != settings.lowCutHz;
 
     settings = newSettings;
 
@@ -278,6 +312,12 @@ void Reverb::setSettings (const Settings& newSettings) noexcept
 
     if (dampingChanged)
         refreshDamping();
+
+    // New coefficients once per block, as the delay's low cut takes them: the
+    // state variable filter keeps its state across a change of corner, so a
+    // sweep of the knob is smooth rather than a series of clicks.
+    if (lowCutChanged)
+        refreshLowCut();
 
     preDelaySamples.setTargetValue (
         static_cast<float> (static_cast<double> (settings.preDelayMs) * 0.001 * preparedSampleRate));
@@ -307,6 +347,11 @@ void Reverb::processBypassed (float* const* channels, int numChannels, int numSa
     {
         for (auto& line : preDelay)
             line.write (0.0f);
+
+        // The low cut too, which sits between them and holds what it last
+        // heard just as they do.
+        for (auto& filter : lowCut)
+            (void) filter.processSample (0.0f);
 
         for (auto& channel : diffusers)
             for (auto& stage : channel)
@@ -362,6 +407,14 @@ void Reverb::process (float* const* channels, int numChannels, int numSamples) n
 
         auto injectLeft = preDelay[0].read (gap);
         auto injectRight = preDelay[1].read (gap);
+
+        // Skipped outright when switched out, so the default is the reverb
+        // exactly as it was, sample for sample.
+        if (lowCutActive)
+        {
+            injectLeft = lowCut[0].processSample (injectLeft);
+            injectRight = lowCut[1].processSample (injectRight);
+        }
 
         for (int stage = 0; stage < diffusionStages; ++stage)
         {

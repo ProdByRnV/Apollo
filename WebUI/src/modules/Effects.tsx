@@ -301,6 +301,7 @@ export function ReverbEffect(): JSX.Element {
             <Knob id="fx_reverb_predelay" label="Pre-Delay" />
             <Knob id="fx_reverb_damping" label="Damping" />
             <Knob id="fx_reverb_width" label="Width" />
+            <Knob id="fx_reverb_lowcut" label="Low Cut" />
             <Knob id="fx_reverb_mix" label="Mix" />
         </Module>
     );

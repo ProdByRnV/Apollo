@@ -532,6 +532,7 @@ private:
         std::atomic<float>* reverbPreDelay = nullptr;
         std::atomic<float>* reverbWidth = nullptr;
         std::atomic<float>* reverbMix = nullptr;
+        std::atomic<float>* reverbLowCut = nullptr;
 
         std::atomic<float>* gateBypass = nullptr;
         std::atomic<float>* gateThreshold = nullptr;
@@ -577,6 +578,7 @@ private:
 
     std::atomic<float>* subLevelParameter = nullptr;
     std::atomic<float>* subOctaveParameter = nullptr;
+    std::atomic<float>* subOctaveUpParameter = nullptr;
     std::atomic<float>* subWaveformParameter = nullptr;
     std::atomic<float>* subPhaseParameter = nullptr;
     std::atomic<float>* subTrackingParameter = nullptr;

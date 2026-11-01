@@ -14,6 +14,15 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   **IMPORT…** adds preset files someone sent you; choose several at once if you
   like. Any wavetable or sample of your own travels inside the file. Importing
   never replaces a preset you already have.
+- **Sub oscillator at octave 0.** The sub's Octave now offers −2, −1 and 0. At
+  0 it plays at the note's own pitch, a sine, triangle or square under the
+  oscillators to thicken them.
+- **A low cut on the reverb.** Turn up **Low Cut** in the Reverb panel and the
+  low end stays out of the reverb, so a bass or a kick keeps its weight without
+  the room turning it to mud. At its lowest it is off.
+
+Your sounds are unchanged: both new controls start where the sound was before
+they existed, and DAW automation you drew in 1.1.0 plays as it did.
 
 ---
 

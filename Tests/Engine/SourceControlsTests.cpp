@@ -160,6 +160,7 @@ public:
         testBlendFadesTheOuterVoicesAtConstantEnergy();
         testOscillatorOneTunes();
         testSubFollowsOscillatorOne();
+        testSubOctaveUpRaisesTheSub();
         testSubWaveformsAreTheirShapes();
         testStartPhaseMovesTheStart();
         testPhaseRandomIsReproducibleAndOffByDefault();
@@ -320,6 +321,46 @@ private:
         expect (std::abs (centsBetween (followsOscillator, noteFrequency (69.0 + 7.0) * 0.5)) < 1.0,
                 "tracking oscillator 1, the sub is an octave below its transposed pitch: "
                     + juce::String (followsOscillator, 2) + " Hz");
+    }
+
+    /** Phase 16b (ADR-0114). The switch raises the octave 1.0 shipped, so the
+        sub can sit at the played pitch, and every combination a host can set
+        lands on the octave the sum names. */
+    void testSubOctaveUpRaisesTheSub()
+    {
+        beginTest ("Sub Octave Up raises the sub an octave, to the note itself from -1");
+
+        const auto measure = [] (float octave, float up)
+        {
+            ApolloAudioProcessor processor;
+            makeSubOnly (processor);
+            setPlain (processor, "sub_octave", octave);
+            setPlain (processor, "sub_octave_up", up);
+
+            return peakFrequencyOf (processor, 69);
+        };
+
+        struct Case { float octave; float up; double hz; const char* name; };
+
+        const Case cases[] {
+            { -2.0f, 0.0f, 110.0, "-2" },
+            { -1.0f, 0.0f, 220.0, "-1, as the sub has always been" },
+            { -1.0f, 1.0f, 440.0, "0: the played note" },
+            { -2.0f, 1.0f, 220.0, "-2 raised, which a host can set: -1" },
+        };
+
+        for (const auto& c : cases)
+        {
+            const auto measured = measure (c.octave, c.up);
+            expect (std::abs (centsBetween (measured, c.hz)) < 1.0,
+                    juce::String (c.name) + ": expected " + juce::String (c.hz, 1) + " Hz, measured "
+                        + juce::String (measured, 2));
+        }
+
+        // Off by default, so every sound saved before it existed is unchanged.
+        ApolloAudioProcessor fresh;
+        const auto* up = fresh.getValueTreeState().getParameter ("sub_octave_up");
+        expect (up != nullptr && up->getValue() == 0.0f, "the switch is off by default");
     }
 
     /** Each waveform measured by its harmonics, which is what the name means:

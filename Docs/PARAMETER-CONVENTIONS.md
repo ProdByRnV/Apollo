@@ -145,6 +145,9 @@ From UI_BINDINGS.md §4:
 2. Confirm the ID has never been used before, including by a removed parameter.
 3. Register it in the authoritative native registry (Phase 2) — never in the
    frontend, which consumes metadata rather than declaring it (UI_BINDINGS.md §3).
+   Since release, **at the end of the registry**, so that no released parameter
+   changes index (ADR-0114); then regenerate the pinned VST3 identities, which
+   must change by additions only.
 4. Define range, default, unit, step/skew, smoothing and modulation capability.
 5. Add or extend a test covering its range and default.
 6. If the parameter is part of the documented bridge registry, update

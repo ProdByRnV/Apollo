@@ -318,6 +318,8 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "mpe_bend_range", 1192519668u },
         { "midi_program_change", 1479662249u },
         { "master_gain", 1220740924u },
+        { "sub_octave_up", 1780581451u },
+        { "fx_reverb_lowcut", 1020590286u },
     };
 
     return identities;
