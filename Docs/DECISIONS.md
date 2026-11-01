@@ -7707,3 +7707,66 @@ Apollo is; in CHANGELOG.md they now point at its section.
   a user of 1.0.1 who wanted it back could not have it.
 - **Marking them pre-releases.** They would still be listed, under a label that
   says something untrue about them.
+
+---
+
+## ADR-0113 — A sound is shared as a file: Export writes the sound playing, Import adds what a friend sent
+
+**Phase 16a · Accepted**
+
+### What was asked
+
+The first feedback from the musicians the developer shares Apollo with asked
+how to save a preset to share. Saving already wrote a `.rnv` file, complete
+with its wavetables and sample (ADR-0104), but the file lived in a hidden
+settings folder, and receiving one meant knowing to copy it into that folder
+and press Rescan.
+
+### What was built
+
+Two buttons beside **SAVE…**, each opening the system's own dialog.
+
+- **EXPORT…** writes the sound playing now, to wherever the user chooses —
+  the Desktop the first time, because a file about to be sent is a file the
+  user must find again in a minute. The file's name is the preset's name, so
+  what the user types is what their friend's list shows; author, category and
+  comment come with it. The sound in front of the user keeps its own name.
+- **IMPORT…** takes one or several `.rnv` files, starting in Downloads, and
+  copies each into the user library.
+
+It exports **the sound playing** rather than a row of the list, because that
+is what somebody means by "send me that sound", and it needs no save first.
+A saved preset is exported by clicking it and pressing Export.
+
+### What an import may do
+
+A received file is untrusted (CLAUDE.md §40). It is read with the size bound
+every preset file has, and validated by the scan's own test, so an import
+succeeds exactly when the browser will list the result; anything else is
+refused by name with nothing written.
+
+**It never replaces anything** (§29.2). The sender's filename is kept. If the
+library has a file of that name holding the same document — the same file
+imported twice, or one chosen from inside the library — nothing is written and
+the user is told it is already there; line endings are set aside in that
+comparison, because a file that crossed from another system may have others.
+A different document under that name is written beside it as "Name (2)".
+
+The document is copied as it is: its name, author and wavetables are its
+maker's. A name the same as one already listed is distinguished by author in
+the list.
+
+Nothing is loaded. An import that replaced the sound in front of the user would
+discard whatever they had not saved; the row is one click away.
+
+### Alternatives considered
+
+- **Show file**, revealing the preset in the file manager — what was first
+  proposed. On Windows that opens a folder inside `AppData`, which a user
+  cannot find again once the window is closed. Export puts the file somewhere
+  they chose.
+- **Renaming an imported preset on a clash**, as a controller profile is
+  (13h-3). A profile is a small structure Apollo rewrites; a preset is a
+  document carrying audio, and rewriting it to change one attribute is a chance
+  to damage what it carries. The filename takes the suffix instead.
+- **Loading what was imported.** See above.

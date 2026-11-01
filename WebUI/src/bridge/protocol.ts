@@ -239,7 +239,9 @@ export interface PresetStatusMessage {
     version: number;
     /** "LOADED", "SAVED", "ALREADY_EXISTS", "LOAD_FAILED", "SAVE_FAILED",
         "STATE_RELOADED", and since 13h-2 "PROGRAM_EMPTY" for a program change
-        that named nothing — branched on, so they are part of the contract. */
+        that named nothing, and since 16a "EXPORTED", "EXPORT_FAILED",
+        "IMPORTED" and "IMPORT_FAILED" — branched on, so they are part of the
+        contract. */
     status: string;
     statusMessage: string;
     name: string;
@@ -381,6 +383,8 @@ export type OutboundMessage =
     | { type: 'requestPresets'; version: number }
     | { type: 'rescanPresets'; version: number }
     | { type: 'loadPreset'; version: number; preset: number }
+    | { type: 'exportPreset'; version: number }
+    | { type: 'importPresets'; version: number }
     | { type: 'requestLfoCurves'; version: number }
     | { type: 'requestContent'; version: number }
     | { type: 'rescanContent'; version: number }

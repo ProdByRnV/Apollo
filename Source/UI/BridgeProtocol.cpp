@@ -224,6 +224,16 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    // No payload, and none is read: what is exported is the sound playing, and
+    // where it goes and what comes in are the dialog's to say (Phase 16a).
+    if (messageType == "exportPreset" || messageType == "importPresets")
+    {
+        BridgeCommand command;
+        command.type = messageType == "exportPreset" ? BridgeCommandType::exportPreset
+                                                     : BridgeCommandType::importPresets;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "requestLfoCurves")
     {
         BridgeCommand command;

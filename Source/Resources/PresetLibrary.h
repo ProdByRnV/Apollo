@@ -302,6 +302,58 @@ enum class PresetSaveResult
 [[nodiscard]] state::StateLoadResult readPresetFile (const juce::File& file,
                                                      juce::String& destination);
 
+/** Writes @p text, the whole of a `.rnv` document, to @p destination.
+
+    What Export does with the sound in front of the user (Phase 16a): the file
+    goes wherever the system's save dialog says, which is outside the library
+    and is meant to be, because it is about to be sent to somebody. Atomic for
+    the same reason a save is: a file already there survives a failed write.
+
+    @returns false if nothing was written.
+*/
+[[nodiscard]] bool exportPresetText (const juce::File& destination, const juce::String& text);
+
+/** What came of importing one file. */
+enum class PresetImportResult
+{
+    imported,          ///< A new preset is in the user library.
+    alreadyInLibrary,  ///< The same document was already there; nothing written.
+    notAPreset,        ///< Refused: not something Apollo would load.
+    couldNotWrite      ///< A preset, but the library would not take it.
+};
+
+struct PresetImport
+{
+    PresetImportResult result = PresetImportResult::notAPreset;
+
+    /** What the list will call it: the name inside it, or the file's. */
+    juce::String name;
+
+    /** Why it was refused, for the user, when it was. */
+    juce::String reason;
+
+    /** Where it is now in the library, when it is. */
+    juce::File file;
+};
+
+/** Copies a preset somebody sent into the user library (Phase 16a).
+
+    THE FILE IS UNTRUSTED. It is read with the size bound every preset file
+    has, and validated exactly as the scan validates what it lists, so an
+    import succeeds if and only if the browser will show the result. A file
+    that is not an Apollo preset is refused by name and nothing is written.
+
+    AN IMPORT NEVER REPLACES ANYTHING (CLAUDE.md §29.2). It keeps the sender's
+    filename; if the library already has a file of that name, the same
+    document is recognised and left alone, and a different one is written
+    beside it as "Name (2)". The document itself is copied unchanged, so a
+    preset carries the name, author and wavetables its maker gave it.
+
+    MESSAGE THREAD, from a file dialog. Reads at most one preset's bytes and
+    compares at most a few files of the same name.
+*/
+[[nodiscard]] PresetImport importPresetFile (const juce::File& source, const juce::File& userDirectory);
+
 /** Owns the index and keeps it off the message thread.
 
     Scanning is started, not waited for. `onIndexUpdated` is called on the

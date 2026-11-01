@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 15 — Playing without a MIDI keyboard, done and released as 1.1.0** (ADR-0111): the standalone plays from the computer keyboard and a piano strip, and the stuck note it found in the engine is fixed. The Releases page lists only 1.1.0; 1.0.0 and 1.0.1 are kept as drafts (ADR-0112) |
+| **Phase** | **Phase 16 — The first feedback, 16a done** (ADR-0113): a sound is shared as a file, with **EXPORT…** and **IMPORT…** in the Presets panel. Not yet released: Phase 16 will be **1.2.0**. Phase 15 is released as 1.1.0, the only release listed (ADR-0111, ADR-0112) |
 | **Status** | **Released: version 1.1.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1 and 1.1.0 published; only 1.1.0 is listed |
-| **Next step** | **Choosing what comes after 1.1.0, with the developer**, from the first feedback of the people they shared it with: a collapsible presets panel, tabs in place of the scrolling column, fixed panel sizes, octave 0 on the sub, named macros, a high-pass on the reverb, sharing presets, and more wavetables. Then the interface on macOS, now that a Mac has run the standalone. Phase 15 made the standalone playable without a MIDI keyboard and fixed a note that stuck after a voice steal (ADR-0111), released as 1.1.0 (ADR-0112) |
+| **Next step** | **16b: octave 0 on the sub oscillator, and a high-pass on the reverb**, then 16c (named macros) and 16d (one wavetable list, and a few more built-in tables), released together as 1.2.0. Phase 17 is the layout — tabs, fixed panels, a presets panel that folds away — from mock-ups the developer chooses between. Also open: the interface takes about 9 s to appear (issue 28), and the interface on macOS. 16a made sharing a sound two buttons (ADR-0113) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,38 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Sharing a sound (Phase 16a)
+
+From the first feedback of the musicians the developer shares Apollo with
+(ADR-0113).
+
+- **EXPORT…** writes the sound playing, as a `.rnv` named after the file the
+  user chose, wherever the system's save dialog says: the Desktop the first
+  time. The sound keeps its own name. `resources::exportPresetText`, atomic.
+- **IMPORT…** copies one or several received files into the user library,
+  starting in Downloads. `resources::importPresetFile` reads with the size
+  bound and validates as the scan does; refuses what is not a preset with
+  nothing written; never replaces: the same document is recognised, a
+  different one goes beside it as "Name (2)". Nothing is loaded.
+- **The bridge**: `exportPreset` and `importPresets`, no payload; the editor
+  opens the dialogs and hands the bridge the files, so no path crosses to the
+  page. Answered with `presetStatus`: EXPORTED, EXPORT_FAILED, IMPORTED,
+  IMPORT_FAILED.
+- **README**: "Sharing a preset", with what to do in 1.1.0, which has no
+  buttons.
+
+Tested in:
+- `Tests/UI/ParameterBridgeTests.cpp`: a sound exported from one Apollo,
+  imported into another library and loaded, sounding the same and carrying its
+  author; imported again, recognised; a different sound of the same name kept
+  beside it with the first untouched; a photograph refused; a batch counted;
+  and both commands refused without a library.
+- `Tests/Resources/PresetLibraryTests.cpp`: an import creating the library
+  folder, a hidden filename made visible, a file from inside the library and
+  the same document with other line endings recognised, four kinds of
+  non-preset refused with nothing written, the scan listing exactly what was
+  imported, and an export refusing a folder that is not there.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -2400,7 +2432,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,346,462 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **58 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,346,517 assertions, 0 failures**, across 72 test classes, in `ApolloTests`; **58 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3480,6 +3512,20 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Sharing a sound (Phase 16a), 2026-11-01
+
+The Release standalone, the page driven over the DevTools protocol and the
+system's own file dialogs typed into, as a user would.
+
+| Checked | Result |
+|---|---|
+| The buttons | EXPORT… and IMPORT… beside SAVE…, in its style |
+| Export | The save dialog opened, suggesting "Wire Pluck"; named "For Sam", it wrote 13,546 bytes; the status line said "Exported For Sam. Send the file to anyone with Apollo; they add it with Import."; the sound was still called Wire Pluck |
+| Import | The open dialog opened; the file chosen, the status said "Imported For Sam. Click it in the list to play it."; the row appeared, marked *user*, in a library folder the import created |
+| Playing it | Clicked: "Loaded For Sam." |
+| Left as found | Wire Pluck reloaded; the test preset and the library folder it created removed; the export the first attempt left on the Desktop removed |
+| Startup | Ready after 8.5 s; measured: 3.8 s before the page begins to load, 0.8 s loading it, 4.5 s from loaded to drawn. Recorded as issue 28 |
 
 ### Playing without a MIDI keyboard (Phase 15), 2026-10-25
 
@@ -4616,6 +4662,7 @@ of asserting nothing.
 | 25 | ~~The masthead named a preset the list did not mark as loaded~~ | **Fixed** | After a restart, a host project load or a reopened window, because the highlight lived only in the editor's bridge. It now resolves the state's own claim when it is unambiguous (ADR-0085). |
 | 26 | ~~Features the specification describes were never built~~ | **Closed** | Phase 13 built them, 13a to 13h (ADR-0089 to ADR-0108). The developer decided after 12d that every one belongs in the first release; they are Phase 13, cut into eight sub-phases, and 13a has built the oscillator, sub and unison controls (ADR-0089). Original note: | Found in 12d-1 by reading the PRD against the parameter registry. Warp (PRD §12), macros (§17), LFO tempo sync (the conversion exists, no parameter reaches it), comb and formant filters, sub-oscillator waveforms, pink noise, unison detune curves, filter mix and key tracking, and drawn LFO curves (deferred by ADR-0034). No phase scheduled them and no decision dropped them; earlier phases were ticked against narrower task lists. Listed in full in Docs/KNOWN-LIMITATIONS.md. Which belong before a first release is a scope decision. |
 | 27 | ~~A note could stick after a voice steal~~ | **Fixed** | Found in Phase 15 by a storm of typed notes (ADR-0111). A key let go in the milliseconds a stolen voice spent fading its old note found no voice playing its note, and the note then started and never ended; with the pedal down, releasing the old note during the fade passed its pedal hold to the new one. In the engine since voice stealing was built (Phase 3), so a MIDI keyboard played fast, or a dense DAW pattern at full polyphony, could meet it. Fixed in 1.1.0; 1.0.1 and earlier have it. |
+| 28 | The interface takes about 9 s to appear in the standalone | **Open** | Measured in 16a on the development machine, Release build, with the DevTools port open: 3.8 s from launch until the page begins to load (WebView2 starting), 0.8 s loading it, and 4.5 s from loaded until the interface draws — the last is Apollo's own and unexplained. First seen installing 1.1.0, where a first launch from a new folder showed "Connecting to engine…" for over 8 s. Not a failure; a musician opening Apollo waits for it |
 
 ---
 

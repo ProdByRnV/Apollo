@@ -174,6 +174,34 @@ standalone needs a MIDI keyboard.
 - **Bring your own sounds.** Choose **USER** on an oscillator and press
   **OPEN FILE…** to play a wavetable of your own, or choose **SAMPLE** on the
   noise generator for a sample of your own.
+- **Share a sound.** See [Sharing a preset](#sharing-a-preset) below.
+
+### Sharing a preset
+
+A preset is one small `.rnv` file, and it is complete on its own: any wavetable
+or sample of your own that the sound uses travels inside it. Whoever you send it
+to hears exactly what you hear.
+
+From version 1.2.0:
+
+1. **To send a sound**, play the sound you want to share, then press
+   **EXPORT…** in the Presets panel. Give the file a name, which is the name
+   your friend will see, and save it. It goes to your Desktop unless you choose
+   somewhere else.
+2. Send that file the way you send anything: WhatsApp, email, Google Drive, a
+   USB stick.
+3. **To add a sound someone sent you**, save the file, press **IMPORT…** in the
+   Presets panel and choose it. You can choose several at once. It appears in
+   your list, marked *user*; click it to play it.
+
+Importing never replaces a preset you already have: a different sound with the
+same name is added beside yours as "Name (2)". A file that is not an Apollo
+preset is refused, and nothing changes.
+
+In version 1.1.0, without those buttons: save the sound with **SAVE…**, then
+find it in your presets folder (`%APPDATA%\Apollo\Presets` on Windows — paste
+that into the File Explorer address bar) and send it. Whoever receives it copies
+it into the same folder on their computer and presses **RESCAN**.
 
 ### Updating and uninstalling
 

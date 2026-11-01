@@ -5,6 +5,18 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## 1.2.0 — not yet released
+
+### What is new
+
+- **Share a sound.** **EXPORT…** in the Presets panel saves the sound you are
+  playing as a file, to your Desktop or wherever you choose, ready to send.
+  **IMPORT…** adds preset files someone sent you; choose several at once if you
+  like. Any wavetable or sample of your own travels inside the file. Importing
+  never replaces a preset you already have.
+
+---
+
 ## 1.1.0 — 2026-10-31
 
 Apollo now plays without a MIDI keyboard, and a note that could stick no longer

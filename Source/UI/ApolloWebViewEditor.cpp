@@ -195,6 +195,12 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     };
     bridge.onImportControllerProfile = [this] { importControllerProfile(); };
 
+    // Sharing a sound: out to wherever the user chooses, and in from what a
+    // friend sent (Phase 16a). The dialogs are the editor's, as the profile
+    // ones are, so the page never names a file.
+    bridge.onExportPreset = [this] (const juce::String& name) { exportPreset (name); };
+    bridge.onImportPresets = [this] { importPresets(); };
+
     // Loading a preset replaces the whole state tree, which is the processor's
     // event to handle rather than the bridge's: the bridge owns parameters and
     // knows nothing about the MIDI table hanging off the same tree.
@@ -266,6 +272,74 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     bridge.onExportControllerProfile = {};
     bridge.onImportControllerProfile = {};
     bridge.setProfileLibrary (nullptr);
+
+    bridge.onExportPreset = {};
+    bridge.onImportPresets = {};
+}
+
+void ApolloWebViewEditor::exportPreset (const juce::String& suggestedName)
+{
+    // MESSAGE THREAD, from the bridge. Where it exported last, or the desktop:
+    // a file about to be sent to somebody is a file the user has to find again
+    // in a moment, and the preset library is a hidden folder on every system.
+    auto start = lastPresetFolder.isDirectory()
+                   ? lastPresetFolder
+                   : juce::File::getSpecialLocation (juce::File::userDesktopDirectory);
+
+    const auto fileName = resources::toSafeFileName (suggestedName);
+    start = start.getChildFile ((fileName.isNotEmpty() ? fileName : juce::String ("My sound"))
+                                + presets::fileExtension);
+
+    presetChooser = std::make_unique<juce::FileChooser> ("Export this sound as a preset file", start,
+                                                         juce::String ("*") + presets::fileExtension);
+
+    presetChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::canSelectFiles
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                [this] (const juce::FileChooser& chooser)
+                                {
+                                    auto file = chooser.getResult();
+
+                                    // Cancelled: nothing happens, and nothing is said.
+                                    if (file == juce::File())
+                                        return;
+
+                                    // A name typed without the extension still becomes
+                                    // a file Apollo's Import will offer.
+                                    if (! file.hasFileExtension (presets::fileExtension))
+                                        file = file.withFileExtension (presets::fileExtension);
+
+                                    lastPresetFolder = file.getParentDirectory();
+                                    sendToWebView (bridge.exportPresetTo (file));
+                                });
+}
+
+void ApolloWebViewEditor::importPresets()
+{
+    // MESSAGE THREAD, from the bridge. A friend's file is usually in the
+    // downloads folder, which is where the dialog starts the first time.
+    const auto downloads = juce::File::getSpecialLocation (juce::File::userHomeDirectory).getChildFile ("Downloads");
+    const auto start = lastPresetFolder.isDirectory() ? lastPresetFolder
+                     : downloads.isDirectory()        ? downloads
+                                                      : juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+
+    presetChooser = std::make_unique<juce::FileChooser> ("Import presets", start,
+                                                         juce::String ("*") + presets::fileExtension);
+
+    // Several at once, because what arrives is often a handful.
+    presetChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles
+                                    | juce::FileBrowserComponent::canSelectMultipleItems,
+                                [this] (const juce::FileChooser& chooser)
+                                {
+                                    const auto files = chooser.getResults();
+
+                                    if (files.isEmpty())
+                                        return;
+
+                                    lastPresetFolder = files.getFirst().getParentDirectory();
+                                    sendToWebView (bridge.importPresetsFrom (files));
+                                });
 }
 
 void ApolloWebViewEditor::exportControllerProfile (const juce::String& profileId, const juce::String& suggestedName)

@@ -126,9 +126,77 @@ public:
         testTheIndexIsOrderedAndNumbered();
         testFindingAPresetById();
         testTheFileANameMeansIsOneAnswer();
+        testImportingTakesOnlyPresetsAndReplacesNothing();
     }
 
 private:
+    /** Phase 16a: a file somebody sent is untrusted, and so is its name. */
+    void testImportingTakesOnlyPresetsAndReplacesNothing()
+    {
+        beginTest ("An import adds what the scan would list, under a name the scan can see");
+
+        ScratchTree tree { "import" };
+
+        const auto user = tree.getRoot().getChildFile ("User");
+        const auto inbox = tree.folder ("Downloads");
+
+        // A user who has never saved has no library folder; importing makes it.
+        const auto first = resources::importPresetFile (tree.write ("Downloads/Bell.rnv", documentNamed ("Bell")), user);
+
+        expect (first.result == resources::PresetImportResult::imported);
+        expect (user.getChildFile ("Bell.rnv").existsAsFile());
+        expectEquals (first.name, juce::String ("Bell"));
+
+        // A leading dot hides a file on macOS and Linux, and the scanner skips
+        // hidden files, so the import would "succeed" into nowhere.
+        const auto hidden = resources::importPresetFile (tree.write ("Downloads/.secret.rnv", documentNamed ("Secret")), user);
+
+        expect (hidden.result == resources::PresetImportResult::imported);
+        expect (! hidden.file.getFileName().startsWithChar ('.'), hidden.file.getFileName());
+
+        // Picked from inside the library itself: already there, nothing written.
+        const auto same = resources::importPresetFile (user.getChildFile ("Bell.rnv"), user);
+        expect (same.result == resources::PresetImportResult::alreadyInLibrary);
+
+        // The same document with other line endings is still the same preset.
+        const auto unix = inbox.getChildFile ("Bell.rnv");
+        unix.replaceWithText (documentNamed ("Bell"), false, false, "\n");
+        expect (resources::importPresetFile (unix, user).result == resources::PresetImportResult::alreadyInLibrary);
+
+        // Refused, by name, with nothing written: empty, not a preset, a folder.
+        const auto before = user.getNumberOfChildFiles (juce::File::findFiles);
+
+        for (const auto& refused : { tree.write ("Downloads/empty.rnv", {}),
+                                     tree.write ("Downloads/photo.rnv", "JFIF and the rest of a photograph"),
+                                     tree.write ("Downloads/other.rnv", "<?xml version=\"1.0\"?><SOMETHING_ELSE/>"),
+                                     inbox })
+        {
+            const auto outcome = resources::importPresetFile (refused, user);
+
+            expect (outcome.result == resources::PresetImportResult::notAPreset, refused.getFileName());
+            expect (outcome.reason.isNotEmpty(), "a refusal says why");
+        }
+
+        expectEquals (user.getNumberOfChildFiles (juce::File::findFiles), before);
+
+        // And what was imported is exactly what a scan then lists.
+        resources::PresetLocations locations;
+        locations.userDirectory = user;
+
+        const auto index = resources::scanPresets (locations);
+        expectEquals (static_cast<int> (index.entries.size()), 2);
+        expect (find (index, "Bell") != nullptr && find (index, "Secret") != nullptr);
+
+        // Exporting writes where it is told, and nowhere it cannot.
+        const auto exported = inbox.getChildFile ("Out.rnv");
+        expect (resources::exportPresetText (exported, documentNamed ("Out")));
+        expect (exported.existsAsFile());
+        expect (! resources::exportPresetText (tree.getRoot().getChildFile ("No/Such/Folder/Out.rnv"), documentNamed ("Out")),
+                "an export into a folder that is not there fails rather than inventing it");
+        expect (! resources::exportPresetText (exported, {}), "an empty document is not written");
+        expect (exported.loadFileAsString().contains ("Out"), "a refused export leaves the file that was there");
+    }
+
     /** Phase 9c: the index is what the browser asks against, so its order and
         its numbering are part of the contract rather than an implementation
         detail of the directory iterator.

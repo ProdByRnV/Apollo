@@ -197,6 +197,11 @@ enum class BridgeCommandType
     loadPreset,     ///< Load one preset named by its index id.
     savePreset,     ///< Write the current sound into the user library.
 
+    // Sharing (Phase 16a). The page asks; the editor opens the system's own
+    // dialog, so the file chosen never crosses the bridge (CLAUDE.md §40).
+    exportPreset,   ///< Write the current sound wherever the user chooses.
+    importPresets,  ///< Copy preset files the user chooses into the user library.
+
     // Drawn LFO curves (Phase 13f-1). A curve is not a parameter, so it has
     // commands of its own: the page can ask for all four and replace one.
     requestLfoCurves, ///< Send every LFO's curve.

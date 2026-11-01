@@ -68,6 +68,18 @@ private:
         what is chosen into the user's profiles (Phase 13h-3). */
     void importControllerProfile();
 
+    /** Opens the system's save dialog for the current sound, and writes it as
+        a preset file where the user chooses, to send to someone (Phase 16a). */
+    void exportPreset (const juce::String& suggestedName);
+
+    /** Opens the system's open dialog for preset files somebody sent, and
+        copies what is chosen into the user library (Phase 16a). */
+    void importPresets();
+
+    /** The preset dialog while it is open, and where it last opened. */
+    std::unique_ptr<juce::FileChooser> presetChooser;
+    juce::File lastPresetFolder;
+
     /** The profile dialog while it is open, and where it last opened. */
     std::unique_ptr<juce::FileChooser> profileChooser;
     juce::File lastProfileFolder;

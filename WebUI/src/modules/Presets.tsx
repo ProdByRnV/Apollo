@@ -29,7 +29,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
+import { exportPreset, importPresets, loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
 import { Module } from '../components/Module';
 import { hasCommandModifier, rovingTarget } from '../components/roving';
 import { announce } from '../state/status';
@@ -243,6 +243,31 @@ export function Presets(): JSX.Element {
 
                 <button className="presets__action" type="button" onClick={openSave}>
                     Save…
+                </button>
+
+                {/*
+                    Sharing a sound (Phase 16a). The library is a hidden folder
+                    on every system, so a preset is sent from a file put where
+                    the user can find it, and one received is added from wherever
+                    it landed. Both open the system's own dialog; the page never
+                    names a file, and the answer arrives on the status line.
+                */}
+                <button
+                    className="presets__action presets__action--quiet"
+                    type="button"
+                    title="Save the sound you are hearing as a file, to send to someone"
+                    onClick={exportPreset}
+                >
+                    Export…
+                </button>
+
+                <button
+                    className="presets__action presets__action--quiet"
+                    type="button"
+                    title="Add preset files someone sent you to your presets"
+                    onClick={importPresets}
+                >
+                    Import…
                 </button>
             </div>
 

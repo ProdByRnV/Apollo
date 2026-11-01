@@ -145,6 +145,19 @@ export function savePreset(request: PresetSaveRequest): void {
     send({ type: 'savePreset', version: PROTOCOL_VERSION, ...request });
 }
 
+/** Asks for the sound playing now to be written as a preset file, wherever the
+    user chooses in the system's save dialog (Phase 16a). No path goes out and
+    none comes back: the answer is a presetStatus. */
+export function exportPreset(): void {
+    send({ type: 'exportPreset', version: PROTOCOL_VERSION });
+}
+
+/** Asks for the system's open dialog, to add preset files somebody sent to the
+    user library (Phase 16a). The answer is a presetStatus. */
+export function importPresets(): void {
+    send({ type: 'importPresets', version: PROTOCOL_VERSION });
+}
+
 export function requestControllerProfiles(): void {
     send({ type: 'requestControllerProfiles', version: PROTOCOL_VERSION });
 }

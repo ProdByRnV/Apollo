@@ -387,6 +387,107 @@ state::StateLoadResult readPresetFile (const juce::File& file, juce::String& des
     return state::StateLoadResult::ok;
 }
 
+bool exportPresetText (const juce::File& destination, const juce::String& text)
+{
+    if (destination == juce::File() || text.isEmpty())
+        return false;
+
+    if (! destination.getParentDirectory().isDirectory())
+        return false;
+
+    // Atomic, as a save is: a copy of last week's version sitting where the
+    // user chose survives a write that fails.
+    juce::TemporaryFile temporary (destination);
+
+    if (! temporary.getFile().replaceWithText (text, /* asUnicode */ false, /* writeBom */ false))
+        return false;
+
+    return temporary.overwriteTargetFileWithTemporary();
+}
+
+PresetImport importPresetFile (const juce::File& source, const juce::File& userDirectory)
+{
+    PresetImport outcome;
+    outcome.name = source.getFileNameWithoutExtension();
+
+    juce::String text;
+
+    if (const auto read = readPresetFile (source, text); read != state::StateLoadResult::ok)
+    {
+        outcome.reason = state::describe (read);
+        return outcome;
+    }
+
+    // The scan's own test, so that "imported" and "listed" cannot disagree: a
+    // file this accepts is a row in the browser once the rescan lands.
+    presets::Metadata metadata;
+
+    if (const auto valid = presets::readMetadata (text, metadata); valid != state::StateLoadResult::ok)
+    {
+        outcome.reason = state::describe (valid);
+        return outcome;
+    }
+
+    if (metadata.name.isNotEmpty())
+        outcome.name = metadata.name;
+
+    // The sender's filename, which is what they called it; failing that the
+    // name inside it; failing both, something rather than nothing.
+    auto base = toSafeFileName (source.getFileNameWithoutExtension());
+
+    if (base.isEmpty())
+        base = toSafeFileName (metadata.name);
+
+    if (base.isEmpty())
+        base = "Imported preset";
+
+    for (int copy = 1; copy < 1000; ++copy)
+    {
+        const auto suffix = copy == 1 ? juce::String() : " (" + juce::String (copy) + ")";
+        const auto candidate = base.substring (0, presets::maximumNameLength - suffix.length()) + suffix;
+        const auto target = presetFileFor (userDirectory, candidate);
+
+        if (target == juce::File())
+            break;
+
+        if (target.existsAsFile())
+        {
+            // The same preset imported twice, or a file chosen from inside the
+            // library: already there, and a second copy would be a row that
+            // only looks like a different sound. Compared as text with the line
+            // endings set aside, because a save writes its own and the file
+            // may have come from a system that writes others.
+            const auto withoutReturns = [] (const juce::String& s) { return s.removeCharacters ("\r"); };
+
+            if (withoutReturns (target.loadFileAsString()) == withoutReturns (text))
+            {
+                outcome.result = PresetImportResult::alreadyInLibrary;
+                outcome.file = target;
+                return outcome;
+            }
+
+            continue;
+        }
+
+        juce::File written;
+
+        if (const auto saved = savePreset (userDirectory, candidate, text, written); saved != PresetSaveResult::ok)
+        {
+            outcome.result = PresetImportResult::couldNotWrite;
+            outcome.reason = describe (saved);
+            return outcome;
+        }
+
+        outcome.result = PresetImportResult::imported;
+        outcome.file = written;
+        return outcome;
+    }
+
+    outcome.result = PresetImportResult::couldNotWrite;
+    outcome.reason = "There is no free name for it in the preset folder.";
+    return outcome;
+}
+
 PresetIndex scanPresets (const PresetLocations& locations, const std::function<bool()>& shouldAbort)
 {
     PresetIndex index;

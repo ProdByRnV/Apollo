@@ -95,6 +95,8 @@ public:
         testAPresetNameCannotLeaveTheLibrary();
         testAStalePresetIdReachesNothing();
         testAHostReloadForgetsTheBrowsersPreset();
+        testASoundTravelsFromOneApolloToAnother();
+        testSharingNeedsALibrary();
     }
 
 private:
@@ -694,6 +696,163 @@ private:
                       "an ambiguous name highlights nothing");
 
         bridge.setPresetLibrary (nullptr);
+    }
+
+    //==========================================================================
+    // Sharing a sound (Phase 16a): exported from one Apollo, imported into
+    // another, and every way an import could replace or smuggle something.
+
+    /** @returns the .rnv files directly in @p folder. */
+    static int presetFilesIn (const juce::File& folder)
+    {
+        return folder.getNumberOfChildFiles (juce::File::findFiles, "*.rnv");
+    }
+
+    /** @returns the index id of the preset named @p name, or 0. */
+    static int idOfListed (const resources::PresetLibrary& library, const juce::String& name)
+    {
+        for (const auto& entry : library.getIndex().entries)
+            if (entry.name == name)
+                return entry.id;
+
+        return 0;
+    }
+
+    void testASoundTravelsFromOneApolloToAnother()
+    {
+        beginTest ("A sound exported from one Apollo imports into another and plays the same");
+
+        TemporaryLibrary mine;
+        TemporaryLibrary theirs;
+
+        const auto sent = juce::File::createTempFile ("ApolloExport");
+        sent.createDirectory();
+
+        ApolloAudioProcessor sender;
+        auto& senderState = sender.getValueTreeState();
+        ui::ParameterBridge senderBridge (senderState);
+        senderBridge.setPresetLibrary (&mine.library);
+        mine.library.waitForScan();
+
+        auto* cutoff = senderState.getParameter ("filter1_cutoff");
+        expect (cutoff != nullptr);
+
+        if (cutoff == nullptr)
+            return;
+
+        cutoff->setValueNotifyingHost (0.27f);
+
+        expectEquals (fieldOf (senderBridge.handleMessage (
+                          R"({"type":"savePreset","version":1,"name":"Glass Bell","author":"RnV"})"), "status"),
+                      juce::String ("SAVED"));
+
+        // Export asks the editor for a dialog, suggesting the sound's own name.
+        // Without an editor it is accepted and does nothing, as Fullscreen is.
+        expect (senderBridge.handleMessage (R"({"type":"exportPreset","version":1})").isEmpty());
+
+        juce::String suggested;
+        senderBridge.onExportPreset = [&suggested] (const juce::String& offered) { suggested = offered; };
+
+        expect (senderBridge.handleMessage (R"({"type":"exportPreset","version":1})").isEmpty(),
+                "the answer comes when the dialog does");
+        expectEquals (suggested, juce::String ("Glass Bell"));
+
+        // What the user typed in the dialog is the name their friend sees.
+        const auto file = sent.getChildFile ("For Sam.rnv");
+        const auto exported = senderBridge.exportPresetTo (file);
+
+        expectEquals (fieldOf (exported, "status"), juce::String ("EXPORTED"));
+        expect (file.existsAsFile());
+        expect (! fieldOf (exported, "statusMessage").contains (sent.getFullPathName()),
+                "the page is told the preset's name, never where it went");
+
+        // Exporting a copy is not becoming it.
+        expectEquals (fieldOf (exported, "name"), juce::String ("Glass Bell"));
+
+        // Somebody else's Apollo, somebody else's library.
+        ApolloAudioProcessor receiver;
+        auto& receiverState = receiver.getValueTreeState();
+        ui::ParameterBridge receiverBridge (receiverState);
+        receiverBridge.setPresetLibrary (&theirs.library);
+        theirs.library.waitForScan();
+
+        bool asked = false;
+        receiverBridge.onImportPresets = [&asked] { asked = true; };
+        expect (receiverBridge.handleMessage (R"({"type":"importPresets","version":1})").isEmpty());
+        expect (asked, "Import asks the editor for the open dialog");
+
+        const auto imported = receiverBridge.importPresetsFrom ({ file });
+        expectEquals (fieldOf (imported, "status"), juce::String ("IMPORTED"));
+        expect (fieldOf (imported, "statusMessage").contains ("For Sam"));
+
+        const auto inLibrary = theirs.userFile ("For Sam");
+        expect (inLibrary.existsAsFile(), "an import lands in the user library under the sender's name");
+
+        theirs.scan();
+        const auto id = idOfListed (theirs.library, "For Sam");
+        expect (id > 0, "what was imported is a row in the browser");
+
+        const auto loaded = receiverBridge.handleMessage (
+            R"({"type":"loadPreset","version":1,"preset":)" + juce::String (id) + "}");
+
+        expectEquals (fieldOf (loaded, "status"), juce::String ("LOADED"));
+        expectEquals (fieldOf (loaded, "author"), juce::String ("RnV"), "the maker's name travels with it");
+
+        if (auto* received = receiverState.getParameter ("filter1_cutoff"))
+            expectWithinAbsoluteError (received->getValue(), 0.27f, 1.0e-4f,
+                                       "the friend hears the sound that was sent");
+
+        // The same file again: recognised, and not listed twice.
+        const auto again = receiverBridge.importPresetsFrom ({ file });
+        expect (fieldOf (again, "statusMessage").contains ("already"), fieldOf (again, "statusMessage"));
+        expectEquals (presetFilesIn (theirs.library.getLocations().userDirectory), 1);
+
+        // A different sound under the same filename goes beside it, and the one
+        // already there is untouched.
+        const auto before = inLibrary.loadFileAsString();
+
+        cutoff->setValueNotifyingHost (0.81f);
+        expectEquals (fieldOf (senderBridge.exportPresetTo (file), "status"), juce::String ("EXPORTED"));
+
+        expectEquals (fieldOf (receiverBridge.importPresetsFrom ({ file }), "status"), juce::String ("IMPORTED"));
+        expectEquals (inLibrary.loadFileAsString(), before, "an import never replaces a preset");
+        expect (theirs.userFile ("For Sam (2)").existsAsFile(), "a different sound of the same name is kept beside it");
+
+        // Something that is not a preset is refused, and nothing is written.
+        const auto junk = sent.getChildFile ("Holiday.rnv");
+        junk.replaceWithText ("this is a photograph, honestly");
+
+        const auto refused = receiverBridge.importPresetsFrom ({ junk });
+        expectEquals (fieldOf (refused, "status"), juce::String ("IMPORT_FAILED"));
+        expectEquals (presetFilesIn (theirs.library.getLocations().userDirectory), 2);
+
+        // A handful at once is counted rather than listed.
+        const auto other = sent.getChildFile ("Pad.rnv");
+        expectEquals (fieldOf (senderBridge.exportPresetTo (other), "status"), juce::String ("EXPORTED"));
+
+        const auto batch = receiverBridge.importPresetsFrom ({ other, junk, file });
+        expectEquals (fieldOf (batch, "status"), juce::String ("IMPORTED"));
+        expectEquals (fieldOf (batch, "statusMessage"),
+                      juce::String ("Imported 1 preset. 1 was already in your presets. 1 file could not be imported."));
+
+        receiverBridge.setPresetLibrary (nullptr);
+        senderBridge.setPresetLibrary (nullptr);
+        sent.deleteRecursively();
+    }
+
+    void testSharingNeedsALibrary()
+    {
+        beginTest ("Without a library, export and import are refused, not ignored");
+
+        ApolloAudioProcessor processor;
+        ui::ParameterBridge bridge (processor.getValueTreeState());
+
+        expectEquals (fieldOf (bridge.handleMessage (R"({"type":"exportPreset","version":1})"), "type"),
+                      juce::String ("error"));
+        expectEquals (fieldOf (bridge.exportPresetTo (juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                                          .getChildFile ("never.rnv")), "type"),
+                      juce::String ("error"));
+        expectEquals (fieldOf (bridge.importPresetsFrom ({}), "type"), juce::String ("error"));
     }
 
     void testMetadataDescribesTheRegistry()

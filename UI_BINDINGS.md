@@ -1164,6 +1164,8 @@ the backend published, and cannot express a path at all** (ADR-0063).
 | `rescanPresets` | — | Look at the disk again. Answered at once with what is known now, and again when the scan finishes. |
 | `loadPreset` | `preset` | Load the preset with that index id. A number, validated as an integer in `[1, maximumPresets]` during parsing; anything else is `UNKNOWN_PRESET`. |
 | `savePreset` | `name`, optional `author`, `category`, `comment`, `bank`, `overwrite` | Write the current sound into the **user** library. There is no field that chooses a destination. |
+| `exportPreset` | — | Ask the editor to open the system's save dialog, and write the current sound wherever the user chooses (Phase 16a). No reply until the dialog closes; a cancel is answered with nothing. |
+| `importPresets` | — | Ask the editor to open the system's open dialog, and copy the preset files chosen into the **user** library (Phase 16a). No reply until the dialog closes. |
 
 `name` is required and must be non-empty after trimming. Every text field is
 bounded during parsing — `maximumNameLength` for the first four, and
@@ -1176,6 +1178,21 @@ there is refused, writes nothing, and comes back with status `ALREADY_EXISTS`.
 The page renders that as its replace prompt; only a second, explicit save with
 `overwrite: true` goes through. A save is the one action in Apollo that can
 destroy somebody else's work.
+
+**Sharing (Phase 16a, ADR-0113).** Neither command carries a payload, and
+neither answer names a file: where an export went and where an import came from
+are the system dialog's, and stay native. The answer is a `presetStatus`:
+
+- `EXPORTED` or `EXPORT_FAILED`. The exported preset is named after the file
+  the user chose, and keeps the sound's author, category and comment. The sound
+  itself is not renamed: exporting a copy is not becoming it.
+- `IMPORTED` or `IMPORT_FAILED`. Each file is read with the size bound and
+  validated as the scan validates, so an import succeeds exactly when the
+  browser will list it. **An import never replaces anything**: it keeps the
+  sender's filename, recognises a document already in the library (line endings
+  aside) and writes nothing, and writes a different one beside it as
+  "Name (2)". One file is answered in its own words; several are counted. The
+  index follows by the usual rescan. Nothing is loaded: the user clicks it.
 
 #### `presetIndex`
 

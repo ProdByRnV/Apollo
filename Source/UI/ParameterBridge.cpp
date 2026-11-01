@@ -338,6 +338,8 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::rescanPresets:
         case BridgeCommandType::loadPreset:
         case BridgeCommandType::savePreset:
+        case BridgeCommandType::exportPreset:
+        case BridgeCommandType::importPresets:
             return applyPresetCommand (command);
 
         case BridgeCommandType::requestLfoCurves:
@@ -818,6 +820,95 @@ juce::String ParameterBridge::handleStateReload()
     return createPresetStatus ("STATE_RELOADED", {});
 }
 
+juce::String ParameterBridge::exportPresetTo (const juce::File& destination)
+{
+    if (presetLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    // The file's name is the preset's name: what the user typed in the dialog
+    // is what their friend's browser will list. The sound itself keeps its
+    // name — exporting a copy is not becoming it (PresetDocument.h).
+    auto metadata = presets::getMetadata (apvts);
+    metadata.name = destination.getFileNameWithoutExtension();
+
+    // The message names the preset, never where it went (UI_BINDINGS.md §13).
+    if (! resources::exportPresetText (destination, presets::write (apvts, metadata)))
+        return createPresetStatus ("EXPORT_FAILED", "Could not write " + metadata.name + " there.");
+
+    return createPresetStatus ("EXPORTED",
+                               "Exported " + metadata.name
+                                   + ". Send the file to anyone with Apollo; they add it with Import.");
+}
+
+juce::String ParameterBridge::importPresetsFrom (const juce::Array<juce::File>& sources)
+{
+    if (presetLibrary == nullptr)
+        return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+    const auto userDirectory = presetLibrary->getLocations().userDirectory;
+
+    int imported = 0;
+    int alreadyThere = 0;
+    int refused = 0;
+    resources::PresetImport last;
+
+    for (const auto& source : sources)
+    {
+        const auto outcome = resources::importPresetFile (source, userDirectory);
+
+        switch (outcome.result)
+        {
+            case resources::PresetImportResult::imported:         ++imported;     break;
+            case resources::PresetImportResult::alreadyInLibrary: ++alreadyThere; break;
+            case resources::PresetImportResult::notAPreset:
+            case resources::PresetImportResult::couldNotWrite:    ++refused;      break;
+        }
+
+        last = outcome;
+    }
+
+    if (imported > 0)
+        presetLibrary->rescan();
+
+    // One file says what happened to it, in its own words; several are
+    // counted, because a list of reasons does not fit on a status line.
+    if (sources.size() == 1)
+    {
+        switch (last.result)
+        {
+            case resources::PresetImportResult::imported:
+                return createPresetStatus ("IMPORTED", "Imported " + last.name + ". Click it in the list to play it.");
+
+            case resources::PresetImportResult::alreadyInLibrary:
+                return createPresetStatus ("IMPORTED", last.name + " is already in your presets.");
+
+            case resources::PresetImportResult::notAPreset:
+                return createPresetStatus ("IMPORT_FAILED", "That file is not an Apollo preset. " + last.reason);
+
+            case resources::PresetImportResult::couldNotWrite:
+                return createPresetStatus ("IMPORT_FAILED", "Could not import " + last.name + ". " + last.reason);
+        }
+    }
+
+    const auto plural = [] (int count, const juce::String& noun)
+    {
+        return juce::String (count) + " " + noun + (count == 1 ? "" : "s");
+    };
+
+    juce::StringArray parts;
+
+    if (imported > 0)
+        parts.add ("Imported " + plural (imported, "preset") + ".");
+
+    if (alreadyThere > 0)
+        parts.add (juce::String (alreadyThere) + (alreadyThere == 1 ? " was" : " were") + " already in your presets.");
+
+    if (refused > 0)
+        parts.add (plural (refused, "file") + " could not be imported.");
+
+    return createPresetStatus (imported + alreadyThere > 0 ? "IMPORTED" : "IMPORT_FAILED", parts.joinIntoString (" "));
+}
+
 juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
 {
     // Answered rather than ignored, exactly as the MIDI commands are: a page
@@ -951,6 +1042,25 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
 
             return createPresetStatus ("SAVED", "Saved " + command.presetMetadata.name + ".");
         }
+
+        case BridgeCommandType::exportPreset:
+        {
+            // The dialog answers later; the editor sends what came of it. The
+            // suggestion is the sound's own name, which is what the user would
+            // type anyway.
+            const auto name = presets::getMetadata (apvts).name;
+
+            if (onExportPreset)
+                onExportPreset (name.isNotEmpty() ? name : juce::String ("My sound"));
+
+            return {};
+        }
+
+        case BridgeCommandType::importPresets:
+            if (onImportPresets)
+                onImportPresets();
+
+            return {};
 
         case BridgeCommandType::requestState:
         case BridgeCommandType::requestMetadata:

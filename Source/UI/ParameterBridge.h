@@ -134,6 +134,27 @@ public:
     */
     std::function<void()> onStateReplaced;
 
+    /** The page asked to export the current sound: the editor opens the
+        system's save dialog, suggesting @p suggestedName, and calls
+        exportPresetTo with what the user chose. With none set the command is
+        accepted and does nothing, as Fullscreen is. MESSAGE THREAD. */
+    std::function<void (const juce::String& suggestedName)> onExportPreset;
+
+    /** The page asked to import presets: the editor opens the system's open
+        dialog and calls importPresetsFrom with what the user chose. MESSAGE
+        THREAD. */
+    std::function<void()> onImportPresets;
+
+    /** Writes the current sound to @p destination, named after the file the
+        user chose, without renaming the sound itself (Phase 16a).
+        @returns the preset status saying whether it was written. */
+    [[nodiscard]] juce::String exportPresetTo (const juce::File& destination);
+
+    /** Copies each of @p sources into the user library, refusing what is not a
+        preset and replacing nothing (Phase 16a). @returns the preset status
+        saying what came of them. */
+    [[nodiscard]] juce::String importPresetsFrom (const juce::Array<juce::File>& sources);
+
     /** @returns the library described for the frontend, paths omitted. */
     [[nodiscard]] juce::String createPresetIndex() const;
 
