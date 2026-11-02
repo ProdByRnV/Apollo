@@ -84,7 +84,7 @@ set_target_properties(Apollo PROPERTIES FOLDER "Apollo/Plugin")
 # Requested by the developer, who launches the built application constantly and
 # should not have to walk down to
 # build*/Source/Plugin/Apollo_artefacts/<config>/Standalone/ to find it. The
-# copy lands beside the top-level markdown files and is ignored by git.
+# copy lands beside the top-level markdown files.
 #
 # ONE NAME, LAST BUILD WINS. Building Debug and then Release leaves the Release
 # build in the root, because "the one I just built" is what the shortcut is for.
