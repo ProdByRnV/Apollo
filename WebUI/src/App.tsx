@@ -13,7 +13,7 @@
     re-render the page.
 */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import {
     bridgeAvailable,
@@ -53,6 +53,7 @@ import { Noise, Oscillator, SubOscillator } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
 import { ModCarryLayer } from './components/ModSource';
+import { SectionBar, SectionPage } from './components/Sections';
 import { PlayStrip } from './components/PlayStrip';
 import { setNotePlaying, useNotePlaying } from './state/notePlaying';
 
@@ -92,6 +93,29 @@ export function App(): JSX.Element {
 
     /** What the connection established, for the readout's tooltip. */
     const [binding, setBinding] = useState('');
+
+    // Which of the five tabs is showing (Phase 17). Not remembered: every
+    // session opens on the oscillators, as every session opens on the designed
+    // layout.
+    const [section, setSection] = useState(0);
+    const sectionsId = useId();
+    const sectionsAnchor = useRef<HTMLDivElement>(null);
+
+    // A new page starts at its top. If the presets have scrolled away, the
+    // workspace goes back to where the tabs stick rather than to the top of
+    // the presets; if they are still in view, nothing moves.
+    const selectSection = useCallback((index: number): void => {
+        setSection(index);
+
+        const workspace = workspaceRef.current;
+        const anchor = sectionsAnchor.current;
+        if (workspace === null || anchor === null) return;
+
+        const natural = anchor.getBoundingClientRect().top - workspace.getBoundingClientRect().top
+            + workspace.scrollTop;
+
+        if (workspace.scrollTop > natural) workspace.scrollTop = natural;
+    }, []);
 
     // The status line lives in a store (state/status.ts), so that the parts of
     // the page that finish something can say so. What it says first depends on
@@ -499,62 +523,86 @@ export function App(): JSX.Element {
                         */}
                         <div className="rank rank--wide"><Presets /></div>
 
-                        <div className="rank rank--pair">
-                            <Oscillator index={1} />
-                            <Oscillator index={2} />
-                        </div>
-
-                        <div className="rank rank--compact">
-                            <SubOscillator />
-                            <Noise />
-                        </div>
-
-                        <div className="rank rank--pair">
-                            <Filter index={1} />
-                            <Filter index={2} />
-                        </div>
-
-                        <div className="rank rank--wide"><Envelopes /></div>
-                        <div className="rank rank--wide"><Lfos /></div>
-                        <div className="rank rank--wide"><Macros /></div>
-                        <div className="rank rank--wide"><Matrix /></div>
-
                         {/*
-                            The rack sits after everything that makes and moves
-                            the sound and before what leaves, because that is
-                            where it sits in the signal path: effects process the
-                            finished mix, and the master fader is still the last
-                            thing in the chain.
+                            The five tabs, and the strip of modulation sources
+                            under them, which stays in view (Phase 17, ADR-0117).
+                            The anchor marks where the bar sits before it sticks,
+                            so a change of tab can return there.
                         */}
-                        <div className="rank rank--wide"><Rack /></div>
+                        <div ref={sectionsAnchor} className="sections__anchor" aria-hidden="true" />
+                        <SectionBar selected={section} onSelect={selectSection} idBase={sectionsId} />
 
-                        {/*
-                            The effects sit in a pair rank, so they fill the row
-                            two at a time. With five of them that is two full
-                            rows and one panel on a third, which is also what
-                            keeps their controls on one line at the narrowest
-                            window the instrument is usable in.
-                        */}
-                        <div className="rank rank--pair">
-                            <Distortion />
-                            <DelayEffect />
-                            <ReverbEffect />
-                            <GateEffect />
-                            <CompressorEffect />
-                        </div>
+                        <SectionPage index={0} selected={section} idBase={sectionsId}>
+                            <div className="rank rank--pair">
+                                <Oscillator index={1} />
+                                <Oscillator index={2} />
+                            </div>
 
-                        {/*
-                            The equaliser is on its own row because it is the one
-                            effect that is a picture as well as a set of
-                            controls, and a response curve squeezed into half a
-                            row would be a curve nobody could read a notch off.
-                        */}
-                        <div className="rank rank--wide"><EqualiserEffect /></div>
+                            <div className="rank rank--compact">
+                                <SubOscillator />
+                                <Noise />
+                            </div>
+                        </SectionPage>
 
-                        <div className="rank rank--compact">
-                            <Output />
-                            <Expression />
-                        </div>
+                        <SectionPage index={1} selected={section} idBase={sectionsId}>
+                            <div className="rank rank--pair">
+                                <Filter index={1} />
+                                <Filter index={2} />
+                            </div>
+                        </SectionPage>
+
+                        <SectionPage index={2} selected={section} idBase={sectionsId}>
+                            {/*
+                                The envelopes and the LFOs side by side: both
+                                are four of the same thing behind a tab strip,
+                                and one above the other they were a page and a
+                                half of scrolling.
+                            */}
+                            <div className="rank rank--pair">
+                                <Envelopes />
+                                <Lfos />
+                            </div>
+                            <div className="rank rank--wide"><Macros /></div>
+                            <div className="rank rank--wide"><Matrix /></div>
+                        </SectionPage>
+
+                        <SectionPage index={3} selected={section} idBase={sectionsId}>
+                            {/*
+                                The rack first, because it says what order the
+                                effects below it run in.
+                            */}
+                            <div className="rank rank--wide"><Rack /></div>
+
+                            {/*
+                                The effects in two columns that each fill from
+                                the top, rather than in rows: an effect that is
+                                not in the rack folds to its heading, and in a
+                                row it would leave a hole the height of the
+                                delay beside it.
+                            */}
+                            <div className="rank rank--flow">
+                                <Distortion />
+                                <DelayEffect />
+                                <ReverbEffect />
+                                <GateEffect />
+                                <CompressorEffect />
+                            </div>
+
+                            {/*
+                                The equaliser on its own row: it is a picture as
+                                well as a set of controls, and a response curve
+                                squeezed into half a row would be a curve nobody
+                                could read a notch off.
+                            */}
+                            <div className="rank rank--wide"><EqualiserEffect /></div>
+                        </SectionPage>
+
+                        <SectionPage index={4} selected={section} idBase={sectionsId}>
+                            <div className="rank rank--compact">
+                                <Output />
+                                <Expression />
+                            </div>
+                        </SectionPage>
 
                         <Unplaced workspace={workspaceRef} />
                     </>

@@ -41,6 +41,21 @@ const SCROLL_EDGE = 56;
 const SCROLL_SPEED = 18;
 
 /** A source as a person reads it: a macro by the name it was given (16c). */
+/** What a handle says in the strip under the section tabs, where twenty of
+    them share one line (Phase 17). The full name is the handle's label for a
+    screen reader and its tooltip. A macro the user named is shown by its name. */
+const STRIP_LABELS: readonly string[] = [
+    '', 'ENV1', 'ENV2', 'ENV3', 'ENV4', 'LFO1', 'LFO2', 'LFO3', 'LFO4',
+    'VEL', 'KEY', 'WHEEL', 'BEND', 'AFTER', 'RAND', 'TIMBRE', 'M1', 'M2', 'M3', 'M4',
+];
+
+function stripLabel(source: number): string {
+    const macro = macroOfSource(source);
+    const named = macro !== null ? currentMacroNames().names[macro - 1] ?? '' : '';
+
+    return named !== '' ? named : STRIP_LABELS[source] ?? sourceName(source);
+}
+
 export function sourceName(source: number): string {
     const macro = macroOfSource(source);
     if (macro !== null) return macroLabel(macro, currentMacroNames().names[macro - 1] ?? '');
@@ -114,8 +129,18 @@ export function ModSourceHandle({ source, tabIndex = 0, compact = false }: Handl
         const bounds = scroller.getBoundingClientRect();
         let step = 0;
 
-        if (state.y < bounds.top + SCROLL_EDGE) {
-            step = -SCROLL_SPEED * Math.min(1, (bounds.top + SCROLL_EDGE - state.y) / SCROLL_EDGE);
+        // The section tabs, stuck to the top of the workspace, are where a
+        // source is held to open another page (Phase 17). Over them nothing
+        // scrolls, and the edge that scrolls up starts below them: scrolling
+        // there slid the tabs out from under the pointer.
+        const bar = scroller.querySelector('.sections')?.getBoundingClientRect();
+        const overBar = bar !== undefined && state.y >= bar.top && state.y <= bar.bottom;
+        const top = bar !== undefined && bar.top <= bounds.top + 1 ? bar.bottom : bounds.top;
+
+        if (overBar) {
+            step = 0;
+        } else if (state.y < top + SCROLL_EDGE) {
+            step = -SCROLL_SPEED * Math.min(1, (top + SCROLL_EDGE - state.y) / SCROLL_EDGE);
         } else if (state.y > bounds.bottom - SCROLL_EDGE) {
             step = SCROLL_SPEED * Math.min(1, (state.y - (bounds.bottom - SCROLL_EDGE)) / SCROLL_EDGE);
         }
@@ -232,7 +257,7 @@ export function ModSourceHandle({ source, tabIndex = 0, compact = false }: Handl
             onKeyDown={onKeyDown}
         >
             <span className="mod-source__grip" aria-hidden="true">⠿</span>
-            {name}
+            <span className="mod-source__name">{compact ? stripLabel(source) : name}</span>
         </button>
     );
 }
@@ -305,11 +330,13 @@ export function ModCarryLayer(): JSX.Element | null {
             moveCarry(event.clientX, event.clientY, targetAt(event.clientX, event.clientY));
         };
 
-        // Anything but a control that can take it, or a source, puts it down.
-        // The knob's own handler makes the drop.
+        // Anything but a control that can take it, a source, or something that
+        // says it keeps a carry — the section tabs, so a source can be taken
+        // to another page (Phase 17) — puts it down. The knob's own handler
+        // makes the drop.
         const onPointerDown = (event: PointerEvent): void => {
             const element = event.target instanceof Element ? event.target : null;
-            if (element?.closest('[data-mod-target], [data-mod-source]')) return;
+            if (element?.closest('[data-mod-target], [data-mod-source], [data-keeps-carry]')) return;
 
             const was = endCarry();
             if (was !== null) announce(`${sourceName(was.source)} put down.`);

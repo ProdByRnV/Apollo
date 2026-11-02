@@ -156,15 +156,20 @@ standalone needs a MIDI keyboard.
 ### 5. Your first sounds
 
 - **Choose a preset.** The **Presets** panel at the top lists Apollo's ten
-  built-in sounds. Click one, then play. **INIT** returns to a plain starting
-  sound.
+  built-in sounds. Click one, then play, or step through them with **‹** and
+  **›**. **INIT** returns to a plain starting sound, and **HIDE LIST** folds the
+  panel away.
+- **Find your way around.** The instrument is in five tabs under the presets:
+  **Oscillators**, **Filters**, **Modulation**, **Effects**, and **MIDI &
+  Output**. An effect that is not in the FX rack is folded to its name; choose
+  it in a rack slot to use it.
 - **Turn the knobs.** Drag a knob up or down. Hold **Shift** for fine
   adjustment, **double-click** to reset it, or **right-click** to reset it or
   type an exact value.
-- **Make it move.** Drag a green source — an **LFO**, an **ENV**, a macro, or
-  any source in the **Modulation Matrix** — onto a knob outlined in gold. A small
-  tag appears on the knob; drag the tag up or down to set how far the source
-  moves it.
+- **Make it move.** Drag a green source from the row under the tabs — an
+  **LFO**, an **ENV**, a macro — onto a knob outlined in gold. Hold it over
+  another tab to open that tab first. A small tag appears on the knob; drag the
+  tag up or down to set how far the source moves it.
 - **Use your controller's knobs.** Press **MIDI LEARN**, click a control in
   Apollo, then move a knob or fader on your controller. They are now linked.
   Press **MIDI LEARN** again to finish.

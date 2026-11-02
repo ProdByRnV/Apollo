@@ -1044,14 +1044,21 @@ display it is on, and returns it to its previous size when pressed again. Not an
 exclusive-fullscreen mode: a plugin editor is a component inside somebody else's
 window, and taking over the screen is not something a plugin does to a host.
 
-**Every panel is resizeable by a drag handle in its corner.** A panel made
-smaller than its contents scrolls rather than spilling over its neighbour, and a
-floor stops one being dragged away to nothing.
+**The instrument is in five tabs** — Oscillators, Filters, Modulation, Effects,
+and MIDI & Output — under the presets, chosen by the developer from mock-ups
+(ADR-0117). The tab bar sticks to the top once the presets scroll away, with the
+modulation sources on one line under it, so a source can be dragged onto a
+control on any tab; a source held over a tab opens it.
 
-**Panel sizes are deliberately not remembered.** Reopening Apollo returns every
-panel to the designed layout. That is the developer's explicit instruction, and
-it is also the behaviour that cannot strand somebody in an arrangement they
-cannot undo.
+**Panels are a fixed size.** They were resizeable by a corner handle until the
+first feedback asked otherwise, which the later requirement governs (§42). An
+effect that is not in the rack folds to its heading, with a button to show its
+controls anyway.
+
+**Nothing about the layout is remembered.** Reopening Apollo opens on the
+Oscillators tab with the preset list showing and every panel as designed. That
+is the developer's explicit instruction, and it is also the behaviour that
+cannot strand somebody in an arrangement they cannot undo.
 
 ### 24.4 Resetting a control
 
@@ -1285,6 +1292,10 @@ Presets are chosen from a panel at the top of the interface, above the signal
 path — a preset is what you pick before there is a signal. It lists what the
 last scan found, searches by name, author, category or bank, narrows by category
 and by bank, loads on a click, and saves the current sound under a name.
+
+Its heading names the sound playing between **‹** and **›**, which step through
+the list as it is shown, and can **hide the list**, folding the panel to that
+heading; it opens with the list showing (ADR-0117).
 
 **The page names a number, never a path.** The backend numbers the presets it
 found and the browser asks for a number; there is no message in the bridge

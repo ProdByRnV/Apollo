@@ -83,8 +83,9 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
         return subscribeToModulator(source, onFrame);
     }, [source, bipolar, draw]);
 
-    // Redrawn when the panel it sits in is resized, not only when the window
-    // is: every module now has a drag handle of its own.
+    // Redrawn when the box it sits in changes size, not only when the window
+    // is: a canvas on a tab that is not showing has no size until its tab is
+    // chosen (Phase 17).
     useRedrawOnResize(rootRef, draw);
 
     return (

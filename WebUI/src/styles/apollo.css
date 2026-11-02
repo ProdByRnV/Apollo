@@ -335,11 +335,144 @@ body::before {
     grid-template-columns: 1fr;
 }
 
+/* Panels poured into up to two columns, each filling from the top, for a set
+   of panels whose heights differ a great deal: the effects, half of which are
+   usually folded to their headings (Phase 17). */
+.rank--flow {
+    display: block;
+    columns: 2 420px;
+    column-gap: var(--s-4);
+}
+
+.rank--flow > * {
+    break-inside: avoid;
+    margin-bottom: var(--s-4);
+}
+
 /* For modules with one or two controls. Stretching a single knob across half
    the window makes the module look broken rather than small. */
 .rank--compact {
     grid-template-columns: repeat(auto-fit, minmax(240px, max-content));
     justify-content: start;
+}
+
+/* ==========================================================================
+   SECTIONS (Phase 17, ADR-0117)
+   Five tabs across the instrument, and the modulation sources under them.
+
+   The bar sticks to the top of the workspace once the presets have scrolled
+   away. It is pulled out to the workspace's edges and up into its padding, so
+   that it covers the full width when stuck rather than leaving a strip of
+   panels showing above and beside it.
+   ========================================================================== */
+
+.sections__anchor {
+    height: 0;
+    margin-bottom: calc(-1 * var(--s-5));
+}
+
+.sections {
+    position: sticky;
+    top: calc(-1 * var(--s-5));
+    z-index: 20;
+    margin: 0 calc(-1 * var(--s-5));
+    padding: var(--s-3) var(--s-5) var(--s-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    background: var(--surface-base);
+    border-bottom: 1px solid var(--line);
+}
+
+.sections__tabs {
+    display: flex;
+    gap: var(--s-1);
+    flex-wrap: wrap;
+}
+
+.sections__tab {
+    appearance: none;
+    padding: 7px var(--s-4) 6px;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--text-dim);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+}
+
+.sections__tab:hover {
+    color: var(--text-bright);
+    background: var(--surface-hover);
+}
+
+.sections__tab:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent-bright);
+}
+
+/* The page showing: a gold chip, as the chosen option of any switch is. Said
+   by aria-selected as well, and by the page under it. */
+.sections__tab[aria-selected="true"] {
+    color: var(--surface-void);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* A dragged source resting on a tab: the tab about to open, outlined as a
+   control that can take the source is. */
+.sections__tab[data-spring="true"] {
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+}
+
+/* One line, whatever the window: with short labels twenty handles fit across
+   the designed width, and anything wider scrolls sideways rather than taking
+   a second line of every tab's height. */
+.sections .mod-sources {
+    margin-bottom: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.sections .mod-source {
+    flex: none;
+}
+
+/* A macro's name can be sixteen characters; the strip shows what fits. */
+.sections .mod-source__name {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 1400px) {
+    .sections .mod-sources__hint {
+        display: none;
+    }
+}
+
+/* At least the height of the workspace below the stuck bar, so that a short
+   page — the filters — can be scrolled to where the bar sticks. Without it,
+   choosing a short page after scrolling down a long one pulled the bar back
+   down the screen and the presets into view, and moved every tab out from
+   under the pointer. The bar's height is measured into --sections-height. */
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+    min-height: calc(100% - var(--sections-height, 80px) + var(--s-5));
+}
+
+.section[hidden] {
+    display: none;
 }
 
 /* ==========================================================================
@@ -356,44 +489,31 @@ body::before {
     min-width: 0;
     transition: border-color var(--t-slow) var(--ease);
 
-    /* EVERY PANEL IS RESIZEABLE, BY A HANDLE IN ITS CORNER.
-
-       `resize` is the browser's own, which means the handle behaves exactly the
-       way a drag handle is expected to and costs no JavaScript, no pointer
-       bookkeeping and no chance of a drag that gets stuck holding the pointer.
-
-       `overflow: auto` is not decoration: `resize` does nothing without it. It
-       also decides what a panel does when it is made smaller than its contents,
-       and scrolling is the right answer — the alternative is contents spilling
-       over the panel below.
-
-       DELIBERATELY NOT REMEMBERED. The size lives in an inline style the browser
-       writes, so it is gone when the page is reloaded and every session starts
-       from the designed layout. That is what the developer asked for, and it is
-       also the behaviour that cannot strand somebody in a layout they cannot
-       undo. */
-    resize: both;
-    overflow: auto;
-
-    /* Small enough to tuck a panel out of the way, large enough that its
-       heading and one row of controls are still legible. Without a floor, a
-       panel can be dragged to nothing and then not found again. */
-    min-height: 88px;
-}
-
-/* The resize grip the browser draws is a light triangle intended for a white
-   page, and on gunmetal it is a bright speck. Toned to the panel and lifted to
-   the accent on hover, like every other thing here that can be taken hold of. */
-.module::-webkit-resizer {
-    background: var(--line-strong);
-}
-
-.module:hover::-webkit-resizer {
-    background: var(--accent-dim);
+    /* PANELS ARE A FIXED SIZE (Phase 17, ADR-0117). They were resizeable by a
+       handle in the corner, and the people Apollo was first shared with asked
+       for them not to be: a panel dragged out of shape by accident is a layout
+       nobody designed, and with the instrument divided into tabs there is no
+       longer a long page to make room in. Each panel is as large as what it
+       holds, laid out by the rank it sits in. */
 }
 
 .module:hover {
     border-color: var(--line-strong);
+}
+
+/* A folded panel is its heading, so the heading loses the rule under it and
+   takes the panel's lower corners. */
+.module__body[hidden],
+.module__body:empty {
+    display: none;
+}
+
+/* Empty is the presets panel with its list hidden and no save form open: its
+   heading is the whole of it. */
+.module:has(> .module__body[hidden]) > .module__head,
+.module:has(> .module__body:empty) > .module__head {
+    border-bottom: 0;
+    border-radius: var(--r-md);
 }
 
 /* A module that is not in the signal path is *marked*, not dimmed.
@@ -1698,7 +1818,7 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
    worse than nothing inside a plugin.
 
    Positioned against the viewport rather than the control that opened it, so it
-   cannot be clipped by a panel that has been resized smaller than the menu.
+   cannot be clipped by the panel or the page it opened from.
    ========================================================================== */
 
 .context-menu {
@@ -1753,13 +1873,86 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 /* ==========================================================================
    PRESET BROWSER
 
-   A list, three filters and a save form, in a module like every other panel —
-   so it resizes by the same corner handle, scrolls by the same rule, and does
-   not need a window of its own. The one thing it does differently is that its
+   A list, three filters and a save form, in a module like every other panel,
+   so it does not need a window of its own. The one thing it does differently is that its
    list scrolls inside the panel rather than the panel scrolling: a library of
    four hundred sounds inside a panel that grew to four hundred rows would push
    the whole instrument off the bottom of the window.
    ========================================================================== */
+
+/* The sound's name between ‹ and › in the heading (Phase 17): the wavetable
+   picker's well, with the name in it as a gold chip, because it is the same
+   kind of thing — what is playing, and a step either way. */
+.presets__stepper {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    margin-right: var(--s-2);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    min-width: 0;
+}
+
+.presets__step {
+    appearance: none;
+    border: 0;
+    padding: 3px 8px;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-dim);
+    background: transparent;
+    border-radius: var(--r-xs);
+    cursor: pointer;
+}
+
+.presets__step:hover:not(:disabled) {
+    color: var(--accent-bright);
+    background: var(--surface-hover);
+}
+
+.presets__step:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.presets__step:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent-bright);
+}
+
+.presets__current {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-2);
+    min-width: 180px;
+    max-width: 300px;
+    padding: 4px 8px;
+    font-size: var(--t-label);
+    letter-spacing: 0.04em;
+    color: var(--surface-void);
+    background: var(--accent);
+    border-radius: var(--r-xs);
+}
+
+.presets__current-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.presets__position {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.presets__fold {
+    margin-left: var(--s-2);
+}
 
 /* `.module__body` is a wrapping row of controls with `align-items: flex-start`,
    which is right for six knobs and wrong for this: in a column that makes every
@@ -1831,7 +2024,11 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     padding: var(--s-1);
     overflow-y: auto;
     min-height: 96px;
-    max-height: 40vh;
+
+    /* About five rows. The list scrolls inside itself, and since Phase 17 the
+       instrument's tabs sit under it: a taller list pushes them off the
+       screen of a laptop (ADR-0117). */
+    max-height: min(40vh, 176px);
 
     /* So a row the keyboard moves to is scrolled clear of the sticky column
        headings rather than underneath them. */

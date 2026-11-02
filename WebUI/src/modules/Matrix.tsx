@@ -5,14 +5,13 @@
     as a single line from source to depth, and across a wide window one table
     puts half a screen between the two ends of the same statement.
 
-    Above them, every source as a handle (Phase 13h-4): drag one onto a control
-    and the engine fills the first free slot here.
+    Every source is a handle in the strip under the section tabs (Phase 13h-4,
+    17): drag one onto a control and the engine fills the first free slot here.
 */
 
 import { useEffect } from 'react';
 
 import { BipolarRail } from '../components/BipolarRail';
-import { ModSourceStrip } from '../components/ModSource';
 import { Module } from '../components/Module';
 import { Select } from '../components/Select';
 import { LABELS } from '../params/labels';
@@ -142,8 +141,6 @@ export function Matrix(): JSX.Element {
 
     return (
         <Module title="Modulation Matrix" bodyClassName="module__body--block">
-            <ModSourceStrip />
-
             <div className="matrix-banks">
                 <Bank bank={0} />
                 <Bank bank={1} />

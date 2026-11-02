@@ -189,7 +189,10 @@ front of it is better understood, the way 8f was.
 | 16b | Octave 0 on the sub oscillator, as a switch beside the released octave so no DAW automation moves; and a low cut on the reverb, switched out at its default; both appended to the registry (ADR-0114) | ✅ |
 | 16c | Macros the user can name — up to 16 characters, shown wherever the macro is a source, saved in the project and the preset; the host's name stays "Macro N" (ADR-0115) | ✅ |
 | 16d | One wavetable list — Apollo's tables and the user's library together, ‹ › to step through them, Add wavetable… — and five more of Apollo's own, carried as audio because the switch's range cannot grow (ADR-0116) | ✅ |
-| **17** | **The layout** — tabs in place of the scrolling column, panels of fixed size, a presets panel that folds away, the space used better; from mock-ups the developer chooses between. Released as **1.3.0** | ⬜ |
+| **17** | **The layout** — tabs in place of the scrolling column, panels of fixed size, a presets panel that folds away, the space used better; from mock-ups the developer chose between (ADR-0117). Released as **1.3.0** when published | ✅ |
+| 17a | Five tabs — Oscillators, Filters, Modulation, Effects, MIDI & Output — with the bar and the modulation sources stuck to the top; a source held over a tab opens it, one picked up survives a change of tab; panels no longer resize | ✅ |
+| 17b | The presets panel: ‹ › through the list as shown, Init, Save, Export, Import in its heading, and Hide list; opens with the list, as the developer chose | ✅ |
+| 17c | The space: one line of sources, a shorter preset list, effects not in the rack folded to their headings, the effects in two filling columns — Effects 1,728 → 693 px on a laptop | ✅ |
 
 ### Carried forward
 

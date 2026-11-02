@@ -18,14 +18,14 @@
     no watcher list in this codebase at all.
 
     A SECTION WITH A HEADING, rather than a box with some bold text in it. The
-    page is nineteen panels long, and a screen reader moves through a page by
+    instrument is twenty panels in five tabs, and a screen reader moves by
     its headings and regions: without them the only way from the presets to the
     filter was through every control in between (CLAUDE.md §39). The heading
     says the index too — "Oscillator 2", not "Oscillator" twice — in text a
     sighted reader does not need, because the chip beside it already says so.
 */
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { hasCommandModifier, rovingTarget, tabStopIndex } from './roving';
@@ -39,13 +39,28 @@ export interface ModuleProps {
     /** Rendered at the right of the heading row — a tab strip, normally. */
     head?: ReactNode;
     inactive?: boolean | undefined;
+    /** Folds the panel to its heading while it is inactive, with a button that
+        shows the controls anyway (Phase 17). For the effects: one that is not
+        in the rack is not heard, and six panels of controls that do nothing
+        were most of the Effects tab. */
+    foldWhenInactive?: boolean | undefined;
+    /** Said by the fold button's tooltip: why the panel is folded and how to
+        bring it back into play. */
+    foldReason?: string | undefined;
     children: ReactNode;
 }
 
 export function Module(
-    { title, index, bodyClassName, head, inactive, children }: ModuleProps,
+    { title, index, bodyClassName, head, inactive, foldWhenInactive, foldReason, children }: ModuleProps,
 ): JSX.Element {
     const headingId = useId();
+    const bodyId = useId();
+
+    // Shown anyway, by the user, for as long as the panel lives. Folding is
+    // not remembered, as nothing about the layout is.
+    const [showAnyway, setShowAnyway] = useState(false);
+    const foldable = foldWhenInactive === true && inactive === true;
+    const folded = foldable && !showAnyway;
 
     return (
         <section
@@ -62,10 +77,28 @@ export function Module(
                 {index !== undefined ? <span className="module__index" aria-hidden="true">{index}</span> : null}
                 {inactive ? <span className="module__off" aria-hidden="true">off</span> : null}
                 <div className="module__spacer" />
-                {head}
+                {folded ? null : head}
+                {foldable ? (
+                    <button
+                        type="button"
+                        className="masthead__button masthead__button--quiet module__fold"
+                        aria-expanded={!folded}
+                        aria-controls={bodyId}
+                        title={foldReason}
+                        onClick={() => setShowAnyway(!showAnyway)}
+                    >
+                        {folded ? 'Show controls ▾' : 'Hide controls ▴'}
+                    </button>
+                ) : null}
             </div>
 
-            <div className={bodyClassName ? `module__body ${bodyClassName}` : 'module__body'}>
+            {/* Hidden rather than removed when folded: the controls stay
+                mounted, so nothing about them is lost or rebuilt. */}
+            <div
+                id={bodyId}
+                className={bodyClassName ? `module__body ${bodyClassName}` : 'module__body'}
+                hidden={folded}
+            >
                 {children}
             </div>
         </section>

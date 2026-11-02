@@ -7996,3 +7996,113 @@ Learn and badge, as the switch did.
   using it.
 - **Shipping them as files in the factory library.** Needs an installer to put
   them somewhere (CLAUDE.md §29.3), and can be deleted.
+
+---
+
+## ADR-0117 — Five tabs, panels of a fixed size, and a presets panel that folds
+
+**Phase 17 · Accepted**
+
+### What was asked
+
+From the first feedback: tabs instead of scrolling, panels the user cannot
+resize, a presets section that can be folded away, and the space used better.
+The developer chose between three mock-ups — five tabs, three tabs, a side rail —
+and took **five tabs**; and between the presets opening folded or open, and took
+**open, with a button to fold it**.
+
+### Five tabs
+
+**Oscillators** (both oscillators, the sub, the noise), **Filters**,
+**Modulation** (envelopes, LFOs, macros, matrix), **Effects** (the rack, the
+effects, the equaliser) and **MIDI & Output** — the signal path, in the order it
+runs. They replace one page twenty panels long. A real tab strip: one Tab stop,
+the arrows move and choose. Which tab is showing is not remembered; every
+session opens on the oscillators, as every session opens on the designed layout.
+
+Every page stays mounted, hidden when not chosen. A scope is a running picture
+of its source and would start from nothing on every visit otherwise; the
+modulation matrix publishes which knobs are modulated whether or not its page is
+showing; and the safety net that reports a parameter with no control still sees
+every control.
+
+### The bar stays in view, and modulation crosses tabs
+
+The tabs sit under the presets and stick to the top of the workspace once the
+presets have scrolled away, with the **modulation sources under them on one
+line** — short labels (ENV1, LFO1, VEL, WHEEL …), full names as tooltips and for a
+screen reader, and a macro by the name the user gave it. Dragging a source onto
+a control therefore works on every tab but MIDI & Output, where nothing can be
+modulated and the strip is not shown.
+
+A source can be taken to another page both ways. **Dragged**, it opens a tab it
+rests on for 0.45 s, as a folder opens on a desktop. **Picked up with a click**,
+it stays picked up while a tab is chosen. Two things had to change for that:
+
+- the click that puts a picked-up source down now spares anything marked as
+  keeping it — the tabs;
+- the drag's own edge scrolling started at the workspace's top edge, which is
+  now where the stuck tabs are, so holding a source over a tab scrolled the page
+  and slid the tab out from under it. The scroll edge now starts below the bar,
+  and over the bar nothing scrolls.
+
+Every page is at least as tall as the room under the stuck bar. Without that,
+choosing a short page — Filters — after scrolling down a long one shortened the
+workspace, which pulled the bar back down the screen with the tabs under the
+pointer moving with it.
+
+### Panels of a fixed size
+
+The corner handle on every panel is gone (it was the browser's own `resize`).
+A panel dragged out of shape by accident is a layout nobody designed, and with
+the instrument in tabs there is no longer one long page to make room in.
+
+### The presets panel
+
+It opens as it always has, with the list, at the developer's choice. Its heading
+now holds what is wanted whether or not the list is showing: **‹ the sound's name
+›**, Init, Save, Export, Import, and **Hide list**. ‹ and › step through the list
+as it is shown — the search and filters applied — so a category can be
+auditioned one sound at a time; each press loads, which the arrow keys in the
+list still do not (§29.2). Hidden, the panel is its heading, 45 pixels; the list
+is shorter when open, about five rows, because it scrolls inside itself and the
+tabs are under it.
+
+### The space used better
+
+Measured at the developer's laptop, 1180 by 656 CSS pixels with the play strip:
+
+| Tab | Before | After |
+|---|---|---|
+| The tab bar | — | 72 px, from 95 when the sources took two lines |
+| Effects, Wire Pluck | 1,728 px | 693 px |
+| The presets panel, open | about 600 px | 313 px; 45 px hidden |
+
+The Effects page shrank because **an effect that is not in the rack folds to its
+heading**, with **Show controls** to open it anyway; choosing it in a rack slot
+opens it. Its controls are hidden, not removed, so nothing about them is lost.
+And the effects pour into two columns that each fill from the top, so a folded
+effect no longer leaves a hole the height of the delay beside it.
+
+The envelopes and LFOs sit side by side. Modulation (1,199 px) and Oscillators
+(833 px) still scroll on a laptop screen; both are panels whose own controls
+need the room, and making them shorter is a redesign of those panels rather
+than of the layout.
+
+### Found on the way
+
+Since 16b the sub's octave selector set `sub_octave_up` without saying so to the
+safety net that lists parameters with no control, so 1.2.0 showed an
+**Unassigned** panel at the very bottom of the page with a Sub Octave Up knob in
+it. A control can now name the other parameters it sets (`data-also-places`),
+and the selector does.
+
+### Alternatives considered
+
+- **Three tabs**, with the modulators beside the oscillators. Fewer clicks, but
+  a Synth page that still scrolled two screens.
+- **A side rail** of the same five sections. Saves height, which is the scarcer
+  dimension, at the cost of width the oscillators need.
+- **The presets folded by default.** Offered and declined.
+- **Remembering the tab and the fold.** Nothing else about the layout is
+  remembered (CLAUDE.md §24.3).

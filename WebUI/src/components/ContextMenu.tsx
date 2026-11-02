@@ -211,7 +211,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
     //
     // Moving it to the document body takes it out of every control's event path
     // and out of every `overflow` and stacking context on the way — including
-    // the panels, which became scroll containers when they became resizeable.
+    // the panels, which were scroll containers while they could be resized.
     return createPortal(
         <div
             ref={ref}

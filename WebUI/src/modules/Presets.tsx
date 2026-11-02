@@ -25,6 +25,15 @@
     user cannot cross without discarding what they had built is a list they
     cannot use. The stop is the row last focused, then the loaded one, then the
     first, so Tab returns to where the user was.
+
+    THE ‹ AND › BUTTONS DO AUDITION (Phase 17). They are buttons, so each press
+    is a choice, and they step through the list as it is shown — search and
+    filters applied — so a category can be played through one sound at a time.
+
+    THE LIST CAN BE HIDDEN (Phase 17, ADR-0117). It opens showing, and Hide list
+    folds the panel to its heading: the sound's name, the arrows, and Init,
+    Save, Export and Import, which work the same either way. Folded for the
+    rest of the session, not remembered, as nothing about the layout is.
 */
 
 import { useEffect, useState } from 'react';
@@ -32,6 +41,7 @@ import { useEffect, useState } from 'react';
 import { exportPreset, importPresets, loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
 import { Module } from '../components/Module';
 import { hasCommandModifier, rovingTarget } from '../components/roving';
+import { stepPreset } from '../params/presetStep';
 import { announce } from '../state/status';
 
 /** The engine's bounds on a preset's text, from State/PresetDocument.h. A field
@@ -73,6 +83,7 @@ export function Presets(): JSX.Element {
 
     const [draft, setDraft] = useState<Draft>(emptyDraft);
     const [saveOpen, setSaveOpen] = useState(false);
+    const [listOpen, setListOpen] = useState(true);
 
     /** The row the keyboard was last on, so leaving the list and coming back
         returns there rather than to the top. 0 until a row has had focus. */
@@ -154,6 +165,16 @@ export function Presets(): JSX.Element {
         ? focusedId
         : (isVisible(presets.loaded) ? presets.loaded : (visible[0]?.id ?? 0));
 
+    const step = (direction: 1 | -1): void => {
+        const target = stepPreset(visible, presets.loaded, direction);
+        if (target !== null) loadPreset(target.id);
+    };
+
+    // Where the loaded sound sits in the list being stepped through, for the
+    // count beside its name; 0 for a sound the list does not show.
+    const position = visible.findIndex((entry) => entry.id === presets.loaded) + 1;
+    const filtered = visible.length !== presets.entries.length;
+
     const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         if (hasCommandModifier(event)) return;
 
@@ -173,6 +194,39 @@ export function Presets(): JSX.Element {
             bodyClassName="presets"
             head={
                 <>
+                    <div className="presets__stepper">
+                        <button
+                            className="presets__step"
+                            type="button"
+                            aria-label="Previous preset"
+                            title="Previous preset"
+                            disabled={visible.length === 0}
+                            onClick={() => step(-1)}
+                        >
+                            ‹
+                        </button>
+
+                        <span className="presets__current" title={presets.name || undefined}>
+                            <span className="presets__current-name">{presets.name || 'Init'}</span>
+                            {position > 0 ? (
+                                <span className="presets__position">
+                                    {position}/{visible.length}{filtered ? ' shown' : ''}
+                                </span>
+                            ) : null}
+                        </span>
+
+                        <button
+                            className="presets__step"
+                            type="button"
+                            aria-label="Next preset"
+                            title="Next preset"
+                            disabled={visible.length === 0}
+                            onClick={() => step(1)}
+                        >
+                            ›
+                        </button>
+                    </div>
+
                     {/*
                         Init is the first row of the list as well, but a list is
                         something you have to be looking at: once there are two
@@ -194,161 +248,177 @@ export function Presets(): JSX.Element {
                         Init
                     </button>
 
+                    <button className="presets__action" type="button" onClick={openSave}>
+                        Save…
+                    </button>
+
+                    {/*
+                        Sharing a sound (Phase 16a). The library is a hidden folder
+                        on every system, so a preset is sent from a file put where
+                        the user can find it, and one received is added from wherever
+                        it landed. Both open the system's own dialog; the page never
+                        names a file, and the answer arrives on the status line.
+                    */}
                     <button
-                        className="masthead__button masthead__button--quiet"
+                        className="presets__action presets__action--quiet"
                         type="button"
-                        title="Look at the preset folders again"
-                        onClick={rescanPresets}
+                        title="Save the sound you are hearing as a file, to send to someone"
+                        onClick={exportPreset}
                     >
-                        {presets.scanning ? 'Scanning…' : 'Rescan'}
+                        Export…
+                    </button>
+
+                    <button
+                        className="presets__action presets__action--quiet"
+                        type="button"
+                        title="Add preset files someone sent you to your presets"
+                        onClick={importPresets}
+                    >
+                        Import…
+                    </button>
+
+                    <button
+                        className="masthead__button masthead__button--quiet presets__fold"
+                        type="button"
+                        aria-expanded={listOpen}
+                        title={listOpen ? 'Fold the presets away to this one line' : 'Show the list of presets'}
+                        onClick={() => setListOpen(!listOpen)}
+                    >
+                        {listOpen ? 'Hide list ▴' : 'Show list ▾'}
                     </button>
                 </>
             }
         >
-            <div className="presets__filters">
-                <input
-                    className="presets__search"
-                    type="search"
-                    placeholder="Search presets"
-                    aria-label="Search presets"
-                    value={presets.search}
-                    onChange={(event) => setPresetSearch(event.target.value)}
-                />
+            {/* The list, its filters and its count, while it is showing. */}
+            {listOpen ? (
+                <>
+                    <div className="presets__filters">
+                        <input
+                            className="presets__search"
+                            type="search"
+                            placeholder="Search presets"
+                            aria-label="Search presets"
+                            value={presets.search}
+                            onChange={(event) => setPresetSearch(event.target.value)}
+                        />
 
-                <select
-                    className="presets__filter"
-                    aria-label="Category"
-                    value={presets.categoryFilter}
-                    onChange={(event) => setPresetCategoryFilter(event.target.value)}
-                >
-                    <option value="">All categories</option>
-                    {categories.map((category) => (
-                        <option key={category} value={category}>{category}</option>
-                    ))}
-                </select>
+                        <select
+                            className="presets__filter"
+                            aria-label="Category"
+                            value={presets.categoryFilter}
+                            onChange={(event) => setPresetCategoryFilter(event.target.value)}
+                        >
+                            <option value="">All categories</option>
+                            {categories.map((category) => (
+                                <option key={category} value={category}>{category}</option>
+                            ))}
+                        </select>
 
-                <select
-                    className="presets__filter"
-                    aria-label="Bank"
-                    value={presets.bankFilter}
-                    onChange={(event) => setPresetBankFilter(event.target.value)}
-                >
-                    <option value="">All banks</option>
-                    {banks.map((bank) => (
-                        <option key={bank} value={bank}>{bank}</option>
-                    ))}
-                </select>
+                        <select
+                            className="presets__filter"
+                            aria-label="Bank"
+                            value={presets.bankFilter}
+                            onChange={(event) => setPresetBankFilter(event.target.value)}
+                        >
+                            <option value="">All banks</option>
+                            {banks.map((bank) => (
+                                <option key={bank} value={bank}>{bank}</option>
+                            ))}
+                        </select>
 
-                <div className="module__spacer" />
+                        <div className="module__spacer" />
 
-                <button className="presets__action" type="button" onClick={openSave}>
-                    Save…
-                </button>
-
-                {/*
-                    Sharing a sound (Phase 16a). The library is a hidden folder
-                    on every system, so a preset is sent from a file put where
-                    the user can find it, and one received is added from wherever
-                    it landed. Both open the system's own dialog; the page never
-                    names a file, and the answer arrives on the status line.
-                */}
-                <button
-                    className="presets__action presets__action--quiet"
-                    type="button"
-                    title="Save the sound you are hearing as a file, to send to someone"
-                    onClick={exportPreset}
-                >
-                    Export…
-                </button>
-
-                <button
-                    className="presets__action presets__action--quiet"
-                    type="button"
-                    title="Add preset files someone sent you to your presets"
-                    onClick={importPresets}
-                >
-                    Import…
-                </button>
-            </div>
-
-            <div
-                className="presets__list"
-                role="listbox"
-                aria-label="Presets"
-                tabIndex={-1}
-                onKeyDown={onListKeyDown}
-            >
-                {visible.length > 0 ? (
-                    <div className="presets__row presets__columns" aria-hidden="true">
-                        <span>Name</span>
-                        <span>Category</span>
-                        <span>Bank</span>
-                        <span>Author</span>
-                        <span>Library</span>
+                        <button
+                            className="masthead__button masthead__button--quiet"
+                            type="button"
+                            title="Look at the preset folders again"
+                            onClick={rescanPresets}
+                        >
+                            {presets.scanning ? 'Scanning…' : 'Rescan'}
+                        </button>
                     </div>
-                ) : null}
 
-                {visible.map((entry) => (
-                    <button
-                        key={entry.id}
-                        type="button"
-                        role="option"
-                        className="presets__row"
-                        // The headings are hidden from a screen reader, so the
-                        // row says what each of its words is.
-                        aria-label={presetRowName(entry)}
-                        aria-selected={entry.id === presets.loaded}
-                        data-loaded={entry.id === presets.loaded}
-                        tabIndex={entry.id === stopId ? 0 : -1}
-                        onFocus={() => setFocusedId(entry.id)}
-                        onClick={() => loadPreset(entry.id)}
+                    <div
+                        className="presets__list"
+                        role="listbox"
+                        aria-label="Presets"
+                        tabIndex={-1}
+                        onKeyDown={onListKeyDown}
                     >
-                        <span className="presets__name">{entry.name}</span>
-                        <span className="presets__meta">{entry.category}</span>
-                        <span className="presets__meta">{entry.bank}</span>
-                        <span className="presets__meta presets__meta--author">{entry.author}</span>
+                        {visible.length > 0 ? (
+                            <div className="presets__row presets__columns" aria-hidden="true">
+                                <span>Name</span>
+                                <span>Category</span>
+                                <span>Bank</span>
+                                <span>Author</span>
+                                <span>Library</span>
+                            </div>
+                        ) : null}
 
-                        {/*
-                            Said in a word rather than only in a colour, so the
-                            distinction survives a monochrome screenshot and a
-                            reader who cannot tell the two apart (CLAUDE.md
-                            §24.2, §39).
-                        */}
-                        <span className="presets__origin">{entry.factory ? 'factory' : 'user'}</span>
-                    </button>
-                ))}
+                        {visible.map((entry) => (
+                            <button
+                                key={entry.id}
+                                type="button"
+                                role="option"
+                                className="presets__row"
+                                // The headings are hidden from a screen reader, so the
+                                // row says what each of its words is.
+                                aria-label={presetRowName(entry)}
+                                aria-selected={entry.id === presets.loaded}
+                                data-loaded={entry.id === presets.loaded}
+                                tabIndex={entry.id === stopId ? 0 : -1}
+                                onFocus={() => setFocusedId(entry.id)}
+                                onClick={() => loadPreset(entry.id)}
+                            >
+                                <span className="presets__name">{entry.name}</span>
+                                <span className="presets__meta">{entry.category}</span>
+                                <span className="presets__meta">{entry.bank}</span>
+                                <span className="presets__meta presets__meta--author">{entry.author}</span>
 
-                {visible.length === 0 ? (
-                    <div className="presets__empty">{emptyMessage(presets)}</div>
-                ) : null}
-            </div>
+                                {/*
+                                    Said in a word rather than only in a colour, so the
+                                    distinction survives a monochrome screenshot and a
+                                    reader who cannot tell the two apart (CLAUDE.md
+                                    §24.2, §39).
+                                */}
+                                <span className="presets__origin">{entry.factory ? 'factory' : 'user'}</span>
+                            </button>
+                        ))}
 
-            {/*
-                The counts sit under the list rather than in a log nobody opens.
-                "Three files in this folder are not presets" is something a user
-                can act on, and a library quietly three shorter than the folder
-                is not (CLAUDE.md §33).
-            */}
-            <div className="presets__footnote">
-                <span>
-                    {visible.length === presets.entries.length
-                        ? `${presets.entries.length} preset${presets.entries.length === 1 ? '' : 's'}`
-                        : `${visible.length} of ${presets.entries.length} presets`}
-                </span>
+                        {visible.length === 0 ? (
+                            <div className="presets__empty">{emptyMessage(presets)}</div>
+                        ) : null}
+                    </div>
 
-                {presets.unreadable > 0 ? (
-                    <span className="presets__warning">
-                        {presets.unreadable} file{presets.unreadable === 1 ? '' : 's'} could not be
-                        read as a preset
-                    </span>
-                ) : null}
+                    {/*
+                        The counts sit under the list rather than in a log nobody opens.
+                        "Three files in this folder are not presets" is something a user
+                        can act on, and a library quietly three shorter than the folder
+                        is not (CLAUDE.md §33).
+                    */}
+                    <div className="presets__footnote">
+                        <span>
+                            {visible.length === presets.entries.length
+                                ? `${presets.entries.length} preset${presets.entries.length === 1 ? '' : 's'}`
+                                : `${visible.length} of ${presets.entries.length} presets`}
+                        </span>
 
-                {presets.truncated ? (
-                    <span className="presets__warning">
-                        The library is larger than Apollo will index; this list is not all of it
-                    </span>
-                ) : null}
-            </div>
+                        {presets.unreadable > 0 ? (
+                            <span className="presets__warning">
+                                {presets.unreadable} file{presets.unreadable === 1 ? '' : 's'} could not be
+                                read as a preset
+                            </span>
+                        ) : null}
+
+                        {presets.truncated ? (
+                            <span className="presets__warning">
+                                The library is larger than Apollo will index; this list is not all of it
+                            </span>
+                        ) : null}
+                    </div>
+
+                </>
+            ) : null}
 
             {saveOpen ? (
                 <div className="presets__save">

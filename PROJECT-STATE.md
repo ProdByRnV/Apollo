@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 16 — The first feedback, done and released as 1.2.0**: a sound shared as a file (ADR-0113); octave 0 on the sub and a low cut on the reverb, the first parameters added after release (ADR-0114); macros the user can name (ADR-0115); every wavetable in one list, and five more of Apollo's own (ADR-0116). The Releases page lists only 1.2.0 (ADR-0112) |
+| **Phase** | **Phase 17 — The layout, done** (ADR-0117): five tabs with the modulation sources stuck under them, panels of a fixed size, a presets panel that steps and folds, and effects not in the rack folded away. Not yet released: it will be **1.3.0**. Phase 16 is released as 1.2.0, the only release listed (ADR-0112) |
 | **Status** | **Released: version 1.2.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0 and 1.2.0 published; only 1.2.0 is listed |
-| **Next step** | **Phase 17, the layout** — tabs in place of the scrolling column, panels of fixed size, a presets panel that folds away, the space used better — from mock-ups the developer chooses between, released as 1.3.0. Also open: the interface takes about 9 s to appear (issue 28); the interface on macOS; and whether a macro rename marks a project unsaved in FL Studio (ADR-0115) |
+| **Next step** | **Publishing 1.3.0, when the developer says so.** Also open: the interface takes about 9 s to appear (issue 28); the interface on macOS; whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen, which shortening would need those panels redesigned (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,35 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### The layout (Phase 17)
+
+ADR-0117. The developer chose five tabs from three mock-ups, and the presets
+opening with the list showing.
+
+- **Tabs**, `components/Sections.tsx`: `SectionBar` (the tab strip and the
+  modulation sources, sticky, measured into `--sections-height`) and
+  `SectionPage` (mounted always, `hidden` when not chosen, at least the room
+  under the stuck bar). `App.tsx` places the panels into the five pages and
+  returns the workspace to where the bar sticks when the tab changes.
+- **Modulation across tabs**: a dragged source held over a tab for 0.45 s opens
+  it (never MIDI & Output, whose page has no sources); a picked-up source
+  survives a click on anything marked `data-keeps-carry`; the drag's edge
+  scrolling starts below the stuck bar (`ModSource.tsx`).
+- **Fixed panels**: the `resize` and its overflow are gone from `.module`.
+- **Presets**: ‹ › (`params/presetStep.ts`), Init, Save, Export, Import and Hide
+  list in the heading; the filters, list and count only while the list shows.
+- **Space**: one line of sources with short labels; the list about five rows;
+  `Module`'s `foldWhenInactive` folds an effect not in the rack to its heading
+  with Show controls; `.rank--flow` pours the effects into two columns.
+- **Fixed**: the sub's octave selector now declares `sub_octave_up`
+  (`data-also-places`), which 1.2.0 listed in an Unassigned panel.
+
+Tested in:
+- `WebUI/test/presetStep.test.mjs`: stepping along the list as shown, wrapping,
+  from a sound that is not listed, an empty list.
+- By hand, below: the native suites are unchanged by an interface-only phase and
+  pass.
+
 ### Every wavetable in one list, and five more of Apollo's own (Phase 16d)
 
 ADR-0116. Each oscillator's switch and browser became one picker,
@@ -2528,7 +2557,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,444,962 assertions, 0 failures**, across 74 test classes, in `ApolloTests`; **74 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,444,962 assertions, 0 failures**, across 74 test classes, in `ApolloTests`; **78 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -3608,6 +3637,25 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The layout (Phase 17), 2026-11-02
+
+The Release standalone at 1180 × 656 CSS pixels, the developer's laptop, over
+the DevTools protocol with real mouse input.
+
+| Checked | Result |
+|---|---|
+| Opening | Presets with the list, then OSCILLATORS chosen among five tabs, twenty sources on one line under them |
+| Scrolled down | The tabs and sources stuck to the top; the bar stayed at the same height on every tab, Filters included |
+| LFO1 dragged from the strip, held on FILTERS, dropped on Filter 1 Cutoff | The tab opened under the held source; "LFO 1 → Filter 1 Cutoff in slot 3"; MOD 2/16 → 3/16 |
+| ENV2 clicked, EFFECTS clicked, Reverb Mix clicked | Still carried across the tab change; "ENV 2 → Reverb Mix in slot 4"; MOD 4/16 |
+| › in the presets heading | Wire Pluck (10/10) → Dust Sweep (1/10), the masthead following |
+| HIDE LIST, SHOW LIST | 313 px → 45 px → the list back |
+| The Effects tab, Wire Pluck | Distortion, Gate, Compressor and the Equaliser folded to their headings; 693 px, from 1,728 |
+| SHOW CONTROLS on Distortion | Its four knobs shown, the button reading HIDE CONTROLS |
+| Arrow keys on the tab strip | Right to MIDI & Output, left twice to Modulation, each chosen |
+| The Unassigned panel | Gone |
+| Afterwards | Wire Pluck loaded, the list showing |
 
 ### One wavetable list (Phase 16d), 2026-11-01
 

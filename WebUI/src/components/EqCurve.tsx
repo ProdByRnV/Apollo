@@ -516,10 +516,10 @@ export function EqCurve(props: EqCurveProps): JSX.Element {
     // because that is what its parameter subscriptions are for.
     useEffect(draw);
 
-    // Redrawn when the panel it sits in is resized, not only when the window
+    // Redrawn when the box it sits in changes size, not only when the window
     // is. The curve stretches to its module, so this is the picture that most
-    // needs it: a resized equaliser panel with a stale canvas would show the
-    // response at the wrong width.
+    // needs it: shown for the first time when the Effects tab is chosen, a
+    // stale canvas would draw the response at no width at all (Phase 17).
     useRedrawOnResize(rootRef, draw);
 
     return (

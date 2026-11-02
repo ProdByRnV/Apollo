@@ -190,11 +190,14 @@ export function Rack(): JSX.Element {
     );
 }
 
+/** Why an effect's panel is folded, and what puts it back in play. */
+const NOT_IN_RACK = 'Not in the FX rack, so not heard. Choose it in a rack slot above to use it.';
+
 export function Distortion(): JSX.Element {
     const placed = useInChain(EFFECT_DISTORTION);
 
     return (
-        <Module title="Distortion" inactive={!placed}>
+        <Module title="Distortion" inactive={!placed} foldWhenInactive foldReason={NOT_IN_RACK}>
             <div className="cluster cluster--banner">
                 <div className="cluster">
                     <Segmented id="fx_distortion_mode" label="Curve" table={LABELS.fx_distortion_mode} />
@@ -224,7 +227,7 @@ export function DelayEffect(): JSX.Element {
     const placed = useInChain(EFFECT_DELAY);
 
     return (
-        <Module title="Delay" inactive={!placed}>
+        <Module title="Delay" inactive={!placed} foldWhenInactive foldReason={NOT_IN_RACK}>
             {/*
                 Two ways of asking for a time, and the switch says which one is
                 being read — the same job the filter's type control does. Both
@@ -283,7 +286,7 @@ export function ReverbEffect(): JSX.Element {
     const placed = useInChain(EFFECT_REVERB);
 
     return (
-        <Module title="Reverb" inactive={!placed}>
+        <Module title="Reverb" inactive={!placed} foldWhenInactive foldReason={NOT_IN_RACK}>
             <div className="cluster cluster--banner">
                 <div className="cluster">
                     <Segmented id="fx_reverb_mode" label="Space" table={LABELS.fx_reverb_mode} />
@@ -311,7 +314,7 @@ export function GateEffect(): JSX.Element {
     const placed = useInChain(EFFECT_GATE);
 
     return (
-        <Module title="Gate" inactive={!placed}>
+        <Module title="Gate" inactive={!placed} foldWhenInactive foldReason={NOT_IN_RACK}>
             <div className="cluster cluster--banner">
                 <Segmented id="fx_gate_bypass" label="State" table={LABELS.fx_gate_bypass} />
             </div>
@@ -335,7 +338,7 @@ export function CompressorEffect(): JSX.Element {
     const placed = useInChain(EFFECT_COMPRESSOR);
 
     return (
-        <Module title="Compressor" inactive={!placed}>
+        <Module title="Compressor" inactive={!placed} foldWhenInactive foldReason={NOT_IN_RACK}>
             <div className="cluster cluster--banner">
                 <Segmented
                     id="fx_compressor_bypass"
@@ -464,6 +467,8 @@ export function EqualiserEffect(): JSX.Element {
             title="Equaliser"
             index={String(selected + 1)}
             inactive={!placed}
+            foldWhenInactive
+            foldReason={NOT_IN_RACK}
             head={(
                 <Tabs
                     count={EQ_BAND_COUNT}

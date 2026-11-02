@@ -72,7 +72,13 @@ export function SubOctaveSelector(): JSX.Element | null {
     };
 
     return (
-        <div className="segmented" title={chrome.title} data-midi-id="sub_octave" data-midi={chrome.state}>
+        <div
+            className="segmented"
+            title={chrome.title}
+            data-midi-id="sub_octave"
+            data-also-places="sub_octave_up"
+            data-midi={chrome.state}
+        >
             <div className="segmented__label">Octave</div>
 
             <div className="segmented__options" role="radiogroup" aria-label="Sub Octave" onKeyDown={onKeyDown}>

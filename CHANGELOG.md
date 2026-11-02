@@ -5,6 +5,36 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## 1.3.0 — not yet released
+
+### What is new
+
+- **Tabs instead of one long page.** The instrument is in five tabs under the
+  presets: **Oscillators**, **Filters**, **Modulation**, **Effects**, and **MIDI &
+  Output**. The tabs stay at the top of the window as you scroll.
+- **Modulate from any tab.** The modulation sources sit in one row under the
+  tabs. Drag one onto a knob; to reach a knob on another tab, hold the source
+  over that tab for a moment and it opens, or click the source, click the tab,
+  then click the knob.
+- **Step through presets.** **‹** and **›** beside the sound's name play the
+  previous or next preset, through the list as it is filtered — choose a
+  category and step through just that. **HIDE LIST** folds the presets panel to
+  one line.
+- **Effects that are off fold away.** An effect that is not in the FX rack is
+  folded to its name, so the Effects tab shows the ones you are using. **SHOW
+  CONTROLS** opens one anyway.
+- **Panels no longer resize.** The drag handle in each panel's corner is gone,
+  so the layout cannot be pulled out of shape by accident.
+
+### What is fixed
+
+- An **Unassigned** panel with a "Sub Octave Up" knob appeared at the bottom of
+  the page in 1.2.0. It was a duplicate of the sub's octave 0 and is gone.
+
+Your sounds are unchanged: this release changes only the interface.
+
+---
+
 ## 1.2.0 — 2026-11-01
 
 What the first musicians to play Apollo asked for: sounds you can share, more

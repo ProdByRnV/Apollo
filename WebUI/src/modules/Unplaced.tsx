@@ -48,6 +48,19 @@ export function Unplaced({ workspace }: UnplacedProps): JSX.Element | null {
             if (id) placed.add(id);
         }
 
+        // A control that sets more than the one parameter its MIDI Learn is
+        // on says which others, space-separated: the sub's octave selector sets
+        // sub_octave_up as well as sub_octave (16b), and without this it was
+        // reported as unplaced, with a knob of its own at the bottom of the
+        // page.
+        for (const element of root.querySelectorAll<HTMLElement>('[data-also-places]')) {
+            if (element.closest('[data-unplaced="true"]') !== null) continue;
+
+            for (const id of (element.dataset.alsoPlaces ?? '').split(/\s+/)) {
+                if (id) placed.add(id);
+            }
+        }
+
         const next = allParameterIds().filter((id) => !placed.has(id));
 
         setMissing((current) =>
