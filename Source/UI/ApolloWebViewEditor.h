@@ -45,7 +45,15 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
 
+    /** In the standalone, fills the screen the first time the editor is put in
+        a window (Phase 17, at the developer's request). In a host, nothing:
+        a plugin opens at its designed size and the host owns the window. */
+    void parentHierarchyChanged() override;
+
 private:
+    /** The standalone application's window, or null in a host. The standalone
+        owns its window, so it can fill the screen with it; a plugin cannot. */
+    [[nodiscard]] juce::ResizableWindow* standaloneWindow();
     /** Grows the editor to fill the display it is on, or puts it back.
 
         Called by the bridge when the page's fullscreen button is pressed. Not
@@ -92,6 +100,10 @@ private:
     juce::File lastNoiseFolder;
 
     bool fullscreen = false;
+
+    /** True once the standalone's window has been asked to fill the screen,
+        so a window that is restored by hand stays restored. */
+    bool openedFullScreen = false;
 
     /** The size to go back to. Captured on the way in rather than recomputed,
         because the size before fullscreen is whatever the user had dragged the

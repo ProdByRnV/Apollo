@@ -338,15 +338,22 @@ private:
 
         // The standalone travels in the same package and is installed by the
         // same copy, so it has to be as self-contained as the plugin. Present
-        // only when the harness is pointed at a staged package.
-        const auto standaloneDirectory = bundle().getParentDirectory().getParentDirectory()
-                                                 .getChildFile ("Standalone");
+        // only when the harness is pointed at a staged package, which INSTALL.txt
+        // marks. At the top of the package on macOS and Linux since 1.3.0, so
+        // that it is the first thing seen; in a folder of its own on Windows.
+        const auto root = bundle().getParentDirectory().getParentDirectory();
 
-        if (! standaloneDirectory.isDirectory())
+        if (! root.getChildFile ("INSTALL.txt").existsAsFile())
         {
             logMessage ("    no staged standalone beside this bundle; plugin only");
             return;
         }
+
+       #if JUCE_WINDOWS
+        const auto standaloneDirectory = root.getChildFile ("Standalone");
+       #else
+        const auto standaloneDirectory = root;
+       #endif
 
        #if JUCE_MAC
         const auto standalone = standaloneDirectory.getChildFile ("Apollo.app")
@@ -362,7 +369,7 @@ private:
         if (standalone.existsAsFile())
             check (standalone, "the standalone");
         else
-            expect (false, "The staged package has a Standalone folder with no application in it");
+            expect (false, "The staged package has no application where INSTALL.txt says it is");
     }
 
     void testThePackageHoldsOnlyApollo()
@@ -402,7 +409,16 @@ private:
             return list.joinIntoString (", ");
         };
 
+        // The application at the top on macOS and Linux, where it is the first
+        // thing anybody opening the download sees (1.3.0); in a folder of its
+        // own on Windows.
+       #if JUCE_MAC
+        const std::set<juce::String> expectedRoot { "Apollo.app", "INSTALL.txt", "README.md", "VST3" };
+       #elif JUCE_WINDOWS
         const std::set<juce::String> expectedRoot { "INSTALL.txt", "README.md", "Standalone", "VST3" };
+       #else
+        const std::set<juce::String> expectedRoot { "Apollo", "INSTALL.txt", "README.md", "VST3" };
+       #endif
         const auto atRoot = namesIn (root);
         expect (atRoot == expectedRoot, "The package root holds " + describe (atRoot));
 
@@ -410,15 +426,11 @@ private:
         const auto plugin = namesIn (root.getChildFile ("VST3"));
         expect (plugin == expectedPlugin, "VST3/ holds " + describe (plugin));
 
-       #if JUCE_MAC
-        const std::set<juce::String> expectedStandalone { "Apollo.app" };
-       #elif JUCE_WINDOWS
+       #if JUCE_WINDOWS
         const std::set<juce::String> expectedStandalone { "Apollo.exe" };
-       #else
-        const std::set<juce::String> expectedStandalone { "Apollo" };
-       #endif
         const auto standalone = namesIn (root.getChildFile ("Standalone"));
         expect (standalone == expectedStandalone, "Standalone/ holds " + describe (standalone));
+       #endif
     }
 
     void testEveryArchitectureTheBuildAskedFor()

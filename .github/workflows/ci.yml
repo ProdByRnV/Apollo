@@ -180,9 +180,9 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           codesign --force --sign - --deep staged/VST3/Apollo.vst3
-          codesign --force --sign - --deep staged/Standalone/Apollo.app
+          codesign --force --sign - --deep staged/Apollo.app
           codesign --verify --strict --verbose=2 staged/VST3/Apollo.vst3
-          codesign --verify --strict --verbose=2 staged/Standalone/Apollo.app
+          codesign --verify --strict --verbose=2 staged/Apollo.app
           codesign --display --verbose=2 staged/VST3/Apollo.vst3
 
       # What the plugin exports into a host's process (ADR-0109): the VST3
@@ -277,6 +277,50 @@ jobs:
       - name: Build the archive
         working-directory: build
         run: cpack -C ${{ env.APOLLO_CONFIG }} -G ZIP
+
+      # The one-command install for macOS and Linux (Tools/get-apollo.sh), on
+      # the systems it is for. ShellCheck first, where the runner has it. Then
+      # the download path, against the release published now — the lookup, the
+      # checksum, and finding the application in whatever layout that release
+      # has — and then the archive this run built, in the layout the next
+      # release will have. Neither opens a window.
+      - name: Check the one-command installer
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          APOLLO_NO_LAUNCH: "1"
+          APOLLO_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck Tools/get-apollo.sh
+          fi
+
+          bash Tools/get-apollo.sh
+          APOLLO_ZIP="$(ls build/Apollo-*.zip | head -n 1)" bash Tools/get-apollo.sh
+
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            app=/Applications/Apollo.app
+            [ -d "$app" ] || app="$HOME/Applications/Apollo.app"
+            test -x "$app/Contents/MacOS/Apollo"
+            codesign --verify "$app"
+            test -d "$HOME/Library/Audio/Plug-Ins/VST3/Apollo.vst3"
+            # To a file first: grep -q closing the pipe early would fail the
+            # writer, and under pipefail that reads as "not found".
+            xattr -r "$app" > "$RUNNER_TEMP/xattr.txt" || true
+            if grep -q com.apple.quarantine "$RUNNER_TEMP/xattr.txt"; then
+              echo "::error::The installed application is still marked as downloaded"
+              exit 1
+            fi
+          else
+            test -x "$HOME/.local/opt/apollo/Apollo"
+            test -L "$HOME/.local/bin/apollo"
+            test -f "$HOME/.local/share/applications/apollo.desktop"
+            test -d "$HOME/.vst3/Apollo.vst3"
+          fi
+
+          echo "Installed where the one command puts it."
 
       - name: Keep the archive
         uses: actions/upload-artifact@v4

@@ -3,12 +3,25 @@ A cross-platform wavetable synthesizer by ProdByRnV
 
 WHAT IS IN THIS PACKAGE
 
+  @APOLLO_STANDALONE_IN_PACKAGE@
+                          Apollo as an application, needing no DAW
   VST3/Apollo.vst3        the plugin, for a DAW
-  Standalone/             Apollo as an application, needing no DAW
   INSTALL.txt             this file
 
   Nothing here is an installer. Apollo is a folder you copy, and removing it
   is deleting that folder again.
+
+
+ON A MAC OR ON LINUX, THE EASY WAY
+
+  One command in Terminal installs the application and the plugin, gets them
+  past the Mac's check on downloaded software, and opens Apollo:
+
+  macOS   curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
+  Linux   wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
+
+  It downloads the latest release and checks it against its published
+  checksums. Run it again to update. Or install by hand, as below.
 
 
 INSTALLING THE PLUGIN
@@ -34,8 +47,9 @@ INSTALLING THE PLUGIN
 
 RUNNING THE STANDALONE
 
-  Open the application in the Standalone folder. It has its own audio and
-  MIDI settings, and does not need a DAW or the plugin to be installed.
+  Open @APOLLO_STANDALONE_IN_PACKAGE@. It has its own audio and MIDI
+  settings, and does not need a DAW or the plugin to be installed. It opens
+  filling the screen; Fullscreen at the top of the window makes it smaller.
 
 
 WHAT APOLLO NEEDS

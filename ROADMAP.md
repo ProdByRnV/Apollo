@@ -193,6 +193,7 @@ front of it is better understood, the way 8f was.
 | 17a | Five tabs — Oscillators, Filters, Modulation, Effects, MIDI & Output — with the bar and the modulation sources stuck to the top; a source held over a tab opens it, one picked up survives a change of tab; panels no longer resize | ✅ |
 | 17b | The presets panel: ‹ › through the list as shown, Init, Save, Export, Import in its heading, and Hide list; opens with the list, as the developer chose | ✅ |
 | 17c | The space: one line of sources, a shorter preset list, effects not in the rack folded to their headings, the effects in two filling columns — Effects 1,728 → 693 px on a laptop | ✅ |
+| 17d | The standalone opens filling the screen; the application at the top of the Mac and Linux downloads; one Terminal command that installs and opens Apollo on a Mac or Linux, checked in CI on both (ADR-0118) | ✅ |
 
 ### Carried forward
 

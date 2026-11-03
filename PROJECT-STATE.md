@@ -2299,6 +2299,23 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Filling the screen, and one command for Mac and Linux (Phase 17d)
+
+ADR-0118, asked for before 1.3.0 was published.
+
+- **The standalone opens full screen**: `ApolloWebViewEditor::parentHierarchyChanged`
+  asks the standalone's window to go full screen once it has placed itself;
+  `toggleFullscreen` toggles the window in the standalone and sizes the editor in
+  a host, as before.
+- **The application at the top of the Mac and Linux zips**
+  (`CMake/ApolloPackaging.cmake`); Windows keeps `Standalone/`. INSTALL.txt
+  names the place from the same variable; the package test asserts each layout.
+- **`Tools/get-apollo.sh`**: the one command. Latest release, checksum, install
+  for this user, unmark and re-sign on a Mac, menu entry and missing-library
+  report on Linux, open. Falls back to an Apollo already on the computer.
+- **CI** runs it on the Mac and both Linux runners: ShellCheck, the published
+  release, the archive just built, and where everything landed.
+
 ### The layout (Phase 17)
 
 ADR-0117. The developer chose five tabs from three mock-ups, and the presets
@@ -3637,6 +3654,19 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Filling the screen (Phase 17d), 2026-11-03
+
+The Release standalone on the developer's laptop.
+
+| Checked | Result |
+|---|---|
+| Opening | The window maximised over the 1920 × 1080 working area (−11 to 1931 by −11 to 1091, Windows' frame), the page 1278 × 692 CSS pixels at 150 % |
+| FULLSCREEN | The window restored, the page 1180 × 656 |
+| FULLSCREEN again | Maximised again, 1278 × 692 |
+| The plugin | Unchanged by construction: the window is looked for only in the standalone |
+
+The installer is Mac and Linux only, so it was run in CI rather than by hand.
 
 ### The layout (Phase 17), 2026-11-02
 

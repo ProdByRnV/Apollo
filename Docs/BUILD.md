@@ -251,7 +251,9 @@ The staged tree, which is exactly what the archive contains:
 
 ```text
 VST3/Apollo.vst3          the plugin, as a bundle
-Standalone/Apollo.exe     the standalone application
+Standalone/Apollo.exe     the standalone application, on Windows
+Apollo.app                the standalone application, on macOS, at the top
+Apollo                    the standalone application, on Linux, at the top
 INSTALL.txt               where the plugin goes, per platform
 README.md
 ```
@@ -299,7 +301,7 @@ for component in vst3 standalone documentation; do
   cmake --install build --prefix staged --component $component
 done
 codesign --force --sign - --deep staged/VST3/Apollo.vst3
-codesign --force --sign - --deep staged/Standalone/Apollo.app
+codesign --force --sign - --deep staged/Apollo.app
 cd build && cpack -G ZIP
 ```
 

@@ -25,6 +25,17 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   CONTROLS** opens one anyway.
 - **Panels no longer resize.** The drag handle in each panel's corner is gone,
   so the layout cannot be pulled out of shape by accident.
+- **The standalone opens filling the screen.** **FULLSCREEN** at the top makes
+  it smaller, and bigger again. The plugin opens in your DAW as before.
+- **One command installs Apollo on a Mac or on Linux.** Paste it into Terminal
+  and it downloads Apollo, checks it, installs the application and the plugin,
+  gets them past the Mac's "unidentified developer" block, and opens Apollo:
+
+  - Mac: `curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash`
+  - Linux: `wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash`
+
+  The application is also at the top of the Mac and Linux downloads now,
+  rather than in a folder of its own.
 
 ### What is fixed
 

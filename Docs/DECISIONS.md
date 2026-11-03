@@ -8106,3 +8106,95 @@ and the selector does.
 - **The presets folded by default.** Offered and declined.
 - **Remembering the tab and the fold.** Nothing else about the layout is
   remembered (CLAUDE.md §24.3).
+
+---
+
+## ADR-0118 — The standalone opens filling the screen, and Mac and Linux install with one command
+
+**Phase 17, before 1.3.0 · Accepted**
+
+### What was asked
+
+Two things before 1.3.0 was published. The standalone should open filling the
+screen, the plugin unchanged. And the developer tried to set Apollo up on a
+friend's Mac and could not follow the steps — unzip, find the application in a
+folder, copy two things into two places, paste a Terminal line to clear macOS's
+block on unsigned software — and asked for something easier, on Linux too: the
+application at the top of the download, or one command that finds it and runs
+it.
+
+### The standalone fills the screen
+
+The standalone's **window** goes full screen when it opens, rather than the
+editor growing to the display's size as Fullscreen did. The window has a title
+bar, so an editor as large as the screen made a window taller than it. Full
+screen here means the screen's usable area: the taskbar or the dock stays.
+Done once the window has placed itself, because JUCE's standalone window makes
+the editor first and then sizes and centres itself around it, which would
+undo anything done earlier. The Fullscreen button, in the standalone, now takes
+the window in and out of that state; in a host it does what it did.
+
+A plugin is unchanged: a plugin's window is the host's, and it opens at the
+designed size.
+
+Measured on the developer's laptop: the window maximised over a 1920 × 1080
+working area, the page 1278 × 692 CSS pixels at 150 % scaling where it had been
+1180 × 656, and Fullscreen taking it back to 1180 × 656 and out again.
+
+### The application at the top of the download
+
+On macOS and Linux the zip now holds **`Apollo.app`** or **`Apollo`** at its top,
+beside `VST3`, `INSTALL.txt` and `README.md`, rather than inside `Standalone/`.
+It is the first thing anybody opening the download sees. Windows keeps its
+`Standalone` folder: its steps worked for the people following them, and nobody
+asked for them to change. The package test asserts each platform's layout.
+
+### One command
+
+`Tools/get-apollo.sh`, fetched and run from the repository:
+
+    macOS   curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
+    Linux   wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
+
+It asks GitHub which release is the latest and which download fits this
+computer, downloads it, **checks it against the release's published checksums**
+and refuses one that does not match, installs the application and the plugin
+for this user — `/Applications` (or `~/Applications`) and
+`~/Library/Audio/Plug-Ins/VST3` on a Mac; `~/.local/opt/apollo`, an `apollo`
+command, an applications-menu entry and `~/.vst3` on Linux — and opens Apollo.
+Nothing needs administrator rights. Run again, it opens the installed version if
+it is the latest and updates it if not.
+
+**Why it solves the Mac problem.** macOS marks what a browser downloads, and
+refuses to open marked software that is not signed with an Apple Developer ID.
+Something fetched from Terminal is not marked, so there is nothing to refuse;
+anything of Apollo's a browser did mark is unmarked; and a signature that does
+not verify is replaced with an ad-hoc one, which Apple silicon needs to run code
+at all. A Developer ID and notarisation would remove the problem for everyone,
+and need an Apple account this project does not have (ADR-0077).
+
+On Linux it also says which of the interface's libraries are missing, with the
+command for that system's package manager. Without a connection it looks for an
+Apollo already on the computer — installed, or unzipped in Downloads or on the
+Desktop — and opens that.
+
+It finds the application in the download wherever it is, so it installs
+releases from before this layout too. Written for bash 3.2, which is what a Mac
+has.
+
+### How it is tested
+
+On every CI run, on the Mac and both Linux runners: ShellCheck, where the runner
+has it; the real download path against the release published at the time; then
+the archive that run built; and checks that the application, the plugin, the
+command and the menu entry are where they should be, and on the Mac that the
+application verifies and carries no download mark. Neither run opens a window.
+
+### Alternatives considered
+
+- **A double-clickable `.command` file in the download.** It would be marked
+  as downloaded too, and macOS refuses to open it for the same reason it
+  refuses the application.
+- **A disk image with an Applications shortcut.** The usual way to ship a Mac
+  application, and no help with the block.
+- **The same layout change on Windows.** Not asked for, and its steps work.

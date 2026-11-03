@@ -454,9 +454,50 @@ void ApolloWebViewEditor::paint (juce::Graphics& g)
     g.fillAll (juce::Colour (0xff0c0c12));
 }
 
+juce::ResizableWindow* ApolloWebViewEditor::standaloneWindow()
+{
+    if (processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone)
+        return nullptr;
+
+    return findParentComponentOfClass<juce::ResizableWindow>();
+}
+
+void ApolloWebViewEditor::parentHierarchyChanged()
+{
+    if (openedFullScreen || standaloneWindow() == nullptr)
+        return;
+
+    openedFullScreen = true;
+
+    // Deferred, because the standalone's window makes this editor first and
+    // places itself afterwards — at the size the editor asked for, centred or
+    // where it was last time — and that would undo a change made now.
+    //
+    // The window's own full-screen state rather than the editor's size: the
+    // window has a title bar, so an editor the size of the screen would make a
+    // window taller than it. Filled this way the window covers the screen's
+    // usable area, the taskbar or the dock left showing, and the editor is
+    // resized to fill the window.
+    juce::MessageManager::callAsync ([self = juce::Component::SafePointer<ApolloWebViewEditor> (this)]
+    {
+        if (self != nullptr)
+            if (auto* window = self->standaloneWindow())
+                window->setFullScreen (true);
+    });
+}
+
 void ApolloWebViewEditor::toggleFullscreen()
 {
     // MESSAGE THREAD, from the bridge.
+    //
+    // In the standalone the window itself goes in and out of full screen,
+    // which is where it opens (parentHierarchyChanged).
+    if (auto* window = standaloneWindow())
+    {
+        window->setFullScreen (! window->isFullScreen());
+        return;
+    }
+
     //
     // "Fullscreen" for a plugin editor means as large as the display it is on
     // will allow, not an exclusive-fullscreen mode: the editor is a component

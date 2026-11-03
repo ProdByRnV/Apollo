@@ -9,7 +9,9 @@
 #
 #   cmake --install build --config Release --prefix <dir>
 #       <dir>/VST3/Apollo.vst3          the plugin, as a bundle
-#       <dir>/Standalone/Apollo(.exe)   the standalone application
+#       <dir>/Apollo.app                the standalone application, on macOS
+#       <dir>/Apollo                    the standalone application, on Linux
+#       <dir>/Standalone/Apollo.exe     the standalone application, on Windows
 #       <dir>/INSTALL.txt               where to put the plugin, per platform
 #       <dir>/README.md
 #
@@ -105,15 +107,30 @@ if(TARGET Apollo_VST3)
             PATTERN "*.lib" EXCLUDE)
 endif()
 
+# The application at the top of the archive on macOS and Linux (Phase 17), the
+# first thing seen on opening it: somebody trying Apollo on a Mac could not find
+# it inside a folder of its own. Windows keeps its folder, whose steps already
+# worked for the people following them. INSTALL.txt names whichever it is.
+if(WIN32)
+    set(APOLLO_STANDALONE_PACKAGE_DIRECTORY "Standalone")
+    set(APOLLO_STANDALONE_IN_PACKAGE "Standalone/Apollo.exe")
+elseif(APPLE)
+    set(APOLLO_STANDALONE_PACKAGE_DIRECTORY ".")
+    set(APOLLO_STANDALONE_IN_PACKAGE "Apollo.app")
+else()
+    set(APOLLO_STANDALONE_PACKAGE_DIRECTORY ".")
+    set(APOLLO_STANDALONE_IN_PACKAGE "Apollo")
+endif()
+
 if(TARGET Apollo_Standalone)
     if(APPLE)
         install(DIRECTORY "$<TARGET_BUNDLE_DIR:Apollo_Standalone>"
-                DESTINATION "Standalone"
+                DESTINATION "${APOLLO_STANDALONE_PACKAGE_DIRECTORY}"
                 COMPONENT standalone
                 USE_SOURCE_PERMISSIONS)
     else()
         install(PROGRAMS "$<TARGET_FILE:Apollo_Standalone>"
-                DESTINATION "Standalone"
+                DESTINATION "${APOLLO_STANDALONE_PACKAGE_DIRECTORY}"
                 COMPONENT standalone)
     endif()
 endif()

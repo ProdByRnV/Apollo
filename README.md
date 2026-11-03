@@ -32,6 +32,19 @@ Apollo comes two ways in one download: a **VST3 plugin**, which you load inside 
 DAW such as FL Studio, Ableton Live or Reaper, and a **standalone application**,
 which runs on its own with no DAW at all. Use either, or both.
 
+**On a Mac or on Linux, the quickest way is one command.** Open **Terminal**,
+paste the line for your system, and press Return:
+
+| Your computer | Paste this |
+|---|---|
+| Mac | `curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash` |
+| Linux | `wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash` |
+
+It downloads the latest Apollo, checks it, installs the application and the
+plugin, and opens Apollo. On a Mac it also clears the "unidentified developer"
+block, so there is nothing else to do. Run it again whenever you want to update.
+Steps 1 and 2 below are the same thing by hand.
+
 ### 1. Download
 
 Open the [latest release](https://github.com/ProdByRnV/Apollo/releases/latest)
@@ -45,9 +58,10 @@ and, under **Assets**, download the file for your computer. The number after
 | Linux on a PC | `-linux-x86_64.zip` |
 | Linux on ARM64 | `-linux-arm64.zip` |
 
-Inside each zip are three things: a **`VST3`** folder holding the plugin,
-**`Apollo.vst3`**; a **`Standalone`** folder holding the application; and
-**`INSTALL.txt`**, which has the same instructions as this page in more detail.
+Inside each zip are the application — **`Apollo.app`** on a Mac, **`Apollo`** on
+Linux, and **`Standalone\Apollo.exe`** on Windows — a **`VST3`** folder holding the
+plugin, **`Apollo.vst3`**, and **`INSTALL.txt`**, which has the same instructions
+as this page in more detail.
 
 ### 2. Install
 
@@ -76,13 +90,15 @@ Microsoft's website and open Apollo again. Windows 11 already has it.
 <details>
 <summary><b>macOS</b></summary>
 
+The one command above does all of this. By hand:
+
 1. **Extract it.** Double-click the zip.
 2. **Install the plugin.** In Finder, choose **Go → Go to Folder…**, type
    `~/Library/Audio/Plug-Ins` and press Return. If there is no folder called
    `VST3` there, make one (**File → New Folder**). Copy **`Apollo.vst3`** from
    the extracted `VST3` folder into `VST3`.
-3. **Install the standalone.** Copy `Standalone/Apollo.app` into your
-   **Applications** folder.
+3. **Install the standalone.** Copy **`Apollo.app`** into your **Applications**
+   folder.
 4. **Let macOS open them.** Apollo is not signed with an Apple Developer ID, so
    macOS blocks it the first time as coming from an unidentified developer.
    Open **Terminal** and paste this line, then press Return:
@@ -101,6 +117,10 @@ Microsoft's website and open Apollo again. Windows 11 already has it.
 <details>
 <summary><b>Linux</b></summary>
 
+The one command above installs Apollo for you, adds it to your applications
+menu and an `apollo` command, and says which libraries are missing if any are.
+By hand:
+
 1. **Install the libraries Apollo's interface needs.** On Debian and Ubuntu:
 
    ```sh
@@ -112,7 +132,7 @@ Microsoft's website and open Apollo again. Windows 11 already has it.
    `INSTALL.txt` has the Fedora and Arch equivalents.
 2. **Extract it:** `unzip Apollo-*-linux-*.zip -d Apollo`
 3. **Install the plugin:** `mkdir -p ~/.vst3 && cp -r Apollo/VST3/Apollo.vst3 ~/.vst3/`
-4. **Run the standalone:** `chmod +x Apollo/Standalone/Apollo && Apollo/Standalone/Apollo`
+4. **Run the standalone:** `chmod +x Apollo/Apollo && Apollo/Apollo`
 
 </details>
 
