@@ -140,7 +140,7 @@ installed_version() {
         [ -d "$installed_app" ] || return 0
         /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$installed_app/Contents/Info.plist" 2>/dev/null || true
     else
-        [ -f "$program_dir/VERSION" ] && cat "$program_dir/VERSION" || true
+        if [ -f "$program_dir/VERSION" ]; then cat "$program_dir/VERSION"; fi
     fi
 }
 
@@ -279,14 +279,15 @@ else
     zip_url=$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*-'"$package"'\.zip"' | head -n 1 | sed 's/.*"\(https[^"]*\)"$/\1/')
     sums_url=$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*SHA256SUMS\.txt"' | head -n 1 | sed 's/.*"\(https[^"]*\)"$/\1/')
 
-    [ -n "$tag" ] && [ -n "$zip_url" ] && [ -n "$sums_url" ] \
-        || fail "the latest release has no download for this computer ($package)."
+    if [ -z "$tag" ] || [ -z "$zip_url" ] || [ -z "$sums_url" ]; then
+        fail "the latest release has no download for this computer ($package)."
+    fi
 
     version="${tag#v}"
 
     if [ "$(installed_version)" = "$version" ]; then
         say "Apollo $version is already installed."
-        [ "$system" = macos ] && make_runnable_on_this_mac "$installed_app" "$plugins/Apollo.vst3"
+        if [ "$system" = macos ]; then make_runnable_on_this_mac "$installed_app" "$plugins/Apollo.vst3"; fi
         open_apollo "$installed_app"
         exit 0
     fi
@@ -300,8 +301,9 @@ else
     expected=$(grep -F "$(basename "$zip_url")" "$work/SHA256SUMS.txt" | head -n 1 | cut -d ' ' -f 1)
     actual=$(sha256_of "$archive")
 
-    [ -n "$expected" ] && [ "$expected" = "$actual" ] \
-        || fail "the download does not match its published checksum, so it was not installed. Run this again."
+    if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+        fail "the download does not match its published checksum, so it was not installed. Run this again."
+    fi
 
     say "Checked: the download matches its published checksum."
 fi
@@ -372,7 +374,9 @@ fi
 say ""
 say "Apollo $version is installed."
 say "  Application   $installed_app"
-[ -n "$plugin" ] && say "  Plugin        $plugins/Apollo.vst3 (rescan your plugins in your DAW to find it)"
+if [ -n "$plugin" ]; then
+    say "  Plugin        $plugins/Apollo.vst3 (rescan your plugins in your DAW to find it)"
+fi
 
 if [ "$system" = macos ]; then
     say "  Next time, open it from Launchpad or your Applications folder."
