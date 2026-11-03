@@ -12,7 +12,7 @@ written in React and shown through the platform's own WebView.
 
 ## Status
 
-**Version 1.2.0.** Download it from the
+**Version 1.3.0.** Download it from the
 [Releases page](https://github.com/ProdByRnV/Apollo/releases/latest); how to
 install and use it is just below. What each release contains is in
 [CHANGELOG.md](CHANGELOG.md).

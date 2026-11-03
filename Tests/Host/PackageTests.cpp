@@ -337,23 +337,27 @@ private:
         check (binary, "the plugin");
 
         // The standalone travels in the same package and is installed by the
-        // same copy, so it has to be as self-contained as the plugin. Present
-        // only when the harness is pointed at a staged package, which INSTALL.txt
-        // marks. At the top of the package on macOS and Linux since 1.3.0, so
-        // that it is the first thing seen; in a folder of its own on Windows.
+        // same copy, so it has to be as self-contained as the plugin. In a
+        // staged package, which INSTALL.txt marks, it is at the top on macOS
+        // and Linux since 1.3.0, so that it is the first thing seen, and in a
+        // folder of its own on Windows. In the build tree it is in a folder of
+        // its own everywhere.
         const auto root = bundle().getParentDirectory().getParentDirectory();
-
-        if (! root.getChildFile ("INSTALL.txt").existsAsFile())
-        {
-            logMessage ("    no staged standalone beside this bundle; plugin only");
-            return;
-        }
+        const auto staged = root.getChildFile ("INSTALL.txt").existsAsFile();
 
        #if JUCE_WINDOWS
-        const auto standaloneDirectory = root.getChildFile ("Standalone");
+        constexpr auto atTheTopWhenStaged = false;
        #else
-        const auto standaloneDirectory = root;
+        constexpr auto atTheTopWhenStaged = true;
        #endif
+
+        const auto standaloneDirectory = staged && atTheTopWhenStaged ? root : root.getChildFile ("Standalone");
+
+        if (! standaloneDirectory.isDirectory())
+        {
+            logMessage ("    no standalone beside this bundle; plugin only");
+            return;
+        }
 
        #if JUCE_MAC
         const auto standalone = standaloneDirectory.getChildFile ("Apollo.app")
