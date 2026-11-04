@@ -215,6 +215,15 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "requestHistory" || messageType == "undo" || messageType == "redo")
+    {
+        BridgeCommand command;
+        command.type = messageType == "undo"   ? BridgeCommandType::undo
+                     : messageType == "redo"   ? BridgeCommandType::redo
+                                               : BridgeCommandType::requestHistory;
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "requestPresets")
     {
         BridgeCommand command;
@@ -1259,6 +1268,17 @@ juce::String makeMacroNamesMessage (const std::array<juce::String, 4>& names)
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("names", entries);
     object->setProperty ("maxLength", state::maxMacroNameLength);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeHistoryMessage (const juce::String& undoName, const juce::String& redoName)
+{
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "history");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("undo", undoName);
+    object->setProperty ("redo", redoName);
 
     return juce::JSON::toString (juce::var (object), oneLine);
 }

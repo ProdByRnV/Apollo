@@ -27,6 +27,7 @@
 #include "Resources/ProfileLibrary.h"
 #include "Resources/ProgramChanges.h"
 #include "Resources/UserContent.h"
+#include "State/EditHistory.h"
 #include "State/LfoCurveState.h"
 #include "State/MacroNames.h"
 #include "State/StateSerialization.h"
@@ -189,6 +190,11 @@ public:
 
     /** The names the user gave the four macros (Phase 16c). MESSAGE THREAD. */
     [[nodiscard]] state::MacroNameStore& getMacroNames() noexcept { return *macroNames; }
+
+    /** What can be undone and redone (Phase 18a). The processor's rather than
+        the editor's, so that closing the window and opening it again keeps it.
+        MESSAGE THREAD. */
+    [[nodiscard]] state::EditHistory& getEditHistory() noexcept { return *editHistory; }
 
     /** The user's wavetables and noise sample (Phase 13g). */
     [[nodiscard]] resources::UserContent& getUserContent() noexcept { return *userContent; }
@@ -680,6 +686,10 @@ private:
 
     /** The macros' names, kept in the state tree beside the curves. */
     std::unique_ptr<state::MacroNameStore> macroNames;
+
+    /** Undo and redo (Phase 18a). Before the user's content, so destroyed
+        after it: a load that lands tells the history it has. */
+    std::unique_ptr<state::EditHistory> editHistory;
 
     /** The user's wavetables and noise sample, carried in the state tree and
         published into the engine (Phase 13g). After the engine and APVTS, so

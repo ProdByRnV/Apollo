@@ -107,6 +107,22 @@ export function toggleFullscreen(): void {
     send({ type: 'toggleFullscreen', version: PROTOCOL_VERSION });
 }
 
+/** Asks what can be undone and redone (Phase 18a). */
+export function requestHistory(): void {
+    send({ type: 'requestHistory', version: PROTOCOL_VERSION });
+}
+
+/** Takes the last edit back. The engine decides whether there is one; what
+    changed arrives as it would after any edit. */
+export function undo(): void {
+    send({ type: 'undo', version: PROTOCOL_VERSION });
+}
+
+/** Puts back the last edit taken back. */
+export function redo(): void {
+    send({ type: 'redo', version: PROTOCOL_VERSION });
+}
+
 /** Asks for the library as the last scan left it. Answered at once. */
 export function requestPresets(): void {
     send({ type: 'requestPresets', version: PROTOCOL_VERSION });

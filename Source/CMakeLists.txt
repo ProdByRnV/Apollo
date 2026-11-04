@@ -186,6 +186,8 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProfileLibrary.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProfileLibrary.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/PresetDocument.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/State/EditHistory.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/State/EditHistory.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/LfoCurveState.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/LfoCurveState.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/MacroNames.cpp"

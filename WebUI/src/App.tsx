@@ -26,12 +26,18 @@ import {
     requestMidiMappings,
     requestContent,
     requestPresets,
+    redo,
+    requestHistory,
     send,
     subscribe,
     toggleFullscreen,
+    undo,
 } from './bridge/bridge';
 import { PROTOCOL_VERSION } from './bridge/protocol';
+import { shortcutLabel, undoActionOf } from './params/undoKeys';
+import type { UndoAction } from './params/undoKeys';
 import { applyContentIndex, applyContentSlots } from './state/content';
+import { applyHistory, currentHistory, useHistory } from './state/history';
 import { applyLfoCurves } from './state/lfoCurves';
 import { applyMacroNames } from './state/macroNames';
 import type { InboundMessage } from './bridge/protocol';
@@ -78,6 +84,24 @@ import {
     useSampleRate,
 } from './state/telemetry';
 
+/** Whether to name the shortcuts as a Mac does. */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** Asks for an undo or a redo, and says on the status line what it was: the
+    edit may have been on a tab that is not showing. Sent even when the page
+    thinks there is nothing, so that a page out of step is put right by the
+    answer. */
+function perform(action: UndoAction): void {
+    const { undo: undoName, redo: redoName } = currentHistory();
+    const name = action === 'undo' ? undoName : redoName;
+
+    if (action === 'undo') undo();
+    else redo();
+
+    if (name) announce(action === 'undo' ? `Undid ${name}.` : `Redid ${name}.`);
+    else announce(action === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.');
+}
+
 export function App(): JSX.Element {
     const workspaceRef = useRef<HTMLElement>(null);
 
@@ -90,6 +114,7 @@ export function App(): JSX.Element {
     const presets = usePresets();
     const sampleRate = useSampleRate();
     const notePlaying = useNotePlaying();
+    const history = useHistory();
 
     /** What the connection established, for the readout's tooltip. */
     const [binding, setBinding] = useState('');
@@ -154,6 +179,10 @@ export function App(): JSX.Element {
                 // And for the macros' names, which travel the same way.
                 requestMacroNames();
 
+                // And for what can be undone, which the processor kept while
+                // no window was open.
+                requestHistory();
+
                 // And for the library, which was scanned when the editor
                 // attached and so may already be waiting.
                 requestPresets();
@@ -210,6 +239,10 @@ export function App(): JSX.Element {
 
             case 'macroNames':
                 applyMacroNames(message.names, message.maxLength);
+                break;
+
+            case 'history':
+                applyHistory(message.undo, message.redo);
                 break;
 
             case 'midiMappings':
@@ -387,6 +420,29 @@ export function App(): JSX.Element {
         return () => { document.removeEventListener('keydown', onEscape); };
     }, []);
 
+    // Undo and redo from the keyboard, anywhere on the page but a text field,
+    // which keeps them for its own letters (18a).
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent): void => {
+            const target = event.target instanceof HTMLElement ? event.target : null;
+            const action = undoActionOf(event, target && {
+                tagName: target.tagName,
+                type: target instanceof HTMLInputElement ? target.type : undefined,
+                isContentEditable: target.isContentEditable,
+            });
+
+            if (!action) return;
+
+            // The WebView's own undo would otherwise act on whatever it
+            // thinks was last typed, somewhere.
+            event.preventDefault();
+            perform(action);
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        return () => { document.removeEventListener('keydown', onKeyDown); };
+    }, []);
+
     // The mode is on the body rather than on the workspace, because the cursor
     // and the outlined-control treatment apply to the whole window.
     useEffect(() => {
@@ -445,6 +501,32 @@ export function App(): JSX.Element {
                 ) : null}
 
                 <div className="masthead__spacer" />
+
+                {/*
+                    Undo and redo, named in their tooltips after what they
+                    would take back, since the edit may have been on another
+                    tab. Not disabled when there is nothing, only marked so:
+                    a disabled button shows no tooltip and says nothing when
+                    pressed, and "Nothing to undo" is an answer.
+                */}
+                <button
+                    className="masthead__button masthead__button--quiet"
+                    type="button"
+                    aria-disabled={!history.undo}
+                    title={history.undo ? `Undo ${history.undo} (${shortcutLabel('undo', IS_MAC)})` : 'Nothing to undo'}
+                    onClick={() => perform('undo')}
+                >
+                    Undo
+                </button>
+                <button
+                    className="masthead__button masthead__button--quiet"
+                    type="button"
+                    aria-disabled={!history.redo}
+                    title={history.redo ? `Redo ${history.redo} (${shortcutLabel('redo', IS_MAC)})` : 'Nothing to redo'}
+                    onClick={() => perform('redo')}
+                >
+                    Redo
+                </button>
 
                 {/*
                     MIDI Learn is a mode rather than a hidden right-click, so that

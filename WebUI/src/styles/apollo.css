@@ -1127,6 +1127,15 @@ body::before {
     color: var(--text-dim);
 }
 
+/* Undo with nothing to undo: dimmed, but still there to say so (18a). */
+.masthead__button[aria-disabled="true"],
+.masthead__button[aria-disabled="true"]:hover {
+    color: var(--text-dim);
+    background: var(--surface-raised);
+    opacity: 0.45;
+    cursor: default;
+}
+
 /* The badge. Positioned rather than in flow, so turning MIDI Learn on does not
    reflow the whole workspace and move every control out from under the cursor.
    Each control root is made a positioning context for it. */

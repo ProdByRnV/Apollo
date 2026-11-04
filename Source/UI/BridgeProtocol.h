@@ -238,7 +238,13 @@ enum class BridgeCommandType
     // piano strip, in the standalone only.
     notePlay,         ///< Press a key.
     noteRelease,      ///< Let one go.
-    noteReleaseAll    ///< Let every key the page holds go.
+    noteReleaseAll,   ///< Let every key the page holds go.
+
+    // Undo and redo (Phase 18a). The page asks; the history, which is the
+    // processor's, decides whether there is anything to take back.
+    requestHistory,   ///< Send what can be undone and redone.
+    undo,             ///< Take the last edit back.
+    redo              ///< Put the last one taken back back.
 };
 
 /** A validated command.
@@ -565,6 +571,15 @@ struct ContentSlotDescription
     replaces them.
 */
 [[nodiscard]] juce::String makeMacroNamesMessage (const std::array<juce::String, 4>& names);
+
+/** `{"type":"history", ...}`
+
+    Whether anything can be undone or redone, and what: `undo` and `redo` name
+    the edit, "Filter 1 Cutoff" or "Load Glass Bell", or are empty when there
+    is none. Sent when the page asks, after every edit that changes it, and
+    after a state load, which empties it (Phase 18a).
+*/
+[[nodiscard]] juce::String makeHistoryMessage (const juce::String& undoName, const juce::String& redoName);
 
 /** `{"type":"modulationRouting", ...}`
     What a drop or a clear did (Phase 13h-4). The slots themselves are

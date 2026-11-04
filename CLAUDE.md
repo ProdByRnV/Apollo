@@ -1078,6 +1078,17 @@ rendering it elsewhere in the document — a React portal moves the node and
 leaves the component where it was, so events go on travelling to the control
 regardless (ADR-0064).
 
+### 24.5 Undo
+
+**Every edit made in Apollo's window can be undone**, one step per thing done —
+a control from where it was picked up to where it was let go, a routing, a
+curve, a macro's name, content, a preset loaded — with Ctrl+Z, Ctrl+Shift+Z and
+buttons in the masthead (ADR-0119). A step changes back only what it changed.
+Automation, MIDI and modulation are not edits, and MIDI assignments are not part
+of the sound. The history belongs to the processor, so closing the window keeps
+it; a state loaded from outside empties it. A new kind of edit the page can make
+should become a step too.
+
 ## 24.2 Color Semantics
 
 ### Green

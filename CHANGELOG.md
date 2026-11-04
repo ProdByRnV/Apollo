@@ -5,6 +5,20 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## Unreleased
+
+### What is new
+
+- **Undo and redo.** **Ctrl+Z** (**⌘Z** on a Mac) takes back the last thing you
+  did in Apollo — a knob, a routing, a drawn LFO curve, a macro's name, a
+  wavetable or noise sample, or a preset you loaded — and **Ctrl+Shift+Z** or
+  **Ctrl+Y** puts it back. **UNDO** and **REDO** at the top of the window do the
+  same, and their tooltips name what they would undo. Up to 100 steps, kept
+  while the window is closed; opening a project starts afresh. MIDI
+  assignments are not undone.
+
+---
+
 ## 1.3.0 — 2026-11-03
 
 A new layout, in tabs, from the first feedback; the standalone opening to fill

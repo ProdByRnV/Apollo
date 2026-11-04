@@ -8198,3 +8198,89 @@ application verifies and carries no download mark. Neither run opens a window.
 - **A disk image with an Applications shortcut.** The usual way to ship a Mac
   application, and no help with the block.
 - **The same layout change on Windows.** Not asked for, and its steps work.
+
+---
+
+## ADR-0119 — Undo and redo, kept by the processor, one step per thing done
+
+**Phase 18a · Accepted**
+
+### What was asked
+
+After 1.3.0 the developer asked what else could be improved, and chose undo
+among the answers: there was none inside Apollo. A host's own undo covers some
+parameter edits in some hosts, and the standalone has no host at all, so a
+slipped knob or a preset clicked by mistake could not be taken back.
+
+### What a step is
+
+One thing somebody did in Apollo's window:
+
+- a control picked up and let go — the page's gesture, from `begin` to `end`.
+  Gestures that overlap are one step, which ends with the last of them, so an
+  equaliser handle moving frequency and gain is one;
+- a routing dropped or removed — a slot's source, destination and depth at once;
+- an LFO curve drawn, a macro named;
+- a preset loaded — so a preset tried and not wanted is one undo from the sound
+  that was there, edited or not;
+- a wavetable or noise sample loaded, once it has landed, or removed.
+
+A step keeps **what it changed and nothing else**: the parameters it moved,
+before and after, and the children of the state tree that are not parameters —
+the preset's name, the curves, the macros' names, the user's content — only
+where they differ. Undoing one step therefore never undoes another. A knob
+turned while a wavetable loads is a step of its own; undoing the wavetable puts
+back the slot and the switch it set to USER, and leaves the knob alone.
+
+### What is not a step
+
+**Automation, MIDI controllers and modulation** move parameters without
+anybody editing anything. Recording them would fill the history with sweeps,
+and undoing would fight the host. They are not recorded, and an undo afterwards
+moves only what the step itself moved.
+
+**MIDI assignments** are a setting of the instrument rather than part of the
+sound. They are left out of every step, so undoing a preset load does not
+unassign a controller.
+
+**A state replaced from outside** — the host opening a project, or going back
+to one, and a program change — empties the history, which describes a sound
+that is no longer there. A refused document changes nothing and leaves it.
+
+### Where it lives
+
+In the processor, beside the stores it reads, not in the editor: closing the
+window and opening it again keeps it, and a load that lands with the window
+closed is still recorded. The page sends `undo`, `redo` and `requestHistory`
+and is pushed a `history` message naming what each would do (UI_BINDINGS
+§10.13). Undoing applies each parameter as a gesture of its own, so a host that
+records parameter edits sees an edit rather than automation; undoing anything
+else puts those children back into the tree and runs the same rebuild a state
+load does, which is also what resynchronises the window.
+
+### Limits
+
+At most **100** steps. The oldest also go once what the steps hold passes
+**64 MB** of text, which matters only for content: a step that loads a
+wavetable keeps the audio on both sides of it. Text the live state holds is
+shared, not copied, and counted once.
+
+### The page
+
+**Ctrl+Z** undoes, and **Ctrl+Shift+Z** or **Ctrl+Y** redoes; **⌘Z** and **⇧⌘Z**
+on a Mac. Not while a text field has the keyboard, which keeps them for its own
+letters. **UNDO** and **REDO** sit in the masthead, named in their tooltips after
+what they would do — the edit may have been on another tab — and the status
+line says what was undone. With nothing to undo the buttons are dimmed but not
+disabled, so that pressing one says "Nothing to undo" rather than nothing.
+
+### Alternatives considered
+
+- **JUCE's `UndoManager` on the APVTS.** It records tree properties, which the
+  APVTS writes on a timer rather than when a control moves, so a step would be
+  whatever happened to fall between two flushes; and a state replaced wholesale
+  is not undoable through it at all.
+- **A snapshot of the whole state per step.** Simple, and undoing a knob would
+  then also undo everything automation and other steps had moved since.
+- **Leaving undo to the host.** Not every host records plugin edits, none
+  records a curve or a macro's name, and the standalone has no host.

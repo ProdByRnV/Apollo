@@ -24,6 +24,7 @@
 
 #include "MIDI/MidiControlManager.h"
 #include "MIDI/PageNoteQueue.h"
+#include "State/EditHistory.h"
 #include "State/LfoCurveState.h"
 #include "State/MacroNames.h"
 #include "Parameters/ParameterDefinitions.h"
@@ -220,6 +221,20 @@ public:
     /** @returns every macro's name, described for the frontend. */
     [[nodiscard]] juce::String createMacroNames() const;
 
+    /** Attaches the edit history (Phase 18a). Pass nullptr to detach; without
+        it nothing is recorded, and undo and redo are answered with a history
+        that has nothing in it. Borrowed: the processor owns it, so that it
+        outlasts a closed window. */
+    void setEditHistory (state::EditHistory* historyToUse);
+
+    /** @returns what can be undone and redone, described for the frontend. */
+    [[nodiscard]] juce::String createHistory() const;
+
+    /** A load into @p slot, called @p name, was asked for — by the page, or
+        through the file dialog the editor opened — and becomes a step when it
+        lands. MESSAGE THREAD. */
+    void contentRequested (resources::ContentSlot slot, const juce::String& name);
+
     /** Attaches the user's content and the library it is chosen from (Phase
         13g). Pass nullptrs to detach. Borrowed: the processor owns both,
         because content has to keep sounding, and a scan started from an open
@@ -342,6 +357,9 @@ private:
 
     /** Borrowed, not owned, and null when there are no names to edit. */
     state::MacroNameStore* macroNames = nullptr;
+
+    /** Borrowed, not owned, and null when nothing is recorded. */
+    state::EditHistory* editHistory = nullptr;
 
     /** Borrowed, not owned, and null when there is no user content. */
     resources::UserContent* userContent = nullptr;

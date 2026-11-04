@@ -45,15 +45,40 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     {
         updateHostDisplay (ChangeDetails().withNonParameterStateChanged (true));
     };
+    // An undo that puts back more than parameters puts back part of the
+    // document, and everything hanging off it is rebuilt as after a load. The
+    // host is told the project differs, since no parameter may have moved.
+    editHistory = std::make_unique<state::EditHistory> (apvts);
+    editHistory->onDocumentReplaced = [this]
+    {
+        notifyStateReplaced();
+        updateHostDisplay (ChangeDetails().withNonParameterStateChanged (true));
+    };
+
     userContent = std::make_unique<resources::UserContent> (apvts,
                                                             voiceEngine.getWavetableLibrary(),
                                                             voiceEngine.getNoiseSampleSlot());
 
+    // A load lands on its own schedule, whether or not the window that asked
+    // for it is still open, and is a step once it has.
+    userContent->onLoadFinished = [this] (resources::ContentSlot slot, bool loaded)
+    {
+        if (loaded)
+            editHistory->release (static_cast<int> (slot));
+        else
+            editHistory->drop (static_cast<int> (slot));
+    };
+
     // A program change replaces the state exactly as a preset load does, and
     // is followed by the same work. When the program the host should show
-    // moves, the host is told.
+    // moves, the host is told. It came from outside the window, so what the
+    // history held describes a sound that is gone.
     programChanges = std::make_unique<resources::ProgramChanges> (apvts, presetLibrary,
-                                                                 [this] { notifyStateReplaced(); });
+                                                                 [this]
+                                                                 {
+                                                                     notifyStateReplaced();
+                                                                     editHistory->clear();
+                                                                 });
     programChanges->onCurrentProgramChanged = [this]
     {
         updateHostDisplay (ChangeDetails().withProgramChanged (true));
@@ -1540,7 +1565,13 @@ void ApolloAudioProcessor::setStateInformation (const void* data, int sizeInByte
     lastStateLoadResult.store (result, std::memory_order_relaxed);
 
     if (result == state::StateLoadResult::ok)
+    {
         notifyStateReplaced();
+
+        // The host opened a project, or went back to one: the steps the
+        // history held were taken on a sound that is no longer there.
+        editHistory->clear();
+    }
 }
 
 void ApolloAudioProcessor::notifyStateReplaced()

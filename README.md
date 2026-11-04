@@ -186,6 +186,10 @@ standalone needs a MIDI keyboard.
 - **Turn the knobs.** Drag a knob up or down. Hold **Shift** for fine
   adjustment, **double-click** to reset it, or **right-click** to reset it or
   type an exact value.
+- **Undo a mistake.** **Ctrl+Z** (**⌘Z** on a Mac) takes back the last thing you
+  did — a knob, a routing, a drawn curve, a wavetable, even a preset you loaded
+  — and **Ctrl+Shift+Z** puts it back. **UNDO** and **REDO** at the top do the
+  same, and their tooltips say what they would undo.
 - **Make it move.** Drag a green source from the row under the tabs — an
   **LFO**, an **ENV**, a macro — onto a knob outlined in gold. Hold it over
   another tab to open that tab first. A small tag appears on the knob; drag the
@@ -298,7 +302,7 @@ that opens the keyboards it finds and follows the system's output device.
 **Seeing it.** An oscilloscope for each sound source and for the output, a live
 trace of every envelope and LFO, the wave each oscillator is reading, and an
 output meter. Every control can be dragged, nudged from the keyboard, reset, or
-given an exact value by typing it.
+given an exact value by typing it, and every edit can be undone.
 
 ---
 

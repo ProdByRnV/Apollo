@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 17 — The layout, done and released as 1.3.0** (ADR-0117): five tabs with the modulation sources stuck under them, panels of a fixed size, a presets panel that steps and folds, and effects not in the rack folded away; the standalone opening full screen, and one command that installs Apollo on a Mac or Linux (ADR-0118). The Releases page lists only 1.3.0 (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a, undo and redo, is done** (ADR-0119); 18b–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **Whatever the developer and the people they share Apollo with ask for next.** Open: the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18b, the interface's size**, when the developer says to go on. Open: the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2299,6 +2299,36 @@ Tested in:
 - `WebUI/test/typingKeyboard.test.mjs`: the layout, the octave and velocity
   steps, the strip, what is left alone.
 
+### Undo and redo (Phase 18a)
+
+ADR-0119.
+
+- **`State/EditHistory`**, owned by the processor: steps of the parameters a
+  thing done moved, before and after, and of the state tree's other children —
+  PRESET, LFOCURVES, MACRONAMES, CONTENT — only where they differ. Never PARAM
+  (the values cover it) or MIDIMAP. At most 100 steps and 64 MB of text.
+- **What records a step**, in `UI/ParameterBridge`: a gesture from the first
+  begin to the last end; a `setParameter` outside one; a routing dropped or
+  removed; a curve; a macro's name; a preset loaded; content cleared; content
+  loaded, held until `UserContent::onLoadFinished` says it landed, and only the
+  slot and its switch.
+- **What empties it**: `setStateInformation` that succeeded, and a program change.
+- **Undoing** sets each parameter as a gesture; children go back into the tree
+  and `notifyStateReplaced` rebuilds what hangs off it.
+- **The page**: `requestHistory`, `undo`, `redo` and the `history` message
+  (UI_BINDINGS §10.13); `params/undoKeys.ts` (Ctrl/⌘+Z, +Shift, Ctrl+Y, never
+  in a text field); `state/history.ts`; UNDO and REDO in the masthead.
+
+Tested in:
+- `Tests/State/EditHistoryTests.cpp`: a gesture is a step and a still one is
+  none; overlapping gestures; automation, a controller and an assignment not
+  recorded, and an undo leaving what automation moved; curves, names and
+  routings; a preset load undone with its name, its macro names and the
+  controller still assigned; a wavetable, held until it lands and not taking a
+  knob turned meanwhile with it; a project load and a program change emptying
+  it, a refused document not; the limit; the commands.
+- `WebUI/test/undoKeys.test.mjs`: the keys, the modifiers, and what keeps them.
+
 ### Filling the screen, and one command for Mac and Linux (Phase 17d)
 
 ADR-0118, asked for before 1.3.0 was published.
@@ -3654,6 +3684,28 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Undo and redo (Phase 18a), 2026-11-04
+
+The Release standalone on the developer's laptop, over the DevTools protocol
+with real mouse and keyboard input.
+
+| Checked | Result |
+|---|---|
+| Opening | UNDO and REDO dimmed, "Nothing to undo" and "Nothing to redo" |
+| A knob | Oscillator 1's Position dragged 100 → 62 %; UNDO read "Undo Osc 1 Position (Ctrl+Z)" |
+| Ctrl+Z | Back to 100 %, the status line "Undid Osc 1 Position.", REDO named it |
+| Ctrl+Shift+Z | 62 % again, "Redid Osc 1 Position." |
+| Ctrl+Y with nothing to redo | "Nothing to redo." and nothing moved |
+| The octave | Still 0: Z alone lowers it, Ctrl+Z does not |
+| A preset | › loaded Sub Weight; UNDO, clicked, brought back Square Keys at 62 %, 7/10 in the stepper |
+| A text field | Ctrl+Z in the preset search took back the letters typed, and moved no knob |
+| A wavetable | ORGAN chosen, "Undo Load Organ"; Ctrl+Z back to PULSE with the table gone; Ctrl+Shift+Z ORGAN again |
+| Afterwards | Undone back to the Square Keys it opened on, unedited |
+
+**Not checked: inside a DAW.** A host may take Ctrl+Z for its own undo before
+the plugin's window sees it; the buttons work either way. FL Studio has not been
+tried.
 
 ### Filling the screen (Phase 17d), 2026-11-03
 

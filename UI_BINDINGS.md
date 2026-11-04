@@ -569,7 +569,7 @@ UI controls should distinguish gesture start, updates, and gesture end.
 }
 ```
 
-Where supported, gesture boundaries should map to the plugin parameter APIs required for correct host automation and undo behavior.
+Where supported, gesture boundaries should map to the plugin parameter APIs required for correct host automation and undo behavior. They are also what Apollo's own undo counts as one step (§10.13).
 
 The bridge must not generate excessive host automation events merely because a control renders at a high frame rate.
 
@@ -1194,6 +1194,35 @@ only when it is true.
 - **Nothing can stay held.** The bridge records what the page holds and releases
   it on `noteReleaseAll`, when the queue is detached, and when the editor
   closes.
+
+### 10.13 Undo and redo (Phase 18a)
+
+The history is the processor's (`State/EditHistory`, ADR-0119); the page asks
+and shows.
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `requestHistory` | — | Send what can be undone and redone. Answered with `history`. |
+| `undo` | — | Take the last edit back. No reply when it did; `history` when there was nothing. |
+| `redo` | — | Put back the last edit taken back. As `undo`. |
+
+```json
+{ "type": "history", "version": 1, "undo": "Filter 1 Cutoff", "redo": "" }
+```
+
+- **`undo` and `redo` name the edit**, or are empty when there is none. They
+  are what the buttons' tooltips and the status line say.
+- **`history` is pushed** after every edit that changes it, after every undo
+  and redo, and after a state load, which empties it.
+- **What an undo changed arrives as any edit's does**: parameters as
+  `parameterChanged` echoes; the rest of the sound — curves, macro names,
+  content, the preset's name — as the resynchronisation a state load triggers.
+- **What makes a step** is the page's own commands: a gesture (§8), from its
+  first `begin` to its last `end`, overlapping gestures making one; a
+  `setParameter` with no gesture around it; `modulationAssign` and
+  `modulationClear`; `setLfoCurve`; `setMacroName`; `loadPreset`; and a content
+  load, once it has landed, or `clearContent`. Host automation, MIDI and
+  everything else are not steps.
 
 ---
 

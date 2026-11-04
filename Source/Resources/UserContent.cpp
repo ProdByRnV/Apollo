@@ -596,6 +596,9 @@ void UserContent::deliver (Result& result)
                 info[indexOf (slot)].loading = false;
             }
 
+            if (! result.fromDocument && onLoadFinished)
+                onLoadFinished (slot, false);
+
             if (onChanged)
                 onChanged ({ slot, result.fromDocument ? "RESTORE_FAILED" : "LOAD_FAILED", result.failure });
 
@@ -638,6 +641,9 @@ void UserContent::deliver (Result& result)
 
     writeItem (result);
     select (slot);
+
+    if (onLoadFinished)
+        onLoadFinished (slot, true);
 
     if (onChanged)
         onChanged ({ slot, "LOADED", isWavetableSlot (slot)
@@ -704,9 +710,7 @@ void UserContent::removeItem (ContentSlot slot)
 
 void UserContent::select (ContentSlot slot)
 {
-    const auto* id = slot == ContentSlot::osc1 ? "osc1_wavetable"
-                   : slot == ContentSlot::osc2 ? "osc2_wavetable"
-                                               : "noise_type";
+    const auto* id = selectionParameterOf (slot);
 
     const auto plain = slot == ContentSlot::noise ? static_cast<float> (dsp::NoiseType::sample)
                                                   : static_cast<float> (dsp::WavetableLibrary::userChoice);

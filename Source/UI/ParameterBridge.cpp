@@ -6,6 +6,8 @@
 #include "Resources/PresetLibrary.h"
 #include "State/PresetDocument.h"
 
+#include <optional>
+
 namespace apollo::ui
 {
 
@@ -28,6 +30,7 @@ ParameterBridge::~ParameterBridge()
     setMidiControl (nullptr);
     setPresetLibrary (nullptr);
     setPageNotes (nullptr);
+    setEditHistory (nullptr);
 
     // Removed explicitly rather than left to teardown order: APVTS outlives the
     // bridge, and a listener that survives its object is a use-after-free that
@@ -151,6 +154,49 @@ void ParameterBridge::setUserContent (resources::UserContent* contentToUse, reso
     }
 }
 
+void ParameterBridge::setEditHistory (state::EditHistory* historyToUse)
+{
+    // Released first, as every other store's handler is: the history outlives
+    // the bridge.
+    if (editHistory != nullptr)
+        editHistory->onChanged = {};
+
+    editHistory = historyToUse;
+
+    if (editHistory != nullptr)
+    {
+        // An edit made anywhere becomes undoable without the page asking, and
+        // a load that lands later does too.
+        editHistory->onChanged = [this]
+        {
+            if (outboundHandler)
+                outboundHandler (createHistory());
+        };
+    }
+}
+
+juce::String ParameterBridge::createHistory() const
+{
+    if (editHistory == nullptr)
+        return makeHistoryMessage ({}, {});
+
+    return makeHistoryMessage (editHistory->undoName(), editHistory->redoName());
+}
+
+void ParameterBridge::contentRequested (resources::ContentSlot slot, const juce::String& name)
+{
+    if (editHistory == nullptr)
+        return;
+
+    // Only what a load changes: the slot's audio, and the switch it sets to
+    // USER or SAMPLE. A knob turned while it loads is a step of its own.
+    const auto selection = params::indexOfParameter (resources::selectionParameterOf (slot));
+
+    editHistory->hold (static_cast<int> (slot),
+                       editHistory->capture ({ selection }, { juce::Identifier (resources::UserContent::contentTreeType) }),
+                       "Load " + name);
+}
+
 juce::String ParameterBridge::createContentIndex() const
 {
     if (contentLibrary == nullptr)
@@ -230,6 +276,7 @@ juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
             source.origin = entry->factory ? resources::ContentOrigin::factoryLibrary : resources::ContentOrigin::library;
             source.libraryPath = entry->libraryPath;
 
+            contentRequested (slot, entry->name);
             userContent->loadFile (slot, entry->file, source);
             return {};
         }
@@ -238,6 +285,9 @@ juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
             if (! userContent->loadExtraTable (slot, command.contentId - 1))
                 return makeErrorMessage (BridgeErrorCode::unknownContent);
 
+            // After rather than before, which is the same thing: the load is
+            // on a worker, and nothing in the sound has moved yet.
+            contentRequested (slot, dsp::extraTableName (command.contentId - 1));
             return {};
 
         case BridgeCommandType::chooseContentFile:
@@ -247,8 +297,19 @@ juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
             return {};
 
         case BridgeCommandType::clearContent:
+        {
+            const auto removed = userContent->getInfo (slot).source.name;
+            const auto before = editHistory != nullptr
+                                  ? editHistory->capture ({}, { juce::Identifier (resources::UserContent::contentTreeType) })
+                                  : state::EditHistory::Snapshot {};
+
             userContent->clear (slot);
+
+            if (editHistory != nullptr)
+                editHistory->commit (before, "Remove " + (removed.isNotEmpty() ? removed : resources::describe (slot)));
+
             return {};
+        }
 
         case BridgeCommandType::saveContentToLibrary:
         {
@@ -333,7 +394,19 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
         case BridgeCommandType::modulationAssign:
         case BridgeCommandType::modulationClear:
-            return applyModulationCommand (command);
+        {
+            if (editHistory == nullptr)
+                return applyModulationCommand (command);
+
+            // A routing is a slot's source, destination and depth at once,
+            // so one step rather than three.
+            const auto before = editHistory->captureParameters();
+            auto reply = applyModulationCommand (command);
+
+            editHistory->commit (before, command.type == BridgeCommandType::modulationAssign ? "Add routing"
+                                                                                               : "Remove routing");
+            return reply;
+        }
 
         case BridgeCommandType::notePlay:
         case BridgeCommandType::noteRelease:
@@ -364,9 +437,18 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
             // Answered with all four either way. After a set, that is the echo
             // the page draws from: the store's copy is the one that counts.
-            if (command.type == BridgeCommandType::setLfoCurve
-                && ! lfoCurves->set (command.lfoIndex, command.lfoCurve))
-                return makeErrorMessage (BridgeErrorCode::invalidLfoCurve);
+            if (command.type == BridgeCommandType::setLfoCurve)
+            {
+                const auto before = editHistory != nullptr
+                                      ? editHistory->capture ({}, { juce::Identifier (state::LfoCurveStore::curvesTreeType) })
+                                      : state::EditHistory::Snapshot {};
+
+                if (! lfoCurves->set (command.lfoIndex, command.lfoCurve))
+                    return makeErrorMessage (BridgeErrorCode::invalidLfoCurve);
+
+                if (editHistory != nullptr)
+                    editHistory->commit (before, "LFO " + juce::String (command.lfoIndex + 1) + " curve");
+            }
 
             return createLfoCurves();
         }
@@ -379,11 +461,36 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
             // Answered with all four either way, as the curves are: the echo
             // is what the page shows.
-            if (command.type == BridgeCommandType::setMacroName
-                && ! macroNames->set (command.macroIndex, command.macroName))
-                return makeErrorMessage (BridgeErrorCode::invalidMacroName);
+            if (command.type == BridgeCommandType::setMacroName)
+            {
+                const auto before = editHistory != nullptr
+                                      ? editHistory->capture ({}, { juce::Identifier (state::MacroNameStore::namesTreeType) })
+                                      : state::EditHistory::Snapshot {};
+
+                if (! macroNames->set (command.macroIndex, command.macroName))
+                    return makeErrorMessage (BridgeErrorCode::invalidMacroName);
+
+                if (editHistory != nullptr)
+                    editHistory->commit (before, "Macro " + juce::String (command.macroIndex + 1) + " name");
+            }
 
             return createMacroNames();
+        }
+
+        case BridgeCommandType::requestHistory:
+            return createHistory();
+
+        case BridgeCommandType::undo:
+        case BridgeCommandType::redo:
+        {
+            // What changed reaches the page as it would after any edit: the
+            // parameters as echoes, the rest as a reload, the history through
+            // its own handler. Nothing to undo is answered with the history,
+            // so a page that thought otherwise is put right.
+            const auto done = editHistory != nullptr
+                           && (command.type == BridgeCommandType::undo ? editHistory->undo() : editHistory->redo());
+
+            return done ? juce::String() : createHistory();
         }
 
         case BridgeCommandType::requestContent:
@@ -428,25 +535,49 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         return makeErrorMessage (BridgeErrorCode::unknownParameter);
     }
 
+    const auto index = indexOfParameter (command.parameterId);
+
     switch (command.type)
     {
         case BridgeCommandType::gestureBegin:
             // Gesture boundaries are what let a host record automation as a
-            // single edit and group it into one undo step (UI_BINDINGS.md §8).
+            // single edit and group it into one undo step (UI_BINDINGS.md §8),
+            // and what makes a step of Apollo's own: from where the control
+            // was picked up to where it was let go.
+            if (editHistory != nullptr)
+                editHistory->gestureBegan (index);
+
             parameter->beginChangeGesture();
             return {};
 
         case BridgeCommandType::gestureEnd:
             parameter->endChangeGesture();
+
+            if (editHistory != nullptr)
+                editHistory->gestureEnded (index);
+
             return {};
 
         case BridgeCommandType::setParameter:
+        {
+            // A value set with no gesture around it is a step on its own.
+            // Every control on the page brackets its edits; this is for
+            // anything that one day does not.
+            const auto before = editHistory != nullptr && ! editHistory->isInGesture()
+                                  ? std::optional<state::EditHistory::Snapshot> (editHistory->capture ({ index }, {}))
+                                  : std::nullopt;
+
             // The resulting listener callback marks the parameter dirty, and the
             // next flush echoes the authoritative value back. The UI is updated
             // by that echo, not by assuming its own value was accepted
             // (UI_BINDINGS.md §6, §9).
             parameter->setValueNotifyingHost (command.normalisedValue);
+
+            if (before.has_value())
+                editHistory->commit (*before, params::toJuceString (params::parameterDefinitions[static_cast<std::size_t> (index)].name));
+
             return {};
+        }
 
         case BridgeCommandType::requestState:
         case BridgeCommandType::requestMetadata:
@@ -980,6 +1111,10 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
             if (entry == nullptr)
                 return makeErrorMessage (BridgeErrorCode::unknownPreset);
 
+            // The sound as it was, so that a preset tried and not wanted is
+            // one undo from what was there — edited or not.
+            const auto before = editHistory != nullptr ? editHistory->capture() : state::EditHistory::Snapshot {};
+
             // The same call a MIDI program change makes (Phase 13h-2), so the
             // two cannot load a preset differently.
             auto failedToRead = false;
@@ -1006,6 +1141,9 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
             // Every parameter may have moved at once, and a page inferring that
             // from individual echoes would be repainting for a second.
             markAllParametersDirty();
+
+            if (editHistory != nullptr)
+                editHistory->commit (before, "Load " + entry->name);
 
             return createPresetStatus ("LOADED", "Loaded " + entry->name + ".");
         }

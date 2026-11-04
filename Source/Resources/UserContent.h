@@ -80,6 +80,15 @@ inline constexpr int numContentSlots = 3;
 /** "Oscillator 1", "Oscillator 2", "Noise": the slot in a sentence. */
 [[nodiscard]] juce::String describe (ContentSlot slot);
 
+/** The parameter that chooses the slot's content to play — osc1_wavetable,
+    osc2_wavetable or noise_type — which a load sets to USER or SAMPLE. */
+[[nodiscard]] constexpr const char* selectionParameterOf (ContentSlot slot) noexcept
+{
+    return slot == ContentSlot::osc1 ? "osc1_wavetable"
+         : slot == ContentSlot::osc2 ? "osc2_wavetable"
+                                     : "noise_type";
+}
+
 /** Where content came from. Shown, and used to find it in a library again. */
 enum class ContentOrigin
 {
@@ -181,6 +190,12 @@ public:
 
     /** Called on the message thread for every load, failure and clearing. */
     std::function<void (const ContentEvent&)> onChanged;
+
+    /** Called on the message thread when a load that was asked for — not a
+        restore — has landed, @p loaded true, or failed. For the edit history,
+        which is the processor's and has to hear about a load the window that
+        asked for it is no longer open to see (Phase 18a). */
+    std::function<void (ContentSlot, bool loaded)> onLoadFinished;
 
     /** Blocks until the worker has nothing left to do. Tests only. */
     void waitUntilIdle();

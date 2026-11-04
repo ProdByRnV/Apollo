@@ -172,6 +172,16 @@ export interface MacroNamesMessage {
     maxLength: number;
 }
 
+/** What an undo or a redo would take back or put back, or an empty string
+    for none (Phase 18a). Sent on request, after every edit, and after a load,
+    which empties it. */
+export interface HistoryMessage {
+    type: 'history';
+    version: number;
+    undo: string;
+    redo: string;
+}
+
 export interface MidiMappingEntry {
     id: string;
     controller: number;
@@ -351,6 +361,7 @@ export type InboundMessage =
     | SpectrumFrameMessage
     | LfoCurvesMessage
     | MacroNamesMessage
+    | HistoryMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
     | PresetIndexMessage
@@ -419,6 +430,9 @@ export type OutboundMessage =
     | { type: 'notePlay'; version: number; note: number; velocity: number }
     | { type: 'noteRelease'; version: number; note: number }
     | { type: 'noteReleaseAll'; version: number }
+    | { type: 'requestHistory'; version: number }
+    | { type: 'undo'; version: number }
+    | { type: 'redo'; version: number }
     | {
           type: 'savePreset';
           version: number;

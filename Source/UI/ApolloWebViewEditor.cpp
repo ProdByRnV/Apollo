@@ -184,6 +184,10 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     // And the macros' names, for the same reason (Phase 16c).
     bridge.setMacroNames (&processor.getMacroNames());
 
+    // Undo and redo (Phase 18a). The history is the processor's, so what was
+    // done before this window opened can still be taken back.
+    bridge.setEditHistory (&processor.getEditHistory());
+
     // The user's wavetables and noise sample, and the library they come from.
     // Attaching starts a scan, as the preset library's does.
     bridge.setUserContent (&processor.getUserContent(), &processor.getContentLibrary());
@@ -267,6 +271,7 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
     bridge.onStateReplaced = {};
     bridge.setLfoCurves (nullptr);
     bridge.setMacroNames (nullptr);
+    bridge.setEditHistory (nullptr);
 
     // Before the chooser below is destroyed with the editor: a dialog that
     // finishes during teardown must not find a bridge that still points here.
@@ -440,8 +445,11 @@ void ApolloWebViewEditor::chooseContentFile (resources::ContentSlot slot)
                                          = file.getParentDirectory();
 
                                      const auto locations = processor.getContentLibrary().getLocations();
-                                     processor.getUserContent().loadFile (slot, file,
-                                                                          resources::sourceFor (locations, kind, file));
+                                     const auto source = resources::sourceFor (locations, kind, file);
+
+                                     bridge.contentRequested (slot, source.name.isNotEmpty() ? source.name
+                                                                                             : file.getFileNameWithoutExtension());
+                                     processor.getUserContent().loadFile (slot, file, source);
                                  });
 }
 
@@ -589,6 +597,9 @@ void ApolloWebViewEditor::resynchroniseAfterReload()
 
     // And the macros' names, with "Macro N" wherever the document named none.
     sendToWebView (bridge.createMacroNames());
+
+    // And what can be undone, which a load from outside has emptied.
+    sendToWebView (bridge.createHistory());
 
     // So does the user's content. What the slots hold now may still be loading;
     // the store says when each one lands.
