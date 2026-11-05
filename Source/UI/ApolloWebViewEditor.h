@@ -63,6 +63,11 @@ private:
     */
     void toggleFullscreen();
 
+    /** Keeps the interface size the page chose, and fits the window to it
+        (18b). A window that fills the screen keeps filling it, and the page
+        draws larger or smaller inside it. */
+    void interfaceScaleChosen (int scalePercent);
+
     /** Opens the system's own file dialog for a content slot, and loads what
         is chosen (Phase 13g). The page can only ask: a path never crosses the
         bridge in either direction (CLAUDE.md §40). */

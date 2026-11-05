@@ -8284,3 +8284,109 @@ disabled, so that pressing one says "Nothing to undo" rather than nothing.
   then also undo everything automation and other steps had moved since.
 - **Leaving undo to the host.** Not every host records plugin edits, none
   records a curve or a macro's name, and the standalone has no host.
+
+## ADR-0120 — The interface size, kept by the computer, drawn as far as the window allows
+
+**Phase 18b · Accepted**
+
+### What was asked
+
+The second improvement the developer chose after 1.3.0: a setting for how large
+the whole interface is drawn. On the development laptop the Modulation and
+Oscillators tabs still scroll (ADR-0117), and on a large monitor the type is
+small. Apollo had a resizable window and Fullscreen, which change how much room
+the layout has, but nothing that changed the size of what is in it.
+
+While it was being built the developer also asked for a button beside the
+Presets title that opens the presets folder, which is recorded here.
+
+### What it is
+
+**SIZE** in the masthead, a native select offering **75, 85, 100, 110, 125,
+150, 175 and 200 %**. The list is the engine's (`ui::interfaceScales`) and is
+sent with the size, so the page cannot offer one the engine would refuse; any
+other number arriving in a message or the settings file is refused or read as
+100 %.
+
+The page draws itself with **CSS `zoom` on the root**. It reflows the layout
+rather than magnifying a picture of it, so 75 % is more of the instrument on the
+screen, not a smaller copy of the same amount.
+
+### Never so large the layout breaks
+
+Below 900 × 560 CSS pixels the panels overlap rather than reflow (ADR-0076). A
+size that would leave the layout less than that is drawn **only as large as
+fits**: 150 % on the laptop's 1278 × 692 window is drawn at 124 %, and the
+control's tooltip says so — "drawn at 124% until the window is larger". A
+smaller size is always drawn as chosen, because it only gives the layout more
+room. This is also what keeps the masthead, where the size is chosen, from ever
+being pushed off the window: no choice can strand anybody.
+
+### The window
+
+In a host the editor **resizes to the designed size times the scale**, as far
+as the display it is on allows and never below its minimum, both when the size
+is chosen and when the window next opens; that is what a size setting in a
+plugin is expected to do. A window that fills the screen — the standalone,
+which opens that way (ADR-0118), or a plugin after Fullscreen — keeps filling
+it, and the page draws larger or smaller inside it.
+
+### Kept by the computer, not the sound
+
+The size belongs to the screen and the eyes in front of it. It is stored in
+`Interface.settings` in Apollo's per-user application data folder, shared by
+every Apollo on the computer, read whenever an editor opens and written when the
+size is chosen. It is **not** in the project or the preset: a project made on a
+4K monitor should not open huge on a laptop.
+
+This is the one thing about the window Apollo remembers. CLAUDE.md §24.3 says
+nothing about the layout is, so that reopening cannot strand somebody in an
+arrangement they cannot undo. A size has its own control, always on screen, and
+a setting that was forgotten every time the window closed would have to be made
+again every time it opened — in a host, every time the plugin's window is shown.
+
+A settings file that is missing, damaged, enormous, somebody else's, or names a
+size not offered opens the window at 100 %. One that cannot be written costs
+the next window the size, and nothing else.
+
+### What the zoom changes for the rest of the page
+
+Under CSS zoom a pointer's position and `getBoundingClientRect` are in zoomed
+pixels, while CSS lengths, `scrollTop` and `clientWidth` are not, and the
+display's pixel ratio does not change. Measured in WebView2, and handled where
+the two meet:
+
+- canvases size their backing store by the zoom as well as the pixel ratio,
+  so a scope or curve at 150 % is as sharp as at 100 %;
+- `pointerOnCanvas` brings the pointer back to CSS pixels by the canvas's own
+  measured zoom, so the envelope and LFO editors' handles stay under the
+  pointer;
+- the context menu, the dragged modulation source's label, the bipolar rail and
+  the scroll back to the tabs convert in the same way.
+
+The conversion is measured (`viewportZoom`) rather than assumed, so it holds
+however a WebView reports zoom.
+
+### The presets folder
+
+**OPEN FOLDER** beside the PRESETS heading opens the user preset folder in the
+system's file manager, creating it if it is not there: to back presets up, or
+drop in a pack somebody made, which appears after Rescan. The page sends
+`revealPresetFolder` with no payload; there is one such folder and the page
+cannot name another (CLAUDE.md §40). The wavetable and noise libraries had this
+already (ADR-0104).
+
+### Alternatives considered
+
+- **The WebView's own zoom.** WebView2 has a zoom factor, and Ctrl and the wheel
+  already reach it, but JUCE exposes no zoom on any platform, and setting it
+  would mean a different native call on each of three WebViews for something
+  the page can do itself.
+- **A scale transform.** It magnifies without reflowing, breaks the sticky tab
+  bar and scrolling, and leaves the window's room unused at anything but 100 %.
+- **Rewriting the stylesheet in `rem`.** Three thousand lines in pixels; a root
+  font size would scale type and not the knobs, canvases and gaps around it.
+- **Sizes a window can't hold left out of the menu.** The window can be made
+  larger after the size is chosen, and a menu whose contents change as a
+  corner is dragged is harder to understand than one that says what it is
+  holding back.

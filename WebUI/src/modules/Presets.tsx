@@ -38,7 +38,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { exportPreset, importPresets, loadPreset, rescanPresets, savePreset } from '../bridge/bridge';
+import { exportPreset, importPresets, loadPreset, rescanPresets, revealPresetFolder, savePreset } from '../bridge/bridge';
 import { Module } from '../components/Module';
 import { hasCommandModifier, rovingTarget } from '../components/roving';
 import { stepPreset } from '../params/presetStep';
@@ -192,6 +192,19 @@ export function Presets(): JSX.Element {
         <Module
             title="Presets"
             bodyClassName="presets"
+            beside={
+                // The library is a folder in a hidden part of every system, so
+                // this is the way to it: to back presets up, or drop in a pack
+                // somebody made. Opened by the engine, which knows where it is.
+                <button
+                    className="masthead__button masthead__button--quiet"
+                    type="button"
+                    title="Open your presets folder. Preset files put there appear after Rescan"
+                    onClick={revealPresetFolder}
+                >
+                    Open folder
+                </button>
+            }
             head={
                 <>
                     <div className="presets__stepper">

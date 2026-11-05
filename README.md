@@ -190,6 +190,8 @@ standalone needs a MIDI keyboard.
   did — a knob, a routing, a drawn curve, a wavetable, even a preset you loaded
   — and **Ctrl+Shift+Z** puts it back. **UNDO** and **REDO** at the top do the
   same, and their tooltips say what they would undo.
+- **Make it bigger or smaller.** **SIZE** at the top draws the whole interface
+  from 75 % to 200 %. Apollo remembers your choice on this computer.
 - **Make it move.** Drag a green source from the row under the tabs — an
   **LFO**, an **ENV**, a macro — onto a knob outlined in gold. Hold it over
   another tab to open that tab first. A small tag appears on the knob; drag the
@@ -227,6 +229,9 @@ From version 1.2.0:
 Importing never replaces a preset you already have: a different sound with the
 same name is added beside yours as "Name (2)". A file that is not an Apollo
 preset is refused, and nothing changes.
+
+**OPEN FOLDER** beside **PRESETS** opens your presets folder, if you would
+rather copy files in and out yourself; press **RESCAN** after adding some.
 
 In version 1.1.0, without those buttons: save the sound with **SAVE…**, then
 find it in your presets folder (`%APPDATA%\Apollo\Presets` on Windows — paste

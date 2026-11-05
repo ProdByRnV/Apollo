@@ -183,6 +183,17 @@ juce::String ParameterBridge::createHistory() const
     return makeHistoryMessage (editHistory->undoName(), editHistory->redoName());
 }
 
+void ParameterBridge::setInterfaceScale (int scalePercent) noexcept
+{
+    if (isInterfaceScale (scalePercent))
+        interfaceScale = scalePercent;
+}
+
+juce::String ParameterBridge::createInterfaceScale() const
+{
+    return makeInterfaceScaleMessage (interfaceScale);
+}
+
 void ParameterBridge::contentRequested (resources::ContentSlot slot, const juce::String& name)
 {
     if (editHistory == nullptr)
@@ -427,6 +438,7 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
         case BridgeCommandType::savePreset:
         case BridgeCommandType::exportPreset:
         case BridgeCommandType::importPresets:
+        case BridgeCommandType::revealPresetFolder:
             return applyPresetCommand (command);
 
         case BridgeCommandType::requestLfoCurves:
@@ -479,6 +491,19 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
 
         case BridgeCommandType::requestHistory:
             return createHistory();
+
+        case BridgeCommandType::requestInterfaceScale:
+            return createInterfaceScale();
+
+        case BridgeCommandType::setInterfaceScale:
+            // Validated against the list while parsing, so this cannot be a
+            // size the editor has to defend against.
+            setInterfaceScale (command.interfaceScale);
+
+            if (onInterfaceScaleChanged)
+                onInterfaceScaleChanged (interfaceScale);
+
+            return createInterfaceScale();
 
         case BridgeCommandType::undo:
         case BridgeCommandType::redo:
@@ -1227,6 +1252,14 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
         case BridgeCommandType::importPresets:
             if (onImportPresets)
                 onImportPresets();
+
+            return {};
+
+        case BridgeCommandType::revealPresetFolder:
+            if (onRevealPresetFolder)
+                onRevealPresetFolder();
+            else if (! presetLibrary->revealUserFolder())
+                return createPresetStatus ("REVEAL_FAILED", "Could not open your presets folder.");
 
             return {};
 

@@ -196,6 +196,8 @@ target_sources(apollo_engine INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/State/StateSerialization.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/State/StateSerialization.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/EditorSizing.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/InterfaceSettings.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/UI/InterfaceSettings.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/BridgeProtocol.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/UI/ParameterBridge.cpp"

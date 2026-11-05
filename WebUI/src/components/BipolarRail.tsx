@@ -60,7 +60,10 @@ export function BipolarRail({ id }: BipolarRailProps): JSX.Element | null {
 
         const scale = event.shiftKey ? 0.2 : 1;
         const rail = railRef.current;
-        const width = rail && rail.clientWidth > 0 ? rail.clientWidth : 1;
+        // Measured as the pointer is, in zoomed pixels, so a drag across the
+        // rail is the whole range at any interface size (18b).
+        const box = rail?.getBoundingClientRect();
+        const width = box && box.width > 0 ? box.width : 1;
 
         commitValue(id, drag.current.value + ((event.clientX - drag.current.from) / width) * scale);
     };

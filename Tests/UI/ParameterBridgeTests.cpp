@@ -781,6 +781,14 @@ private:
         expect (receiverBridge.handleMessage (R"({"type":"importPresets","version":1})").isEmpty());
         expect (asked, "Import asks the editor for the open dialog");
 
+        // The way to the folder itself (18b). A payload naming another folder
+        // is not read: there is one user preset folder.
+        auto revealed = 0;
+        receiverBridge.onRevealPresetFolder = [&revealed] { ++revealed; };
+        expect (receiverBridge.handleMessage (
+                    R"({"type":"revealPresetFolder","version":1,"folder":"C:/Windows"})").isEmpty());
+        expectEquals (revealed, 1);
+
         const auto imported = receiverBridge.importPresetsFrom ({ file });
         expectEquals (fieldOf (imported, "status"), juce::String ("IMPORTED"));
         expect (fieldOf (imported, "statusMessage").contains ("For Sam"));

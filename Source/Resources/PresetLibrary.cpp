@@ -673,6 +673,18 @@ PresetIndex PresetLibrary::getIndex() const
     return index;
 }
 
+bool PresetLibrary::revealUserFolder() const
+{
+    const auto folder = getLocations().userDirectory;
+
+    if (! folder.isDirectory() && ! folder.createDirectory().wasOk())
+        return false;
+
+    // Opened, not revealed inside its parent, as the wavetable library's is:
+    // what somebody wants is to see what is in it and drop presets there.
+    return folder.startAsProcess();
+}
+
 void PresetLibrary::rescan()
 {
     // A scan already running is answering a question that has just been

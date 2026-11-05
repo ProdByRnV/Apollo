@@ -29,6 +29,8 @@ public:
         testNeverLargerThanTheLimit();
         testAnUnknownDisplayIsNotASmallOne();
         testTheResultAlwaysFits();
+        testALargerInterfaceOpensALargerWindow();
+        testEveryScaleStillFits();
     }
 
 private:
@@ -135,6 +137,63 @@ private:
         }
 
         expect (checked > 5000, juce::String (checked) + " display sizes checked");
+    }
+
+    void testALargerInterfaceOpensALargerWindow()
+    {
+        beginTest ("The interface size scales the window it opens in, where the display has room (18b)");
+
+        expect (initialEditorSize (3840, 2160, 150) == EditorSize { 1770, 1140 });
+        expect (initialEditorSize (3840, 2160, 200) == EditorSize { 2360, 1520 });
+        expect (initialEditorSize (3840, 2160, 100) == designedEditorSize);
+
+        // Smaller, but never below what the layout works at: the page then
+        // draws at 75% inside a window that holds it.
+        const auto small = initialEditorSize (3840, 2160, 75);
+        expectEquals (small.width, minimumEditorSize.width);
+        expectEquals (small.height, 570);
+
+        // A 1080p display at 150% scaling has 1280x720 to give. At 150% the
+        // window takes all of that and no more.
+        const auto laptop = initialEditorSize (1280, 720, 150);
+        expect (laptop == EditorSize { 1280 - editorChromeAllowance, 720 - editorChromeAllowance });
+
+        // A size that is not offered is the default, not an arbitrary scale.
+        expect (initialEditorSize (3840, 2160, 333) == designedEditorSize);
+        expect (initialEditorSize (3840, 2160, 0) == designedEditorSize);
+        expect (initialEditorSize (3840, 2160, -100) == designedEditorSize);
+
+        expect (isInterfaceScale (defaultInterfaceScale));
+        expect (! isInterfaceScale (101));
+    }
+
+    void testEveryScaleStillFits()
+    {
+        beginTest ("At every interface size, the editor fits the display or is at its minimum");
+
+        for (const auto scale : interfaceScales)
+        {
+            for (int width = 320; width <= 4096; width += 113)
+            {
+                for (int height = 240; height <= 2304; height += 97)
+                {
+                    const auto size = initialEditorSize (width, height, scale);
+                    const auto fits = size.width <= width && size.height <= height;
+                    const auto atMinimum = size.width == minimumEditorSize.width
+                                        || size.height == minimumEditorSize.height;
+                    const auto withinLimits = size.width <= maximumEditorSize.width
+                                           && size.height <= maximumEditorSize.height;
+
+                    if (! ((fits || atMinimum) && withinLimits))
+                    {
+                        expect (false, juce::String (scale) + "% on " + juce::String (width) + "x"
+                                           + juce::String (height) + " gave " + juce::String (size.width)
+                                           + "x" + juce::String (size.height));
+                        return;
+                    }
+                }
+            }
+        }
     }
 };
 

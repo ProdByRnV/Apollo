@@ -182,6 +182,15 @@ export interface HistoryMessage {
     redo: string;
 }
 
+/** The interface size, in per cent, and the sizes offered (18b). The size is
+    the computer's, kept by the editor; sent on request and after a change. */
+export interface InterfaceScaleMessage {
+    type: 'interfaceScale';
+    version: number;
+    scale: number;
+    scales: number[];
+}
+
 export interface MidiMappingEntry {
     id: string;
     controller: number;
@@ -261,8 +270,9 @@ export interface PresetStatusMessage {
     /** "LOADED", "SAVED", "ALREADY_EXISTS", "LOAD_FAILED", "SAVE_FAILED",
         "STATE_RELOADED", and since 13h-2 "PROGRAM_EMPTY" for a program change
         that named nothing, and since 16a "EXPORTED", "EXPORT_FAILED",
-        "IMPORTED" and "IMPORT_FAILED" — branched on, so they are part of the
-        contract. */
+        "IMPORTED" and "IMPORT_FAILED", and since 18b "REVEAL_FAILED" when the
+        presets folder could not be opened — branched on, so they are part of
+        the contract. */
     status: string;
     statusMessage: string;
     name: string;
@@ -362,6 +372,7 @@ export type InboundMessage =
     | LfoCurvesMessage
     | MacroNamesMessage
     | HistoryMessage
+    | InterfaceScaleMessage
     | MidiMappingsMessage
     | ControllerProfilesMessage
     | PresetIndexMessage
@@ -410,6 +421,7 @@ export type OutboundMessage =
       }
     | { type: 'requestPresets'; version: number }
     | { type: 'rescanPresets'; version: number }
+    | { type: 'revealPresetFolder'; version: number }
     | { type: 'loadPreset'; version: number; preset: number }
     | { type: 'exportPreset'; version: number }
     | { type: 'importPresets'; version: number }
@@ -433,6 +445,8 @@ export type OutboundMessage =
     | { type: 'requestHistory'; version: number }
     | { type: 'undo'; version: number }
     | { type: 'redo'; version: number }
+    | { type: 'requestInterfaceScale'; version: number }
+    | { type: 'setInterfaceScale'; version: number; scale: number }
     | {
           type: 'savePreset';
           version: number;

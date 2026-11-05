@@ -205,6 +205,7 @@ enum class BridgeCommandType
     // dialog, so the file chosen never crosses the bridge (CLAUDE.md §40).
     exportPreset,   ///< Write the current sound wherever the user chooses.
     importPresets,  ///< Copy preset files the user chooses into the user library.
+    revealPresetFolder, ///< Open the user's preset folder in the file manager (18b).
 
     // Drawn LFO curves (Phase 13f-1). A curve is not a parameter, so it has
     // commands of its own: the page can ask for all four and replace one.
@@ -244,7 +245,12 @@ enum class BridgeCommandType
     // processor's, decides whether there is anything to take back.
     requestHistory,   ///< Send what can be undone and redone.
     undo,             ///< Take the last edit back.
-    redo              ///< Put the last one taken back back.
+    redo,             ///< Put the last one taken back back.
+
+    // The interface size (18b). Not a parameter and not part of the sound:
+    // the computer's, kept by the editor, and only ever one of a fixed list.
+    requestInterfaceScale, ///< Send the size and the sizes offered.
+    setInterfaceScale      ///< Draw the interface at one of them.
 };
 
 /** A validated command.
@@ -286,6 +292,10 @@ struct BridgeCommand
         against the live index, and one that is not in it is refused.
     */
     int presetId = 0;
+
+    /** For setInterfaceScale: a size from ui::interfaceScales, in per cent.
+        Anything else is refused during parsing. */
+    int interfaceScale = 0;
 
     /** What a saved preset should say about itself.
 
@@ -580,6 +590,14 @@ struct ContentSlotDescription
     after a state load, which empties it (Phase 18a).
 */
 [[nodiscard]] juce::String makeHistoryMessage (const juce::String& undoName, const juce::String& redoName);
+
+/** `{"type":"interfaceScale", ...}`
+
+    The size the interface is drawn at, in per cent, and the sizes offered, so
+    the page's menu is the engine's list rather than a copy of it (18b). Sent
+    when the page asks and after the size is changed.
+*/
+[[nodiscard]] juce::String makeInterfaceScaleMessage (int scalePercent);
 
 /** `{"type":"modulationRouting", ...}`
     What a drop or a clear did (Phase 13h-4). The slots themselves are

@@ -1060,6 +1060,15 @@ Oscillators tab with the preset list showing and every panel as designed. That
 is the developer's explicit instruction, and it is also the behaviour that
 cannot strand somebody in an arrangement they cannot undo.
 
+**The interface size is the one exception** (ADR-0120). **SIZE** in the masthead
+draws the whole interface at 75 to 200 %, with CSS zoom, but never so large
+that the layout has less than the 900 × 560 it works at, so the control choosing
+it can never leave the window. In a host the plugin's window follows it. It is
+kept per computer, not in the project or preset — a size is about the screen,
+not the sound — and a size that had to be chosen again every time the window
+opened would not be a setting. Code that mixes pointer positions with CSS
+lengths converts between them (`viewportZoom`), because under zoom they differ.
+
 ### 24.4 Resetting a control
 
 Every knob offers **Reset** on a right-click, naming the value it would return

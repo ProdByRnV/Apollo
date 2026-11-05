@@ -1224,6 +1224,30 @@ and shows.
   load, once it has landed, or `clearContent`. Host automation, MIDI and
   everything else are not steps.
 
+### 10.14 The interface size (Phase 18b)
+
+The size is the computer's, kept by the editor in `Interface.settings`
+(ADR-0120). The page asks for one of the sizes it was sent, and draws what it is
+answered with.
+
+| Message | Payload | Meaning |
+|---|---|---|
+| `requestInterfaceScale` | — | Send the size and the sizes offered. Answered with `interfaceScale`. |
+| `setInterfaceScale` | `scale` | Draw at that size, in per cent. A number that is not one of the sizes offered is `MALFORMED_MESSAGE`. Answered with `interfaceScale`; the editor stores it and fits the window. |
+
+```json
+{ "type": "interfaceScale", "version": 1, "scale": 125, "scales": [75, 85, 100, 110, 125, 150, 175, 200] }
+```
+
+- **The page draws it with CSS `zoom` on the root**, as far as leaves the layout
+  900 × 560 CSS pixels; a smaller size always as chosen.
+- **Under the zoom, pointer positions and `getBoundingClientRect` are in zoomed
+  pixels** and CSS lengths, `scrollTop` and `clientWidth` are not. Code that
+  mixes the two converts with `viewportZoom()`; a canvas sizes its backing
+  store by `currentZoom()` as well as the pixel ratio.
+- **Sent on request and after a change**, and again when the editor
+  resynchronises a reloaded page.
+
 ---
 
 ### 10.6 Presets (Phase 9c)
@@ -1241,6 +1265,7 @@ the backend published, and cannot express a path at all** (ADR-0063).
 | `savePreset` | `name`, optional `author`, `category`, `comment`, `bank`, `overwrite` | Write the current sound into the **user** library. There is no field that chooses a destination. |
 | `exportPreset` | — | Ask the editor to open the system's save dialog, and write the current sound wherever the user chooses (Phase 16a). No reply until the dialog closes; a cancel is answered with nothing. |
 | `importPresets` | — | Ask the editor to open the system's open dialog, and copy the preset files chosen into the **user** library (Phase 16a). No reply until the dialog closes. |
+| `revealPresetFolder` | — | Open the **user** preset folder in the system's file manager, creating it first (18b). No reply when it opens; `REVEAL_FAILED` when it cannot be created or opened. There is one such folder and the page cannot name another. |
 
 `name` is required and must be non-empty after trimming. Every text field is
 bounded during parsing — `maximumNameLength` for the first four, and

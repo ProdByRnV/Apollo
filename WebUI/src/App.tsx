@@ -28,7 +28,9 @@ import {
     requestPresets,
     redo,
     requestHistory,
+    requestInterfaceScale,
     send,
+    setInterfaceScale,
     subscribe,
     toggleFullscreen,
     undo,
@@ -38,6 +40,8 @@ import { shortcutLabel, undoActionOf } from './params/undoKeys';
 import type { UndoAction } from './params/undoKeys';
 import { applyContentIndex, applyContentSlots } from './state/content';
 import { applyHistory, currentHistory, useHistory } from './state/history';
+import { applyInterfaceScale, useInterfaceScale, viewportZoom } from './state/interfaceScale';
+import { scaleLabel, scaleTitle } from './params/interfaceScale';
 import { applyLfoCurves } from './state/lfoCurves';
 import { applyMacroNames } from './state/macroNames';
 import type { InboundMessage } from './bridge/protocol';
@@ -115,6 +119,7 @@ export function App(): JSX.Element {
     const sampleRate = useSampleRate();
     const notePlaying = useNotePlaying();
     const history = useHistory();
+    const interfaceScale = useInterfaceScale();
 
     /** What the connection established, for the readout's tooltip. */
     const [binding, setBinding] = useState('');
@@ -136,8 +141,9 @@ export function App(): JSX.Element {
         const anchor = sectionsAnchor.current;
         if (workspace === null || anchor === null) return;
 
-        const natural = anchor.getBoundingClientRect().top - workspace.getBoundingClientRect().top
-            + workspace.scrollTop;
+        // The boxes are in zoomed pixels and scrollTop is not (18b).
+        const natural = (anchor.getBoundingClientRect().top - workspace.getBoundingClientRect().top)
+            / viewportZoom() + workspace.scrollTop;
 
         if (workspace.scrollTop > natural) workspace.scrollTop = natural;
     }, []);
@@ -182,6 +188,7 @@ export function App(): JSX.Element {
                 // And for what can be undone, which the processor kept while
                 // no window was open.
                 requestHistory();
+                requestInterfaceScale();
 
                 // And for the library, which was scanned when the editor
                 // attached and so may already be waiting.
@@ -243,6 +250,10 @@ export function App(): JSX.Element {
 
             case 'history':
                 applyHistory(message.undo, message.redo);
+                break;
+
+            case 'interfaceScale':
+                applyInterfaceScale(message.scale, message.scales);
                 break;
 
             case 'midiMappings':
@@ -573,6 +584,26 @@ export function App(): JSX.Element {
                     Fullscreen
                 </button>
 
+                {/*
+                    How large everything is drawn (18b). A native select, as the
+                    matrix's are: keyboard- and screen-reader-correct as it
+                    stands. Shows the size the engine last confirmed, so a choice
+                    the engine has not taken is never shown as made.
+                */}
+                <label className="masthead__size" title={scaleTitle(interfaceScale.scale, interfaceScale.zoom)}>
+                    <span>Size</span>
+                    <select
+                        className="select"
+                        aria-label="Interface size"
+                        value={String(interfaceScale.scale)}
+                        onChange={(event) => setInterfaceScale(Number(event.target.value))}
+                    >
+                        {interfaceScale.scales.map((scale) => (
+                            <option key={scale} value={String(scale)}>{scaleLabel(scale)}</option>
+                        ))}
+                    </select>
+                </label>
+
                 <div className="readout">
                     <span className="lamp" data-on={midi.mappings.size > 0} aria-hidden="true" />
                     <span>MIDI <strong>{midi.mappings.size}</strong></span>
@@ -732,7 +763,8 @@ function formatSampleRate(rate: number): string {
     caution; a load or save that failed is an error; the rest is news. */
 function presetTone(status: string): StatusTone {
     if (status === 'LOAD_FAILED' || status === 'SAVE_FAILED'
-        || status === 'EXPORT_FAILED' || status === 'IMPORT_FAILED') return 'error';
+        || status === 'EXPORT_FAILED' || status === 'IMPORT_FAILED'
+        || status === 'REVEAL_FAILED') return 'error';
     if (status === 'ALREADY_EXISTS' || status === 'PROGRAM_EMPTY') return 'caution';
     return 'info';
 }

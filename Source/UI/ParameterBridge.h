@@ -29,6 +29,7 @@
 #include "State/MacroNames.h"
 #include "Parameters/ParameterDefinitions.h"
 #include "UI/BridgeProtocol.h"
+#include "UI/EditorSizing.h"
 
 #include <array>
 #include <atomic>
@@ -147,6 +148,11 @@ public:
         THREAD. */
     std::function<void()> onImportPresets;
 
+    /** What to do when the page asks to open the user's preset folder.
+        Defaults, when unset, to opening it in the system's file manager; tests
+        set it so that a test run does not open windows. MESSAGE THREAD. */
+    std::function<void()> onRevealPresetFolder;
+
     /** Writes the current sound to @p destination, named after the file the
         user chose, without renaming the sound itself (Phase 16a).
         @returns the preset status saying whether it was written. */
@@ -186,6 +192,25 @@ public:
         MESSAGE THREAD.
     */
     std::function<void()> onToggleFullscreen;
+
+    /** The interface size the page draws at, in per cent (18b).
+
+        The bridge only carries it: the size belongs to the computer, and the
+        editor reads it from the settings file when it opens and sets it here.
+        A size that is not offered is ignored. MESSAGE THREAD.
+    */
+    void setInterfaceScale (int scalePercent) noexcept;
+
+    [[nodiscard]] int getInterfaceScale() const noexcept { return interfaceScale; }
+
+    /** @returns the interface size and the sizes offered, for the page. */
+    [[nodiscard]] juce::String createInterfaceScale() const;
+
+    /** Called when the page chooses an interface size, after the bridge has
+        taken it: the editor stores it and fits the window to it. With nothing
+        set the size is still taken and answered, and simply goes nowhere.
+        MESSAGE THREAD. */
+    std::function<void (int scalePercent)> onInterfaceScaleChanged;
 
     /** Lets the page play notes into @p queueToUse: the computer keyboard and
         the piano strip (Phase 15). The editor attaches it in the standalone
@@ -360,6 +385,8 @@ private:
 
     /** Borrowed, not owned, and null when nothing is recorded. */
     state::EditHistory* editHistory = nullptr;
+
+    int interfaceScale = defaultInterfaceScale;
 
     /** Borrowed, not owned, and null when there is no user content. */
     resources::UserContent* userContent = nullptr;

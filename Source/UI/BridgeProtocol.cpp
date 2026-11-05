@@ -5,6 +5,7 @@
 #include "DSP/Oscillators/ExtraTables.h"
 #include "Parameters/ParameterId.h"
 #include "State/MacroNames.h"
+#include "UI/EditorSizing.h"
 
 #include <cmath>
 #include <string>
@@ -224,6 +225,35 @@ BridgeParseResult parseMessage (const juce::String& json)
         return BridgeParseResult::success (std::move (command));
     }
 
+    if (messageType == "requestInterfaceScale")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::requestInterfaceScale;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "setInterfaceScale")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::setInterfaceScale;
+
+        const auto scale = object->getProperty ("scale");
+
+        if (! isNumber (scale))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        // Compared as a double before it is narrowed, for the reason loadPreset
+        // gives: 1e30 is well-formed JSON and is not a size.
+        const auto value = static_cast<double> (scale);
+
+        if (! std::isfinite (value) || value != std::floor (value)
+            || value < 0.0 || value > 1000.0 || ! ui::isInterfaceScale (static_cast<int> (value)))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        command.interfaceScale = static_cast<int> (value);
+        return BridgeParseResult::success (std::move (command));
+    }
+
     if (messageType == "requestPresets")
     {
         BridgeCommand command;
@@ -245,6 +275,15 @@ BridgeParseResult parseMessage (const juce::String& json)
         BridgeCommand command;
         command.type = messageType == "exportPreset" ? BridgeCommandType::exportPreset
                                                      : BridgeCommandType::importPresets;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    // No payload either: there is one user preset folder, and which one it is
+    // is the engine's to know. The page cannot name another.
+    if (messageType == "revealPresetFolder")
+    {
+        BridgeCommand command;
+        command.type = BridgeCommandType::revealPresetFolder;
         return BridgeParseResult::success (std::move (command));
     }
 
@@ -1279,6 +1318,22 @@ juce::String makeHistoryMessage (const juce::String& undoName, const juce::Strin
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("undo", undoName);
     object->setProperty ("redo", redoName);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeInterfaceScaleMessage (int scalePercent)
+{
+    juce::Array<juce::var> offered;
+
+    for (const auto scale : ui::interfaceScales)
+        offered.add (scale);
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "interfaceScale");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("scale", scalePercent);
+    object->setProperty ("scales", offered);
 
     return juce::JSON::toString (juce::var (object), oneLine);
 }

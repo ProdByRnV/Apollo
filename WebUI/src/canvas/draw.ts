@@ -6,6 +6,8 @@
     difference between fixing that once and fixing it four times.
 */
 
+import { currentZoom } from '../state/interfaceScale';
+
 export interface CanvasSize {
     width: number;
     height: number;
@@ -15,9 +17,13 @@ export interface CanvasSize {
 /** Sizes a canvas's backing store to its element's box and the display's pixel
     ratio, so a line is one physical pixel wide rather than a blurred two on a
     scaled display.
+
+    And to the interface size (18b): a zoom on the page leaves the display's
+    ratio and the element's CSS size alone and magnifies the result, so a canvas
+    sized without it would be stretched and soft at anything above 100%.
 */
 export function fitCanvas(root: HTMLElement, canvas: HTMLCanvasElement, aspect: number): CanvasSize {
-    const ratio = window.devicePixelRatio || 1;
+    const ratio = (window.devicePixelRatio || 1) * currentZoom();
     const width = Math.max(1, Math.round(root.clientWidth));
     const height = Math.max(1, Math.round(width * aspect));
 
@@ -41,6 +47,10 @@ export function fitCanvas(root: HTMLElement, canvas: HTMLCanvasElement, aspect: 
     ways. An editor that hit-tested against the outer box drew each handle up to
     a pixel from where it could be grabbed, and a drag crept away from the
     pointer. Found in Phase 13f-2.
+
+    The pointer and the outer box are in zoomed pixels and the border is not,
+    so the offset is brought back to CSS pixels first, by this canvas's own
+    measured zoom (18b).
 */
 export function pointerOnCanvas(
     root: HTMLElement,
@@ -51,10 +61,11 @@ export function pointerOnCanvas(
     const width = Math.max(1, Math.round(root.clientWidth));
     const height = Math.max(1, Math.round(width * aspect));
     const box = canvas.getBoundingClientRect();
+    const zoom = canvas.offsetWidth > 0 && box.width > 0 ? box.width / canvas.offsetWidth : 1;
 
     return {
-        x: (event.clientX - box.left - canvas.clientLeft) * (width / Math.max(1, canvas.clientWidth)),
-        y: (event.clientY - box.top - canvas.clientTop) * (height / Math.max(1, canvas.clientHeight)),
+        x: ((event.clientX - box.left) / zoom - canvas.clientLeft) * (width / Math.max(1, canvas.clientWidth)),
+        y: ((event.clientY - box.top) / zoom - canvas.clientTop) * (height / Math.max(1, canvas.clientHeight)),
         width,
         height,
     };

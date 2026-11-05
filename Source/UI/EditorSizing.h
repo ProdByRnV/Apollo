@@ -16,6 +16,7 @@
 */
 
 #include <algorithm>
+#include <array>
 
 namespace apollo::ui
 {
@@ -51,25 +52,50 @@ inline constexpr EditorSize maximumEditorSize { 3840, 2160 };
 */
 inline constexpr int editorChromeAllowance = 64;
 
+/** The interface sizes offered, in per cent of the designed size (18b).
+
+    A fixed list rather than a free number: eight sizes are a menu somebody can
+    read at a glance, and a stored or received value that is not one of them is
+    refused rather than interpreted.
+*/
+inline constexpr std::array<int, 8> interfaceScales { 75, 85, 100, 110, 125, 150, 175, 200 };
+
+inline constexpr int defaultInterfaceScale = 100;
+
+[[nodiscard]] constexpr bool isInterfaceScale (int percent) noexcept
+{
+    return std::find (interfaceScales.begin(), interfaceScales.end(), percent) != interfaceScales.end();
+}
+
 /** @returns the size the editor should open at on a display whose usable area
              — excluding the taskbar, dock or menu bar — is the given size, in
-             the same logical units the editor is laid out in.
+             the same logical units the editor is laid out in, with the
+             interface drawn at @p scalePercent of its designed size.
 
-    A display reported as empty or negative yields the designed size: an
+    The designed size scaled, as much of it as the display can show, and never
+    smaller than the size the layout works at. The page draws at the scale only
+    as far as the window leaves it that much room (WebUI interfaceScale.ts), so
+    an editor clamped here shows a little less than was asked for rather than a
+    layout squeezed below its minimum.
+
+    A display reported as empty or negative yields the scaled designed size: an
     unknown display is not a small one, and guessing small would shrink the
-    interface on a machine that could show all of it.
+    interface on a machine that could show all of it. A scale that is not one
+    offered is taken as the default.
 */
-[[nodiscard]] constexpr EditorSize initialEditorSize (int availableWidth, int availableHeight) noexcept
+[[nodiscard]] constexpr EditorSize initialEditorSize (int availableWidth, int availableHeight,
+                                                      int scalePercent = defaultInterfaceScale) noexcept
 {
-    if (availableWidth <= 0 || availableHeight <= 0)
-        return designedEditorSize;
+    const auto scale = isInterfaceScale (scalePercent) ? scalePercent : defaultInterfaceScale;
 
-    const auto fit = [] (int designed, int available, int minimum, int maximum)
+    const auto known = availableWidth > 0 && availableHeight > 0;
+
+    const auto fit = [scale, known] (int designed, int available, int minimum, int maximum)
     {
-        const auto usable = available - editorChromeAllowance;
-        const auto wanted = std::min (designed, usable);
+        const auto wanted = (designed * scale + 50) / 100;
+        const auto shown = known ? std::min (wanted, available - editorChromeAllowance) : wanted;
 
-        return std::clamp (wanted, minimum, maximum);
+        return std::clamp (shown, minimum, maximum);
     };
 
     return { fit (designedEditorSize.width, availableWidth,

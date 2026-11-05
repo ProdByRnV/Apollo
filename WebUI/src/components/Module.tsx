@@ -38,6 +38,9 @@ export interface ModuleProps {
     bodyClassName?: string | undefined;
     /** Rendered at the right of the heading row — a tab strip, normally. */
     head?: ReactNode;
+    /** Rendered just after the title, for an action that belongs to the
+        panel as a whole rather than to anything in it (18b). */
+    beside?: ReactNode;
     inactive?: boolean | undefined;
     /** Folds the panel to its heading while it is inactive, with a button that
         shows the controls anyway (Phase 17). For the effects: one that is not
@@ -51,7 +54,7 @@ export interface ModuleProps {
 }
 
 export function Module(
-    { title, index, bodyClassName, head, inactive, foldWhenInactive, foldReason, children }: ModuleProps,
+    { title, index, bodyClassName, head, beside, inactive, foldWhenInactive, foldReason, children }: ModuleProps,
 ): JSX.Element {
     const headingId = useId();
     const bodyId = useId();
@@ -76,6 +79,7 @@ export function Module(
                 </h2>
                 {index !== undefined ? <span className="module__index" aria-hidden="true">{index}</span> : null}
                 {inactive ? <span className="module__off" aria-hidden="true">off</span> : null}
+                {beside}
                 <div className="module__spacer" />
                 {folded ? null : head}
                 {foldable ? (

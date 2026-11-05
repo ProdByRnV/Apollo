@@ -108,6 +108,17 @@ export function toggleFullscreen(): void {
 }
 
 /** Asks what can be undone and redone (Phase 18a). */
+/** Asks for the interface size and the sizes offered (18b). */
+export function requestInterfaceScale(): void {
+    send({ type: 'requestInterfaceScale', version: PROTOCOL_VERSION });
+}
+
+/** Asks for the interface to be drawn at one of the sizes offered. Nothing
+    changes until the engine answers with it. */
+export function setInterfaceScale(scale: number): void {
+    send({ type: 'setInterfaceScale', version: PROTOCOL_VERSION, scale });
+}
+
 export function requestHistory(): void {
     send({ type: 'requestHistory', version: PROTOCOL_VERSION });
 }
@@ -136,6 +147,12 @@ export function requestPresets(): void {
 */
 export function rescanPresets(): void {
     send({ type: 'rescanPresets', version: PROTOCOL_VERSION });
+}
+
+/** Opens the user's preset folder in the system's file manager (18b). There is
+    one, and the page cannot name another. */
+export function revealPresetFolder(): void {
+    send({ type: 'revealPresetFolder', version: PROTOCOL_VERSION });
 }
 
 /** Loads a preset by the id the index gave it.

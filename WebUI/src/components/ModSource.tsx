@@ -27,6 +27,7 @@ import { macroLabel, macroOfSource } from '../params/macroNames';
 import { SOURCE_COUNT } from '../params/modulationRouting';
 import { currentMacroNames, useMacroNames } from '../state/macroNames';
 import { definitionOf } from '../state/parameters';
+import { viewportZoom } from '../state/interfaceScale';
 import { beginCarry, currentCarry, endCarry, moveCarry, useCarry } from '../state/modDrag';
 import { announce } from '../state/status';
 import { hasCommandModifier, rovingTarget, tabStopIndex } from './roving';
@@ -358,7 +359,7 @@ export function ModCarryLayer(): JSX.Element | null {
             className="mod-ghost"
             aria-hidden="true"
             data-over={carry.over !== null ? 'true' : 'false'}
-            style={{ left: carry.x + 14, top: carry.y + 14 }}
+            style={{ left: carry.x / viewportZoom() + 14, top: carry.y / viewportZoom() + 14 }}
         >
             {sourceName(carry.source)}
             {carry.over !== null ? <span className="mod-ghost__target"> → {controlName(carry.over)}</span> : null}

@@ -379,6 +379,10 @@ public:
     /** Starts a scan, cancelling one already running. Returns immediately. */
     void rescan();
 
+    /** Opens the user's preset folder in the system's file manager, creating
+        it first. @returns false if it could not be created or opened. */
+    bool revealUserFolder() const;
+
     /** Blocks until any scan in progress has finished. Tests only. */
     void waitForScan();
 

@@ -1107,6 +1107,26 @@ body::before {
                 border-color var(--t-fast) var(--ease);
 }
 
+/* The interface size (18b): a label and a native select, set in the
+   masthead's own type so it reads as one of its controls. */
+.masthead__size {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.masthead__size .select {
+    width: auto;
+    font-family: var(--font-mono);
+    font-size: var(--t-label);
+    padding: 4px 24px 4px 8px;
+}
+
 .masthead__button:hover {
     background: var(--surface-hover);
     color: var(--text-bright);

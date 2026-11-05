@@ -1,6 +1,7 @@
 #include "UI/ApolloWebViewEditor.h"
 
 #include "UI/EditorSizing.h"
+#include "UI/InterfaceSettings.h"
 
 // Named explicitly rather than relied on transitively. MSVC's headers pull most
 // of these in for free and libc++ often does too, which is exactly why a missing
@@ -19,17 +20,18 @@ namespace apollo::ui
 namespace
 {
 
-/** @returns the size the editor should open at on this machine.
+/** @returns the size the editor should open at on this machine, with the
+    interface drawn at @p scalePercent.
 
     The decision is in UI/EditorSizing.h, where a test can reach it; this reads
     the display and hands it over (ADR-0076).
 */
-ui::EditorSize initialEditorSizeForThisDisplay()
+ui::EditorSize initialEditorSizeForThisDisplay (int scalePercent)
 {
     const auto* display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
 
     if (display == nullptr)
-        return ui::designedEditorSize;
+        return ui::initialEditorSize (0, 0, scalePercent);
 
     // The *user* bounds, which exclude the taskbar, dock and menu bar — the
     // same measure toggleFullscreen uses. Rounded explicitly, because a display
@@ -37,7 +39,8 @@ ui::EditorSize initialEditorSizeForThisDisplay()
     const auto area = display->userBounds;
 
     return ui::initialEditorSize (juce::roundToInt (area.getWidth()),
-                                  juce::roundToInt (area.getHeight()));
+                                  juce::roundToInt (area.getHeight()),
+                                  scalePercent);
 }
 
 /** How often the editor checks for a wholesale state reload.
@@ -228,7 +231,13 @@ ApolloWebViewEditor::ApolloWebViewEditor (ApolloAudioProcessor& processorToUse)
     setResizeLimits (ui::minimumEditorSize.width, ui::minimumEditorSize.height,
                      ui::maximumEditorSize.width, ui::maximumEditorSize.height);
 
-    const auto initial = initialEditorSizeForThisDisplay();
+    // The interface size is the computer's, not the project's (18b), so it is
+    // read here every time a window opens: another instance may have changed
+    // it since this one last looked.
+    bridge.setInterfaceScale (loadInterfaceScale (defaultInterfaceSettingsFile()));
+    bridge.onInterfaceScaleChanged = [this] (int scalePercent) { interfaceScaleChosen (scalePercent); };
+
+    const auto initial = initialEditorSizeForThisDisplay (bridge.getInterfaceScale());
     setSize (initial.width, initial.height);
 
     // The page cannot do this for itself. A WebView inside a plugin has no way
@@ -284,6 +293,7 @@ ApolloWebViewEditor::~ApolloWebViewEditor()
 
     bridge.onExportPreset = {};
     bridge.onImportPresets = {};
+    bridge.onInterfaceScaleChanged = {};
 }
 
 void ApolloWebViewEditor::exportPreset (const juce::String& suggestedName)
@@ -553,6 +563,38 @@ void ApolloWebViewEditor::toggleFullscreen()
     setSize (width, height);
 }
 
+void ApolloWebViewEditor::interfaceScaleChosen (int scalePercent)
+{
+    // MESSAGE THREAD, from the bridge.
+    //
+    // Not being able to write the file costs the next window this size and
+    // nothing else, so the size is still used now.
+    (void) saveInterfaceScale (defaultInterfaceSettingsFile(), scalePercent);
+
+    if (auto* window = standaloneWindow())
+    {
+        if (window->isFullScreen())
+            return;
+    }
+    else if (fullscreen)
+    {
+        return;
+    }
+
+    // The display this editor is on, as Fullscreen measures it, and the size
+    // the window would have opened at for this scale. In a host that is the
+    // host's window growing or shrinking as far as the host permits.
+    const auto* display = juce::Desktop::getInstance().getDisplays()
+                              .getDisplayForRect (getScreenBounds());
+
+    const auto area = display != nullptr ? display->userBounds : decltype (display->userBounds) {};
+    const auto size = ui::initialEditorSize (juce::roundToInt (area.getWidth()),
+                                             juce::roundToInt (area.getHeight()),
+                                             scalePercent);
+
+    setSize (size.width, size.height);
+}
+
 void ApolloWebViewEditor::resized()
 {
     webView.setBounds (getLocalBounds());
@@ -600,6 +642,7 @@ void ApolloWebViewEditor::resynchroniseAfterReload()
 
     // And what can be undone, which a load from outside has emptied.
     sendToWebView (bridge.createHistory());
+    sendToWebView (bridge.createInterfaceScale());
 
     // So does the user's content. What the slots hold now may still be loading;
     // the store says when each one lands.

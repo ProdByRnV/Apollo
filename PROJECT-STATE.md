@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a, undo and redo, is done** (ADR-0119); 18b–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a, undo and redo, and 18b, the interface size, are done** (ADR-0119, ADR-0120); 18c–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18b, the interface's size**, when the developer says to go on. Open: the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18c, one command that installs Apollo on Windows**, when the developer says to go on. Open: the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2329,6 +2329,39 @@ Tested in:
   it, a refused document not; the limit; the commands.
 - `WebUI/test/undoKeys.test.mjs`: the keys, the modifiers, and what keeps them.
 
+### The interface size, and the presets folder (Phase 18b)
+
+ADR-0120.
+
+- **`UI/EditorSizing.h`**: `interfaceScales` (75–200 %), `isInterfaceScale`,
+  and `initialEditorSize` taking a scale — the designed size times it, fitted
+  to the display, never below the minimum.
+- **`UI/InterfaceSettings`**: `Interface.settings` in Apollo's per-user data
+  folder, read with a size bound and refused whole if it is not exactly an
+  offered size; written through a temporary file.
+- **The editor** reads it on opening, opens at that size, and on a change
+  stores it and resizes — unless the window fills the screen, where the page
+  zooms inside it.
+- **The bridge**: `requestInterfaceScale`, `setInterfaceScale` and the
+  `interfaceScale` message carrying the size and the list (UI_BINDINGS §10.14).
+- **The page**: `params/interfaceScale.ts` (the zoom for a size and a window,
+  held to what leaves the layout 900 × 560), `state/interfaceScale.ts` (applies
+  CSS zoom, `viewportZoom` for converting pointer pixels), and the conversions
+  in `fitCanvas`, `pointerOnCanvas`, the context menu, the dragged source's
+  label, the bipolar rail and the scroll back to the tabs.
+- **Open folder** beside the Presets title: `revealPresetFolder`,
+  `PresetLibrary::revealUserFolder`, `REVEAL_FAILED` if it cannot be opened.
+
+Tested in:
+- `Tests/UI/EditorSizingTests.cpp`: the window at each size on a 4K display
+  and a laptop, a size not offered, and every size fitting every display.
+- `Tests/UI/InterfaceSettingsTests.cpp`: a size kept, eleven damaged or foreign
+  files and an enormous one read as 100 %, a folder in the file's place; the
+  commands and what they refuse; the bridge telling the editor.
+- `Tests/UI/ParameterBridgeTests.cpp`: `revealPresetFolder` reaching the editor.
+- `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
+  size, and the tooltip.
+
 ### Filling the screen, and one command for Mac and Linux (Phase 17d)
 
 ADR-0118, asked for before 1.3.0 was published.
@@ -3684,6 +3717,26 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The interface size and the presets folder (Phase 18b), 2026-11-05
+
+The Release standalone on the developer's laptop, the page 1278 × 692 CSS pixels
+at Windows' 150 %, over the DevTools protocol with real mouse and keyboard input.
+
+| Checked | Result |
+|---|---|
+| Opening | SIZE 100 %, the eight sizes in its list; OPEN FOLDER beside PRESETS |
+| 75 % | Chosen from the keyboard: everything drawn at 75 %, the canvases sharp, `Interface.settings` written with 75 |
+| 150 % | Drawn at 124 %, the most that leaves the layout 900 × 560 here; the tooltip "Interface size: 150%, drawn at 124% until the window is larger"; nothing past the window's edge |
+| A knob's menu at 124 % | Opened with its corner at the pointer, 542, 275 |
+| A tab at 124 % | MODULATION from far down the page: scrolled back to where the tab bar sticks, its top at the workspace's |
+| The envelope at 124 % | Env 1's release end dragged 350 → 380: the handle under the pointer at 380.7, "Undo Env 1 Release"; undone |
+| OPEN FOLDER | A File Explorer window at `%APPDATA%ApolloPresets`; closed afterwards |
+| Reopening | Opened at 150 %, drawn at 124 % |
+| Afterwards | 100 % again, the settings file removed as it was not there before |
+
+**Not checked: in a DAW**, where the plugin's window should grow and shrink with
+the size; and on macOS and Linux, where the zoom is WebKit's.
 
 ### Undo and redo (Phase 18a), 2026-11-04
 

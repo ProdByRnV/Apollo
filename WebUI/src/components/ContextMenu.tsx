@@ -28,6 +28,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { viewportZoom } from '../state/interfaceScale';
 import { rovingTarget } from './roving';
 
 export interface ContextMenuItem {
@@ -49,7 +50,12 @@ const MARGIN = 6;
 
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Element {
     const ref = useRef<HTMLDivElement>(null);
-    const [position, setPosition] = useState({ left: x, top: y });
+    // Where it was opened is a pointer position, in zoomed pixels; where it is
+    // placed is a CSS length, which is not (18b).
+    const [position, setPosition] = useState(() => {
+        const zoom = viewportZoom();
+        return { left: x / zoom, top: y / zoom };
+    });
 
     /** True once something has been chosen, so nothing can be chosen twice.
 
@@ -97,11 +103,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps): JSX.Ele
         if (!element) return;
 
         const box = element.getBoundingClientRect();
+        const zoom = viewportZoom();
 
         const left = Math.max(MARGIN, Math.min(x, window.innerWidth - box.width - MARGIN));
         const top = Math.max(MARGIN, Math.min(y, window.innerHeight - box.height - MARGIN));
 
-        setPosition({ left, top });
+        setPosition({ left: left / zoom, top: top / zoom });
 
         // The first choosable item takes focus, so the menu can be driven
         // entirely from the keyboard: Enter or Space picks, the arrows move,

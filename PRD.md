@@ -994,7 +994,7 @@ Numeric parameter displays.
 Non-color-only status communication.
 Scalable UI where practical.
 
-> **Status, 0.1.0:** ✅ One Tab stop per group, a heading and region per panel, typed values, focus that is returned, and nothing signalled by colour alone (ADR-0083 to ADR-0085). ◐ Scaling is the window and full screen, with no zoom control. Not yet heard through a screen reader.
+> **Status, 0.1.0:** ✅ One Tab stop per group, a heading and region per panel, typed values, focus that is returned, and nothing signalled by colour alone (ADR-0083 to ADR-0085). ✅ Scaling is the window, full screen, and since 18b an interface size from 75 to 200 % (ADR-0120). Not yet heard through a screen reader.
 
 ---
 44. Architecture Principles

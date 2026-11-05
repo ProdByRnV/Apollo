@@ -16,6 +16,15 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   same, and their tooltips name what they would undo. Up to 100 steps, kept
   while the window is closed; opening a project starts afresh. MIDI
   assignments are not undone.
+- **Make the interface larger or smaller.** **SIZE** at the top of the window
+  draws everything from 75 % to 200 %: smaller to fit more on a laptop, larger
+  on a big monitor. In a DAW the plugin's window grows or shrinks with it. If
+  the window is too small for the size you chose, Apollo draws it as large as
+  fits and says so when you point at **SIZE**. Apollo remembers the size on
+  your computer; it is not saved in projects or presets.
+- **Open your presets folder.** **OPEN FOLDER** beside **PRESETS** opens the
+  folder your presets are saved in, to back them up or add presets someone made.
+  Press **RESCAN** to see what you added.
 
 ---
 

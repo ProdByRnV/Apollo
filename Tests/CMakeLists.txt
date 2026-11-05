@@ -99,6 +99,7 @@ target_sources(ApolloTests PRIVATE
     State/PresetDocumentTests.cpp
     State/StateSerializationTests.cpp
     UI/EditorSizingTests.cpp
+    UI/InterfaceSettingsTests.cpp
     UI/BridgeProtocolTests.cpp
     UI/ParameterBridgeTests.cpp
     UI/ContentBridgeTests.cpp
