@@ -37,6 +37,10 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
 
     const bipolar = source.startsWith('lfo');
 
+    // Only an envelope has stages to name. The follower is unipolar like one,
+    // and has none (18e).
+    const staged = source.startsWith('env');
+
     // An envelope never goes below zero, so its floor is the bottom of the
     // canvas; an LFO swings both ways about the middle.
     const zero = bipolar ? 0.5 : 0.97;
@@ -70,7 +74,7 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
 
             if (!frame.routed) {
                 setReading('unrouted');
-            } else if (bipolar) {
+            } else if (!staged) {
                 setReading(frame.current.toFixed(2));
             } else {
                 const stage = ENVELOPE_STAGES[frame.stage] ?? 'idle';
@@ -81,7 +85,7 @@ export function Trace({ source, label }: TraceProps): JSX.Element {
         };
 
         return subscribeToModulator(source, onFrame);
-    }, [source, bipolar, draw]);
+    }, [source, staged, draw]);
 
     // Redrawn when the box it sits in changes size, not only when the window
     // is: a canvas on a tab that is not showing has no size until its tab is

@@ -52,6 +52,7 @@ add_library(apollo_core STATIC
     DSP/Distortion/Distortion.h
     DSP/Dynamics/Compressor.cpp
     DSP/Dynamics/Compressor.h
+    DSP/Dynamics/EnvelopeFollower.h
     DSP/Dynamics/LevelDetector.h
     DSP/Dynamics/NoiseGate.cpp
     DSP/Dynamics/NoiseGate.h

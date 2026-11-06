@@ -106,6 +106,10 @@ enum class ModulatorSource
     lfo3,
     lfo4,
 
+    /** The envelope follower (Phase 18e). Engine-wide rather than a voice's,
+        so its trace is of the instrument and is drawn with or without a note. */
+    follower,
+
     count
 };
 
@@ -125,6 +129,7 @@ inline constexpr std::size_t modulatorSourceCount
         case ModulatorSource::lfo2:      return "lfo2";
         case ModulatorSource::lfo3:      return "lfo3";
         case ModulatorSource::lfo4:      return "lfo4";
+        case ModulatorSource::follower:  return "follow";
         case ModulatorSource::count:
         default:                         return "";
     }

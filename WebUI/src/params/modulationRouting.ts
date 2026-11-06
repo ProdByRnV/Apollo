@@ -13,7 +13,7 @@
     the full name is in its tooltip and in the status line. */
 export const SOURCE_TAGS: readonly string[] = [
     '', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'L4',
-    'VL', 'KT', 'MW', 'PB', 'AT', 'RN', 'TB', 'M1', 'M2', 'M3', 'M4',
+    'VL', 'KT', 'MW', 'PB', 'AT', 'RN', 'TB', 'M1', 'M2', 'M3', 'M4', 'EF',
 ];
 
 /** The number of sources, none included, as dsp::ModSource::count. */

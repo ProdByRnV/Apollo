@@ -79,6 +79,8 @@ void VoiceEngine::prepare (double sampleRate) noexcept
 
     applySourceParameters();
 
+    follower.prepare (preparedSampleRate);
+
     for (auto& voice : voices)
         voice.setAmplitudeEnvelope (amplitudeEnvelope);
 
@@ -93,6 +95,12 @@ void VoiceEngine::reset() noexcept
 {
     for (auto& voice : voices)
         voice.reset();
+
+    follower.reset();
+    followerValue = 0.0f;
+
+    for (auto& voice : voices)
+        voice.setFollower (0.0f);
 
     sustainPedalDown = false;
     pitchBendSemitones = 0.0f;
@@ -541,6 +549,12 @@ void VoiceEngine::setMacro (int index, float value) noexcept
         voice.setMacro (index, value);
 }
 
+void VoiceEngine::setFollowerSettings (float attackMs, float releaseMs, float gainDb) noexcept
+{
+    follower.setTimes (attackMs, releaseMs);
+    follower.setGainDb (gainDb);
+}
+
 void VoiceEngine::updateEffectModulation() noexcept
 {
     const auto first = static_cast<std::size_t> (dsp::firstEffectDestination);
@@ -571,6 +585,7 @@ void VoiceEngine::updateEffectModulation() noexcept
     sources[static_cast<std::size_t> (dsp::ModSource::modWheel)] = modWheel;
     sources[static_cast<std::size_t> (dsp::ModSource::pitchBend)] = wheelNormalised;
     sources[static_cast<std::size_t> (dsp::ModSource::aftertouch)] = aftertouch;
+    sources[static_cast<std::size_t> (dsp::ModSource::follower)] = followerValue;
 
     dsp::ModDestinationValues destinations {};
     dsp::evaluateModulation (routing, sources, destinations);
@@ -792,6 +807,24 @@ void VoiceEngine::render (float* const* output, int numChannels, int startSample
         for (int i = 0; i < numSamples; ++i)
             destination[startSample + i] *= outputGain;
     }
+
+    // How loud that was, for the follower (Phase 18e): the summed voices at the
+    // level the effects receive them, before the master. Measured as each
+    // stretch between MIDI events is rendered, and handed to the voices at the
+    // end of it, so the matrix reads it at most one stretch late — and the
+    // voices are told only when it moved, which a held chord's sustain does
+    // not do often.
+    follower.process (output, numChannels, startSample, numSamples);
+
+    const auto value = follower.getValue();
+
+    if (value != followerValue)
+    {
+        followerValue = value;
+
+        for (auto& voice : voices)
+            voice.setFollower (followerValue);
+    }
 }
 
 const Voice* VoiceEngine::findVoiceToTrace() const noexcept
@@ -838,6 +871,9 @@ void VoiceEngine::publishModulation() noexcept
 
         if (via >= firstEnvelope && via <= lastLfo)
             isRouted[static_cast<std::size_t> (via - firstEnvelope)] = true;
+
+        if (slot.source == dsp::ModSource::follower || slot.via == dsp::ModSource::follower)
+            isRouted[static_cast<std::size_t> (Modulator::follower)] = true;
     }
 
     // Envelope 1 shapes the voice whether or not the matrix reads it, so it is
@@ -846,7 +882,16 @@ void VoiceEngine::publishModulation() noexcept
 
     auto& instrument = telemetryHub->snapshot();
 
-    for (std::size_t i = 0; i < telemetry::modulatorSourceCount; ++i)
+    // The follower is the engine's, not a voice's: its value whether or not
+    // anything sounds, so a release is seen to fall away after the last note.
+    telemetryHub->trace (Modulator::follower).write (followerValue);
+    instrument.routed[static_cast<std::size_t> (Modulator::follower)]
+        .store (isRouted[static_cast<std::size_t> (Modulator::follower)], std::memory_order_relaxed);
+    instrument.envelopeStage[static_cast<std::size_t> (Modulator::follower)]
+        .store (static_cast<int> (dsp::EnvelopeStage::idle), std::memory_order_relaxed);
+
+    // The envelopes and LFOs, from the voice being traced.
+    for (std::size_t i = 0; i < static_cast<std::size_t> (Modulator::follower); ++i)
     {
         const auto source = static_cast<Modulator> (i);
         const auto isEnvelope = i < static_cast<std::size_t> (Voice::numEnvelopes);

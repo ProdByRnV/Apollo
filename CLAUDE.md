@@ -704,6 +704,7 @@ Sources may include:
 - Macros.
 - Random sources.
 - Key tracking.
+- The envelope follower: how loud the instrument is (ADR-0123).
 
 Destinations may include:
 

@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 310> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -1171,7 +1171,7 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
     // which scales the routing rather than being a routing aimed at it.
     { "mod01_source", "Mod 1 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1192,13 +1192,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
     // it was. Phase 13e-4 (ADR-0099).
     { "mod01_via", "Mod 1 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod02_source", "Mod 2 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1216,13 +1216,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod02_via", "Mod 2 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod03_source", "Mod 3 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1240,13 +1240,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod03_via", "Mod 3 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod04_source", "Mod 4 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1264,13 +1264,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod04_via", "Mod 4 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod05_source", "Mod 5 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1288,13 +1288,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod05_via", "Mod 5 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod06_source", "Mod 6 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1312,13 +1312,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod06_via", "Mod 6 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod07_source", "Mod 7 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1336,13 +1336,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod07_via", "Mod 7 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod08_source", "Mod 8 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1360,13 +1360,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod08_via", "Mod 8 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod09_source", "Mod 9 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1384,13 +1384,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod09_via", "Mod 9 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod10_source", "Mod 10 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1408,13 +1408,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod10_via", "Mod 10 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod11_source", "Mod 11 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1432,13 +1432,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod11_via", "Mod 11 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod12_source", "Mod 12 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1456,13 +1456,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod12_via", "Mod 12 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod13_source", "Mod 13 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1480,13 +1480,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod13_via", "Mod 13 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod14_source", "Mod 14 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1504,13 +1504,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod14_via", "Mod 14 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod15_source", "Mod 15 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1528,13 +1528,13 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod15_via", "Mod 15 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
     { "mod16_source", "Mod 16 Source",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1552,7 +1552,7 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
 
     { "mod16_via", "Mod 16 Via",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 19.0f, 0.0f,
+      0.0f, 20.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -2285,7 +2285,31 @@ inline constexpr std::array<ParameterDefinition, 307> parameterDefinitions { {
       20.0f, 2000.0f, 20.0f,
       // Places 200 Hz near the centre.
       0.3868f, 0.0f,
-      true, false, true }
+      true, false, true },
+
+    // Phase 18e. The envelope follower, a modulation source: how quickly it
+    // rises and falls, and how loud the instrument has to be to move it. Read
+    // once a block; nothing routes it by default, so the defaults change no
+    // sound (ADR-0123).
+    { "follower_attack", "Follower Attack",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.1f, 500.0f, 10.0f,
+      // Places 20 ms near the centre.
+      0.2150f, 0.0f,
+      true, false, false },
+
+    { "follower_release", "Follower Release",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      5.0f, 5000.0f, 200.0f,
+      // Places 300 ms near the centre.
+      0.2453f, 0.0f,
+      true, false, false },
+
+    { "follower_gain", "Follower Gain",
+      ParameterType::floatingPoint, ParameterUnit::decibels,
+      -24.0f, 24.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false }
 } };
 
 /** @returns the definition with this ID, or nullptr if there is none.

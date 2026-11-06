@@ -26,6 +26,7 @@
     audio thread and none of them allocate, lock, log or perform I/O.
 */
 
+#include "DSP/Dynamics/EnvelopeFollower.h"
 #include "DSP/Envelopes/Envelope.h"
 #include "DSP/Oscillators/WavetableLibrary.h"
 #include "DSP/Utilities/PublishedSlot.h"
@@ -385,6 +386,12 @@ public:
         for every voice. Engine-wide, like the mod wheel. */
     void setMacro (int index, float value) noexcept;
 
+    /** The envelope follower's times and gain (Phase 18e). Once a block. */
+    void setFollowerSettings (float attackMs, float releaseMs, float gainDb) noexcept;
+
+    /** The follower's value, 0 to 1, as the voices were last handed it. */
+    [[nodiscard]] float getFollowerValue() const noexcept { return followerValue; }
+
     /** Works out the matrix's offsets for the effect destinations, once a
         block, after the voices have rendered (Phase 13e-5).
 
@@ -571,6 +578,11 @@ private:
 
     float modWheel = 0.0f;
     std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
+
+    /** How loud the summed voices are, followed as they are rendered, and the
+        value it last gave every voice (Phase 18e). */
+    dsp::EnvelopeFollower follower;
+    float followerValue = 0.0f;
 
     /** The effect destinations' offsets, indexed from dsp::firstEffectDestination. */
     std::array<float, static_cast<std::size_t> (dsp::numEffectDestinations)> effectOffsets {};

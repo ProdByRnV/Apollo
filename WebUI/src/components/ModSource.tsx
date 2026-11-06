@@ -47,7 +47,7 @@ const SCROLL_SPEED = 18;
     screen reader and its tooltip. A macro the user named is shown by its name. */
 const STRIP_LABELS: readonly string[] = [
     '', 'ENV1', 'ENV2', 'ENV3', 'ENV4', 'LFO1', 'LFO2', 'LFO3', 'LFO4',
-    'VEL', 'KEY', 'WHEEL', 'BEND', 'AFTER', 'RAND', 'TIMBRE', 'M1', 'M2', 'M3', 'M4',
+    'VEL', 'KEY', 'WHEEL', 'BEND', 'AFTER', 'RAND', 'TIMBRE', 'M1', 'M2', 'M3', 'M4', 'FOLLOW',
 ];
 
 function stripLabel(source: number): string {

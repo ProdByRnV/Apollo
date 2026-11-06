@@ -157,7 +157,7 @@ struct DropPlan
     constexpr std::array<std::string_view, static_cast<std::size_t> (dsp::ModSource::count)> names { {
         "—", "ENV 1", "ENV 2", "ENV 3", "ENV 4", "LFO 1", "LFO 2", "LFO 3", "LFO 4",
         "Velocity", "Key Track", "Mod Wheel", "Pitch Bend", "Aftertouch", "Random",
-        "Timbre", "Macro 1", "Macro 2", "Macro 3", "Macro 4",
+        "Timbre", "Macro 1", "Macro 2", "Macro 3", "Macro 4", "Follower",
     } };
 
     const auto index = static_cast<std::size_t> (source);

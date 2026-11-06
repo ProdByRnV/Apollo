@@ -320,6 +320,9 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "master_gain", 1220740924u },
         { "sub_octave_up", 1780581451u },
         { "fx_reverb_lowcut", 1020590286u },
+        { "follower_attack", 1190202761u },
+        { "follower_release", 7532774u },
+        { "follower_gain", 2010334976u },
     };
 
     return identities;

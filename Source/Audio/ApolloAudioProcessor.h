@@ -480,6 +480,11 @@ private:
 
     std::array<MacroParameterPointers, static_cast<std::size_t> (dsp::numMacros)> macroParameters;
 
+    /** The envelope follower's attack, release and gain (Phase 18e). */
+    std::atomic<float>* followerAttack = nullptr;
+    std::atomic<float>* followerRelease = nullptr;
+    std::atomic<float>* followerGain = nullptr;
+
     std::array<ModSlotParameterPointers, static_cast<std::size_t> (dsp::maxModulationSlots)>
         modulationParameters;
 

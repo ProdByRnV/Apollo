@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, and 18d the output analyser are done** (ADR-0119 to ADR-0122); 18e–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, and 18e the envelope follower are done** (ADR-0119 to ADR-0123); 18f–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18e, an envelope follower as a modulation source**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18f, a curve for each stage of an envelope**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,37 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### The envelope follower (Phase 18e)
+
+ADR-0123.
+
+- **`DSP/Dynamics/EnvelopeFollower.h`**: peak, attack and release by the
+  dynamics processors' convention, 0 to 1 over −60 to 0 dBFS plus the gain;
+  NaN ignored, flushed at the bottom.
+- **`ModSource::follower`**, appended; every slot's source and via 0–20. Its
+  name "Follower" in `params::sourceName`.
+- **`VoiceEngine`** follows the summed voices at the end of each `render`
+  stretch, before the effects and the master, and hands the value to every voice
+  when it moves; the effects' no-voice sources include it. `setFollowerSettings`
+  from the processor once a block.
+- **Three parameters** at the end of the registry, 310 in all, their VST3
+  identities pinned.
+- **Telemetry**: `ModulatorSource::follower`, token `follow`, written by the
+  engine whether or not a voice sounds.
+- **The page**: FOLLOW in the strip, "Follower" in the matrix, the Follower panel
+  on the Modulation tab; `Trace` names stages only for envelopes.
+
+Tested in:
+- `Tests/DSP/EnvelopeFollowerTests.cpp`: a sine reads between its RMS and its
+  peak at three levels; attack and release reach 63.2 % in their times; +12 dB
+  of gain is +0.2; silence reaches exactly zero; NaN and infinity are not
+  levels; the louder channel; and in the instrument, routed to the reverb's mix,
+  a held C4 moves the follower to 0.59 and the mix with it, and two seconds of
+  silence brings both back to zero.
+- `Tests/UI/ModulationDropTests.cpp`: the follower can be dropped, one past it
+  cannot, its name.
+- `Tests/Host/ParameterIdentities.cpp`: the three new identities, none changed.
+
 ### The output analyser (Phase 18d)
 
 ADR-0122.
@@ -3761,6 +3792,19 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The envelope follower (Phase 18e), 2026-11-07
+
+The Release standalone on the developer's laptop, Square Keys, over the DevTools
+protocol with real mouse and keyboard input.
+
+| Checked | Result |
+|---|---|
+| The strip | FOLLOW at the end of the twenty-one sources |
+| Routing it | FOLLOW clicked, FILTERS, Filter 1 Cutoff: "Follower → Filter 1 Cutoff in slot 3, at +25%", an EF tag on the knob, "Follower" in the matrix |
+| From its own panel | The handle in the Follower panel's heading, carried to Oscillator 1's level: "Follower → Osc 1 Level in slot 3" |
+| The trace | A held C4: 0.37; just after letting go 0.31; three seconds later 0.00. The first build said "idle" beside a moving value, the envelope's stage word; fixed so only envelopes name a stage |
+| Afterwards | Each routing undone with Ctrl+Z, MOD back to Square Keys' 2/16, Apollo closed as it was |
 
 ### The output analyser (Phase 18d), 2026-11-06
 

@@ -51,6 +51,7 @@ test('only the four macro sources are macros', () => {
     assert.equal(macroOfSource(15), null);
     assert.equal(macroOfSource(16), 1);
     assert.equal(macroOfSource(19), 4);
+    assert.equal(macroOfSource(20), null, 'the follower is not a macro');
     assert.equal(macroOfSource(20), null);
     assert.equal(macroOfSource(0), null);
 });

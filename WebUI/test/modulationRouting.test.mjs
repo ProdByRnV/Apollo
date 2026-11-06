@@ -28,10 +28,11 @@ const controlFor = (destination) => controls.get(destination);
 const empty = { source: 0, destination: 0, depth: 0 };
 
 test('every source has a tag, two characters, in the engine\'s order', () => {
-    assert.equal(SOURCE_COUNT, 20, 'dsp::ModSource::count');
+    assert.equal(SOURCE_COUNT, 21, 'dsp::ModSource::count, with the follower since 18e');
     assert.equal(SOURCE_TAGS[0], '');
     assert.equal(SOURCE_TAGS[5], 'L1');
     assert.equal(SOURCE_TAGS[19], 'M4');
+    assert.equal(SOURCE_TAGS[20], 'EF');
 
     for (const tag of SOURCE_TAGS.slice(1)) assert.equal(tag.length, 2, tag);
     assert.equal(new Set(SOURCE_TAGS).size, SOURCE_TAGS.length, 'no two alike');

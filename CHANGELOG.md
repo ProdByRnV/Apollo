@@ -22,6 +22,14 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   the window is too small for the size you chose, Apollo draws it as large as
   fits and says so when you point at **SIZE**. Apollo remembers the size on
   your computer; it is not saved in projects or presets.
+- **Modulate by loudness: the envelope follower.** **FOLLOW**, a new source at
+  the end of the row of sources and in the matrix, is how loud Apollo is,
+  measured after the voices and before the effects. Drag it onto any control:
+  onto the reverb's or delay's mix at a negative depth, and the effect ducks
+  while you play and opens up in the gaps; onto a filter's cutoff, and the sound
+  brightens as it gets louder. **Attack**, **Release** and **Gain** are in the
+  new **Follower** panel on the Modulation tab, with a live trace of what it is
+  doing.
 - **See where the sound's energy is.** The **Analyser** on the **MIDI & Output**
   tab shows the spectrum of everything Apollo plays, live, with a slowly falling
   line of recent peaks. Point at it to read the frequency, the nearest note and
@@ -39,6 +47,15 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 - **Open your presets folder.** **OPEN FOLDER** beside **PRESETS** opens the
   folder your presets are saved in, to back them up or add presets someone made.
   Press **RESCAN** to see what you added.
+
+### One thing that moves
+
+Projects, presets and MIDI assignments from earlier versions open and sound the
+same. The one exception is DAW automation that **switches a modulation slot's
+source or via**: the follower made that list one longer, so a lane recorded with
+1.3.0 or earlier picks a different source from Key Track onwards. Automating
+which source a slot uses is rare; if you did, choose the source again in the
+matrix. Automation of a slot's depth, and of every other control, is unaffected.
 
 ---
 

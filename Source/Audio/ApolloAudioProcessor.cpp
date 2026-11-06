@@ -97,6 +97,11 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     // search in the audio callback.
     masterGainParameter = apvts.getRawParameterValue ("master_gain");
 
+    followerAttack = apvts.getRawParameterValue ("follower_attack");
+    followerRelease = apvts.getRawParameterValue ("follower_release");
+    followerGain = apvts.getRawParameterValue ("follower_gain");
+    jassert (followerAttack != nullptr && followerRelease != nullptr && followerGain != nullptr);
+
     osc1Parameters.resolve (apvts, "osc1_");
     osc2Parameters.resolve (apvts, "osc2_");
 
@@ -666,6 +671,12 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
         voiceEngine.setMacro (static_cast<int> (i), dsp::shapeMacro (readParameter (macro.value, 0.0f), shape));
     }
+
+    // The envelope follower's settings, once a block like the macros. Its value
+    // is the engine's own, measured as the voices render (Phase 18e).
+    voiceEngine.setFollowerSettings (readParameter (followerAttack, 10.0f),
+                                     readParameter (followerRelease, 200.0f),
+                                     readParameter (followerGain, 0.0f));
 
     const auto readFilter = [] (const FilterParameterPointers& pointers, float defaultType)
     {

@@ -30,6 +30,9 @@ import { plainOf, useParameterValue } from '../state/parameters';
 
 const INDICES = [1, 2, 3, 4];
 
+/** dsp::ModSource::follower. */
+const FOLLOWER_SOURCE = 20;
+
 export function Envelopes(): JSX.Element {
     const [selected, setSelected] = useState(0);
     const idBase = useId();
@@ -248,6 +251,23 @@ function MacroName({ macro }: { macro: number }): JSX.Element {
     goes, and how far, is the matrix's: route "Macro 1" to as many destinations
     as it should reach, each with its own depth.
 */
+/*
+    The envelope follower (Phase 18e, ADR-0123): how loud the instrument is, as
+    a source. Its trace is the instrument's rather than a note's, so it moves
+    with chords and falls away after the last one; the handle in the heading is
+    the one in the strip under the tabs, for dragging onto a control from here.
+*/
+export function Follower(): JSX.Element {
+    return (
+        <Module title="Follower" head={<ModSourceHandle source={FOLLOWER_SOURCE} />}>
+            <Trace source="follow" label="follow" />
+            <Knob id="follower_attack" label="Attack" />
+            <Knob id="follower_release" label="Release" />
+            <Knob id="follower_gain" label="Gain" />
+        </Module>
+    );
+}
+
 export function Macros(): JSX.Element {
     return (
         <Module

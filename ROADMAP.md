@@ -199,7 +199,7 @@ front of it is better understood, the way 8f was.
 | 18b | The interface's size — SIZE in the masthead, 75 to 200 %, drawn as far as the window leaves the layout room, the plugin window following it, kept per computer; and Open folder beside the Presets title (ADR-0120) | ✅ |
 | 18c | One command that installs Apollo on Windows — `irm … | iex` in PowerShell: checked download, the application per user with a Start-menu entry, the plugin where every DAW looks after one permission prompt, no SmartScreen; checked in CI (ADR-0121) | ✅ |
 | 18d | An analyser of the output on its own — the output's spectrum on the MIDI & Output tab, with a peak line and a reading of frequency, note and level under the pointer; nothing added to the audio thread (ADR-0122) | ✅ |
-| 18e | An envelope follower as a modulation source | |
+| 18e | An envelope follower as a modulation source — FOLLOW in the strip and the matrix, how loud the instrument is before its effects, with attack, release and gain on the Modulation tab; the source list grows to 21, chosen by the developer knowing what it moves (ADR-0123) | ✅ |
 | 18f | A curve for each stage of an envelope | |
 | 18g | A library of drawn LFO shapes, to use in another patch | |
 | 18h | Macros as destinations in the matrix | |
@@ -215,7 +215,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 | 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in FL Studio, by the developer, in 10e-2 |
 | 2 | Thread-safety tests — an allocation and lock detector on the audio thread | unscheduled; 10a did not take it, because the obvious detector would miss the allocations most likely to happen (PROJECT-STATE issue 6) |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
-| 5 | Envelope-following modulation | needs a follower on the audio path; unscheduled |
+| 5 | Envelope-following modulation | 18e (ADR-0123) |
 | 13c-1 | A comb's delay line allocated only when a comb is chosen — every voice holds four, 2.05 MB per instance, found by 13d-2's benchmark (PROJECT-STATE §5b) | 14, the release's memory review |
 
 ---
@@ -520,7 +520,7 @@ Build the expressive sound-design architecture around the oscillator core.
 - [x] Implement mod wheel/CC sources. — CC 1 is read as a first-class source rather than through MIDI Learn, because it is a modulation source rather than a mapping to a parameter (5d)
 - [x] Implement aftertouch where supported. — channel pressure. Polyphonic aftertouch is a per-note source and needs the per-note routing that arrives with MPE in Phase 6 (5d)
 - [ ] Implement host automation as a compatible control source where appropriate. — every routing control is itself an automatable parameter, so a host can already automate depth; automation *as a matrix source* needs the per-parameter modulation-of-modulation the matrix does not yet support
-- [ ] Implement envelope-following/audio-responsive modulation. — needs an envelope follower on the audio path, which belongs with the dynamics processors in Phase 8
+- [x] Implement envelope-following/audio-responsive modulation. — carried until 18e, which added the follower as a source (ADR-0123)
 
 ## Exit Criteria
 

@@ -17,7 +17,7 @@ written in React and shown through the platform's own WebView.
 install and use it is just below. What each release contains is in
 [CHANGELOG.md](CHANGELOG.md).
 
-It is a complete instrument: it plays, every one of its 305 parameters affects
+It is a complete instrument: it plays, every one of its 310 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. It has
 been played in FL Studio. What is not yet true is in
 [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md); the largest gaps are
@@ -194,6 +194,12 @@ standalone needs a MIDI keyboard.
   did — a knob, a routing, a drawn curve, a wavetable, even a preset you loaded
   — and **Ctrl+Shift+Z** puts it back. **UNDO** and **REDO** at the top do the
   same, and their tooltips say what they would undo.
+- **Make it follow how loud you play.** **FOLLOW**, at the end of the row of
+  sources, is how loud Apollo is right now. Drag it onto a knob like any other
+  source: onto the reverb's mix, turned negative, for a reverb that blooms
+  between notes; onto a filter, for a sound that brightens as it gets louder.
+  Its attack, release and gain are in the **Follower** panel on the
+  **Modulation** tab.
 - **Make it bigger or smaller.** **SIZE** at the top draws the whole interface
   from 75 % to 200 %. Apollo remembers your choice on this computer.
 - **Make it move.** Drag a green source from the row under the tabs — an

@@ -8533,3 +8533,79 @@ dB/oct" and its tooltip says what that means.
 - **Stereo.** A spectrum per channel, or of the side signal, would answer a
   different question — width — and the output scope's ring is mono. Left for
   if anybody asks.
+
+## ADR-0123 — An envelope follower, appended to the sources after release
+
+**Phase 18e · Accepted**
+
+### What was asked
+
+The fifth improvement the developer chose after 1.3.0, carried since Phase 5:
+a modulation source that follows how loud the instrument is.
+
+### What it follows, and why there
+
+**The summed voices, after the voices and before the effects rack and the
+master** (`VoiceEngine::render`). Before the effects, so that an effect the
+follower modulates is not also what it measures — a ducked reverb measuring
+its own output would be a loop. Before the master, so that turning Apollo down
+does not change what the modulation does. Engine-wide, like the mod wheel and
+the macros: every voice and every effect destination reads the same value,
+because loudness is a property of the instrument, not of a note. That is what
+makes the classic use work — the reverb's or delay's mix at a negative depth,
+ducking while the playing is loud and opening in the gaps — which a per-voice
+follower could not do, since the effects run once on the sum.
+
+### What it is
+
+`dsp::EnvelopeFollower`: the louder channel's magnitude, rising at the attack and
+falling at the release, each a one-pole ramp by the convention the dynamics
+processors use (63 % in the stated time). Peak rather than RMS, because the
+attack already decides how fast it follows. The value is **0 to 1 on a decibel
+scale**, −60 dBFS to 0 dBFS, shifted by the gain; on a linear scale nearly all of
+the range would sit in the top 10 dB and a sound at a sensible level would
+hardly move anything. NaN and infinity are ignored, and the level is flushed to
+zero rather than decaying into denormals.
+
+It is measured as each stretch between MIDI events is rendered and handed to
+the voices at the end of it, so the matrix reads it at most one stretch late —
+a block at worst, against an attack of milliseconds. The voices are told only
+when it changes.
+
+Three parameters, appended at the end of the registry (ADR-0114):
+`follower_attack` (0.1–500 ms, 10), `follower_release` (5–5000 ms, 200) and
+`follower_gain` (±24 dB, 0). Nothing routes the follower by default, so every
+regression render passed unregenerated. Their VST3 identities are pinned, three
+lines added and none changed.
+
+On the page: **FOLLOW** at the end of the source strip and **Follower** in the
+matrix's lists, and a **Follower** panel on the Modulation tab with the three
+knobs, a handle, and a live trace, `follow`, which is the instrument's and is
+drawn with or without a note.
+
+### The source list grew, after release
+
+`ModSource::follower` is appended after Macro 4, so every source keeps its
+number, and every slot's `modNN_source` and `modNN_via` grows from 0–19 to 0–20.
+Projects, presets and MIDI assignments store the choice and are unaffected. A
+host's automation of a slot's source or via stores a fraction of the range, and
+a lane recorded with 1.3.0 or earlier now lands one source later from Key Track
+onwards (i/19 read as i + i/19 of 20).
+
+Docs/COMPATIBILITY.md §2 calls that a breaking change after release, and 16b
+avoided one by adding a switch (ADR-0114). **The developer chose to append it**,
+asked with the consequence and the alternatives in front of them: a follower
+that drove the macros instead, which changed no list but used up a macro, or
+the next release numbered 2.0.0. Automating which source a slot uses is rare,
+and a source in the list like any other is the result worth having. The next
+release's notes say what moves. 18h, macros as destinations, meets the same
+question for the destination list.
+
+### Alternatives considered
+
+- **Per voice.** Sample-accurate and per note, but it cannot drive the effects,
+  and a voice's loudness is mostly its own amplitude envelope, which is already
+  a source.
+- **A sidechain input.** A different feature — following another track — which
+  needs an input bus on an instrument and every host's sidechain routing.
+- **RMS.** A second, hidden time constant in front of the attack.

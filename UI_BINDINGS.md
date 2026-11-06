@@ -861,7 +861,7 @@ with (ADR-0059).
 Since 12c-2 the masthead's **SR** readout shows it as well. It had shown the
 protocol version under that label, which no user could act on (ADR-0084).
 
-**Modulators.** `source` is a stable token — `env1`-`env4`, `lfo1`-`lfo4`. A
+**Modulators.** `source` is a stable token — `env1`-`env4`, `lfo1`-`lfo4`, and since 18e `follow`, the envelope follower, which is the instrument's rather than a voice's and has no stages. A
 modulator nothing has traced is omitted entirely, exactly as an uncaptured scope
 source is.
 
@@ -1155,7 +1155,7 @@ what landed where; the engine chooses the slot.
 
 | Message | Payload | Meaning |
 |---|---|---|
-| `modulationAssign` | `source` (1-19, `dsp::ModSource`), `id` (a control that is a destination) | Route the source to that control's destination, in the first slot with neither a source nor a destination, at +25%. A control that is not a destination, or a source that is not one, is `INVALID_MODULATION`. |
+| `modulationAssign` | `source` (1-20, `dsp::ModSource`; 20, the follower, since 18e), `id` (a control that is a destination) | Route the source to that control's destination, in the first slot with neither a source nor a destination, at +25%. A control that is not a destination, or a source that is not one, is `INVALID_MODULATION`. |
 | `modulationClear` | `slot` (1-16) | Empty a slot: source, destination, depth and via back to nothing. |
 
 Both are answered with:

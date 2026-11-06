@@ -104,6 +104,12 @@ enum class ModSource
     macro3,
     macro4,
 
+    /** How loud the instrument is, 0 to 1 on a decibel scale, from the summed
+        voices before the effects (EnvelopeFollower.h). Engine-wide, like the
+        macros. Appended in Phase 18e, after release, so every source above
+        keeps its number; the source range growing is recorded in ADR-0123. */
+    follower,
+
     count
 };
 

@@ -206,6 +206,10 @@ public:
             macroValues[static_cast<std::size_t> (index)] = value;
     }
 
+    /** The envelope follower's value, 0 to 1, read by the matrix like a macro
+        (Phase 18e). */
+    void setFollower (float value) noexcept { follower = value; }
+
     /** Aftertouch, 0-1. Per note: with a plain controller every sounding voice
         is handed the same channel-pressure value and nothing changes, and with
         polyphonic aftertouch or MPE each voice gets its own.
@@ -608,6 +612,9 @@ private:
 
     /** The macros, shaped, as the engine last handed them over. */
     std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
+
+    /** The envelope follower, as the engine last handed it over. */
+    float follower = 0.0f;
 
     /** Per-note expression. `pressure` is aftertouch, from whichever of the
         three sources delivered it; `timbre` is MPE's CC 74, centred at rest.

@@ -113,6 +113,7 @@ private:
 
         expect (params::sourceName (dsp::ModSource::lfo1) == "LFO 1");
         expect (params::sourceName (dsp::ModSource::macro4) == "Macro 4");
+        expect (params::sourceName (dsp::ModSource::follower) == "Follower");
         expect (params::sourceName (dsp::ModSource::count).empty());
     }
 
@@ -190,7 +191,11 @@ private:
         refusedWith (assign (5, "mod01_depth"), BridgeErrorCode::invalidModulation);
         refusedWith (assign (5, "no_such_thing"), BridgeErrorCode::unknownParameter);
         refusedWith (assign (0, "filter1_cutoff"), BridgeErrorCode::invalidModulation);
-        refusedWith (assign (20, "filter1_cutoff"), BridgeErrorCode::invalidModulation);
+        // One past the last source, whatever that is: 20 was, until the
+        // follower was appended in 18e.
+        refusedWith (assign (static_cast<int> (dsp::ModSource::count), "filter1_cutoff"), BridgeErrorCode::invalidModulation);
+        expect (ui::parseMessage (assign (static_cast<int> (dsp::ModSource::follower), "filter1_cutoff")).ok,
+                "the follower can be dropped on a control");
         refusedWith (assign (-1, "filter1_cutoff"), BridgeErrorCode::invalidModulation);
         refusedWith (R"({"type":"modulationAssign","version":1,"source":5.5,"id":"filter1_cutoff"})",
                      BridgeErrorCode::invalidModulation);

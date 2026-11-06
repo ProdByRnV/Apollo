@@ -407,6 +407,8 @@ void Voice::updateModulation() noexcept
     for (int i = 0; i < dsp::numMacros; ++i)
         store (static_cast<Source> (static_cast<int> (Source::macro1) + i), macroValues[static_cast<std::size_t> (i)]);
 
+    store (Source::follower, follower);
+
     dsp::evaluateModulation (routing, sourceValues, destinationValues);
 }
 
