@@ -49,7 +49,10 @@ int loadInterfaceScale (const juce::File& file)
 
 bool saveInterfaceScale (const juce::File& file, int scalePercent)
 {
-    if (! isInterfaceScale (scalePercent))
+    // A folder where the file belongs is refused here rather than left to the
+    // write: replacing the file deletes what is there first, and on Linux and
+    // macOS that removes an empty folder, which is nobody's settings to delete.
+    if (! isInterfaceScale (scalePercent) || file.isDirectory())
         return false;
 
     if (! file.getParentDirectory().createDirectory().wasOk())
