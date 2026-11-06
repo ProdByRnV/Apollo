@@ -8390,3 +8390,82 @@ already (ADR-0104).
   larger after the size is chosen, and a menu whose contents change as a
   corner is dragged is harder to understand than one that says what it is
   holding back.
+
+## ADR-0121 — Windows installs with one command too
+
+**Phase 18c · Accepted**
+
+### What was asked
+
+The third improvement the developer chose after 1.3.0: the one command Mac and
+Linux have had since ADR-0118, on Windows. By hand it is five steps — unblock
+the zip, extract it, copy a folder into a protected place, put the application
+somewhere, and get past "Windows protected your PC" — and the last of those
+is where people give up.
+
+### What it is
+
+`Tools/get-apollo.ps1`, pasted into PowerShell:
+
+    irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 | iex
+
+It does what `get-apollo.sh` does, in the same order: the latest release from
+GitHub, its Windows download checked against `SHA256SUMS.txt` and refused if it
+does not match, an install already at that version opened rather than replaced,
+the application and plugin found by searching the archive rather than by
+assuming its layout, and Apollo opened at the end. Without a connection it opens
+an Apollo already here: installed, or unzipped in Downloads or on the Desktop.
+
+**Where things go.** The application in `%LOCALAPPDATA%\Programs\Apollo`, for
+this user and without administrator rights, which is where per-user programs
+go on Windows, with an entry in the Start menu and a `VERSION` file beside it.
+The plugin in `C:\Program Files\Common Files\VST3`, because that is the folder
+every DAW scans without being told. It needs administrator rights, so Windows
+asks once — for the copy and nothing else, run in its own PowerShell. Answered
+no, the plugin goes in the per-user VST3 folder the VST3 specification defines,
+`%LOCALAPPDATA%\Programs\Common\VST3`, and the installer says the DAW has to be
+told about it.
+
+**No SmartScreen.** Windows marks what a browser downloads, and SmartScreen
+questions marked programs without a paid signature. What PowerShell downloads
+is not marked, and anything in the archive that was is unblocked. That is the
+Windows half of what the command does on a Mac (ADR-0118).
+
+### A plugin a DAW has open
+
+Windows will not delete a DLL a program has loaded, but it will rename the
+folder it is in. So the new plugin is copied in beside the old, the old is
+renamed `Apollo.vst3.outgoing` — which no DAW scans for, as it does not end in
+`.vst3` — and the new one renamed into place; the old is deleted if it can be,
+and otherwise on the next run. The DAW goes on using the copy it loaded until
+it restarts, and the installer says so. Where even the rename is refused, the
+old plugin is left exactly as it was and the installer says to close the DAW.
+Nothing is ever half deleted. A standalone Apollo that is open is refused by
+name in the same way.
+
+### Run through `iex`
+
+The script is one function and never calls `exit`: run through
+`Invoke-Expression`, an `exit` would close the user's PowerShell window with
+the message still in it, and its variables would land in their session. It is
+plain ASCII, because Windows PowerShell 5.1 reads a file without a byte order
+mark as the system's code page, and is written for 5.1 rather than PowerShell 7,
+which most Windows computers do not have. `irm | iex` is also not subject to the
+execution policy, which blocks a downloaded `.ps1` by default.
+
+CI runs it on the Windows runner in Windows PowerShell through
+`Invoke-Expression`, against the published release and against the archive the
+run built, checks it parses and is ASCII, and checks where everything landed and
+that the application is unmarked. The runner is an administrator, so the
+permission prompt and its refusal are not exercised there.
+
+### Alternatives considered
+
+- **An installer program (MSI or an `.exe`).** It would be one more unsigned
+  download for SmartScreen to question, which is exactly the step this removes,
+  and Apollo has no signing certificate.
+- **winget.** It needs a manifest accepted into Microsoft's repository for every
+  release, and its installers are expected to be signed.
+- **The plugin in the per-user folder only.** No prompt, but FL Studio, Ableton
+  Live and others do not scan it unless told, and a plugin the DAW cannot find
+  is the complaint the command exists to prevent.

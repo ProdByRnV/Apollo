@@ -75,9 +75,9 @@ extension nobody scheduled. Each row says, in italics, what was built.
 | | |
 |---|---|
 | **Only the latest release is listed** | Earlier releases are kept as drafts rather than deleted, at the developer's request, so the Releases page offers one download. Their tags remain, so any earlier version can still be built from source (ADR-0112) |
-| **No installer** | Each package is a folder to copy into place. Uninstalling is deleting it (Docs/BUILD.md §7) |
+| **No installer program** | Each package is a folder to copy into place, and one command does the copying on every system (ADR-0118, ADR-0121). Uninstalling is deleting what it put there (Docs/BUILD.md §7) |
 | **Not signed for distribution on macOS** | The macOS bundles are signed ad hoc, which is enough to run where they were built. A copy downloaded with a browser is refused as coming from an unidentified developer until it is signed with a Developer ID and notarised, which needs an Apple developer account the project does not have. The one-command installer sidesteps this: what it downloads is not marked, and it unmarks Apollo where a browser did (ADR-0118) |
-| **Unsigned on Windows** | A plugin is copied, not installed, so Windows does not object. The standalone may meet a SmartScreen prompt |
+| **Unsigned on Windows** | A plugin is copied, not installed, so Windows does not object. The standalone downloaded with a browser may meet a SmartScreen prompt; installed by the one command it does not (ADR-0121) |
 | **No Windows on ARM64 build** | No CI runner, and JUCE builds it as a separate `arm64ec` target (ADR-0079) |
 
 ---

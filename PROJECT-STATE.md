@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a, undo and redo, and 18b, the interface size, are done** (ADR-0119, ADR-0120); 18c–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, and 18c the Windows one-command install are done** (ADR-0119 to ADR-0121); 18d–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18c, one command that installs Apollo on Windows**, when the developer says to go on. Open: the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18d, an analyser of the output**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,26 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### One command for Windows (Phase 18c)
+
+ADR-0121.
+
+- **`Tools/get-apollo.ps1`**, for `irm … | iex` in Windows PowerShell 5.1: the
+  latest release's Windows zip, checked against `SHA256SUMS.txt`; the
+  application to `%LOCALAPPDATA%ProgramsApollo` with `VERSION` and a Start-menu
+  entry; the plugin to `Common FilesVST3` through one elevated copy, or the
+  per-user VST3 folder if that is refused; everything unblocked; Apollo opened.
+  An open standalone is refused; an open plugin is set aside as
+  `Apollo.vst3.outgoing` and cleared next time. Offline, an Apollo already here
+  is opened. One function, no `exit`, plain ASCII.
+- **`get-apollo.sh`** on Windows now points at the PowerShell line.
+- **INSTALL.txt and README** give the Windows line first. The README's three
+  commands had been cut short at the pipe on GitHub since 1.3.0 — a `|` inside
+  code in a table ends the cell — and are escaped now.
+- **CI**: "Check the one-command installer (Windows)" runs it through
+  `Invoke-Expression` in Windows PowerShell, against the release and the
+  run's own archive, and checks what landed.
+
 ### Filling the screen, and one command for Mac and Linux (Phase 17d)
 
 ADR-0118, asked for before 1.3.0 was published.
@@ -3717,6 +3737,30 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### One command for Windows (Phase 18c), 2026-11-06
+
+Run on the developer's laptop in Windows PowerShell 5.1 through
+`Invoke-Expression`, as `irm | iex` runs it, with the install, plugin and
+Start-menu folders pointed into a scratch folder so the plugin the build puts
+in Common Files was not touched.
+
+| Checked | Result |
+|---|---|
+| Parsing | No errors; plain ASCII |
+| From GitHub | 1.3.0 found, downloaded, "matches its published checksum", the application, `VERSION`, `Apollo.lnk` and the whole plugin where they belong |
+| Again | "Apollo 1.3.0 is already installed." and nothing copied |
+| A plugin a program has open | The DLL loaded with `LoadLibrary`: the new plugin in place, the old set aside as `Apollo.vst3.outgoing`, "Your DAW has the old one open: restart it to use this one." |
+| The next run | The leftover gone |
+| Opening | Apollo opened from where it was installed |
+| Run while that Apollo is open | "Apollo is open. Close it and run this again.", nothing replaced, and the PowerShell window still there |
+| No connection | GitHub made unreachable: the installed Apollo found and opened; with none installed, one unzipped on the Desktop |
+| Variables | None left in the session afterwards |
+
+**Not checked: the permission prompt.** Putting the plugin in Common Files asks
+Windows for administrator rights, which only a person can grant; the CI runner
+is already an administrator. Saying no should put the plugin in the per-user
+folder instead.
 
 ### The interface size and the presets folder (Phase 18b), 2026-11-05
 

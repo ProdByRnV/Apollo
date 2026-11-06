@@ -54,7 +54,7 @@ fail() { printf '\nApollo: %s\n' "$*" >&2; exit 1; }
 case "$(uname -s)" in
     Darwin) system=macos ;;
     Linux)  system=linux ;;
-    *)      fail "this installer is for macOS and Linux. On Windows, download Apollo from https://github.com/${repository}/releases/latest" ;;
+    *)      fail "this installer is for macOS and Linux. On Windows, paste this into PowerShell instead: irm https://raw.githubusercontent.com/${repository}/main/Tools/get-apollo.ps1 | iex" ;;
 esac
 
 if [ "$system" = macos ]; then

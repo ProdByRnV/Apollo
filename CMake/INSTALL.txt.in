@@ -12,16 +12,21 @@ WHAT IS IN THIS PACKAGE
   is deleting that folder again.
 
 
-ON A MAC OR ON LINUX, THE EASY WAY
+THE EASY WAY
 
-  One command in Terminal installs the application and the plugin, gets them
-  past the Mac's check on downloaded software, and opens Apollo:
+  One command installs the application and the plugin and opens Apollo. On
+  Windows, paste it into PowerShell (Start menu, type "PowerShell"); on a Mac
+  or Linux, into Terminal:
 
+  Windows irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 | iex
   macOS   curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
   Linux   wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash
 
   It downloads the latest release and checks it against its published
-  checksums. Run it again to update. Or install by hand, as below.
+  checksums. On Windows it asks once for permission to put the plugin where
+  every DAW looks, and Apollo opens without "Windows protected your PC"; on a
+  Mac it gets Apollo past the check on downloaded software. Run it again to
+  update. Or install by hand, as below.
 
 
 INSTALLING THE PLUGIN

@@ -22,6 +22,14 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   the window is too small for the size you chose, Apollo draws it as large as
   fits and says so when you point at **SIZE**. Apollo remembers the size on
   your computer; it is not saved in projects or presets.
+- **One command installs Apollo on Windows.** Open PowerShell, paste
+  `irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 | iex`
+  and press Enter. It downloads Apollo, checks it, installs the application and
+  the plugin, and opens Apollo, with no "Windows protected your PC" warning.
+  Windows asks once for permission to put the plugin where every DAW looks.
+  Run it again to update.
+- **The Mac and Linux commands on Apollo's page are whole again.** Since 1.3.0
+  they showed on GitHub cut off before `| bash`, so copying them did nothing.
 - **Open your presets folder.** **OPEN FOLDER** beside **PRESETS** opens the
   folder your presets are saved in, to back them up or add presets someone made.
   Press **RESCAN** to see what you added.

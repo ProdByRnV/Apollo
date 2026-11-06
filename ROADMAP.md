@@ -197,7 +197,7 @@ front of it is better understood, the way 8f was.
 | **18** | **Improvements after 1.3.0** — what the developer chose from a list of what could be better, apart from more presets, which they are leaving to sound designers | 🔄 |
 | 18a | Undo and redo — every edit made in the window, one step per thing done, kept by the processor; Ctrl+Z, Ctrl+Shift+Z and buttons in the masthead naming what they would do (ADR-0119) | ✅ |
 | 18b | The interface's size — SIZE in the masthead, 75 to 200 %, drawn as far as the window leaves the layout room, the plugin window following it, kept per computer; and Open folder beside the Presets title (ADR-0120) | ✅ |
-| 18c | One command that installs Apollo on Windows, as on a Mac and Linux | |
+| 18c | One command that installs Apollo on Windows — `irm … | iex` in PowerShell: checked download, the application per user with a Start-menu entry, the plugin where every DAW looks after one permission prompt, no SmartScreen; checked in CI (ADR-0121) | ✅ |
 | 18d | An analyser of the output on its own, not only behind the equaliser | |
 | 18e | An envelope follower as a modulation source | |
 | 18f | A curve for each stage of an envelope | |

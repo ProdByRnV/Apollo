@@ -32,18 +32,22 @@ Apollo comes two ways in one download: a **VST3 plugin**, which you load inside 
 DAW such as FL Studio, Ableton Live or Reaper, and a **standalone application**,
 which runs on its own with no DAW at all. Use either, or both.
 
-**On a Mac or on Linux, the quickest way is one command.** Open **Terminal**,
-paste the line for your system, and press Return:
+**The quickest way is one command.** On Windows, open **PowerShell** (press
+the Windows key and type "PowerShell"); on a Mac or Linux, open **Terminal**.
+Paste the line for your system and press Enter:
 
 | Your computer | Paste this |
 |---|---|
-| Mac | `curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash` |
-| Linux | `wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash` |
+| Windows | `irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 \| iex` |
+| Mac | `curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh \| bash` |
+| Linux | `wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh \| bash` |
 
 It downloads the latest Apollo, checks it, installs the application and the
-plugin, and opens Apollo. On a Mac it also clears the "unidentified developer"
-block, so there is nothing else to do. Run it again whenever you want to update.
-Steps 1 and 2 below are the same thing by hand.
+plugin, and opens Apollo. On Windows it asks once for permission to put the
+plugin in the folder every DAW looks in, and Apollo opens without the "Windows
+protected your PC" warning. On a Mac it clears the "unidentified developer"
+block. Either way there is nothing else to do. Run it again whenever you want to
+update. Steps 1 and 2 below are the same thing by hand.
 
 ### 1. Download
 
@@ -240,11 +244,13 @@ it into the same folder on their computer and presses **RESCAN**.
 
 ### Updating and uninstalling
 
-To **update**, close your DAW and the standalone, then repeat step 2 with the
-new download, replacing the old files. Your presets and projects carry over.
+To **update**, close your DAW and the standalone, then run the one command
+again, or repeat step 2 with the new download, replacing the old files. Your
+presets and projects carry over.
 
 To **uninstall**, delete `Apollo.vst3` from your VST3 folder and delete the
-standalone application.
+standalone application. On Windows the one command put the application in
+`%LOCALAPPDATA%\Programs\Apollo` and an Apollo entry in the Start menu.
 
 ### If something goes wrong
 
