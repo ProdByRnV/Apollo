@@ -147,6 +147,11 @@ export interface SpectrumFrameMessage {
     silent: boolean;
     input?: number[];
     output?: number[];
+    /** Since 18d: the output's spectrum, for the analyser, on the same axis and
+        in the same units. Present whenever the engine is prepared, equaliser or
+        not. */
+    mix?: number[];
+    mixSilent?: boolean;
 }
 
 /** One point of a drawn LFO curve: position in the cycle (0 to 1), value

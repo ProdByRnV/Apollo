@@ -8469,3 +8469,67 @@ permission prompt and its refusal are not exercised there.
 - **The plugin in the per-user folder only.** No prompt, but FL Studio, Ableton
   Live and others do not scan it unless told, and a plugin the DAW cannot find
   is the complaint the command exists to prevent.
+
+## ADR-0122 — An analyser of the output, from a ring that was already there
+
+**Phase 18d · Accepted**
+
+### What was asked
+
+The fourth improvement the developer chose after 1.3.0. Apollo drew a spectrum
+only behind the equaliser's curve (ADR-0101): of the signal around the
+equaliser, and only while the equaliser was in the rack. The question a sound
+designer asks of a spectrum — where is the energy in this sound — is asked of a
+bass with no equaliser anywhere near it.
+
+### What it is
+
+An **Analyser** panel on the MIDI & Output tab, on a row of its own as the
+equaliser's curve is:
+
+- the output's spectrum, live, as a gold line over a faint fill;
+- behind it a **peak line**, which follows a louder reading at once and falls at
+  12 dB a second, a fifth of the live line's speed, so a note that has stopped
+  is still there to read;
+- a grid at 50 Hz to 10 kHz and every 24 dB;
+- under the pointer, the **frequency, the nearest note with its cents, and the
+  level** — "261 Hz · C4 −3 c · −79.2 dB" — which is how a fundamental or a
+  resonance heard by ear is found and named;
+- a caption that says whether it is hearing anything, and that the levels are
+  tilted.
+
+### Where the numbers come from
+
+The output scope's ring already holds what leaves the plugin, mixed to mono,
+whenever an editor is open (ADR-0047). The analyser transforms that ring on the
+message thread with the equaliser's transform, so **the audio thread does
+nothing new**: no tap, no copy, no branch. The cost is one more 4096-point
+transform thirty times a second, beside the two the equaliser already has.
+
+The levels go out in the same `spectrumFrame` message as the equaliser's, as
+`mix`, with the same 160 points on 20 Hz to 20 kHz, tenths of a decibel, tilt of
+4.5 dB per octave about 1 kHz, and fast-up, steady-down ballistics. The two
+pictures therefore read alike, and a level read off one is the level the other
+shows. `mix` is present whenever the engine is prepared, whatever the rack
+holds, and the equaliser leaving the rack clears its own history and not this.
+
+### Tilted, and said so
+
+Untilted, almost every sound is a slope that leaves the top of the display
+empty, which is why every analyser a musician has used tilts. But a level read
+off a tilted display is not what a meter shows, so the caption says "tilted 4.5
+dB/oct" and its tooltip says what that means.
+
+### Alternatives considered
+
+- **A tap of its own on the audio thread.** The scope's ring is exactly the
+  signal wanted; a second copy of it would cost the audio thread for nothing.
+- **A message of its own.** The equaliser's already goes thirty times a second
+  to the same reader; a second broadcast would be a second header and a second
+  handler for the same kind of data. The frame grows from about 2.4 KB to 3.6 KB.
+- **Sending it only while the panel is on screen.** It would save about 1 KB a
+  frame and need the page to report what it is showing; not worth a new message
+  for a cost this size.
+- **Stereo.** A spectrum per channel, or of the side signal, would answer a
+  different question — width — and the output scope's ring is mono. Left for
+  if anybody asks.

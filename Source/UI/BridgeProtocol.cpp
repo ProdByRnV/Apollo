@@ -1346,23 +1346,30 @@ juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame)
     object->setProperty ("active", frame.active);
     object->setProperty ("silent", frame.silent);
 
+    // Tenths of a decibel, as integers: finer than a pixel at any height the
+    // panel is drawn, and never more than five characters.
+    const auto tenths = [] (const engine::SpectrumFrame::Levels& levels)
+    {
+        juce::Array<juce::var> points;
+        points.ensureStorageAllocated (engine::spectrumPoints);
+
+        for (const auto value : levels)
+            points.add (static_cast<int> (std::lround (static_cast<double> (value) * 10.0)));
+
+        return points;
+    };
+
     if (frame.active)
     {
-        // Tenths of a decibel, as integers: finer than a pixel at any height
-        // the panel is drawn, and never more than five characters.
-        const auto tenths = [] (const engine::SpectrumFrame::Levels& levels)
-        {
-            juce::Array<juce::var> points;
-            points.ensureStorageAllocated (engine::spectrumPoints);
-
-            for (const auto value : levels)
-                points.add (static_cast<int> (std::lround (static_cast<double> (value) * 10.0)));
-
-            return points;
-        };
-
         object->setProperty ("input", tenths (frame.input));
         object->setProperty ("output", tenths (frame.output));
+    }
+
+    // The output on its own, for the analyser (18d).
+    if (frame.mixActive)
+    {
+        object->setProperty ("mix", tenths (frame.mix));
+        object->setProperty ("mixSilent", frame.mixSilent);
     }
 
     return juce::JSON::toString (juce::var (object), oneLine);

@@ -1,7 +1,8 @@
 #pragma once
 
 /*
-    The spectrum behind the equaliser's curve (CLAUDE.md §22).
+    The spectrum behind the equaliser's curve (CLAUDE.md §22), and the
+    spectrum of the output on its own, for the analyser (18d).
 
     The curve says what the equaliser is set to do. This says what it is doing:
     the spectrum of the signal going into it, and of the signal coming out, drawn
@@ -25,6 +26,11 @@
     Where the share is narrower than one bin, at the bottom of the axis, the
     level is interpolated between the two nearest, so the lowest octave is a
     curve rather than a staircase.
+
+    THE OUTPUT'S SPECTRUM is the same arithmetic on the output scope's ring,
+    which already holds what leaves the plugin, mixed to mono, whenever an
+    editor is open. So the analyser costs the audio thread nothing at all: its
+    transform runs here, on the message thread, with the equaliser's.
 
     THE LEVEL IS dBFS, TILTED. A sine at full scale reads 0 dB at 1 kHz. Away
     from 1 kHz the reading is tilted by `spectrumTiltDbPerOctave`, upwards
@@ -100,9 +106,19 @@ struct SpectrumFrame
     /** True when neither side heard anything this frame. The levels are still
         sent, falling, so the picture fades rather than vanishing. */
     bool silent = true;
+
+    /** The instrument's output, as it leaves the plugin (18d). Meaningful
+        only when `mixActive`, which is whenever the engine is prepared: the
+        output is always there to analyse, equaliser or not. */
+    Levels mix {};
+    bool mixActive = false;
+
+    /** As `silent`, for the output. */
+    bool mixSilent = true;
 };
 
-/** Builds `SpectrumFrame`s from the hub's two equaliser taps.
+/** Builds `SpectrumFrame`s from the hub's two equaliser taps and its output
+    scope.
 
     MESSAGE THREAD. Holds the transform's tables and the smoothed levels from the
     frame before, so one instance belongs to one display.
@@ -113,7 +129,8 @@ public:
     /** Allocates the transform and its buffers, once. */
     SpectrumAnalyser();
 
-    /** Fills @p frame from @p hub. @returns `frame.active`. */
+    /** Fills @p frame from @p hub. @returns `frame.active`, the equaliser's
+        half; the output's is `frame.mixActive`. */
     bool build (const telemetry::TelemetryHub& hub, SpectrumFrame& frame);
 
     /** Forgets the smoothed history, so the next frame starts from the floor. */
@@ -141,11 +158,16 @@ private:
         window's coherent gain. */
     double normalisationDb = 0.0;
 
+    /** Fills the output's half of @p frame. */
+    void buildMix (const telemetry::TelemetryHub& hub, double sampleRate, SpectrumFrame& frame);
+
     SpectrumFrame::Levels rawInput {};
     SpectrumFrame::Levels rawOutput {};
+    SpectrumFrame::Levels rawMix {};
 
     SpectrumFrame::Levels smoothedInput {};
     SpectrumFrame::Levels smoothedOutput {};
+    SpectrumFrame::Levels smoothedMix {};
 };
 
 } // namespace apollo::engine

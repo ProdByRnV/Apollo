@@ -1446,6 +1446,60 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 }
 
 /* ==========================================================================
+   OUTPUT ANALYSER (18d)
+
+   Drawn like the spectrum behind the equaliser's curve, which it is the
+   output's version of, and stretched to its row the same way.
+   ========================================================================== */
+
+.analyser {
+    --wave-line: var(--accent-bright);
+    --scope-grid: var(--display-grid);
+
+    width: 100%;
+    align-self: stretch;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
+}
+
+.analyser__canvas {
+    display: block;
+    width: 100%;
+    background: var(--display-ground);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    cursor: crosshair;
+}
+
+.analyser__caption {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-3);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.analyser__readout {
+    flex: 1;
+    min-width: 0;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.analyser__state,
+.analyser__tilt {
+    opacity: 0.7;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
    DRAWN LFO SHAPE (Phase 13f-1) AND ENVELOPE SHAPE (Phase 13f-2)
 
    Editors rather than pictures, so they are wider than the trace beside them:

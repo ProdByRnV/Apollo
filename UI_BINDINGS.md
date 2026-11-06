@@ -958,6 +958,14 @@ transform (4096 points, Hann) runs on the message thread. While the equaliser is
 out of the rack, the rings are written with silence, so putting it back cannot
 draw audio from before it was taken out.
 
+**The output analyser (18d, ADR-0122).** Every frame also carries `mix`, the
+spectrum of what leaves Apollo, with the same 160 points, units, tilt and
+ballistics, and `mixSilent`. It is present whenever the engine is prepared,
+with or without an equaliser, and absent before. It is taken from the output
+scope's ring, which already holds the output mixed to mono while an editor is
+open, so it adds nothing to the audio thread; the transform is one more on the
+message thread. A frame is under 3.6 KB with all three.
+
 ---
 
 ### 10.8 Drawn LFO curves (Phase 13f-1)

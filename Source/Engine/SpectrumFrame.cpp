@@ -20,6 +20,18 @@ constexpr double twoPi = 6.283185307179586476925286766559;
     return std::pow (highestHz / lowestHz, 1.0 / static_cast<double> (spectrumPoints - 1));
 }
 
+/** Moves @p smoothed towards @p raw: quickly up, at a steady rate down. */
+void smooth (const SpectrumFrame::Levels& raw, SpectrumFrame::Levels& smoothed) noexcept
+{
+    for (std::size_t i = 0; i < raw.size(); ++i)
+    {
+        if (raw[i] > smoothed[i])
+            smoothed[i] += (raw[i] - smoothed[i]) * spectrumAttack;
+        else
+            smoothed[i] = std::max (raw[i], smoothed[i] - spectrumReleaseDbPerFrame);
+    }
+}
+
 } // namespace
 
 double SpectrumAnalyser::frequencyOfPoint (int point) noexcept
@@ -58,6 +70,7 @@ void SpectrumAnalyser::reset() noexcept
 {
     smoothedInput.fill (spectrumFloorDb);
     smoothedOutput.fill (spectrumFloorDb);
+    smoothedMix.fill (spectrumFloorDb);
 }
 
 bool SpectrumAnalyser::analyse (const telemetry::ScopeBuffer& tap, double sampleRate,
@@ -131,10 +144,32 @@ bool SpectrumAnalyser::analyse (const telemetry::ScopeBuffer& tap, double sample
     return true;
 }
 
+void SpectrumAnalyser::buildMix (const telemetry::TelemetryHub& hub, double sampleRate, SpectrumFrame& frame)
+{
+    frame.mixActive = sampleRate > 0.0;
+    frame.mixSilent = true;
+
+    if (! frame.mixActive)
+    {
+        smoothedMix.fill (spectrumFloorDb);
+        frame.mix = smoothedMix;
+        return;
+    }
+
+    frame.mixSilent = ! analyse (hub.scope (telemetry::ScopeSource::output), sampleRate, rawMix);
+
+    smooth (rawMix, smoothedMix);
+    frame.mix = smoothedMix;
+}
+
 bool SpectrumAnalyser::build (const telemetry::TelemetryHub& hub, SpectrumFrame& frame)
 {
     // MESSAGE THREAD.
     const auto sampleRate = hub.getSampleRate();
+
+    // The output first and regardless: it is there to analyse whether or not
+    // there is an equaliser in the rack.
+    buildMix (hub, sampleRate, frame);
 
     frame.active = hub.isEqualiserPlaced() && sampleRate > 0.0;
     frame.silent = true;
@@ -142,8 +177,10 @@ bool SpectrumAnalyser::build (const telemetry::TelemetryHub& hub, SpectrumFrame&
     if (! frame.active)
     {
         // Nothing to draw, and nothing to carry into the next time there is:
-        // an equaliser put back in the rack starts from the floor.
-        reset();
+        // an equaliser put back in the rack starts from the floor. The
+        // output's history is its own, and stays.
+        smoothedInput.fill (spectrumFloorDb);
+        smoothedOutput.fill (spectrumFloorDb);
         frame.input = smoothedInput;
         frame.output = smoothedOutput;
         return false;
@@ -153,17 +190,6 @@ bool SpectrumAnalyser::build (const telemetry::TelemetryHub& hub, SpectrumFrame&
     const auto heardOutput = analyse (hub.spectrum (telemetry::SpectrumTap::equaliserOutput), sampleRate, rawOutput);
 
     frame.silent = ! heardInput && ! heardOutput;
-
-    const auto smooth = [] (const SpectrumFrame::Levels& raw, SpectrumFrame::Levels& smoothed)
-    {
-        for (std::size_t i = 0; i < raw.size(); ++i)
-        {
-            if (raw[i] > smoothed[i])
-                smoothed[i] += (raw[i] - smoothed[i]) * spectrumAttack;
-            else
-                smoothed[i] = std::max (raw[i], smoothed[i] - spectrumReleaseDbPerFrame);
-        }
-    };
 
     smooth (rawInput, smoothedInput);
     smooth (rawOutput, smoothedOutput);

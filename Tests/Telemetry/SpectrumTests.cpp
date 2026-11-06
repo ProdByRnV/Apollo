@@ -14,6 +14,10 @@
         are written with silence so that putting it back shows nothing old;
       - nothing is captured while nothing is watching, and watching does not
         change the sound.
+
+    And the output on its own, for the analyser (18d): read from the output
+    scope's ring, with or without an equaliser, at its level and frequency; and
+    a note played through the whole instrument shows up at its own pitch.
 */
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -146,6 +150,9 @@ public:
         testNothingWatchedNothingCaptured();
         testWatchingDoesNotChangeTheSound();
         testTheMessage();
+        testTheOutputOnItsOwn();
+        testTheOutputFalls();
+        testANoteThroughTheInstrument();
     }
 
 private:
@@ -451,10 +458,11 @@ private:
                                     watched.processor.getVoiceEngine().getWavetableLibrary());
 
         // Thirty times a second, so its size is a budget like the scope
-        // frame's (UI_BINDINGS.md §12): 320 levels of at most five characters.
+        // frame's (UI_BINDINGS.md §12): 480 levels of at most five characters,
+        // the equaliser's two and the output's since 18d.
         const auto text = bridge.createSpectrumFrame();
         logMessage ("  one spectrum frame: " + juce::String (text.getNumBytesAsUTF8()) + " bytes");
-        expect (text.getNumBytesAsUTF8() < 2400, "the spectrum frame outgrew its budget");
+        expect (text.getNumBytesAsUTF8() < 3600, "the spectrum frame outgrew its budget");
 
         juce::var message;
         expect (juce::JSON::parse (text, message).wasOk());
@@ -492,6 +500,136 @@ private:
         expect (juce::JSON::parse (bridge.createSpectrumFrame(), message).wasOk());
         expect (! static_cast<bool> (message["active"]));
         expect (message["input"].isVoid(), "an inactive frame carried levels");
+
+        // The output's spectrum is there regardless of the equaliser.
+        const auto* mix = message["mix"].getArray();
+        expect (mix != nullptr && mix->size() == engine::spectrumPoints, "the output's levels are missing");
+        expect (message.hasProperty ("mixSilent"));
+
+        // And not before the engine is prepared, when there is no axis.
+        auto unprepared = std::make_unique<telemetry::TelemetryHub>();
+        engine::SpectrumAnalyser analyser;
+        engine::SpectrumFrame frame;
+        (void) analyser.build (*unprepared, frame);
+        expect (! frame.mixActive);
+        expect (juce::JSON::parse (ui::makeSpectrumFrameMessage (frame), message).wasOk());
+        expect (message["mix"].isVoid(), "an unprepared engine sent the output's levels");
+    }
+
+    void testTheOutputOnItsOwn()
+    {
+        beginTest ("The output's spectrum reads a sine at its level and frequency, with no equaliser in the rack");
+
+        auto hub = std::make_unique<telemetry::TelemetryHub>();
+        hub->prepare (rate);
+
+        const auto hz = 85.0 * rate / engine::spectrumTransformSize;
+        std::vector<float> signal (static_cast<std::size_t> (telemetry::scopeBufferSize));
+
+        for (std::size_t i = 0; i < signal.size(); ++i)
+            signal[i] = 0.5f * static_cast<float> (std::sin (twoPi * hz * static_cast<double> (i) / rate));
+
+        hub->scope (telemetry::ScopeSource::output).write (signal.data(), static_cast<int> (signal.size()));
+
+        engine::SpectrumAnalyser analyser;
+        engine::SpectrumFrame frame;
+
+        for (int f = 0; f < 40; ++f)
+            expect (! analyser.build (*hub, frame), "the equaliser's half was drawn with no equaliser");
+
+        const auto at = pointNear (hz);
+        const auto pointHz = engine::SpectrumAnalyser::frequencyOfPoint (static_cast<int> (at));
+        const auto expected = 20.0 * std::log10 (0.5)
+                            + static_cast<double> (engine::spectrumTiltDbPerOctave) * std::log2 (pointHz / 1000.0);
+        const auto far = std::max (frame.mix[pointNear (150.0)], frame.mix[pointNear (8000.0)]);
+
+        logMessage ("  the output, 996 Hz at half scale: " + juce::String (frame.mix[at], 2) + " dB against "
+                    + juce::String (expected, 2) + "; two octaves away at most " + juce::String (far, 1));
+
+        expect (frame.mixActive && ! frame.mixSilent);
+        expectWithinAbsoluteError (static_cast<double> (frame.mix[at]), expected, 0.3, "the level");
+        expect (far < -70.0f, "the sine leaked across the axis");
+    }
+
+    void testTheOutputFalls()
+    {
+        beginTest ("The output's spectrum falls to the floor when the sound stops, and keeps its own history");
+
+        auto hub = std::make_unique<telemetry::TelemetryHub>();
+        hub->prepare (rate);
+        hub->setEqualiserPlaced (true);
+
+        std::vector<float> signal (static_cast<std::size_t> (telemetry::scopeBufferSize));
+
+        for (std::size_t i = 0; i < signal.size(); ++i)
+            signal[i] = 0.5f * static_cast<float> (std::sin (twoPi * 1000.0 * static_cast<double> (i) / rate));
+
+        hub->scope (telemetry::ScopeSource::output).write (signal.data(), static_cast<int> (signal.size()));
+
+        engine::SpectrumAnalyser analyser;
+        engine::SpectrumFrame frame;
+
+        for (int f = 0; f < 20; ++f)
+            (void) analyser.build (*hub, frame);
+
+        const auto at = pointNear (1000.0);
+        const auto sounding = frame.mix[at];
+
+        // The equaliser leaving the rack clears its own history, not this.
+        hub->setEqualiserPlaced (false);
+        (void) analyser.build (*hub, frame);
+        expect (frame.mix[at] > sounding - 1.0f, "taking the equaliser out cleared the output's spectrum");
+
+        std::vector<float> silence (signal.size(), 0.0f);
+        hub->scope (telemetry::ScopeSource::output).write (silence.data(), static_cast<int> (silence.size()));
+
+        for (int f = 0; f < 90; ++f)
+            (void) analyser.build (*hub, frame);
+
+        expect (frame.mixSilent, "silence was not reported");
+        expectWithinAbsoluteError (frame.mix[at], engine::spectrumFloorDb, 0.1f, "it did not reach the floor");
+    }
+
+    void testANoteThroughTheInstrument()
+    {
+        beginTest ("A note played through the whole instrument shows at its own pitch");
+
+        ApolloAudioProcessor processor;
+        setPlain (processor, "env1_attack", 0.0f);
+        setPlain (processor, "env1_sustain", 1.0f);
+        processor.prepareToPlay (rate, block);
+        processor.getTelemetry().setCapturing (true);
+
+        juce::AudioBuffer<float> buffer (2, block);
+
+        for (int b = 0; b < 40; ++b)
+        {
+            buffer.clear();
+            juce::MidiBuffer midi;
+
+            if (b == 0)
+                midi.addEvent (juce::MidiMessage::noteOn (1, 69, 0.9f), 0);
+
+            processor.processBlock (buffer, midi);
+        }
+
+        engine::SpectrumAnalyser analyser;
+        engine::SpectrumFrame frame;
+
+        for (int f = 0; f < 40; ++f)
+            (void) analyser.build (processor.getTelemetry(), frame);
+
+        const auto fundamental = frame.mix[pointNear (440.0)];
+        const auto below = frame.mix[pointNear (300.0)];
+        const auto between = frame.mix[pointNear (640.0)];
+
+        logMessage ("  A4: " + juce::String (fundamental, 1) + " dB at 440 Hz, " + juce::String (below, 1)
+                    + " at 300 Hz, " + juce::String (between, 1) + " at 640 Hz");
+
+        expect (! frame.mixSilent, "the note was not heard");
+        expect (fundamental > -60.0f, "the fundamental is missing");
+        expect (fundamental > below + 20.0f && fundamental > between + 20.0f,
+                "the fundamental does not stand out from where there is no harmonic");
     }
 };
 

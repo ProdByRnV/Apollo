@@ -556,6 +556,9 @@ struct ContentSlotDescription
     display can draw and at most five characters each. An inactive frame carries
     no levels at all: there is nothing to draw, which is not the same as
     something quiet.
+
+    Since 18d it also carries `mix`, the output's spectrum for the analyser,
+    whenever the engine is prepared, and `mixSilent`.
 */
 [[nodiscard]] juce::String makeSpectrumFrameMessage (const engine::SpectrumFrame& frame);
 

@@ -311,8 +311,9 @@ and import, MPE, program changes that choose a preset, and a standalone
 that opens the keyboards it finds and follows the system's output device.
 
 **Seeing it.** An oscilloscope for each sound source and for the output, a live
-trace of every envelope and LFO, the wave each oscillator is reading, and an
-output meter. Every control can be dragged, nudged from the keyboard, reset, or
+trace of every envelope and LFO, the wave each oscillator is reading, an output
+meter, and an analyser showing where the output's energy is, which names the
+frequency and note you point at. Every control can be dragged, nudged from the keyboard, reset, or
 given an exact value by typing it, and every edit can be undone.
 
 ---

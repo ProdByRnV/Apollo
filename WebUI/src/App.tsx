@@ -65,6 +65,7 @@ import { Unplaced } from './modules/Unplaced';
 import { ModCarryLayer } from './components/ModSource';
 import { SectionBar, SectionPage } from './components/Sections';
 import { PlayStrip } from './components/PlayStrip';
+import { Analyser } from './components/Analyser';
 import { setNotePlaying, useNotePlaying } from './state/notePlaying';
 
 import { applyProfiles, applyMappings, midiState, profileTone, setMidiMode, toggleLearn, useMidi } from './state/midi';
@@ -715,6 +716,13 @@ export function App(): JSX.Element {
                                 <Output />
                                 <Expression />
                             </div>
+
+                            {/*
+                                The analyser on its own row, as the equaliser's
+                                curve is: a frequency axis squeezed into half a
+                                row is one nobody can read a note off (18d).
+                            */}
+                            <div className="rank rank--wide"><Analyser /></div>
                         </SectionPage>
 
                         <Unplaced workspace={workspaceRef} />

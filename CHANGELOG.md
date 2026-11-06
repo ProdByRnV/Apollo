@@ -22,6 +22,12 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   the window is too small for the size you chose, Apollo draws it as large as
   fits and says so when you point at **SIZE**. Apollo remembers the size on
   your computer; it is not saved in projects or presets.
+- **See where the sound's energy is.** The **Analyser** on the **MIDI & Output**
+  tab shows the spectrum of everything Apollo plays, live, with a slowly falling
+  line of recent peaks. Point at it to read the frequency, the nearest note and
+  the level there: to find a bass's fundamental, a harsh resonance, or what a
+  filter is doing. Before, a spectrum was only drawn behind the equaliser, and
+  only while the equaliser was in use.
 - **One command installs Apollo on Windows.** Open PowerShell, paste
   `irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 | iex`
   and press Enter. It downloads Apollo, checks it, installs the application and

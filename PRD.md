@@ -723,7 +723,7 @@ LFO movement.
 Envelope progression.
 Visualizer calculations must occur outside the real-time audio thread.
 
-> **Status, 0.1.0 to 13b:** ✅ A scope for the output and for each source, a live trace for every envelope and LFO, the wave each oscillator is reading, and an output meter, all captured only while an editor is watching (ADR-0048). ✅ Warp state since Phase 13b: the wave display draws the cycle as the warp is playing it, modulation included (ADR-0090). Modulated controls light green; depth is not animated.
+> **Status, 0.1.0 to 13b:** ✅ A scope for the output and for each source, a live trace for every envelope and LFO, the wave each oscillator is reading, and an output meter, all captured only while an editor is watching (ADR-0048). ✅ Warp state since Phase 13b: the wave display draws the cycle as the warp is playing it, modulation included (ADR-0090). Modulated controls light green; depth is not animated. ✅ Since 18d, an analyser of the output's spectrum, computed on the message thread from the output scope's ring (ADR-0122).
 
 ---
 31. UI ↔ DSP Communication

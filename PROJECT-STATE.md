@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, and 18c the Windows one-command install are done** (ADR-0119 to ADR-0121); 18d–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, and 18d the output analyser are done** (ADR-0119 to ADR-0122); 18e–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18d, an analyser of the output**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18e, an envelope follower as a modulation source**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,30 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### The output analyser (Phase 18d)
+
+ADR-0122.
+
+- **`Engine/SpectrumFrame`**: `mix`, `mixActive` and `mixSilent` in the frame,
+  built by `SpectrumAnalyser::buildMix` from `hub.scope (ScopeSource::output)`
+  with the equaliser's transform, smoothing and tilt; the equaliser leaving the
+  rack clears only its own history. Nothing new on the audio thread.
+- **`makeSpectrumFrameMessage`** adds `mix` and `mixSilent` whenever the engine
+  is prepared (UI_BINDINGS §10.7).
+- **The page**: `components/Analyser.tsx` on the MIDI & Output tab, on its own
+  row; `params/analyser.ts` for the axis, the note names, the reading between
+  points and the peak line.
+
+Tested in:
+- `Tests/Telemetry/SpectrumTests.cpp`: a half-scale sine in the output ring
+  reads its level at its frequency with no equaliser, and nothing two octaves
+  away; it falls to the floor and is said to be silent, and the equaliser
+  leaving the rack does not clear it; A4 through the whole instrument stands
+  over 20 dB above where it has no harmonic; the message carries it, under
+  3.6 KB, and not before the engine is prepared.
+- `WebUI/test/analyser.test.mjs`: the axis against the engine's, note names and
+  cents, the units, reading between points, and the peak line.
+
 ### One command for Windows (Phase 18c)
 
 ADR-0121.
@@ -3737,6 +3761,20 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The output analyser (Phase 18d), 2026-11-06
+
+The Release standalone on the developer's laptop, Square Keys, over the DevTools
+protocol with real keyboard and mouse input.
+
+| Checked | Result |
+|---|---|
+| Opening the tab | ANALYSER under Output and MIDI on MIDI & Output, the full width; "silent" |
+| A held C4 from the computer keyboard | The spectrum drawn with its peak line; a bump at about 130 Hz, the preset's sub an octave down; the caption "output" |
+| Pointing at 261 Hz | "261 Hz · C4 −3 c · −79.2 dB", a dashed line where the pointer is |
+| Let go | "silent" within a few seconds, the reading "below −90 dB" |
+| The equaliser | Its curve still on the page; its spectra covered by the suite, not looked at by hand this time |
+| Afterwards | Apollo closed, as it was before |
 
 ### One command for Windows (Phase 18c), 2026-11-06
 
