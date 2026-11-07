@@ -30,6 +30,11 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   brightens as it gets louder. **Attack**, **Release** and **Gain** are in the
   new **Follower** panel on the Modulation tab, with a live trace of what it is
   doing.
+- **Keep the LFO shapes you draw.** On an LFO set to **DRAWN**, **Save…** keeps
+  the shape under a name, and **Load a shape…** puts it into any LFO in any
+  patch. Six shapes of Apollo's own come with it: Pluck, Swell, Pump, Bounce,
+  Stairs and Trance Gate. **Folder** opens where your shapes are kept, to back
+  them up, share them or add someone else's. Undo takes a loaded shape back.
 - **Bend each stage of an envelope on its own.** The attack, decay and release
   each have a bend now: drag a stage's diamond in the envelope's picture, or
   turn **A Bend**, **D Bend** or **R Bend**, and only that stage changes — a

@@ -234,6 +234,25 @@ export function setLfoCurve(lfo: number, points: LfoCurvePoint[]): void {
     send({ type: 'setLfoCurve', version: PROTOCOL_VERSION, lfo, points });
 }
 
+/** The library of drawn shapes (Phase 18g): looked at again and sent. */
+export function requestLfoShapes(): void {
+    send({ type: 'requestLfoShapes', version: PROTOCOL_VERSION });
+}
+
+/** Puts shape @p shape, its position in the list from 1, into LFO @p lfo. */
+export function loadLfoShape(lfo: number, shape: number): void {
+    send({ type: 'loadLfoShape', version: PROTOCOL_VERSION, lfo, shape });
+}
+
+/** Saves LFO @p lfo's drawn curve into the library as @p name. */
+export function saveLfoShape(lfo: number, name: string, overwrite: boolean): void {
+    send({ type: 'saveLfoShape', version: PROTOCOL_VERSION, lfo, name, overwrite });
+}
+
+export function revealLfoShapeFolder(): void {
+    send({ type: 'revealLfoShapeFolder', version: PROTOCOL_VERSION });
+}
+
 /** Asks for every macro's name. */
 export function requestMacroNames(): void {
     send({ type: 'requestMacroNames', version: PROTOCOL_VERSION });

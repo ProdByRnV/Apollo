@@ -166,6 +166,26 @@ export interface LfoCurvesMessage {
     curves: { lfo: number; points: LfoCurvePoint[] }[];
 }
 
+/** The library of drawn LFO shapes as the engine last listed it (Phase 18g).
+    A shape is loaded by its position here, from 1. */
+export interface LfoShapesMessage {
+    type: 'lfoShapes';
+    version: number;
+    shapes: { name: string; builtIn: boolean; points: LfoCurvePoint[] }[];
+    unreadable: number;
+    maxNameLength: number;
+}
+
+/** What came of saving a shape or opening the folder: SAVED, EXISTS,
+    INVALID_NAME, WRITE_FAILED or REVEAL_FAILED (Phase 18g). */
+export interface LfoShapeStatusMessage {
+    type: 'lfoShapeStatus';
+    version: number;
+    code: string;
+    message: string;
+    name: string;
+}
+
 /** Every macro's name, all four, as the store holds them (Phase 16c): an
     empty string for a macro with no name. With the longest name the engine
     takes, so the field and the engine cannot disagree about it. Sent on
@@ -376,6 +396,8 @@ export type InboundMessage =
     | SpectrumFrameMessage
     | LfoCurvesMessage
     | MacroNamesMessage
+    | LfoShapesMessage
+    | LfoShapeStatusMessage
     | HistoryMessage
     | InterfaceScaleMessage
     | MidiMappingsMessage
@@ -431,6 +453,10 @@ export type OutboundMessage =
     | { type: 'exportPreset'; version: number }
     | { type: 'importPresets'; version: number }
     | { type: 'requestLfoCurves'; version: number }
+    | { type: 'requestLfoShapes'; version: number }
+    | { type: 'loadLfoShape'; version: number; lfo: number; shape: number }
+    | { type: 'saveLfoShape'; version: number; lfo: number; name: string; overwrite: boolean }
+    | { type: 'revealLfoShapeFolder'; version: number }
     | { type: 'requestMacroNames'; version: number }
     | { type: 'setMacroName'; version: number; macro: number; name: string }
     | { type: 'requestContent'; version: number }

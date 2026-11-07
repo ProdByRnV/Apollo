@@ -21,6 +21,7 @@ import {
     midiMappingRemove,
     requestControllerProfiles,
     requestLfoCurves,
+    requestLfoShapes,
     requestMacroNames,
     requestMetadata,
     requestMidiMappings,
@@ -43,6 +44,7 @@ import { applyHistory, currentHistory, useHistory } from './state/history';
 import { applyInterfaceScale, useInterfaceScale, viewportZoom } from './state/interfaceScale';
 import { scaleLabel, scaleTitle } from './params/interfaceScale';
 import { applyLfoCurves } from './state/lfoCurves';
+import { applyLfoShapeStatus, applyLfoShapes } from './state/lfoShapes';
 import { applyMacroNames } from './state/macroNames';
 import type { InboundMessage } from './bridge/protocol';
 
@@ -247,6 +249,20 @@ export function App(): JSX.Element {
 
             case 'macroNames':
                 applyMacroNames(message.names, message.maxLength);
+                break;
+
+            case 'lfoShapes':
+                applyLfoShapes(message.shapes, message.unreadable, message.maxNameLength);
+                break;
+
+            case 'lfoShapeStatus':
+                applyLfoShapeStatus({ code: message.code, message: message.message, name: message.name });
+                // Said on the status line, where it moves nothing on the page;
+                // a shape already there is a question, the rest are failures.
+                announce(message.message, message.code === 'SAVED' ? 'info'
+                    : message.code === 'EXISTS' ? 'caution' : 'error');
+                // A save changed the library, so the list is asked for again.
+                if (message.code === 'SAVED') requestLfoShapes();
                 break;
 
             case 'history':

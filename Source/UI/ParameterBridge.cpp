@@ -465,6 +465,12 @@ juce::String ParameterBridge::applyCommand (const BridgeCommand& command)
             return createLfoCurves();
         }
 
+        case BridgeCommandType::requestLfoShapes:
+        case BridgeCommandType::loadLfoShape:
+        case BridgeCommandType::saveLfoShape:
+        case BridgeCommandType::revealLfoShapeFolder:
+            return applyLfoShapeCommand (command);
+
         case BridgeCommandType::requestMacroNames:
         case BridgeCommandType::setMacroName:
         {
@@ -1277,6 +1283,81 @@ juce::String ParameterBridge::applyPresetCommand (const BridgeCommand& command)
         case BridgeCommandType::applyControllerProfile:
         case BridgeCommandType::toggleFullscreen:
         case BridgeCommandType::none:
+        default:
+            jassertfalse;
+            return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+    }
+}
+
+juce::String ParameterBridge::applyLfoShapeCommand (const BridgeCommand& command)
+{
+    switch (command.type)
+    {
+        case BridgeCommandType::requestLfoShapes:
+            lfoShapes.rescan();
+            return makeLfoShapesMessage (lfoShapes.getShapes(), lfoShapes.getUnreadableCount());
+
+        case BridgeCommandType::loadLfoShape:
+        {
+            if (lfoCurves == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+            // Resolved against the list the page was given, not a fresh scan:
+            // the number means what it meant when it was shown.
+            const auto* shape = lfoShapes.find (command.lfoShapeIndex);
+
+            if (shape == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownLfoShape);
+
+            // One step, as drawing it by hand would be.
+            const auto before = editHistory != nullptr
+                                  ? editHistory->capture ({}, { juce::Identifier (state::LfoCurveStore::curvesTreeType) })
+                                  : state::EditHistory::Snapshot {};
+
+            if (! lfoCurves->set (command.lfoIndex, shape->curve))
+                return makeErrorMessage (BridgeErrorCode::invalidLfoCurve);
+
+            if (editHistory != nullptr)
+                editHistory->commit (before, "LFO " + juce::String (command.lfoIndex + 1) + " shape " + shape->name);
+
+            return createLfoCurves();
+        }
+
+        case BridgeCommandType::saveLfoShape:
+        {
+            if (lfoCurves == nullptr)
+                return makeErrorMessage (BridgeErrorCode::unknownMessageType);
+
+            const auto name = resources::cleanLfoShapeName (command.lfoShapeName);
+            const auto curve = lfoCurves->get (command.lfoIndex);
+
+            switch (lfoShapes.save (command.lfoShapeName, curve, command.overwriteExisting))
+            {
+                case resources::LfoShapeSaveResult::ok:
+                    lfoShapes.rescan();
+                    return makeLfoShapeStatusMessage ("SAVED", "Saved " + name + ".", name);
+
+                case resources::LfoShapeSaveResult::exists:
+                    return makeLfoShapeStatusMessage ("EXISTS", "There is a shape called " + name + " already. Save again to replace it.", name);
+
+                case resources::LfoShapeSaveResult::invalidName:
+                    return makeLfoShapeStatusMessage ("INVALID_NAME", "That is not a name a shape can have.");
+
+                case resources::LfoShapeSaveResult::couldNotCreateFolder:
+                case resources::LfoShapeSaveResult::couldNotWrite:
+                default:
+                    return makeLfoShapeStatusMessage ("WRITE_FAILED", "Could not save " + name + ".", name);
+            }
+        }
+
+        case BridgeCommandType::revealLfoShapeFolder:
+            if (onRevealLfoShapeFolder)
+                onRevealLfoShapeFolder();
+            else if (! lfoShapes.revealFolder())
+                return makeLfoShapeStatusMessage ("REVEAL_FAILED", "Could not open your shapes folder.");
+
+            return {};
+
         default:
             jassertfalse;
             return makeErrorMessage (BridgeErrorCode::unknownMessageType);

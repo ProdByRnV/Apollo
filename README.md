@@ -200,6 +200,11 @@ standalone needs a MIDI keyboard.
   between notes; onto a filter, for a sound that brightens as it gets louder.
   Its attack, release and gain are in the **Follower** panel on the
   **Modulation** tab.
+- **Keep a shape you drew.** Set an LFO to **DRAWN** and use the row under
+  its shape: **Load a shape…** has six of Apollo's — Pluck, Swell, Pump,
+  Bounce, Stairs, Trance Gate — and every shape you saved, ready for any LFO in
+  any patch; **Save…** keeps the one you drew under a name; **Folder** opens
+  where they are kept, to share them or add someone else's.
 - **Make it bigger or smaller.** **SIZE** at the top draws the whole interface
   from 75 % to 200 %. Apollo remembers your choice on this computer.
 - **Make it move.** Drag a green source from the row under the tabs — an

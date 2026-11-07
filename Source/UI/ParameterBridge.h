@@ -153,6 +153,14 @@ public:
         set it so that a test run does not open windows. MESSAGE THREAD. */
     std::function<void()> onRevealPresetFolder;
 
+    /** What to do when the page asks to open the folder of drawn shapes.
+        Defaults, when unset, to opening it; tests set it (Phase 18g). */
+    std::function<void()> onRevealLfoShapeFolder;
+
+    /** The library of drawn LFO shapes the page lists and loads from. Owned
+        here; tests point it at a folder of their own. MESSAGE THREAD. */
+    [[nodiscard]] resources::LfoShapeLibrary& getLfoShapeLibrary() noexcept { return lfoShapes; }
+
     /** Writes the current sound to @p destination, named after the file the
         user chose, without renaming the sound itself (Phase 16a).
         @returns the preset status saying whether it was written. */
@@ -379,6 +387,10 @@ private:
 
     /** Borrowed, not owned, and null when there are no curves to edit. */
     state::LfoCurveStore* lfoCurves = nullptr;
+    resources::LfoShapeLibrary lfoShapes;
+
+    /** The library commands (Phase 18g). */
+    [[nodiscard]] juce::String applyLfoShapeCommand (const BridgeCommand& command);
 
     /** Borrowed, not owned, and null when there are no names to edit. */
     state::MacroNameStore* macroNames = nullptr;

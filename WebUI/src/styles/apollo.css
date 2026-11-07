@@ -1583,6 +1583,42 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     border-color: var(--accent);
 }
 
+/* The library of drawn shapes, under the LFO's editor (18g). */
+/* One row, always, so nothing below it moves; messages go to the status line. */
+.lfo-shapes {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+}
+
+.lfo-shapes__select,
+.lfo-shapes__name {
+    flex: 1 1 120px;
+    min-width: 0;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-bright);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 2px 6px;
+}
+
+.lfo-shapes__select:focus-visible,
+.lfo-shapes__name:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.lfo-shapes .lfo-curve__reset:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
 /* The envelope page has seven knobs beside its editor, where the LFO page has
    five. At a fixed 340 px the last knob wrapped onto a row of its own at the
    default window size, so this one starts narrower and takes whatever room the

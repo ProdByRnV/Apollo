@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, and 18f a bend for each envelope stage are done** (ADR-0119 to ADR-0124); 18g–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, and 18g a library of LFO shapes are done** (ADR-0119 to ADR-0125); 18h and 18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18g, a library of drawn LFO shapes**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18h, macros as destinations in the matrix**, when the developer says to go on; it grows the destination list, which moves automation of a slot's destination, so the developer decides how (ADR-0123 met the same for the sources). Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,33 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### A library of drawn LFO shapes (Phase 18g)
+
+ADR-0125.
+
+- **`Resources/LfoShapeLibrary`**: Apollo's six shapes, compiled in; the
+  `.rnvlfo` file, written and read, with every check a folder somebody else
+  filled needs; `LfoShapeLibrary`, which lists Apollo's then the user's, saves
+  atomically and refuses to replace unless asked, and opens its folder.
+- **The bridge**: `requestLfoShapes`, `loadLfoShape` (one step of the
+  history), `saveLfoShape` and `revealLfoShapeFolder`; replies `lfoShapes`
+  and `lfoShapeStatus`; errors `UNKNOWN_LFO_SHAPE` and
+  `INVALID_LFO_SHAPE_NAME`. The library is the bridge's own.
+- **The page**: `state/lfoShapes.ts`; the row under the drawn shape's editor,
+  a menu in two groups, Save… with a name field and Replace, and Folder;
+  messages on the status line.
+
+Tested in:
+- `Tests/Resources/LfoShapeLibraryTests.cpp`: Apollo's six valid, distinct
+  and surviving a file; a file's round trip; nothing, other XML, a later or
+  missing version, one point, text for numbers, and a file over 64 KB refused,
+  out-of-range points repaired; the list's order and the unreadable count;
+  EXISTS, then a replacement; a folder that cannot be made; names that would
+  leave the folder kept inside it; and through the bridge, Pluck into LFO 2 as
+  "LFO 2 shape Pluck", undone and redone, saved, refused again, listed, loaded
+  into LFO 3 as the same curve, and every malformed message refused.
+- `WebUI/test/lfoShapes.test.mjs`: the menu's groups and the numbers kept.
+
 ### A bend for each envelope stage (Phase 18f)
 
 ADR-0124.
@@ -3820,6 +3847,22 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### A library of drawn LFO shapes (Phase 18g), 2026-11-07
+
+The Release standalone on the developer's laptop, Square Keys, LFO 1, over the
+DevTools protocol with real mouse and keyboard input. The shapes folder did not
+exist beforehand.
+
+| Checked | Result |
+|---|---|
+| DRAWN | The row under the editor: "Load a shape…" with Apollo's six, Save…, Folder |
+| Loading from the menu | Opened with a click, chosen with the keys: Trance Gate drawn as eight gates, "Undo LFO 1 shape Trance Gate", one step |
+| Saving | Save…, "Gate Test", Enter: "Saved Gate Test.", the file in `%APPDATA%\Apollo\LFO Shapes` with its 32 points, and Gate Test under Yours |
+| Loading your own | After a restart, Gate Test from Yours: "Undo LFO 1 shape Gate Test" |
+| Saving over it | Status line "⚠ There is a shape called Gate Test already. Save again to replace it.", the button REPLACE; pressed, "Saved Gate Test." The first build wrote the messages under the editor, moving every knob below by a row; fixed to the status line |
+| Folder | Explorer opened at the LFO Shapes folder; closed |
+| Afterwards | Everything undone to "Nothing to undo", MOD 2/16; the shapes folder the test made removed; Apollo closed as it was |
 
 ### A bend for each envelope stage (Phase 18f), 2026-11-07
 

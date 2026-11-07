@@ -1035,6 +1035,35 @@ is set and handed over through a lock-free triple buffer that the processor
 reads once a block. The LFO interpolates between neighbouring entries, so a
 drawn shape costs what a built-in one costs.
 
+### 10.8b The library of drawn shapes (Phase 18g)
+
+```json
+{ "type": "requestLfoShapes", "version": 1 }
+{ "type": "loadLfoShape", "version": 1, "lfo": 2, "shape": 1 }
+{ "type": "saveLfoShape", "version": 1, "lfo": 2, "name": "My pluck", "overwrite": false }
+{ "type": "revealLfoShapeFolder", "version": 1 }
+```
+
+- **`requestLfoShapes`** looks at the folder again and is answered with
+  `lfoShapes`: `shapes`, each a `name`, `builtIn` and its `points` as
+  `[x, y, bend]` triples, Apollo's six first and then the user's in the order a
+  person counts; `unreadable`, how many files in the folder are not shapes; and
+  `maxNameLength`, 40.
+- **`loadLfoShape`** puts shape `shape`, its position in the last list from 1,
+  into LFO `lfo`, 1 to 4, as one step of the history, and is answered with
+  `lfoCurves`. A shape or LFO that is not there is `UNKNOWN_LFO_SHAPE`.
+- **`saveLfoShape`** saves LFO `lfo`'s curve as `name`, and is answered with
+  `lfoShapeStatus`: `code` SAVED, EXISTS, INVALID_NAME or WRITE_FAILED, a
+  `message` for a person, and the `name` it was saved as. EXISTS means a shape
+  of that name is there; it is replaced only when the page sends the save again
+  with `overwrite` true. A name that is not a string or is longer than 40 is
+  `INVALID_LFO_SHAPE_NAME`.
+- **`revealLfoShapeFolder`** opens the folder; a payload naming another is not
+  read. It is answered only if it fails, REVEAL_FAILED.
+
+Nothing here carries a path, either way, and nothing deletes. The file a shape
+is, and what is refused, are in Docs/DECISIONS.md ADR-0125.
+
 ---
 
 ### 10.8a Macro names (Phase 16c)
@@ -1242,7 +1271,7 @@ and shows.
 - **What makes a step** is the page's own commands: a gesture (§8), from its
   first `begin` to its last `end`, overlapping gestures making one; a
   `setParameter` with no gesture around it; `modulationAssign` and
-  `modulationClear`; `setLfoCurve`; `setMacroName`; `loadPreset`; and a content
+  `modulationClear`; `setLfoCurve`; `loadLfoShape`; `setMacroName`; `loadPreset`; and a content
   load, once it has landed, or `clearContent`. Host automation, MIDI and
   everything else are not steps.
 
@@ -1537,6 +1566,8 @@ the user, not for a developer, since the page displays it as given:
 | `INVALID_PRESET_NAME` | A name or bank with nothing usable in it, or a field past its bound | **Yes**: the message says what would work (§10.6) |
 | `INVALID_LFO_CURVE` | A drawn curve for an LFO other than 1 to 4, or one that breaks a curve's rules (§10.8) | No: the editor only makes valid curves |
 | `INVALID_MACRO_NAME` | A name for a macro other than 1 to 4, or one longer than `maxLength` (§10.8a) | No: the field holds no more than the limit |
+| `UNKNOWN_LFO_SHAPE` | A shape the last list did not have, or an LFO other than 1 to 4 (§10.8b) | Yes: a shape's file removed while the list was open |
+| `INVALID_LFO_SHAPE_NAME` | A shape's name that is not a string or is longer than 40 (§10.8b) | No: the field holds no more than the limit |
 | `UNKNOWN_CONTENT` | `loadContent` named an entry the current index does not have, or a noise sample for an oscillator or a table for the noise (§10.10) | Yes: a file renamed or removed while the browser was open |
 | `UNKNOWN_PROFILE` | A controller profile that is not a built-in or one of the user's, or one removed since the list was sent (§10.3) | Yes: a profile deleted in a file manager while the picker was open |
 | `INVALID_PROFILE_NAME` | A profile name with nothing usable in it, longer than 64 characters, or a description longer than 200 (§10.3) | Yes: the save form keeps what was typed |

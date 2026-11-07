@@ -8681,3 +8681,71 @@ rounds to nothing is now written without a sign, for every control.
   nothing.
 - **A drag that bends every stage, with a modifier.** The Curve knob already
   does that, and a modifier nobody discovers is not a feature.
+
+---
+
+## ADR-0125 — A library of drawn LFO shapes, as files in a folder of their own
+
+**Phase 18g · Accepted**
+
+### What was asked
+
+The seventh improvement the developer chose after 1.3.0: a library of drawn LFO
+shapes, to use in another patch. A drawn shape belonged to the patch it was
+drawn in (ADR-0102); making it again by hand was the only way to have it twice.
+
+### What it is
+
+**A shape is a file, `<name>.rnvlfo`, in an "LFO Shapes" folder beside the
+presets**, `%APPDATA%\Apollo` on Windows and the platform's equivalent
+elsewhere. A few hundred bytes of XML: a version and the points. **Its name is
+its file's name**, so the file manager renames, deletes and shares shapes, and
+Apollo needs no command that does any of those.
+
+**Apollo ships six of its own, compiled in** and listed first: Pluck, Swell,
+Pump, Bounce, Stairs and Trance Gate, chosen because the LFO's built-in shapes
+do none of them. Like the built-in presets they cannot be lost and cost no
+installer (ADR-0065).
+
+**The folder is untrusted.** A file is read only if it is under 64 KB, is XML of
+this kind, is version 1, and has at least two points whose numbers are numbers;
+the points are then repaired as a curve in a hand-edited project is
+(`LfoCurveStore::repair`). Text that is not a number is not read as zero, which
+is what JUCE's own conversion would do. A file that fails is left out and
+counted, and the menu says how many. A scan reads at most 512.
+
+### The page names a number, never a path
+
+As for presets (ADR-0063): `requestLfoShapes` rescans and lists the shapes,
+with their points; `loadLfoShape` names an LFO and a position in that list,
+resolved against the list the page was given; `saveLfoShape` names an LFO and a
+name, never a place; `revealLfoShapeFolder` takes no payload. **A save never
+silently replaces a shape**: it is refused with EXISTS until the page asks again
+with `overwrite`.
+
+**Loading is one step of the history** (ADR-0119), "LFO 2 shape Pluck",
+captured exactly as a drawn curve is, so Undo takes it back to what was drawn.
+
+### On the page
+
+Under the drawn shape's editor, one row: a menu, "Load a shape…", with
+**Apollo** and **Yours** groups; **Save…**, which turns the row into a name
+field; and **Folder**. What a save or the folder came to is said on the status
+line, a question in orange with its warning sign. In the running standalone the
+first version wrote it under the editor instead, which moved every knob below
+by a row; the row is one line now, and nothing below it moves.
+
+The library is offered where a drawn shape is shown, on DRAWN. Loading a shape
+into an LFO playing a built-in shape would need the shape switch moved as well,
+two steps for one action, and the LFO's own choice changed by a menu that is
+about curves.
+
+### Alternatives considered
+
+- **Shapes inside the preset library**, as a kind of preset. A preset is a whole
+  sound; a shape is a part of one, loaded into one LFO.
+- **Shapes kept in the processor's state**, a list travelling in every project.
+  A library is per person, not per project, and a project carrying somebody's
+  whole library would be a strange thing to send a collaborator.
+- **Delete and rename in Apollo.** The file manager does both, and a command
+  that deletes files is one the bridge has never had (ADR-0063).

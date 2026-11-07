@@ -70,6 +70,7 @@ target_sources(ApolloTests PRIVATE
     State/EditHistoryTests.cpp
     Parameters/ParameterRegistryTests.cpp
     Resources/PresetLibraryTests.cpp
+    Resources/LfoShapeLibraryTests.cpp
     Resources/FactoryPresetTests.cpp
     Resources/WavetableResourceTests.cpp
     Resources/NoiseSampleFileTests.cpp

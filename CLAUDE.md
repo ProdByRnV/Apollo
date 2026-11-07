@@ -670,7 +670,9 @@ Supported shapes should include:
 - Square.
 - Sample & Hold.
 - Step.
-- Custom drawable curves.
+- Custom drawable curves, and a library of them: six of Apollo's and any the
+  user saves, as files in a folder of their own, loaded into any LFO in any
+  patch (ADR-0125).
 
 LFOs should support:
 

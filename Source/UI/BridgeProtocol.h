@@ -24,6 +24,7 @@
 #include "MIDI/MidiMapping.h"
 #include "Resources/ProfileLibrary.h"
 #include "Resources/ContentLibrary.h"
+#include "Resources/LfoShapeLibrary.h"
 #include "Resources/PresetLibrary.h"
 #include "Resources/UserContent.h"
 #include "State/PresetDocument.h"
@@ -126,7 +127,14 @@ enum class BridgeErrorCode
     /** The page asked to play a note where it may not: anywhere but the
         standalone, whose own window is the only one with no DAW keyboard to
         fight with (Phase 15). */
-    notePlayingUnavailable
+    notePlayingUnavailable,
+    /** The page named a shape the library's last list does not have, or an
+        LFO that does not exist (Phase 18g). Like an unknown preset, something a
+        user can cause by removing a file while the list is open. */
+    unknownLfoShape,
+    /** A shape's name that is not a string, or is longer than a shape's name
+        may be (Phase 18g). */
+    invalidLfoShapeName
 };
 
 /** @returns the stable wire token, e.g. "UNKNOWN_PARAMETER".
@@ -211,6 +219,14 @@ enum class BridgeCommandType
     // commands of its own: the page can ask for all four and replace one.
     requestLfoCurves, ///< Send every LFO's curve.
     setLfoCurve,      ///< Replace one LFO's curve.
+
+    // The library of drawn shapes (Phase 18g). Intents, as the preset commands
+    // are: the page names a shape by the number the list gave it and an LFO,
+    // or a name to save under. Nothing can express a path, and nothing deletes.
+    requestLfoShapes,     ///< Look at the library again and send what is in it.
+    loadLfoShape,         ///< Put a listed shape into an LFO's drawn curve.
+    saveLfoShape,         ///< Save an LFO's drawn curve into the library under a name.
+    revealLfoShapeFolder, ///< Open the library's folder in the file manager.
 
     // Macro names (Phase 16c). Not parameters either: the page can ask for all
     // four and rename one.
@@ -325,6 +341,12 @@ struct BridgeCommand
         is here — `dsp::isValid` holds — so the store has nothing to repair. */
     int lfoIndex = 0;
     dsp::LfoCurve lfoCurve {};
+
+    /** For loadLfoShape: the shape, from 0, as the last list numbered it; for
+        saveLfoShape, the name to save under, bounded but not yet cleaned. Both
+        use lfoIndex for the LFO, and a save overwriteExisting. */
+    int lfoShapeIndex = 0;
+    juce::String lfoShapeName;
 
     /** For setMacroName: which macro, from 0, and its name, already cleaned to
         one line and no longer than a macro name may be. Empty takes the name
@@ -572,6 +594,26 @@ struct ContentSlotDescription
     being the authoritative one), and after a state load replaces them.
 */
 [[nodiscard]] juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves);
+
+/** `{"type":"lfoShapes", ...}`
+
+    The library of drawn shapes as the last scan listed it: each shape's name,
+    whether it is one of Apollo's, and its points, so the page can draw it
+    before it is loaded. The page loads one by its position here, from 1. Also
+    how many files could not be read, and the longest name a save takes
+    (Phase 18g).
+*/
+[[nodiscard]] juce::String makeLfoShapesMessage (const std::vector<resources::LfoShape>& shapes, int unreadable);
+
+/** `{"type":"lfoShapeStatus", ...}`
+
+    What came of a save or of opening the folder: a `code` the page acts on —
+    SAVED, EXISTS, INVALID_NAME, WRITE_FAILED, REVEAL_FAILED — a sentence for a
+    person, and the name the shape was saved as. Never where (Phase 18g).
+*/
+[[nodiscard]] juce::String makeLfoShapeStatusMessage (const juce::String& code,
+                                                      const juce::String& message,
+                                                      const juce::String& name = {});
 
 /** `{"type":"macroNames", ...}`
 

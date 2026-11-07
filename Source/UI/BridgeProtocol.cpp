@@ -65,6 +65,8 @@ juce::String toToken (BridgeErrorCode code)
         case BridgeErrorCode::invalidModulation:          return "INVALID_MODULATION";
         case BridgeErrorCode::invalidNote:                return "INVALID_NOTE";
         case BridgeErrorCode::notePlayingUnavailable:     return "NOTE_PLAYING_UNAVAILABLE";
+        case BridgeErrorCode::unknownLfoShape:            return "UNKNOWN_LFO_SHAPE";
+        case BridgeErrorCode::invalidLfoShapeName:        return "INVALID_LFO_SHAPE_NAME";
     }
 
     return "MALFORMED_MESSAGE";
@@ -101,6 +103,8 @@ juce::String describe (BridgeErrorCode code)
         case BridgeErrorCode::invalidModulation:          return "That is not a routing Apollo can make.";
         case BridgeErrorCode::invalidNote:                return "That is not a note Apollo can play.";
         case BridgeErrorCode::notePlayingUnavailable:     return "Notes can be played from the window only in the standalone.";
+        case BridgeErrorCode::unknownLfoShape:            return "That shape is no longer in the library.";
+        case BridgeErrorCode::invalidLfoShapeName:        return "That is not a name a shape can have.";
     }
 
     return "The message could not be read.";
@@ -341,6 +345,79 @@ BridgeParseResult parseMessage (const juce::String& json)
         // have, and quietly fixing it would leave the two disagreeing.
         if (! dsp::isValid (command.lfoCurve))
             return BridgeParseResult::failure (BridgeErrorCode::invalidLfoCurve);
+
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    // The library of drawn shapes (Phase 18g).
+    if (messageType == "requestLfoShapes" || messageType == "revealLfoShapeFolder")
+    {
+        BridgeCommand command;
+        command.type = messageType == "requestLfoShapes" ? BridgeCommandType::requestLfoShapes
+                                                         : BridgeCommandType::revealLfoShapeFolder;
+        return BridgeParseResult::success (std::move (command));
+    }
+
+    if (messageType == "loadLfoShape" || messageType == "saveLfoShape")
+    {
+        BridgeCommand command;
+        const auto loading = messageType == "loadLfoShape";
+        command.type = loading ? BridgeCommandType::loadLfoShape : BridgeCommandType::saveLfoShape;
+
+        // One-based on the wire, as everywhere a person reads an LFO's number.
+        const auto lfoValue = object->getProperty ("lfo");
+
+        if (! isNumber (lfoValue))
+            return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+        const auto lfo = static_cast<double> (lfoValue);
+
+        if (! std::isfinite (lfo) || lfo < 1.0 || lfo > 4.0
+            || lfo != std::floor (lfo))
+            return BridgeParseResult::failure (BridgeErrorCode::unknownLfoShape);
+
+        command.lfoIndex = static_cast<int> (lfo) - 1;
+
+        if (loading)
+        {
+            // A position in the list, from 1. Bounded here, resolved against
+            // the list when it is acted on.
+            const auto shapeValue = object->getProperty ("shape");
+
+            if (! isNumber (shapeValue))
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+            const auto shape = static_cast<double> (shapeValue);
+            const auto most = static_cast<double> (resources::maximumUserLfoShapes)
+                            + static_cast<double> (resources::builtInLfoShapes().size());
+
+            if (! std::isfinite (shape) || shape < 1.0 || shape > most || shape != std::floor (shape))
+                return BridgeParseResult::failure (BridgeErrorCode::unknownLfoShape);
+
+            command.lfoShapeIndex = static_cast<int> (shape) - 1;
+            return BridgeParseResult::success (std::move (command));
+        }
+
+        const auto nameValue = object->getProperty ("name");
+
+        if (! nameValue.isString())
+            return BridgeParseResult::failure (BridgeErrorCode::invalidLfoShapeName);
+
+        // Refused rather than cut: the page's field cannot hold more.
+        if (nameValue.toString().length() > resources::maximumLfoShapeNameLength)
+            return BridgeParseResult::failure (BridgeErrorCode::invalidLfoShapeName);
+
+        command.lfoShapeName = nameValue.toString();
+
+        if (object->hasProperty ("overwrite"))
+        {
+            const auto overwriteValue = object->getProperty ("overwrite");
+
+            if (! overwriteValue.isBool())
+                return BridgeParseResult::failure (BridgeErrorCode::malformedMessage);
+
+            command.overwriteExisting = static_cast<bool> (overwriteValue);
+        }
 
         return BridgeParseResult::success (std::move (command));
     }
@@ -1291,6 +1368,55 @@ juce::String makeLfoCurvesMessage (const std::array<dsp::LfoCurve, 4>& curves)
     object->setProperty (typeProperty, "lfoCurves");
     object->setProperty (versionProperty, protocolVersion);
     object->setProperty ("curves", entries);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeLfoShapesMessage (const std::vector<resources::LfoShape>& shapes, int unreadable)
+{
+    juce::Array<juce::var> entries;
+
+    const auto rounded = [] (float value)
+    {
+        return std::round (static_cast<double> (value) * 1.0e6) / 1.0e6;
+    };
+
+    for (const auto& shape : shapes)
+    {
+        juce::Array<juce::var> points;
+
+        for (int p = 0; p < shape.curve.count && p < dsp::maxLfoCurvePoints; ++p)
+        {
+            const auto& point = shape.curve.points[static_cast<std::size_t> (p)];
+            juce::Array<juce::var> triple { rounded (point.x), rounded (point.y), rounded (point.bend) };
+            points.add (triple);
+        }
+
+        auto* entry = new juce::DynamicObject();
+        entry->setProperty ("name", shape.name);
+        entry->setProperty ("builtIn", shape.builtIn);
+        entry->setProperty ("points", points);
+        entries.add (juce::var (entry));
+    }
+
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "lfoShapes");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("shapes", entries);
+    object->setProperty ("unreadable", unreadable);
+    object->setProperty ("maxNameLength", resources::maximumLfoShapeNameLength);
+
+    return juce::JSON::toString (juce::var (object), oneLine);
+}
+
+juce::String makeLfoShapeStatusMessage (const juce::String& code, const juce::String& message, const juce::String& name)
+{
+    auto* object = new juce::DynamicObject();
+    object->setProperty (typeProperty, "lfoShapeStatus");
+    object->setProperty (versionProperty, protocolVersion);
+    object->setProperty ("code", code);
+    object->setProperty ("message", message);
+    object->setProperty ("name", name);
 
     return juce::JSON::toString (juce::var (object), oneLine);
 }

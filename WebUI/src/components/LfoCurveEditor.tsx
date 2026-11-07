@@ -18,6 +18,11 @@
         arrows move it (Shift for fine), Insert adds one after it and Delete
         removes it.
 
+    THE LIBRARY (Phase 18g). Under the caption: SHAPE loads one of Apollo's
+    shapes or one saved earlier into this LFO, as one step Undo takes back;
+    SAVE keeps this one under a name, for any LFO in any patch; FOLDER opens
+    where they are kept, to share them or add someone else's.
+
     WHAT IS DRAWN IS WHAT PLAYS. The curve is evaluated with params/lfoCurve.ts,
     a transcription of the arithmetic the engine renders its table from
     (LfoCurve.cpp), and a test holds the two to the same values. Every edit is a
@@ -27,7 +32,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { setLfoCurve } from '../bridge/bridge';
+import { loadLfoShape, requestLfoShapes, revealLfoShapeFolder, saveLfoShape, setLfoCurve } from '../bridge/bridge';
 import type { LfoCurvePoint } from '../bridge/protocol';
 import { cssColour, fitCanvas, pointerOnCanvas } from '../canvas/draw';
 import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
@@ -42,6 +47,8 @@ import {
 } from '../params/lfoCurve';
 import type { Curve } from '../params/lfoCurve';
 import { holdLfoCurve, setLocalLfoCurve, useLfoCurve } from '../state/lfoCurves';
+import { applyLfoShapeStatus, groupShapes, useLfoShapes } from '../state/lfoShapes';
+import { announce } from '../state/status';
 
 const ASPECT = 0.42;
 
@@ -459,6 +466,144 @@ export function LfoCurveEditor({ lfo }: { lfo: number }): JSX.Element {
                 <span className="lfo-curve__reading" aria-live="polite">{describePoint(curve, Math.min(selected, curve.length - 1))}</span>
                 <button type="button" className="lfo-curve__reset" onClick={reset}>Reset</button>
             </div>
+
+            <ShapeLibrary lfo={lfo} />
+        </div>
+    );
+}
+
+/**
+    Loading a shape from the library, saving this one into it, and the way to
+    its folder (Phase 18g). The engine decides everything: the list is what it
+    sent, a load is answered with the curve, and a save closes when the engine
+    says it was saved — or asks again, naming the shape, when one is there.
+*/
+function ShapeLibrary({ lfo }: { lfo: number }): JSX.Element {
+    const library = useLfoShapes();
+    const { apollo, yours } = groupShapes(library.shapes);
+
+    // The name being typed, or null when the save field is closed.
+    const [draft, setDraft] = useState<string | null>(null);
+    const [sentName, setSentName] = useState<string | null>(null);
+
+    // The list can change in the folder, so look again whenever this appears.
+    useEffect(() => { requestLfoShapes(); }, []);
+
+    // This field's own save answered: close on SAVED, stay open otherwise.
+    const status = library.status;
+    const mine = sentName !== null && status !== null;
+
+    useEffect(() => {
+        if (mine && status?.code === 'SAVED') {
+            setDraft(null);
+            setSentName(null);
+        }
+    }, [mine, status]);
+
+    const replacing = mine && status?.code === 'EXISTS' && draft?.trim() === sentName?.trim();
+
+    const save = (): void => {
+        if (draft === null || draft.trim() === '') return;
+        saveLfoShape(lfo, draft.trim(), replacing);
+        setSentName(draft.trim());
+    };
+
+    const openSave = (): void => {
+        applyLfoShapeStatus(null);
+        setSentName(null);
+        setDraft('');
+    };
+
+    return (
+        <div className="lfo-shapes">
+            {draft === null ? (
+                <>
+                    <select
+                        className="lfo-shapes__select"
+                        aria-label={`Load a shape into LFO ${lfo}`}
+                        title="Load one of Apollo's shapes or one you saved. Undo takes it back."
+                        value=""
+                        onChange={(event) => {
+                            const number = Number(event.target.value);
+                            if (number > 0) loadLfoShape(lfo, number);
+                        }}
+                    >
+                        <option value="" disabled>Load a shape…</option>
+                        <optgroup label="Apollo">
+                            {apollo.map((shape) => (
+                                <option key={shape.number} value={shape.number}>{shape.name}</option>
+                            ))}
+                        </optgroup>
+                        {yours.length > 0 && (
+                            <optgroup label="Yours">
+                                {yours.map((shape) => (
+                                    <option key={shape.number} value={shape.number}>{shape.name}</option>
+                                ))}
+                            </optgroup>
+                        )}
+                        {library.unreadable > 0 && (
+                            <option value="" disabled>
+                                {library.unreadable === 1
+                                    ? '1 file in the folder could not be read'
+                                    : `${library.unreadable} files in the folder could not be read`}
+                            </option>
+                        )}
+                    </select>
+                    <button
+                        type="button"
+                        className="lfo-curve__reset"
+                        title="Keep this shape under a name, to load into any LFO in any patch"
+                        onClick={openSave}
+                    >
+                        Save…
+                    </button>
+                    <button
+                        type="button"
+                        className="lfo-curve__reset"
+                        title="Open the folder your shapes are kept in"
+                        onClick={revealLfoShapeFolder}
+                    >
+                        Folder
+                    </button>
+                </>
+            ) : (
+                <>
+                    <input
+                        className="lfo-shapes__name"
+                        aria-label="Name for this shape"
+                        placeholder="Name this shape"
+                        maxLength={library.maxNameLength}
+                        value={draft}
+                        autoFocus
+                        onChange={(event) => setDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') save();
+                            if (event.key === 'Escape') {
+                                setDraft(null);
+                                announce('');
+                            }
+                            // The computer keyboard plays notes; typing a name must not.
+                            event.stopPropagation();
+                        }}
+                    />
+                    <button type="button" className="lfo-curve__reset" onClick={save} disabled={draft.trim() === ''}>
+                        {replacing ? 'Replace' : 'Save'}
+                    </button>
+                    <button
+                        type="button"
+                        className="lfo-curve__reset"
+                        onClick={() => {
+                            // A question about a save that is no longer happening is
+                            // not left on the status line.
+                            setDraft(null);
+                            announce('');
+                        }}
+                    >
+                        Cancel
+                    </button>
+                </>
+            )}
+
         </div>
     );
 }
