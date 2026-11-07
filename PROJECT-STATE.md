@@ -2383,7 +2383,7 @@ ADR-0126.
 
 Tested in:
 - `Tests/DSP/MacroModulationTests.cpp`: the list and its numbers; a patch with
-  no routing to a macro evaluated bit for bit as before; an LFO moving Macro 1
+  no routing to a macro evaluated in one pass, exactly as a single evaluation of the same sources (first written as bit for bit against the old processor path, which GCC failed: it folded the test's pow() of constants at compile time, exactly rounded, where the engine calls the library's); an LFO moving Macro 1
   from 0.2 to 0.45 and the cutoff and reverb mix following; the range holding at
   both ends and the curve shaping the moved knob; Macro 1 and Macro 2 routed to
   each other landing in the same place every pass, and a macro routed to

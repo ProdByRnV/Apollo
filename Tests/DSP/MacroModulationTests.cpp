@@ -83,19 +83,23 @@ private:
         dsp::ModSourceValues sources {};
         sources[static_cast<std::size_t> (ModSource::lfo1)] = 0.6f;
 
-        // What the processor used to do: shape each macro, evaluate once.
-        auto before = sources;
-        before[dsp::macroSourceIndex (0)] = dsp::shapeMacro (0.7f, macros[0].settings);
-        before[dsp::macroSourceIndex (1)] = dsp::shapeMacro (0.3f, macros[1].settings);
-        before[dsp::macroSourceIndex (2)] = 0.0f;
-        before[dsp::macroSourceIndex (3)] = 0.0f;
-        dsp::ModDestinationValues expected {};
-        dsp::evaluateModulation (routing, before, expected);
-
         dsp::ModDestinationValues actual {};
         dsp::evaluateModulationWithMacros (routing, sources, macros, actual);
 
-        expect (actual == expected, "a patch without a macro destination must be evaluated bit for bit as before");
+        // The macros are what the processor used to hand over: each knob
+        // through its shape. Within a millionth rather than exactly, because a
+        // compiler may work out the test's own pow() of constants while it
+        // compiles, exactly rounded, where the engine calls the library's.
+        expectWithinAbsoluteError (sources[dsp::macroSourceIndex (0)], dsp::shapeMacro (0.7f, macros[0].settings), 1.0e-6f);
+        expectWithinAbsoluteError (sources[dsp::macroSourceIndex (1)], 0.3f, 0.0f);
+        expectEquals (sources[dsp::macroSourceIndex (2)], 0.0f);
+
+        // And with them, one pass, as before: exactly what a single
+        // evaluation of those sources gives.
+        dsp::ModDestinationValues expected {};
+        dsp::evaluateModulation (routing, sources, expected);
+
+        expect (actual == expected, "a patch without a macro destination must be evaluated once, exactly as before");
     }
 
     void testARoutingMovesTheKnob()
