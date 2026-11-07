@@ -178,15 +178,29 @@ enum class ModDestination
     fxReverbMix,
     fxCompressorMix,
 
+    /** The four macros' knobs (Phase 18h): an offset moves the knob, which
+        then goes through the macro's curve and range, and everything the
+        macro is routed to follows (MacroModulation.h). Appended after
+        release, so every destination above keeps its number; the range
+        growing is recorded in ADR-0126. */
+    macro1,
+    macro2,
+    macro3,
+    macro4,
+
     count
 };
 
-/** The first of the effect destinations; every destination from here to
-    `count` is one, consumed by the processor rather than by a voice. */
+/** The effect destinations, first to last; consumed by the processor rather
+    than by a voice. They ended the list until 18h appended the macros. */
 inline constexpr ModDestination firstEffectDestination = ModDestination::fxDistortionDrive;
+inline constexpr ModDestination lastEffectDestination = ModDestination::fxCompressorMix;
 
 inline constexpr int numEffectDestinations
-    = static_cast<int> (ModDestination::count) - static_cast<int> (firstEffectDestination);
+    = static_cast<int> (lastEffectDestination) - static_cast<int> (firstEffectDestination) + 1;
+
+/** The first macro destination; the four run from here to `count`. */
+inline constexpr ModDestination firstMacroDestination = ModDestination::macro1;
 
 /** How far a destination may be pushed by modulation at full depth.
 
@@ -241,6 +255,14 @@ inline constexpr int numEffectDestinations
 
         case ModDestination::fxDistortionDrive:
             return 36.0f;
+
+        // The knob's whole travel, so a depth of 1 takes it from one end to
+        // the other.
+        case ModDestination::macro1:
+        case ModDestination::macro2:
+        case ModDestination::macro3:
+        case ModDestination::macro4:
+            return 1.0f;
 
         // Cutoff is modulated in octaves rather than hertz, because that is how
         // it is heard: a fixed number of hertz is a huge move at the bottom of

@@ -452,7 +452,7 @@ Curve shaping.
 Preset storage.
 The default macro mapping must never assume a particular MIDI controller.
 
-> **Status, 0.1.0 to 13e-3:** ✅ Built in Phase 13e-3 (ADR-0098): four macros, each a knob with a minimum, a maximum and a curve between it and what the matrix reads. Each is a matrix source, so one macro reaches as many destinations as route it, each with its own bipolar depth. They are parameters, so MIDI Learn assigns them and presets store them, and no controller is assigned to one by default.
+> **Status, 0.1.0 to 13e-3:** ✅ Built in Phase 13e-3 (ADR-0098): four macros, each a knob with a minimum, a maximum and a curve between it and what the matrix reads. Each is a matrix source, so one macro reaches as many destinations as route it, each with its own bipolar depth. They are parameters, so MIDI Learn assigns them and presets store them, and no controller is assigned to one by default. ✅ Since Phase 18h each macro is a matrix destination too: a routing moves its knob before its curve and range, and everything the macro drives follows (ADR-0126).
 
 ---
 18. Multi-FX Rack

@@ -80,6 +80,7 @@ add_library(apollo_core STATIC
     DSP/LFO/LfoCurve.h
     DSP/Modulation/ModulationTypes.cpp
     DSP/Modulation/Macro.h
+    DSP/Modulation/MacroModulation.h
     DSP/Modulation/ModulationTypes.h
     Engine/FilterSettings.h
     DSP/Reverb/Allpass.h

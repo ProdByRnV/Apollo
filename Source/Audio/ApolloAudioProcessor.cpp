@@ -665,8 +665,9 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
     voiceEngine.setModulationRouting (routing);
 
-    // The macros, through their curve and range, as the matrix reads them.
-    // Once a block, like every parameter the matrix reaches.
+    // The macros' knobs and shapes, once a block like every parameter the
+    // matrix reaches. The engine shapes them, because a routing to a macro
+    // moves its knob before the curve and range (Phase 18h).
     for (std::size_t i = 0; i < macroParameters.size(); ++i)
     {
         const auto& macro = macroParameters[i];
@@ -676,7 +677,7 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
         shape.maximum = readParameter (macro.maximum, 1.0f);
         shape.curve = readParameter (macro.curve, 0.0f);
 
-        voiceEngine.setMacro (static_cast<int> (i), dsp::shapeMacro (readParameter (macro.value, 0.0f), shape));
+        voiceEngine.setMacro (static_cast<int> (i), dsp::MacroInput { readParameter (macro.value, 0.0f), shape });
     }
 
     // The envelope follower's settings, once a block like the macros. Its value

@@ -30,6 +30,11 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   brightens as it gets louder. **Attack**, **Release** and **Gain** are in the
   new **Follower** panel on the Modulation tab, with a live trace of what it is
   doing.
+- **Modulate a macro.** Drag a source onto a macro's **Amount** knob, and it
+  moves the macro, and the macro moves everything it is routed to: one LFO on
+  Macro 1 sweeps the filter, the wavetable and the reverb together. The macro's
+  range and curve still hold, so it never goes past the limits you set. The
+  matrix lists the macros as destinations by the names you gave them.
 - **Keep the LFO shapes you draw.** On an LFO set to **DRAWN**, **Save…** keeps
   the shape under a name, and **Load a shape…** puts it into any LFO in any
   patch. Six shapes of Apollo's own come with it: Pluck, Swell, Pump, Bounce,
@@ -59,14 +64,22 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   folder your presets are saved in, to back them up or add presets someone made.
   Press **RESCAN** to see what you added.
 
-### One thing that moves
+### Two things that move
 
 Projects, presets and MIDI assignments from earlier versions open and sound the
-same. The one exception is DAW automation that **switches a modulation slot's
-source or via**: the follower made that list one longer, so a lane recorded with
-1.3.0 or earlier picks a different source from Key Track onwards. Automating
-which source a slot uses is rare; if you did, choose the source again in the
-matrix. Automation of a slot's depth, and of every other control, is unaffected.
+same. The exception is DAW automation that **switches what a modulation slot
+uses**:
+
+- **its source or via**: the follower made that list one longer, so a lane
+  recorded with 1.3.0 or earlier picks a different source from Key Track
+  onwards;
+- **its destination**: the macros made that list four longer, so a lane
+  recorded with 1.3.0 or earlier picks a different destination from Osc 1
+  Position onwards.
+
+Automating which source or destination a slot uses is rare; if you did, choose
+it again in the matrix. Automation of a slot's depth, and of every other
+control, is unaffected.
 
 ---
 

@@ -47,6 +47,7 @@
 #include "DSP/Filters/FilterDrive.h"
 #include "DSP/LFO/Lfo.h"
 #include "DSP/Modulation/Macro.h"
+#include "DSP/Modulation/MacroModulation.h"
 #include "DSP/Modulation/ModulationTypes.h"
 #include "Engine/FilterSettings.h"
 #include "Engine/SourceSettings.h"
@@ -198,13 +199,18 @@ public:
     */
     void setModWheel (float value) noexcept { modWheel = value; }
 
-    /** One macro's shaped value, 0 to 1, read by the matrix like the mod wheel.
+    /** One macro's knob and shape, read by the matrix like the mod wheel, and
+        moved by it where a routing makes the macro a destination (Phase 18h).
         An index out of range is ignored. */
-    void setMacro (int index, float value) noexcept
+    void setMacro (int index, const dsp::MacroInput& input) noexcept
     {
         if (index >= 0 && index < dsp::numMacros)
-            macroValues[static_cast<std::size_t> (index)] = value;
+            macroInputs[static_cast<std::size_t> (index)] = input;
     }
+
+    /** A macro whose range and curve are the defaults, so its value is the
+        knob itself. */
+    void setMacro (int index, float knob) noexcept { setMacro (index, dsp::MacroInput { knob, {} }); }
 
     /** The envelope follower's value, 0 to 1, read by the matrix like a macro
         (Phase 18e). */
@@ -611,7 +617,7 @@ private:
     float modWheel = 0.0f;
 
     /** The macros, shaped, as the engine last handed them over. */
-    std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
+    dsp::MacroInputs macroInputs {};
 
     /** The envelope follower, as the engine last handed it over. */
     float follower = 0.0f;

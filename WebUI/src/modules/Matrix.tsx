@@ -14,12 +14,11 @@ import { useEffect } from 'react';
 import { BipolarRail } from '../components/BipolarRail';
 import { Module } from '../components/Module';
 import { Select } from '../components/Select';
-import { LABELS } from '../params/labels';
 import { liveSlotCount, routingsByControl, SILENT_DEPTH } from '../params/modulationRouting';
 import type { SlotState } from '../params/modulationRouting';
 import { controlForDestination, plainOf, useMetadataVersion, useParameterValue } from '../state/parameters';
 import { publishRouting } from '../state/modulation';
-import { useSourceLabels } from '../state/macroNames';
+import { useDestinationLabels, useSourceLabels } from '../state/macroNames';
 
 export const SLOT_COUNT = 16;
 
@@ -54,8 +53,10 @@ function Row({ slot }: RowProps): JSX.Element {
     useParameterValue(depthId);
     useParameterValue(viaId);
 
-    // A macro is listed by the name it was given.
+    // A macro is listed by the name it was given, as a source and, since 18h,
+    // as a destination.
     const sources = useSourceLabels();
+    const destinations = useDestinationLabels();
 
     // A routing counts as assigned when it has a source, a destination and a
     // depth that is not zero — all three, because any one of them missing means
@@ -77,7 +78,7 @@ function Row({ slot }: RowProps): JSX.Element {
             <td className="matrix__destination">
                 <Select
                     id={destinationId}
-                    table={LABELS.modDestination}
+                    table={destinations}
                     ariaLabel={`Slot ${slot} destination`}
                 />
             </td>

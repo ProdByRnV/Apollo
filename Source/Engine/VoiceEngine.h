@@ -382,9 +382,13 @@ public:
     */
     void setModWheel (float value) noexcept;
 
-    /** One macro's value after its range and curve (dsp::shapeMacro), 0 to 1,
-        for every voice. Engine-wide, like the mod wheel. */
-    void setMacro (int index, float value) noexcept;
+    /** One macro's knob and shape, for every voice. Engine-wide, like the mod
+        wheel; a routing to the macro moves it per voice (Phase 18h). */
+    void setMacro (int index, const dsp::MacroInput& input) noexcept;
+
+    /** A macro whose range and curve are the defaults, so its value is the
+        knob itself. */
+    void setMacro (int index, float knob) noexcept { setMacro (index, dsp::MacroInput { knob, {} }); }
 
     /** The envelope follower's times and gain (Phase 18e). Once a block. */
     void setFollowerSettings (float attackMs, float releaseMs, float gainDb) noexcept;
@@ -577,7 +581,7 @@ private:
     std::array<dsp::LfoSettings, static_cast<std::size_t> (Voice::numLfos)> lfoSettings;
 
     float modWheel = 0.0f;
-    std::array<float, static_cast<std::size_t> (dsp::numMacros)> macroValues {};
+    dsp::MacroInputs macroInputs {};
 
     /** How loud the summed voices are, followed as they are rendered, and the
         value it last gave every voice (Phase 18e). */

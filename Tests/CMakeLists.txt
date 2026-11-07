@@ -44,6 +44,7 @@ target_sources(ApolloTests PRIVATE
     DSP/DistortionTests.cpp
     DSP/DynamicsTests.cpp
     DSP/EnvelopeFollowerTests.cpp
+    DSP/MacroModulationTests.cpp
     DSP/EqualiserTests.cpp
     DSP/EffectsChainTests.cpp
     DSP/EffectsRackTests.cpp

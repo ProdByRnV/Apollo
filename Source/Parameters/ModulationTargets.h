@@ -36,7 +36,7 @@ struct ModulationTarget
 
 /** Every destination with a control of its own. All Pitch and Amplitude are
     absent rather than guessed at: neither is one knob. */
-inline constexpr std::array<ModulationTarget, 28> modulationTargets { {
+inline constexpr std::array<ModulationTarget, 32> modulationTargets { {
     { dsp::ModDestination::osc1Pitch,         "osc1_semitones" },
     { dsp::ModDestination::osc2Pitch,         "osc2_semitones" },
     { dsp::ModDestination::osc1Position,      "osc1_position" },
@@ -65,6 +65,11 @@ inline constexpr std::array<ModulationTarget, 28> modulationTargets { {
     { dsp::ModDestination::fxDelayMix,        "fx_delay_mix" },
     { dsp::ModDestination::fxReverbMix,       "fx_reverb_mix" },
     { dsp::ModDestination::fxCompressorMix,   "fx_compressor_mix" },
+    // Each macro's knob (Phase 18h).
+    { dsp::ModDestination::macro1,            "macro1_value" },
+    { dsp::ModDestination::macro2,            "macro2_value" },
+    { dsp::ModDestination::macro3,            "macro3_value" },
+    { dsp::ModDestination::macro4,            "macro4_value" },
 } };
 
 /** @returns the destination that offsets parameter @p id, or none. */

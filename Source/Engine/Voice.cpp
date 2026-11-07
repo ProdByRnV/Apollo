@@ -404,12 +404,11 @@ void Voice::updateModulation() noexcept
 
     store (Source::random, perNoteRandom);
 
-    for (int i = 0; i < dsp::numMacros; ++i)
-        store (static_cast<Source> (static_cast<int> (Source::macro1) + i), macroValues[static_cast<std::size_t> (i)]);
-
     store (Source::follower, follower);
 
-    dsp::evaluateModulation (routing, sourceValues, destinationValues);
+    // The macros are filled in here, from their knobs, and moved where a
+    // routing makes one a destination (Phase 18h).
+    dsp::evaluateModulationWithMacros (routing, sourceValues, macroInputs, destinationValues);
 }
 
 void Voice::applyModulation() noexcept

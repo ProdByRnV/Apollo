@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, and 18g a library of LFO shapes are done** (ADR-0119 to ADR-0125); 18h and 18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, and 18h macros as destinations are done** (ADR-0119 to ADR-0126); 18i follows. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18h, macros as destinations in the matrix**, when the developer says to go on; it grows the destination list, which moves automation of a slot's destination, so the developer decides how (ADR-0123 met the same for the sources). Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18i, a check run by the tests that the audio thread never allocates or locks**, when the developer says to go on; the last of Phase 18. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,38 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### Macros as destinations (Phase 18h)
+
+ADR-0126.
+
+- **`ModDestination::macro1`–`macro4`**, appended, 31 to 34;
+  `lastEffectDestination` now marks where the effects end; every slot's
+  destination 0–34. `fullDepthRange` 1, the knob's travel.
+- **`DSP/Modulation/MacroModulation.h`**: `MacroInput` (knob and shape) and
+  `evaluateModulationWithMacros`, which shapes the macros, evaluates, and
+  where a macro was moved shapes it again from its moved knob and evaluates
+  once more, keeping the macros' own offsets from the first pass.
+- **The voice and the engine** hold each macro's knob and shape rather than
+  its shaped value, and both evaluate through it; the processor hands them
+  over once a block.
+- **`params::modulationTargets`**: each macro's knob is its destination's
+  control, so it takes a dropped source and shows its tags; marked modulatable.
+- **The page**: the four at the end of the destination list, by the macros'
+  names (`useDestinationLabels`).
+
+Tested in:
+- `Tests/DSP/MacroModulationTests.cpp`: the list and its numbers; a patch with
+  no routing to a macro evaluated bit for bit as before; an LFO moving Macro 1
+  from 0.2 to 0.45 and the cutoff and reverb mix following; the range holding at
+  both ends and the curve shaping the moved knob; Macro 1 and Macro 2 routed to
+  each other landing in the same place every pass, and a macro routed to
+  itself; NaN and infinity moving nothing; and in the instrument, the mod wheel
+  on Macro 1 (0.1, range 0 to 0.5) moving the reverb's mix from 0.05 to 0.5 with
+  nothing sounding and with a note, and back when the routing goes.
+- `Tests/UI/ModulationDropTests.cpp`: every destination but All Pitch and
+  Amplitude has exactly one control, the macros' knobs among them.
+- `WebUI/test/macroNames.test.mjs`: the destinations' macro names.
+
 ### A library of drawn LFO shapes (Phase 18g)
 
 ADR-0125.
@@ -3847,6 +3879,20 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### Macros as destinations (Phase 18h), 2026-11-07
+
+The Release standalone on the developer's laptop, Square Keys, over the
+DevTools protocol with real mouse and keyboard input.
+
+| Checked | Result |
+|---|---|
+| LFO 1 dragged onto Macro 1's Amount | The first drag missed, the page having scrolled under it, and was refused by name ("was not dropped on a control it can move"); dragged again: "LFO 1 → Macro 1 in slot 3, at +25%", an L1 tag on the knob, "LFO 1 / Macro 1" in the matrix |
+| M1 clicked, Filters, Filter 1 Cutoff | "Macro 1 → Filter 1 Cutoff in slot 4, at +25%" |
+| Hearing it through the cutoff | Not shown: at the patch's 4.2 kHz, and at 300 Hz typed in for the test, the filter's scope, which reads the waveform's peak, stayed within a decibel |
+| M1 dragged onto Osc 1 Level, its tag dragged down | "Macro 1 → Osc 1 Level in slot 5", depth −100 %; Macro 1 typed to 50 % |
+| A held A | Oscillator 1's level swinging between −17.9 and about −3 dB once a second, LFO 1's rate, while the sub beside it held at −9.1 dB |
+| Afterwards | Six steps undone, each named, to "Nothing to undo": MOD 2/16, cutoff 4.20 kHz, level 100 %; Apollo closed |
 
 ### A library of drawn LFO shapes (Phase 18g), 2026-11-07
 

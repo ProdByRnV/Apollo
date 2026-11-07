@@ -9,7 +9,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
 import { LABELS } from '../params/labels';
-import { DEFAULT_MACRO_NAME_LIMIT, MACRO_COUNT, withMacroNames } from '../params/macroNames';
+import { DEFAULT_MACRO_NAME_LIMIT, MACRO_COUNT, withMacroDestinationNames, withMacroNames } from '../params/macroNames';
 
 interface MacroNames {
     names: readonly string[];
@@ -68,4 +68,10 @@ export function useMacroNames(): MacroNames {
 export function useSourceLabels(): readonly string[] {
     const { names } = useMacroNames();
     return useMemo(() => withMacroNames(LABELS.modSource ?? [], names), [names]);
+}
+
+/** The destinations, with each macro by the name it was given (18h). */
+export function useDestinationLabels(): readonly string[] {
+    const { names } = useMacroNames();
+    return useMemo(() => withMacroDestinationNames(LABELS.modDestination ?? [], names), [names]);
 }

@@ -533,20 +533,20 @@ void VoiceEngine::setModWheel (float value) noexcept
         voice.setModWheel (modWheel);
 }
 
-void VoiceEngine::setMacro (int index, float value) noexcept
+void VoiceEngine::setMacro (int index, const dsp::MacroInput& input) noexcept
 {
     if (index < 0 || index >= dsp::numMacros)
         return;
 
-    auto& current = macroValues[static_cast<std::size_t> (index)];
+    auto& current = macroInputs[static_cast<std::size_t> (index)];
 
-    if (value == current)
+    if (input == current)
         return;
 
-    current = value;
+    current = input;
 
     for (auto& voice : voices)
-        voice.setMacro (index, value);
+        voice.setMacro (index, input);
 }
 
 void VoiceEngine::setFollowerSettings (float attackMs, float releaseMs, float gainDb) noexcept
@@ -575,12 +575,9 @@ void VoiceEngine::updateEffectModulation() noexcept
         return;
     }
 
-    // Nothing sounds: only the sources that exist without a note.
+    // Nothing sounds: only the sources that exist without a note, the macros
+    // among them, moved by those sources where they are destinations.
     dsp::ModSourceValues sources {};
-
-    for (int i = 0; i < dsp::numMacros; ++i)
-        sources[static_cast<std::size_t> (static_cast<int> (dsp::ModSource::macro1) + i)]
-            = macroValues[static_cast<std::size_t> (i)];
 
     sources[static_cast<std::size_t> (dsp::ModSource::modWheel)] = modWheel;
     sources[static_cast<std::size_t> (dsp::ModSource::pitchBend)] = wheelNormalised;
@@ -588,7 +585,7 @@ void VoiceEngine::updateEffectModulation() noexcept
     sources[static_cast<std::size_t> (dsp::ModSource::follower)] = followerValue;
 
     dsp::ModDestinationValues destinations {};
-    dsp::evaluateModulation (routing, sources, destinations);
+    dsp::evaluateModulationWithMacros (routing, sources, macroInputs, destinations);
 
     for (std::size_t i = 0; i < effectOffsets.size(); ++i)
         effectOffsets[i] = destinations[first + i];

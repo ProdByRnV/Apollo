@@ -8749,3 +8749,74 @@ about curves.
   whole library would be a strange thing to send a collaborator.
 - **Delete and rename in Apollo.** The file manager does both, and a command
   that deletes files is one the bridge has never had (ADR-0063).
+
+---
+
+## ADR-0126 — Macros as destinations, appended to the destinations after release
+
+**Phase 18h · Accepted**
+
+### What was asked
+
+The eighth improvement the developer chose after 1.3.0: the macros as
+destinations in the matrix, so a source can move a macro and the macro, in
+turn, everything it is routed to. CLAUDE.md §15 lists "macro destinations".
+
+### What a routing to a macro does
+
+**It moves the macro's knob, before the curve and the range.** The offset is
+added to where the knob is; the result goes through `shapeMacro` as the knob
+does. So a macro whose range is 0.2 to 0.6 stays between them however hard it
+is pushed, its curve bends the movement as it bends the knob, and a depth of 1
+is the knob's whole travel (`fullDepthRange` 1). The alternative, offsetting
+what the macro sends after its range, would let modulation carry a macro
+outside the range the user gave it, which is the one thing a range is for.
+
+**One level, so no loops** (`dsp::evaluateModulationWithMacros`). The matrix
+is evaluated with every macro at its knob. If that put an offset on a macro,
+those macros are shaped again from their moved knobs and the matrix is
+evaluated once more; the macros' own offsets are kept from the first pass. A
+macro routed to a macro therefore reads the other's knob as set, Macro 1 to
+Macro 2 to Macro 1 is two routings rather than feedback, and the result is the
+same however often it is evaluated. **A patch with no routing to a macro is
+evaluated once, as before**: the voice now shapes the macros itself, with the
+same function on the same numbers, so every regression render passed
+unregenerated.
+
+Per voice, like every destination a voice reads: a macro moved by an envelope
+moves differently in each note. The effects, which run on the sum, read the
+newest voice's, or with nothing sounding the engine-wide sources', as they do
+for every effect destination (ADR-0100). A non-number offset moves nothing.
+
+### The destination list grew, after release
+
+`ModDestination::macro1` to `macro4` are appended after the compressor's
+mix, 31 to 34; every destination keeps its number, and every slot's
+`modNN_destination` grows from 0–30 to 0–34. The effect destinations are no
+longer the end of the list, so `lastEffectDestination` says where they stop.
+Projects, presets and MIDI assignments store the choice and are unaffected. A
+host's automation of a slot's destination stores a fraction of the range, and a
+lane recorded with 1.3.0 or earlier lands on a different destination from Osc 1
+Position onwards.
+
+**The developer chose to append it**, asked with the consequence in front of
+them and the alternatives: a modulation input on each macro, eight new
+controls and nothing moved, but one source per macro, no via, and macro
+modulation outside the matrix; or the next release as 2.0.0. It is the second
+change of this kind after release, after the follower's (ADR-0123), and the
+release notes say what moves.
+
+### On the page
+
+Each macro's knob is a drop target, as every destination's control is:
+dragging a source onto **Amount** routes it, with a tag to set the depth. The
+matrix lists the four at the end of its destinations, by the names the user
+gave them (16c), as its sources do. The knobs are marked modulatable in the
+registry, which they now are.
+
+### Alternatives considered
+
+- **Offsetting the macro's output.** Escapes the range (above).
+- **Evaluating to a fixed point**, so a macro moved by a moved macro moves
+  again. Iteration with no guaranteed end, on the audio thread, for routings
+  nobody can read off the matrix.

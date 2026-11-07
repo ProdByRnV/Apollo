@@ -719,7 +719,9 @@ Destinations may include:
 - Level.
 - Pan.
 - FX parameters.
-- Macro destinations.
+- Macro destinations: a routing moves a macro's knob, before its curve and
+  range, and everything the macro drives follows; a macro moved by a macro
+  reads its knob as set, so there are no loops (ADR-0126).
 
 Depth must support bipolar values.
 

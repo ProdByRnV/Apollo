@@ -13,7 +13,9 @@ import {
     limitMacroName,
     macroLabel,
     macroNameToSend,
+    macroOfDestination,
     macroOfSource,
+    withMacroDestinationNames,
     withMacroNames,
 } from '../src/params/macroNames.ts';
 
@@ -66,4 +68,19 @@ test('the source list takes the names and keeps its length', () => {
     assert.equal(named[17], 'Wobble');
     assert.equal(named[18], 'Macro 3');
     assert.equal(named[19], 'Space');
+});
+
+test('since 18h the four macros end the destination list, named as they are named', () => {
+    const table = Array.from({ length: 35 }, (_, destination) => `D${destination}`);
+    assert.equal(macroOfDestination(30), null, 'the compressor mix is not a macro');
+    assert.equal(macroOfDestination(31), 1);
+    assert.equal(macroOfDestination(34), 4);
+    assert.equal(macroOfDestination(35), null);
+
+    const named = withMacroDestinationNames(table, ['Wobble', '', '', 'Space']);
+    assert.equal(named.length, 35);
+    assert.equal(named[30], 'D30');
+    assert.equal(named[31], 'Wobble');
+    assert.equal(named[32], 'Macro 2');
+    assert.equal(named[34], 'Space');
 });

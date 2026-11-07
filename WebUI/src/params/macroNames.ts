@@ -11,6 +11,10 @@
 
 /** dsp::ModSource numbers Macro 1 as 16, and the other three follow it. */
 export const FIRST_MACRO_SOURCE = 16;
+
+/** dsp::ModDestination numbers Macro 1 as 31 since 18h, and the other three
+    follow it. */
+export const FIRST_MACRO_DESTINATION = 31;
 export const MACRO_COUNT = 4;
 
 /** What the engine takes, until it says otherwise in its first message. */
@@ -50,6 +54,21 @@ export function macroNameToSend(macro: number, typed: string): string {
 export function macroOfSource(source: number): number | null {
     const macro = source - FIRST_MACRO_SOURCE + 1;
     return macro >= 1 && macro <= MACRO_COUNT ? macro : null;
+}
+
+/** The macro a modulation destination is, from 1, or null for any other. */
+export function macroOfDestination(destination: number): number | null {
+    const macro = destination - FIRST_MACRO_DESTINATION + 1;
+    return macro >= 1 && macro <= MACRO_COUNT ? macro : null;
+}
+
+/** The modulation destinations' names with the macros' own in place of
+    "Macro 1" to "Macro 4", as withMacroNames does for the sources. */
+export function withMacroDestinationNames(table: readonly string[], names: readonly string[]): string[] {
+    return table.map((label, destination) => {
+        const macro = macroOfDestination(destination);
+        return macro === null ? label : macroLabel(macro, names[macro - 1] ?? '');
+    });
 }
 
 /** The modulation sources' names with the macros' own in place of

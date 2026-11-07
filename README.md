@@ -296,7 +296,8 @@ curves, each stage bendable on its own, shaped by dragging them; four LFOs with 
 you draw, which can follow the host's tempo; and a sixteen-slot modulation
 matrix, each slot's depth itself modulatable, whose sources include velocity,
 key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source
-and four macros, each with a range, a curve and a name you give it. Drag a
+and four macros, each with a range, a curve and a name you give it — and each a
+destination too, so one LFO on a macro moves everything the macro drives. Drag a
 source onto a control to modulate it, and drag the tag that appears to set how
 far.
 

@@ -151,7 +151,10 @@ export const LABELS: Record<string, readonly string[]> = {
                      'Filter 1 Drive', 'Filter 1 Mix', 'Filter 1 Key Track',
                      'Filter 2 Drive', 'Filter 2 Mix', 'Filter 2 Key Track',
                      'Distortion Drive', 'Distortion Mix', 'Delay Feedback', 'Delay Mix',
-                     'Reverb Mix', 'Compressor Mix'],
+                     'Reverb Mix', 'Compressor Mix',
+                     // Appended in 18h, after release: each macro's knob
+                     // (ADR-0126). Shown by the macro's own name where it has one.
+                     'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'],
 
     // dsp::UnisonOscillator::WarpMode.
     osc1_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],
