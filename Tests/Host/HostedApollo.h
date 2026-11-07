@@ -203,4 +203,15 @@ using BlockHook = std::function<void (int blockStart)>;
 */
 void pumpMessages (int milliseconds);
 
+/** Runs the message loop until @p done says so, or @p timeoutMilliseconds pass.
+
+    For a report that arrives on the message thread in its own time. Apollo
+    passes a latency change on from a 10 Hz timer (ADR-0127), so a fixed wait
+    the length of one period was a race, and on a loaded CI runner the timer
+    lost it. A second is ten chances; a passing test returns at the first.
+
+    @returns whether @p done became true.
+*/
+bool pumpMessagesUntil (const std::function<bool()>& done, int timeoutMilliseconds = 1000);
+
 } // namespace apollo::host

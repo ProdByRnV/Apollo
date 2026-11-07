@@ -2394,6 +2394,10 @@ Tested in:
   other rates and sizes — and host automation reaching the interface's
   listener. Under RTSan: 17 violations against the code before the fixes, none
   after.
+- `Tests/Host`: the tests that wait for a latency report pump the message loop
+  until it arrives, for up to a second (`pumpMessagesUntil`). The first CI run
+  failed on macOS alone: one of them waited 100 ms, exactly one period of the
+  new timer, and on that runner the timer had not yet fired.
 
 ### Macros as destinations (Phase 18h)
 

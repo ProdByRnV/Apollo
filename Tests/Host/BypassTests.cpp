@@ -182,12 +182,15 @@ private:
         for (int i = 0; i < 8; ++i)
             instance->processBlock (block, none);
 
-        pumpMessages (200);
+        pumpMessagesUntil ([&] { return instance->getLatencySamples() > 0; });
         const auto before = instance->getLatencySamples();
 
         const auto output = render (*instance, 24000, 512, note (60, 0, 20000),
                                     bypassBetween (*instance, 0, 24000));
-        pumpMessages (200);
+
+        // Three of the timer's periods, so a change bypassing caused would
+        // have reached the host by now (ADR-0127).
+        pumpMessages (300);
 
         expect (before > 0, "The distortion reports latency");
         expectEquals (instance->getLatencySamples(), before, "Unchanged while bypassed");

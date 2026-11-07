@@ -465,7 +465,7 @@ private:
         // latency-matched dry path, so the only thing it changes is timing.
         setPlain (*withDistortion, "fx_slot1", 1.0f);
         settle (*withDistortion);
-        pumpMessages (200);
+        pumpMessagesUntil ([&] { return withDistortion->getLatencySamples() > 0; });
 
         const auto reported = withDistortion->getLatencySamples();
         expect (reported > 0, "The distortion's oversampling latency reached the host: "
@@ -484,7 +484,7 @@ private:
         // compensating for a delay that is no longer there.
         setPlain (*withDistortion, "fx_slot1", 0.0f);
         settle (*withDistortion);
-        pumpMessages (200);
+        pumpMessagesUntil ([&] { return withDistortion->getLatencySamples() == 0; });
 
         expectEquals (withDistortion->getLatencySamples(), 0, "Removing it reports zero again");
     }

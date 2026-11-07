@@ -317,7 +317,7 @@ private:
 
         setPlain (*original, "fx_slot1", 1.0f);
         settle (*original);
-        pumpMessages (100);
+        pumpMessagesUntil ([&] { return original->getLatencySamples() > 0; });
 
         const auto latency = original->getLatencySamples();
         expect (latency > 0, "The distortion reports latency: " + juce::String (latency));

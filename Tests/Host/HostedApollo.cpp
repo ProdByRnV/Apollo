@@ -404,4 +404,19 @@ void pumpMessages (int milliseconds)
     juce::MessageManager::getInstance()->runDispatchLoopUntil (milliseconds);
 }
 
+bool pumpMessagesUntil (const std::function<bool()>& done, int timeoutMilliseconds)
+{
+    const auto start = juce::Time::getMillisecondCounter();
+
+    while (! done())
+    {
+        if (static_cast<int> (juce::Time::getMillisecondCounter() - start) >= timeoutMilliseconds)
+            return false;
+
+        pumpMessages (20);
+    }
+
+    return true;
+}
+
 } // namespace apollo::host
