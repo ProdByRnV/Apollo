@@ -194,7 +194,7 @@ front of it is better understood, the way 8f was.
 | 17b | The presets panel: ‹ › through the list as shown, Init, Save, Export, Import in its heading, and Hide list; opens with the list, as the developer chose | ✅ |
 | 17c | The space: one line of sources, a shorter preset list, effects not in the rack folded to their headings, the effects in two filling columns — Effects 1,728 → 693 px on a laptop | ✅ |
 | 17d | The standalone opens filling the screen; the application at the top of the Mac and Linux downloads; one Terminal command that installs and opens Apollo on a Mac or Linux, checked in CI on both (ADR-0118) | ✅ |
-| **18** | **Improvements after 1.3.0** — what the developer chose from a list of what could be better, apart from more presets, which they are leaving to sound designers | 🔄 |
+| **18** | **Improvements after 1.3.0** — what the developer chose from a list of what could be better, apart from more presets, which they are leaving to sound designers | ✅ |
 | 18a | Undo and redo — every edit made in the window, one step per thing done, kept by the processor; Ctrl+Z, Ctrl+Shift+Z and buttons in the masthead naming what they would do (ADR-0119) | ✅ |
 | 18b | The interface's size — SIZE in the masthead, 75 to 200 %, drawn as far as the window leaves the layout room, the plugin window following it, kept per computer; and Open folder beside the Presets title (ADR-0120) | ✅ |
 | 18c | One command that installs Apollo on Windows — `irm … | iex` in PowerShell: checked download, the application per user with a Start-menu entry, the plugin where every DAW looks after one permission prompt, no SmartScreen; checked in CI (ADR-0121) | ✅ |
@@ -203,7 +203,7 @@ front of it is better understood, the way 8f was.
 | 18f | A curve for each stage of an envelope — the Curve bends every stage, and the attack, decay and release each add a bend of their own, which the editor's diamonds move; chosen by the developer because nothing moves (ADR-0124) | ✅ |
 | 18g | A library of drawn LFO shapes, to use in another patch — six of Apollo's and the ones you save, as files in a folder beside the presets, loaded into any LFO as one step of the history; the page names a number, never a path (ADR-0125) | ✅ |
 | 18h | Macros as destinations in the matrix — a routing moves the macro's knob before its curve and range, and everything the macro drives follows; one level, so no loops; the destination list grows to 35, chosen by the developer knowing what it moves (ADR-0126) | ✅ |
-| 18i | A check that the audio thread never allocates or locks, run by the tests | |
+| 18i | A check that the audio thread never allocates or locks, run by the tests — every callback of a scripted session watched by RealtimeSanitizer in a CI job of its own, and by a replaced operator new in every other build; it found SysEx allocating, a rack change locking, and automation with the window open allocating, all three fixed (ADR-0127) | ✅ |
 
 ### Carried forward
 
@@ -213,7 +213,7 @@ Items deferred out of a closed phase, each annotated in place on its own task:
 |---|---|---|
 | 1 | Resource embedding and packaging | 9d, 9e |
 | 1 | VST3 loads in a representative host | 10e — through a VST3 host implementation in 10e-1; in FL Studio, by the developer, in 10e-2 |
-| 2 | Thread-safety tests — an allocation and lock detector on the audio thread | unscheduled; 10a did not take it, because the obvious detector would miss the allocations most likely to happen (PROJECT-STATE issue 6) |
+| 2 | Thread-safety tests — an allocation and lock detector on the audio thread | 18i (ADR-0127): RealtimeSanitizer, which sees what the obvious detector would have missed |
 | 5 | Host automation as a modulation *source* | needs modulation-of-modulation; unscheduled |
 | 5 | Envelope-following modulation | 18e (ADR-0123) |
 | 13c-1 | A comb's delay line allocated only when a comb is chosen — every voice holds four, 2.05 MB per instance, found by 13d-2's benchmark (PROJECT-STATE §5b) | 14, the release's memory review |
@@ -353,7 +353,7 @@ Build the authoritative parameter/state system and the C++ ↔ WebView communica
 - [x] State restoration tests.
 - [x] Bridge protocol tests.
 - [x] Invalid-message tests.
-- [ ] Thread-safety tests. — audio-thread safety is by construction and review; no allocation/lock detector is wired up yet (Phase 10)
+- [x] Thread-safety tests. — the audio thread watched for allocation and locks by the tests, under RealtimeSanitizer in CI (18i, ADR-0127)
 
 ## Exit Criteria
 
@@ -1278,7 +1278,7 @@ Apollo is not considered complete merely because every planned feature exists.
 
 A production-ready build must satisfy all of the following:
 
-- [ ] Core DSP is real-time safe. — by construction and by review, but not enforced by a tool: there is no allocation or lock detector on the audio thread (PROJECT-STATE issue 6) (read in 12d-3)
+- [x] Core DSP is real-time safe. — by construction and by review, and since 18i checked by the tests: RealtimeSanitizer watches every callback of a scripted session (ADR-0127)
 - [x] DSP has passed appropriate numerical and spectral validation. — tuning, THD+N, silence, DC, inharmonic content, step response, stability, regression renders (10a, 10b) (read in 12d-3)
 - [x] Wavetable synthesis has acceptable anti-aliasing behavior. — −98.5 dBc worst case against a −60 dBc budget (4a, 10a) (read in 12d-3)
 - [x] Polyphony and unison perform within defined CPU budgets. — the worst patch the controls allow keeps up, measured per callback (10c, 10d) (read in 12d-3)

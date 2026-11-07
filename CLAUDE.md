@@ -370,6 +370,15 @@ Examples:
 
 Once prepared, the audio thread should receive safe references or preallocated data structures.
 
+## 7.4 The Rule Is Checked
+
+The tests play the instrument with every audio callback marked as a real-time
+section (`Tests/RealTime`, ADR-0127). In CI, RealtimeSanitizer stops the run at
+the first allocation, free, lock or blocking call inside one, anywhere in the
+call tree; in every other build a replaced `operator new` counts C++
+allocations. Work that adds a path through the callback adds the gesture that
+reaches it to that session, or the check never sees it.
+
 ---
 
 # 8. Threading Model

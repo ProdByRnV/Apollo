@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, and 18h macros as destinations are done** (ADR-0119 to ADR-0126); 18i follows. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **Complete: 18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, 18h macros as destinations, and 18i the audio-thread check** (ADR-0119 to ADR-0127). Not yet released: the CHANGELOG's Unreleased section holds all nine. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18i, a check run by the tests that the audio thread never allocates or locks**, when the developer says to go on; the last of Phase 18. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **The developer's choice**: Phase 18 is complete, and its nine improvements are unreleased (Docs/VERSIONING.md §7 makes a release). Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,39 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### The audio thread, watched (Phase 18i)
+
+ADR-0127.
+
+- **`Tests/RealTime/AudioThreadMonitor`**: `AudioThreadSection`, which marks
+  the thread as the audio thread. Under RealtimeSanitizer it is a real-time
+  context, and RTSan stops the run at any allocation, free, lock or blocking
+  call inside it; in every other build the test binary's replacement
+  `operator new` and `delete` count what happens inside it, and
+  `takeFindings` reports the count and, where the platform can say, the first
+  stack. `coverage()` says which.
+- **`APOLLO_ENABLE_RTSAN`**, and a CI job, **Real time (Linux, RTSan)**, on
+  Ubuntu 24.04 with Clang 20, that builds the tests with it, requires
+  `--realtime-canary` to be stopped, and runs the `Real time` category
+  (`ctest -L realtime`). The release waits for it.
+- **Fixed, found by it**: SysEx and anything else longer than three bytes is
+  skipped before a `juce::MidiMessage` is built (`isChannelMessage`), in
+  `processBlock`, its over-long-block split, and `processBlockBypassed`; the
+  rack's latency is written by the callback and passed to the host by a 10 Hz
+  timer on the message thread rather than by posting a message
+  (`timerCallback`, which replaced `handleAsyncUpdate`); and the interface's
+  automation listener looks a parameter up by a view of its ID rather than a
+  `std::string` of it.
+
+Tested in:
+- `Tests/RealTime/RealTimeSafetyTests.cpp`: the monitor sees an allocation
+  inside a section and not outside; then every callback of a session played as
+  a host plays it — every factory preset, MIDI of every kind, every parameter
+  automated, the host's odd ways of calling, content replaced while it sounds,
+  other rates and sizes — and host automation reaching the interface's
+  listener. Under RTSan: 17 violations against the code before the fixes, none
+  after.
+
 ### Macros as destinations (Phase 18h)
 
 ADR-0126.
@@ -2799,7 +2832,7 @@ and macOS on ARM64 are both covered (11b, 11d).
 
 ## 5. Test status
 
-**2,444,962 assertions, 0 failures**, across 74 test classes, in `ApolloTests`; **78 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
+**2,446,547 assertions, 0 failures**, across 81 test classes, in `ApolloTests`; **102 interface tests, 0 failures**, in `WebUI/test/`, run inside every build of the interface (Docs/TESTING.md §10); and **224 assertions on Windows, 0 failures**, across 6 classes, in `ApolloHostTests` — **227** pointed at a staged package, since 1.0.1's package test —, which loads the built VST3 through a host (§2, "The host harness") and, pointed at a staged install, checks the package itself (§2, "The Windows package"). Both run in `Release` as well as `RelWithDebInfo`. The table below
 lists the ones whose coverage is not obvious from their name; the DSP classes —
 Wavetable oscillator, Unison, Source section, Envelope, Filter, LFO, Modulation
 matrix, Oversampling, Noise generator — are described in §2 alongside the
@@ -2814,6 +2847,7 @@ subsystems they test.
 | Resources | Preset library | The disk, which Apollo does not control. The default locations come from the platform rather than from a hard-coded path, asserted by shape so the test is true on all three; a library with no folders at all scans cleanly and reports *missing* rather than *empty*; a scan finds presets, names them from their metadata and reports the nested folder each sits in as its bank; **a folder holding one preset and four files that only wear the extension lists one and counts four**, while a readme and a picture are ignored rather than counted; factory and user content go through the same reader and are told apart only by where they are; **a preset name is turned into a filename that cannot escape, collide or hide** — separators, the parent-directory token, Windows device names with or without an extension, trailing dots and spaces, and names that leave nothing usable, each checked by value and then as a property over every case; a save is atomic, replaces completely, and leaves no temporary files; **a hostile name cannot write outside the folder it was given**, checked with a sentinel file outside it; a saved preset is found by the next scan and loads back into an instrument; a missing file, an empty file, a folder wearing the extension and a file past the size bound each fail gracefully and read nothing; a tree deeper than the bound is cut off, reports itself truncated and still returns what it found; and a scan runs off the message thread, publishes its index, delivers its callback exactly once, and survives the library being destroyed underneath it. Phase 9c added what the browser asks against: a scan returns **factory first, then by bank, then by name**, numbers its entries from 1, and produces the same numbers for the same tree twice, which is the property an id depends on; an id resolves to exactly one preset, while 0, a negative and one past the end resolve to nothing; and **the file a name would be saved to is the file a save actually writes**, checked over four names including one Windows would silently rename, so a replace prompt cannot protect a different file from the one it overwrites |
 | DSP | Fourier transform | The transform every loaded wavetable's spectrum comes from, checked against the definition rather than against itself: a naive four-line transform is obviously correct, and the fast one must agree with it to within 1e-9 at four sizes, **on noise rather than on tones** — a sine is symmetric enough that a transform with a sign error in half its butterflies still reproduces it. A length it cannot do leaves the buffer untouched rather than mangled; a sine analyses as one sine coefficient and nothing else; a saw analyses as 1/k across sixteen harmonics; **two waveforms with the same harmonic amplitudes and different phases stay distinguishable**, which is what makes a loaded table the waveform the user supplied; and an arbitrary asymmetric shape survives being taken apart and summed back together, sample for sample |
 | Validation | Instrument validation | The assembled instrument rather than its parts, and the only tests in the suite that play notes and measure the audio (ADR-0067). **Tuning** through the whole pitch path — the note number, the sub oscillator's transposition and the oscillator — at every third note from 24 to 96 and at four sample rates, resolved by parabolic interpolation so the answer is in cents rather than in bins; **THD+N** on the sub oscillator, the only source whose output is meant to be a sine; **exact silence at rest**, with every source at full level, because a synthesiser with no note has nothing to produce and a floor of any size would be a bug; **DC offset** with all four sources running, which is what would catch the pulse table if it stopped dropping its DC term; **inharmonic content** found by scanning every bin that is not near a harmonic rather than by checking frequencies somebody predicted; **the step response**, as a cutoff swept across its whole range between two blocks, where a jump larger than the steady-state one would mean the coefficient change was audible; **exact silence after a release** through a chain with two feedback effects, which is denormal behaviour measured by its consequence; **every registered parameter** driven to both ends and the middle of its range with a note held, staying finite and bounded; and **a minute of the worst patch the controls allow**, measured per ten-second window, because what matters is that nothing compounds rather than how loud 88 dB of requested gain turns out to be |
+| Real time | The audio thread | What a callback may not do (ADR-0127). Every `processBlock` and `processBlockBypassed` of a session played as a host plays it — every factory preset, MIDI of every kind including SysEx and MPE, every parameter automated at once, odd and over-long blocks, bypass, a moving transport, content replaced while it sounds, five sample rates — inside an `AudioThreadSection`, and none of them may allocate or free; under RealtimeSanitizer, in CI, none may lock or block either. Host automation reaching the interface is checked for allocation. The first test proves the monitor sees an allocation, so the rest can fail |
 | Regression | Regression renders | Whether Apollo still sounds like itself (ADR-0068). Fifteen renders — the ten factory presets, a four-note chord, the modulation matrix at a dominating depth, a wide stereo image, the same patch at a tenth of the usual block size, and one at 44.1 kHz — each compared against a reference compiled in beside it. A reference is not a wave file but a description: peak, RMS, mid and side level through sixteen slices of time, and energy in thirty-two logarithmic bands, because bit-exact audio is not something four compilers agree on. The bookkeeping is checked first, so a missing reference reports as itself rather than as a mismatch; a case rendered twice in one process produces identical samples, including the noise generator; **the same patch at 512 samples and at 64 sounds the same**, and came out bit-identical; and — the test that earns the rest — **each part of the fingerprint is shown a change it should catch and has to catch it**, because a fingerprint that always agreed would pass for ever and look exactly like one that worked |
 | Resources | Wavetable resources | A disk Apollo does not control, and a table being swapped underneath a sounding note. A well-formed WAV of 2048-sample cycles reads back as its frames, in order, with the first analysing as a sine and the last as something rich; **every way a file can fail is refused by name** — missing, not audio, stopping mid-frame, silent, and past the size bound — each leaving nothing behind and each described in a sentence containing nothing path-like; a table read, analysed and rebuilt correlates above 0.999 with the waveform that went in, per frame; a published table replaces what a slot plays and the built-in comes back exactly, while the other three slots do not move; an empty, null or out-of-range publish is refused rather than silencing an oscillator; **a replaced table is kept until two blocks have passed** and not one, and a publish announces itself to the audio thread exactly once; a load runs without the caller waiting and is delivered once, reporting a file name rather than a path. The loader these tests also covered was replaced in 13g by the user content store, whose tests carry its guarantees — no waiting, and a failure that leaves the instrument playing (User content, below) |
 | Resources | Factory presets | The sounds Apollo ships with, and the test that makes storing them as data safe. **Every setting of every preset names a real parameter**, carries a finite value inside that parameter's range, sits on its step if it has one, is not set twice, and is not merely a restatement of the default — each failure naming the preset and the parameter; the library is named, categorised, commented and free of duplicate names, and its metadata survives the bounds the reader applies; **loading Init returns all 227 parameters to their registry defaults** from an instrument whose every parameter had been moved, which is what keeps the init patch from drifting; every preset renders into a document that begins `<?xml`, names the state root, is accepted by the ordinary reader and comes back carrying its own name, category and author; **every preset plays a held note through a real processor and has to make a sound** — finite, above -40 dBFS, and below the limit of the format; none of them carries the bend range or the MPE zone in its document, and loading all ten in turn leaves a user's controller settings where they were; and the built-ins reach the index marked factory, in the Factory bank, each with a unique key, each numbered, and each loadable through the route the bridge actually uses |
@@ -3879,6 +3913,25 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### The audio thread, watched (Phase 18i), 2026-11-07
+
+The Release standalone on the developer's laptop, Square Keys, over the
+DevTools protocol. Nothing about the page changed; what changed is underneath a
+rack change and MIDI, so that is what was played.
+
+| Checked | Result |
+|---|---|
+| Distortion into FX slot 3, through the page | "Undo FX Slot 3", the latency now passed on by the timer |
+| A held A, MIDI & Output | The output at −35 to −42 dB, and the same with the slot undone: the distortion's default mix is dry, its dry path latency-matched |
+| A held A, Oscillators | Oscillator 1 at −6 dB, the sub at −9.1 dB, as before |
+| Afterwards | Undone to "Nothing to undo", the Oscillators tab, Apollo closed |
+
+And in a Linux container, the way the new CI job builds it: RealtimeSanitizer
+stopped the canary, stopped the first run on SysEx in `processBlock` (fixed),
+and then passed the category. The code before the fixes, run with
+`halt_on_error=false`, reported 17 violations, from the latency post and from
+SysEx.
 
 ### Macros as destinations (Phase 18h), 2026-11-07
 
@@ -5219,7 +5272,7 @@ of asserting nothing.
 | 3 | ~~Standalone has not been launched against an audio device~~ | **Closed** | Verified 2026-09-08. Windows Audio, Speakers (Realtek) at 48 kHz / 480 samples, output channels 1+2. A MIDI note sent to a virtual port drove Apollo's output to a measured session peak of **0.1829**, against 0.0000 before and after — read from the Windows audio-session meter, not inferred. |
 | 4 | Linux CI job failed twice, both causes fixed and confirmed | Resolved | Kept as a record rather than deleted, because both fixes are load-bearing and neither is obvious from the code. **(a) GTK include paths.** `juce_gui_extra.cpp: fatal error: gtk/gtk.h: No such file or directory`, preceded by `warning: "JUCE_WEB_BROWSER" redefined`. Apollo hand-defined `JUCE_WEB_BROWSER=1` instead of setting JUCE's `NEEDS_WEB_BROWSER`. On Linux `_juce_link_optional_libraries` reads that property to decide *both* the define and whether to link `juce::pkgconfig_JUCE_BROWSER_LINUX_DEPS` — the only source of the GTK/WebKitGTK include paths — so the manual define switched the include on while the path was never supplied. **(b) Runner memory exhaustion.** The build then reached 77%, every in-flight compile was SIGTERMed at one instant with no diagnostic, and the runner reported a shutdown signal. No newer run existed, so `cancel-in-progress` was not responsible. The Linux job compiles all of JUCE twice (plugin + test runner, ADR-0010) and since Phase 2 those units also pull in GTK/WebKit headers. Build parallelism is now capped per platform (Linux 2) and the two halves are built as separate targets. Both fixes are confirmed by the green run recorded in §4. |
 | 5 | ~~Symbol visibility still unresolved~~ | **Closed** | In Phase 14a (ADR-0109). Apollo's own code is hidden by default, as JUCE's plugin targets already were; before, the static libraries the plugin links kept the default visibility, so on macOS and Linux their symbols were exported into the host's process. CI now lists what the packaged plugin exports on both and fails if it exports anything but the entry points, the one function JUCE exports on purpose, and the C++ standard library's own template code. |
-| 6 | No allocation/lock detector on the audio thread | Medium | Real-time safety is by construction and review, not enforced by a tool. Carried into Phase 10 and **still open after 10c**: the obvious mechanism, replacing global `operator new`, would miss `juce::HeapBlock`, which calls `malloc` directly and is what every audio buffer in JUCE is built on — so a detector built that way would report "no allocations" while not watching the allocations most likely to happen. Needs a platform allocator hook rather than a language one. |
+| 6 | ~~No allocation/lock detector on the audio thread~~ | **Fixed** | **18i (ADR-0127)**: RealtimeSanitizer, in a CI job of its own, is the platform allocator hook this asked for, and a replaced `operator new` watches every other build. It found SysEx allocating, a rack change locking, and automation with the window open allocating; all three fixed. What follows is the reasoning that kept it open until then. | Real-time safety is by construction and review, not enforced by a tool. Carried into Phase 10 and **still open after 10c**: the obvious mechanism, replacing global `operator new`, would miss `juce::HeapBlock`, which calls `malloc` directly and is what every audio buffer in JUCE is built on — so a detector built that way would report "no allocations" while not watching the allocations most likely to happen. Needs a platform allocator hook rather than a language one. |
 | 7 | ~~ARM64 unverified~~ | **Closed** | An `ubuntu-24.04-arm` job joined the matrix in 11d and passed on its first run: the whole suite, the host suite against a staged `aarch64-linux` package, the fifteen regression renders within 0.0005 dB of their references, and an archive of its own. macOS ships arm64 as half of its universal binary (11b). Windows on ARM64 remains untried — no runner, and JUCE targets `arm64ec` there (ADR-0079). |
 | 8 | ~~`ROADMAP.md` refers to `UI-BINDINGS.md`; the file is `UI_BINDINGS.md`~~ | **Fixed** | Corrected in 12d-3; no document refers to the hyphenated name. |
 | 9 | JUCE 9.0.x exists upstream | Informational | Apollo pins JUCE 8 because the specification says JUCE 8 (ADR-0002). |
@@ -5286,8 +5339,7 @@ rather than stopping progress:
 3. **A Developer ID and notarisation for macOS**, which would remove the
    Terminal step from the guide and the warning macOS shows. Needs an Apple
    developer account.
-4. **Carried, none blocking**: issue 6, no allocation or lock detector on the
-   audio thread; interface reload inside a host (12a); the structure-of-arrays
+4. **Carried, none blocking**: interface reload inside a host (12a); the structure-of-arrays
    taps declined in ADR-0074; and undo after a drag-and-drop in a host
    (ADR-0108).
 

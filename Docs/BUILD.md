@@ -114,6 +114,7 @@ All options are ordinary CMake cache variables (`-DOPTION=ON`).
 | `APOLLO_WARNINGS_AS_ERRORS` | `OFF` | Promote Apollo's own warnings to errors. CI enables this. |
 | `APOLLO_ENABLE_ASAN` | `OFF` | AddressSanitizer. Supported on MSVC, Clang and GCC. |
 | `APOLLO_ENABLE_UBSAN` | `OFF` | UndefinedBehaviorSanitizer. Clang/GCC only; ignored with a warning on MSVC. |
+| `APOLLO_ENABLE_RTSAN` | `OFF` | RealtimeSanitizer, for the audio-thread tests (Docs/TESTING.md §6). Clang 20 or later on Linux or macOS; not with ASan. |
 | `APOLLO_ENABLE_IPO` | `OFF` | Interprocedural optimisation for Release/RelWithDebInfo, where supported. |
 | `APOLLO_ENABLE_WEBVIEW` | `ON` | Build the WebView editor. With it off, the plugin falls back to a generic parameter editor and no WebView dependency is required. |
 | `APOLLO_JUCE_SOURCE_DIR` | *(empty)* | Use an existing JUCE checkout instead of fetching. |

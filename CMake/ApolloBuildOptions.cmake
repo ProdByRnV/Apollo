@@ -21,6 +21,7 @@ option(APOLLO_BUILD_TESTS       "Build the Apollo test suite"                   
 option(APOLLO_WARNINGS_AS_ERRORS "Treat compiler warnings in Apollo code as errors" OFF)
 option(APOLLO_ENABLE_ASAN       "Enable AddressSanitizer"                           OFF)
 option(APOLLO_ENABLE_UBSAN      "Enable UndefinedBehaviorSanitizer"                 OFF)
+option(APOLLO_ENABLE_RTSAN      "Enable RealtimeSanitizer (Clang 20 or later)"      OFF)
 option(APOLLO_ENABLE_IPO        "Enable interprocedural optimisation where supported" OFF)
 option(APOLLO_ENABLE_WEBVIEW    "Build the WebView-based editor UI"                  ON)
 option(APOLLO_ALLOW_UNPINNED_JUCE "Allow a JUCE checkout that does not match the pinned commit" OFF)
@@ -215,4 +216,24 @@ if(APOLLO_ENABLE_UBSAN)
             -fsanitize=undefined -fno-omit-frame-pointer)
         target_link_options(apollo_sanitizers INTERFACE -fsanitize=undefined)
     endif()
+endif()
+
+# RealtimeSanitizer (Phase 18i, ADR-0127). It answers one question — does
+# anything inside a real-time section allocate, free, lock or block — and stops
+# the run at the first thing that does, with the stack that led there. The tests
+# mark the audio callback as such a section (Tests/RealTime). Clang 20 or later,
+# on Linux or macOS; it cannot share a binary with AddressSanitizer, whose
+# allocator it would have to intercept as well.
+if(APOLLO_ENABLE_RTSAN)
+    if(MSVC OR NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "APOLLO_ENABLE_RTSAN needs Clang 20 or later on Linux or macOS.")
+    endif()
+
+    if(APOLLO_ENABLE_ASAN)
+        message(FATAL_ERROR "APOLLO_ENABLE_RTSAN cannot be combined with APOLLO_ENABLE_ASAN.")
+    endif()
+
+    target_compile_options(apollo_sanitizers INTERFACE
+        -fsanitize=realtime -fno-omit-frame-pointer)
+    target_link_options(apollo_sanitizers INTERFACE -fsanitize=realtime)
 endif()

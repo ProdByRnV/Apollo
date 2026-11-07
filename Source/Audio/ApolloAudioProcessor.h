@@ -41,7 +41,7 @@ namespace apollo
 {
 
 class ApolloAudioProcessor final : public juce::AudioProcessor,
-                                   private juce::AsyncUpdater
+                                   private juce::Timer
 {
 public:
     ApolloAudioProcessor();
@@ -300,14 +300,25 @@ private:
     double hostBeat = std::numeric_limits<double>::quiet_NaN();
     bool hostPlaying = false;
 
-    /** Tells the host that the rack's latency changed.
+    /** Tells the host that the rack's latency changed, if it did.
 
-        Message thread, woken by the audio thread only when the number actually
-        moves. `setLatencySamples` notifies the host, which may re-plan its
-        graph and call straight back into this processor, so it must not be
-        called from the audio callback (CLAUDE.md §7.1).
+        Message thread, ten times a second. `setLatencySamples` notifies the
+        host, which may re-plan its graph and call straight back into this
+        processor, so it must not be called from the audio callback (CLAUDE.md
+        §7.1) — and the audio thread must not *wake* the message thread either,
+        which is what this replaced: posting a message takes a lock and makes a
+        system call on Linux and macOS, and RealtimeSanitizer stopped the tests
+        on it the first time it watched (ADR-0127). So the audio thread writes
+        a number and the message thread looks, the way MIDI Learn and program
+        changes already work. setLatencySamples does nothing when the number is
+        the one the host already has.
     */
-    void handleAsyncUpdate() override;
+    void timerCallback() override;
+
+    /** How often the message thread looks at the rack's latency. A tenth of a
+        second after the user rearranges the rack is soon enough for a host to
+        hear about it, and an idle instance checks one atomic. */
+    static constexpr int latencyPollHz = 10;
 
     /** @returns the master gain as a linear multiplier. */
     [[nodiscard]] float readMasterGainLinear() const noexcept;
@@ -668,11 +679,9 @@ private:
 
     /** What the host was last told the rack's latency is.
 
-        The audio thread compares the rack's current latency against this on
-        every block and, in the steady state, finds them equal and does nothing
-        further: one relaxed load and one comparison. Only a chain change makes
-        them differ, and only then is the message thread woken to tell the host
-        (ADR-0054).
+        The audio thread writes the rack's latency here once a block, when it
+        has changed, and the message thread passes it on to the host
+        (timerCallback; ADR-0054, ADR-0127).
     */
     std::atomic<int> reportedLatencySamples { 0 };
 

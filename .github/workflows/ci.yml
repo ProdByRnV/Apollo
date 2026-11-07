@@ -427,6 +427,69 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --test-dir build-san -L unit --output-on-failure
 
+  # The audio thread, under RealtimeSanitizer (Phase 18i, ADR-0127).
+  #
+  # The tests mark every audio callback as a real-time section. Everywhere else
+  # that marking is watched by a replacement operator new, which counts C++
+  # allocations and nothing more. Here Clang's RealtimeSanitizer watches it
+  # instead: every malloc and free, every lock, every blocking system call,
+  # anywhere in the call tree, Apollo's code and JUCE's alike, and the first one
+  # stops the run with the stack that reached it.
+  #
+  # A job of its own because RTSan cannot share a binary with ASan, and because
+  # it needs Clang 20, which Ubuntu 24.04 has in its own archive under a
+  # versioned name. Pinned to 24.04 for that reason rather than left to
+  # ubuntu-latest, which will one day be an image where the name differs.
+  realtime:
+    name: Real time (Linux, RTSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-linux-deps
+        with:
+          extra-packages: clang-20 libclang-rt-20-dev
+
+      # Optimised as a release is, with the symbols a stack trace needs: the
+      # code RTSan watches should be the code that ships, not a Debug build
+      # whose containers behave differently.
+      - name: Configure
+        env:
+          CC: clang-20
+          CXX: clang++-20
+        run: |
+          cmake -S . -B build-rt -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DAPOLLO_ENABLE_RTSAN=ON \
+            -DAPOLLO_ENABLE_WEBVIEW=OFF
+
+      - name: Build
+        run: cmake --build build-rt --target ApolloTests
+
+      # The suite has to be able to fail (CLAUDE.md §34.6). The canary allocates
+      # inside a section on purpose; RTSan must stop it, and say why.
+      - name: Show the check a violation
+        run: |
+          set +e
+          tests=$(find build-rt -type f -name ApolloTests -perm -u+x | head -n 1)
+          "$tests" --realtime-canary > canary.log 2>&1
+          status=$?
+          set -e
+          cat canary.log
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The canary's allocation did not fail the run"
+            exit 1
+          fi
+          if ! grep -q "RealtimeSanitizer" canary.log; then
+            echo "::error::Something other than RealtimeSanitizer stopped the canary"
+            exit 1
+          fi
+
+      - name: Test
+        run: ctest --test-dir build-rt -L realtime --output-on-failure -V
+
   # Publishes a version tag as a GitHub release (Phase 14, ADR-0110). Only once
   # every platform has built, passed the whole suite and the host suite against
   # its staged package, and the sanitizers have passed: a release is a run that
@@ -434,7 +497,7 @@ jobs:
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-and-test, sanitizers]
+    needs: [build-and-test, sanitizers, realtime]
     runs-on: ubuntu-latest
     permissions:
       contents: write

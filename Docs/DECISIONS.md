@@ -1929,6 +1929,11 @@ chain change makes them differ, and only then is an `AsyncUpdater` triggered so
 processor — runs where it is allowed to (CLAUDE.md §7.1). The same number is
 reported directly from `prepareToPlay`, because that is when most hosts ask.
 
+*Amended in 18i (ADR-0127):* triggering the `AsyncUpdater` posted a message
+from the audio thread, which takes a lock and makes a system call on Linux and
+macOS. The callback now only writes the number, and a 10 Hz timer on the
+message thread passes it on.
+
 **Given up:** an effect cannot appear twice in a chain, a slot can name something
 that does not exist yet, and a bypassed effect still costs its delay line. The
 first is inherent to one-object-per-effect; the second is the price of a
@@ -8820,3 +8825,104 @@ registry, which they now are.
 - **Evaluating to a fixed point**, so a macro moved by a moved macro moves
   again. Iteration with no guaranteed end, on the audio thread, for routings
   nobody can read off the matrix.
+
+## ADR-0127 — The audio thread, watched: RealtimeSanitizer, and operator new everywhere else
+
+**Phase 18i · Accepted**
+
+### What was asked
+
+The last improvement the developer chose after 1.3.0: a check, run by the
+tests, that the audio thread never allocates or locks. CLAUDE.md §7 has always
+forbidden it, and until now that was held by construction and by review
+(PROJECT-STATE issue 6, open since Phase 10).
+
+### Why it waited, and what answers that
+
+Issue 6 stayed open for one reason: the obvious detector, a replacement
+`operator new`, does not see `juce::HeapBlock`, which calls `malloc`
+directly and is what JUCE's buffers are built on. A detector blind to the
+allocations most likely to happen would report "none" while not looking.
+
+**Clang's RealtimeSanitizer is the platform allocator hook that was missing.**
+Built with `-fsanitize=realtime` (Clang 20 or later, Linux or macOS), it
+intercepts malloc, free, every pthread lock, file and socket I/O, sleeps and
+the rest of what a real-time thread may not do, anywhere in the call tree —
+Apollo's code, JUCE's and the C library's alike — inside whatever the program
+marks as a real-time context, and stops the run at the first one with its
+stack. A new CI job, **Real time (Linux, RTSan)**, builds the tests with it
+(`APOLLO_ENABLE_RTSAN`); Ubuntu 24.04 has Clang 20 in its own archive.
+
+**And `operator new` is still replaced everywhere else**, because RTSan
+cannot run on Windows, where the developer works. That in-binary monitor
+counts C++ allocations and frees made inside a section — containers,
+strings, std::function — on every platform in every build, so the commonest
+mistake fails locally, with a count, before anything is pushed. It says what
+it cannot see (`realtime::describeCoverage`, printed at the top of the run):
+`malloc` called directly and locks are the RTSan job's. Under ASan or TSan it
+watches nothing, since those runtimes replace `operator new` themselves.
+
+### What is watched
+
+`Tests/RealTime/RealTimeSafetyTests.cpp` plays the instrument the way a host
+does, with every `processBlock` and `processBlockBypassed` inside an
+`AudioThreadSection`: every factory preset with chords, a bend, the wheel and
+pressure; more notes than voices; the pedal; MIDI Learn completing and then
+driving a parameter; RPNs; an MPE zone declared and played; program changes;
+panic, the clock and SysEx; notes from the interface's keyboard; every
+parameter automated at once for a hundred blocks, rack and matrix included;
+blocks of one sample to one longer than promised; bypass; a transport that
+stops, jumps and loses its tempo; the editor closing; a wavetable, a noise
+sample and a drawn LFO replaced while they sound; a whole state replaced and
+undone; and four other sample rates. The host's side of a callback — building
+its MIDI, setting a parameter, loading a preset — is outside the section, as
+in a host.
+
+Separately, host automation delivered to the open interface's listener is
+checked for allocation only: JUCE's VST3 wrapper calls listeners on the audio
+thread under a lock of its own, which is not Apollo's to remove, and what is
+Apollo's is what the listener does.
+
+**The check can fail.** The ordinary build's first test allocates inside a
+section and requires the count to move; the RTSan job runs
+`ApolloTests --realtime-canary` and requires RTSan to stop it.
+
+### What it found
+
+Three things, all in code that had been reviewed against §7:
+
+- **SysEx made the callback allocate.** `processBlock` built a
+  `juce::MidiMessage` of every event in the host's buffer, and one longer than
+  its inline storage — SysEx — is `malloc`ed and freed. A host forwarding a
+  controller's SysEx did this in every block that carried one. Apollo acts on
+  nothing longer than three bytes, so such events are now skipped before a
+  message is built, in all three loops (`isChannelMessage`).
+- **A rack change locked a mutex and made a system call.** When the rack's
+  latency changed, the callback called `triggerAsyncUpdate` to have the host
+  told (ADR-0054). Posting a message takes the message queue's lock and writes
+  to a socket on Linux, and does similar on macOS; JUCE's documentation warns
+  of exactly this. The callback now writes the number, and a 10 Hz timer on the
+  message thread passes it on, as MIDI Learn and program changes already work.
+  `setLatencySamples` does nothing when the host already has the number, so
+  an idle instance costs one atomic load ten times a second.
+- **Automating with the window open allocated.** The interface's listener
+  turned each parameter's ID into a `std::string` to look it up, and an ID
+  longer than the small-string buffer, a third of them, was an allocation and
+  a free per automated value. It now looks up a view of the string's own bytes.
+
+RTSan run against the code before these fixes reported 17 violations, all from
+the first two; the in-binary monitor reported 212 allocations from the third.
+After them both report nothing, and every regression render is unchanged.
+
+### Alternatives considered
+
+- **RTSan alone.** Authoritative, but never run where the developer works; a
+  mistake would be found only after a push.
+- **`operator new` alone.** The reason issue 6 stayed open (above).
+- **Interposing malloc and pthread on Linux by hand.** What RTSan does, done
+  worse and maintained by Apollo.
+- **Marking the whole suite's callbacks**, through a hook in the processor.
+  Production code changed for a test, and RTSan on two million assertions that
+  were not written to exercise the audio thread. One scenario written for the
+  purpose covers the paths, and new audio-thread work is to add its gesture to
+  it (Docs/TESTING.md §6).

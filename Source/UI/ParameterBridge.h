@@ -375,7 +375,7 @@ private:
         as an edit of its own. MESSAGE THREAD. */
     void setPlainValue (const juce::String& parameterId, float plain);
 
-    [[nodiscard]] static int indexOfParameter (const juce::String& parameterID);
+    [[nodiscard]] static int indexOfParameter (const juce::String& parameterID) noexcept;
 
     juce::AudioProcessorValueTreeState& apvts;
 

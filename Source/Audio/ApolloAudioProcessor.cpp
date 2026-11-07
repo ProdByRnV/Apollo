@@ -162,6 +162,8 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     bendRangeParameterIndex = params::indexOfParameter ("midi_bend_range");
     mpeZoneParameterIndex = params::indexOfParameter ("mpe_zone");
     mpeMembersParameterIndex = params::indexOfParameter ("mpe_members");
+
+    startTimerHz (latencyPollHz);
 }
 
 void ApolloAudioProcessor::EffectParameterPointers::resolve (
@@ -372,11 +374,11 @@ void ApolloAudioProcessor::ModSlotParameterPointers::resolve (
 
 ApolloAudioProcessor::~ApolloAudioProcessor()
 {
-    // A latency notification posted from the last block must not arrive after
-    // the object it would call into has gone. JUCE's own destructor would also
-    // cancel it; doing it first, explicitly, keeps the ordering independent of
-    // which base class is destroyed when.
-    cancelPendingUpdate();
+    // A latency check must not run after the object it would call into has
+    // begun to go. JUCE's own destructor would also stop it; doing it first,
+    // explicitly, keeps the ordering independent of which base class is
+    // destroyed when.
+    stopTimer();
 }
 
 //==============================================================================
@@ -477,6 +479,21 @@ namespace
 [[nodiscard]] float readParameter (const std::atomic<float>* parameter, float fallback) noexcept
 {
     return parameter != nullptr ? parameter->load (std::memory_order_relaxed) : fallback;
+}
+
+/** @returns true for an event Apollo can act on: a channel message, which is
+    never longer than three bytes.
+
+    Everything else — SysEx above all — is skipped before it becomes a
+    juce::MidiMessage, because building one of a message longer than its inline
+    storage calls malloc, on the audio thread, for something Apollo then
+    ignores. RealtimeSanitizer stopped the tests on it in Phase 18i (ADR-0127);
+    a host that forwards a controller's SysEx did it in every block that
+    carried one.
+*/
+[[nodiscard]] bool isChannelMessage (const juce::MidiMessageMetadata& event) noexcept
+{
+    return event.numBytes > 0 && event.numBytes <= 3;
 }
 
 } // namespace
@@ -949,20 +966,15 @@ void ApolloAudioProcessor::applyEffectParameters() noexcept
     effects.equaliser().setSettings (equaliser);
 
     // Latency is a property of which effects are in the chain, so it moves only
-    // when the user rearranges the rack. In the steady state this is a load and
-    // a comparison; on the block where it changes, the message thread is woken
-    // to tell the host, because telling it from here would call back into this
-    // processor from inside its own callback (ADR-0054).
-    const auto latency = effects.getLatencySamples();
-
-    if (latency != reportedLatencySamples.load (std::memory_order_relaxed))
-    {
-        reportedLatencySamples.store (latency, std::memory_order_relaxed);
-        triggerAsyncUpdate();
-    }
+    // when the user rearranges the rack. It is written down here and passed on
+    // from the message thread, because telling the host from here would call
+    // back into this processor from inside its own callback (ADR-0054), and
+    // waking the message thread to do it would post a message, which takes a
+    // lock (ADR-0127).
+    reportedLatencySamples.store (effects.getLatencySamples(), std::memory_order_relaxed);
 }
 
-void ApolloAudioProcessor::handleAsyncUpdate()
+void ApolloAudioProcessor::timerCallback()
 {
     setLatencySamples (reportedLatencySamples.load (std::memory_order_relaxed));
 }
@@ -1228,8 +1240,9 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             chunkMidi.clear();
 
             for (const auto metadata : midiMessages)
-                if (metadata.samplePosition >= start && metadata.samplePosition < start + length)
-                    chunkMidi.addEvent (metadata.getMessage(), metadata.samplePosition - start);
+                if (isChannelMessage (metadata)
+                    && metadata.samplePosition >= start && metadata.samplePosition < start + length)
+                    chunkMidi.addEvent (metadata.data, metadata.numBytes, metadata.samplePosition - start);
 
             juce::AudioBuffer<float> piece (channels, numOutputChannels, start, length);
             processBlock (piece, chunkMidi);
@@ -1284,6 +1297,9 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     for (const auto metadata : midiMessages)
     {
+        if (! isChannelMessage (metadata))
+            continue;
+
         const auto eventTime = juce::jlimit (0, numSamples, metadata.samplePosition);
 
         if (eventTime > position)
@@ -1425,6 +1441,9 @@ void ApolloAudioProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffe
 
     for (const auto metadata : midiMessages)
     {
+        if (! isChannelMessage (metadata))
+            continue;
+
         const auto message = metadata.getMessage();
 
         if (! message.isNoteOn())

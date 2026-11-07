@@ -13,6 +13,7 @@
         ApolloTests --benchmark         run the CPU measurements, run no tests
         ApolloTests --benchmark --callbacks   only the worst-case callback rows
         ApolloTests --goldens           print regenerated regression references
+        ApolloTests --realtime-canary   allocate on the audio thread, on purpose
         ApolloTests --help
 */
 
@@ -22,6 +23,7 @@
 #include <iostream>
 
 #include "Performance/Benchmarks.h"
+#include "RealTime/AudioThreadMonitor.h"
 #include "Regression/GoldenRenders.h"
 
 namespace
@@ -53,6 +55,8 @@ void printUsage()
         << "    --callbacks       with --benchmark: only the worst-case callback rows\n"
         << "  --goldens           render every regression case and print the C++ that\n"
         << "                      stores it, for Tests/Regression/GoldenRenders.cpp\n"
+        << "  --realtime-canary   allocate inside an audio-thread section, on purpose: the\n"
+        << "                      run must be stopped (RealtimeSanitizer) or fail\n"
         << "  --help              show this message\n"
         << std::endl;
 }
@@ -124,6 +128,22 @@ int main (int argc, char* argv[])
     {
         std::cout << apollo::regression::generateGoldenSource().toStdString() << std::flush;
         return EXIT_SUCCESS;
+    }
+
+    // A deliberate violation, to prove the real-time check can fail. Under
+    // RealtimeSanitizer the allocation ends the run inside the section, and CI
+    // requires exactly that. Elsewhere the in-binary monitor counts it and says
+    // so. Either way the run fails: a canary is never a pass (ADR-0127).
+    if (args.contains ("--realtime-canary"))
+    {
+        (void) apollo::realtime::takeFindings();
+        apollo::realtime::allocateInsideASection();
+        const auto caught = ! apollo::realtime::takeFindings().clean();
+
+        std::cout << (caught ? "The monitor caught the canary's allocation."
+                             : "Nothing caught the canary's allocation.")
+                  << std::endl;
+        return EXIT_FAILURE;
     }
 
     const auto category = valueForFlag (args, "--category");

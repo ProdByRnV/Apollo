@@ -7,6 +7,7 @@
 #include "State/PresetDocument.h"
 
 #include <optional>
+#include <string_view>
 
 namespace apollo::ui
 {
@@ -356,9 +357,16 @@ juce::String ParameterBridge::applyContentCommand (const BridgeCommand& command)
     }
 }
 
-int ParameterBridge::indexOfParameter (const juce::String& parameterID)
+int ParameterBridge::indexOfParameter (const juce::String& parameterID) noexcept
 {
-    return params::indexOfParameter (parameterID.toStdString());
+    // A view of the string's own bytes, not a copy. parameterChanged calls this
+    // on the audio thread whenever a host automates a parameter with the window
+    // open, and a std::string of an identifier longer than the small-string
+    // buffer — `env1_attack_bend`, and a third of the others — was an
+    // allocation and a free on every automated value, found by the audio-thread
+    // check that Phase 18i added (ADR-0127).
+    return params::indexOfParameter (std::string_view (parameterID.toRawUTF8(),
+                                                       parameterID.getNumBytesAsUTF8()));
 }
 
 //==============================================================================

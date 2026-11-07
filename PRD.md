@@ -626,7 +626,9 @@ Lock-free queues where appropriate.
 APVTS/host parameter mechanisms.
 Double-buffered state where necessary.
 
-> **Status, 0.1.0:** ✅ Followed by construction and review. ❌ There is no automated allocation or lock detector (PROJECT-STATE issue 6).
+> **Status, 0.1.0:** ✅ Followed by construction and review.
+>
+> **Status, 18i:** ✅ Checked by the tests (ADR-0127): every audio callback of a scripted session is watched by RealtimeSanitizer in a CI job of its own, and by a replaced `operator new` in every other build. It found three violations review had missed — SysEx, a rack change, automation with the window open — and all three are fixed.
 
 ---
 27. UI Architecture

@@ -85,5 +85,5 @@ extension nobody scheduled. Each row says, in italics, what was built.
 
 | | |
 |---|---|
-| **Real-time safety is not enforced by a tool** | No allocation or lock is made on the audio thread by construction and by review. There is no detector, because the obvious one — replacing `operator new` — would not see `juce::HeapBlock`, which calls `malloc` directly and is what JUCE's audio buffers use (issue 6) |
+| **Real-time safety is checked on Linux, and partly elsewhere** | Since 18i the tests watch every audio callback of a scripted session (ADR-0127). RealtimeSanitizer, which sees every allocation, lock and blocking call, runs only on Linux in CI, so code that differs by platform is checked for locks on Linux alone; elsewhere a replaced `operator new` sees C++ allocations only. And it watches the paths the session plays: new audio-thread work has to add its gesture to the session to be checked. JUCE's VST3 wrapper takes a lock of its own on the audio thread to deliver automation, which is JUCE's, not Apollo's |
 | **Absolute CPU figures are machine-specific** | The development machine is a 15 W laptop that throttles, so performance work compares two builds in one sitting and trusts the ratio, not an absolute figure (PROJECT-STATE §8, ADR-0072) |

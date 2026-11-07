@@ -107,7 +107,12 @@ target_sources(ApolloTests PRIVATE
     UI/ParameterBridgeTests.cpp
     UI/ContentBridgeTests.cpp
     UI/ModulationDropTests.cpp
-    UI/NotePlayingTests.cpp)
+    UI/NotePlayingTests.cpp
+    # Phase 18i: what the audio callback does, watched. The monitor replaces the
+    # global operator new, so it belongs to this binary alone (ADR-0127).
+    RealTime/AudioThreadMonitor.cpp
+    RealTime/AudioThreadMonitor.h
+    RealTime/RealTimeSafetyTests.cpp)
 
 target_compile_definitions(ApolloTests PRIVATE
     JUCE_STANDALONE_APPLICATION=1
@@ -195,6 +200,16 @@ add_test(NAME apollo.regression COMMAND ApolloTests --category Regression)
 set_tests_properties(apollo.regression PROPERTIES
     TIMEOUT 900
     LABELS "report")
+
+# The audio-thread tests on their own (Phase 18i, ADR-0127), for the
+# RealtimeSanitizer job, which runs nothing else: outside a section RTSan
+# checks nothing, so the rest of the suite would only cost it time. The
+# ordinary run already includes them through apollo.unit.
+add_test(NAME apollo.realtime COMMAND ApolloTests --category "Real time")
+
+set_tests_properties(apollo.realtime PROPERTIES
+    TIMEOUT 900
+    LABELS "realtime")
 
 # ---------------------------------------------------------------------------
 # The host harness (Phase 10e, ADR-0075).

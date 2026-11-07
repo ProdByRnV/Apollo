@@ -64,6 +64,19 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   folder your presets are saved in, to back them up or add presets someone made.
   Press **RESCAN** to see what you added.
 
+### What is fixed
+
+Three things that could make a small DAW buffer click, found by a new check
+that watches everything Apollo does while it makes sound:
+
+- **SysEx in a MIDI track.** Apollo ignores SysEx, but reserved memory for it
+  first, in the middle of making sound. It no longer does.
+- **Adding or removing an effect while playing.** Telling the DAW that the
+  effects' delay had changed briefly paused the sound engine on Mac and Linux.
+  The DAW is now told without pausing it.
+- **DAW automation with Apollo's window open.** Each automated value reserved
+  memory in the middle of making sound. It no longer does.
+
 ### Two things that move
 
 Projects, presets and MIDI assignments from earlier versions open and sound the

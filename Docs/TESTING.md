@@ -34,6 +34,7 @@ Tests/
 ├── Analysis/             # measurement equipment, not tests (spectra, THD, DC)
 ├── Regression/           # golden renders and the harness that compares them (§7)
 ├── Host/                 # ApolloHostTests: the bundle, loaded through a VST3 host (§8)
+├── RealTime/             # what the audio callback does: no allocation, no lock (§6)
 └── Foundation/           # build system, conventions, project invariants
 ```
 
@@ -64,6 +65,8 @@ ApolloTests --benchmark --callbacks
                                only the worst-case callback rows, to repeat
                                one whose worst block may be the machine's
 ApolloTests --goldens          re-render the regression references (see §7)
+ApolloTests --realtime-canary  allocate on the audio thread on purpose; always
+                               exits non-zero, and says whether it was caught (§6)
 ApolloTests --help
 ```
 
@@ -128,8 +131,46 @@ DSP tests must exercise the same code path the audio thread uses, including
 (CLAUDE.md §34.3). A test that only calls a processing function once, at one
 block size, has not tested the real-time contract.
 
-Allocation checking, denormal and NaN/Inf propagation tests, and spectral
-validation arrive with the DSP they cover (roadmap Phases 3–5 and 10).
+### The audio thread is watched (Phase 18i, ADR-0127)
+
+CLAUDE.md §7 forbids the audio callback to allocate, free or lock, and the
+`Real time` category checks it. `Tests/RealTime/RealTimeSafetyTests.cpp` plays
+the instrument the way a host does — every factory preset, MIDI of every kind,
+every parameter automated at once, odd and over-long blocks, bypass, a moving
+transport, content replaced while it sounds, other sample rates — with every
+call to `processBlock` and `processBlockBypassed` inside an
+`AudioThreadSection`. The host's side of a callback (building the MidiBuffer,
+setting a parameter, loading a preset) is outside, as it is in a host.
+
+What a section checks depends on the build:
+
+| Build | Sees | On a violation |
+|---|---|---|
+| Ordinary (the developer's, every platform in CI) | every `operator new` and `delete`, which the test binary replaces | counted; the test fails, naming how many and, where the platform can say, where the first was |
+| `-DAPOLLO_ENABLE_RTSAN=ON` (Clang 20+, Linux or macOS; the *Real time* CI job) | every malloc and free, every lock, every blocking system call, anywhere in the call tree | RealtimeSanitizer stops the run with the stack |
+| ASan or TSan | nothing: those runtimes replace `operator new` themselves | — |
+
+The ordinary build does not see `malloc` called directly (JUCE's `HeapBlock`
+does) or any lock; that is the RTSan job's. To run it locally on Linux:
+
+```sh
+CC=clang-20 CXX=clang++-20 cmake -S . -B build-rt -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo -DAPOLLO_ENABLE_RTSAN=ON -DAPOLLO_ENABLE_WEBVIEW=OFF
+cmake --build build-rt --target ApolloTests
+ctest --test-dir build-rt -L realtime --output-on-failure
+```
+
+**The check has to be able to fail.** The ordinary build's test allocates inside
+a section and requires it to be counted; the RTSan job runs
+`ApolloTests --realtime-canary` and requires RTSan to stop it.
+
+**New audio-thread work belongs in the scenario.** A feature that adds a path
+through the callback — a MIDI message handled, a mode, something published to
+the audio thread — should add the gesture that reaches it to
+`RealTimeSafetyTests.cpp`, or the check never sees it.
+
+Denormal and NaN/Inf propagation tests and spectral validation arrive with the
+DSP they cover (roadmap Phases 3–5 and 10).
 
 ---
 
