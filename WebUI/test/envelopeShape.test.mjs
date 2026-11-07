@@ -12,12 +12,14 @@ import { test } from 'node:test';
 import {
     MIN_SPAN,
     SUSTAIN_WIDTH,
+    bendOf,
     curveHandle,
-    dragCurve,
+    dragBend,
     hitTest,
     levelAt,
     segmentShape,
     spanOf,
+    stageCurve,
     stageHandle,
     vertices,
     withStage,
@@ -129,20 +131,65 @@ test('the curve is grabbed half way along a segment that moves', () => {
     assert.equal(curveHandle({ ...shape, attack: 0 }, 'attack'), null);
 });
 
-test('dragging a curve up bows the line up, whichever way the segment runs', () => {
+test('dragging a diamond up bows its stage up, whichever way the segment runs', () => {
     const shape = { ...DEFAULT, curve: 0 };
 
-    assert.equal(dragCurve(shape, 'attack', 0, 0.25).curve, 0.5);
-    assert.equal(dragCurve(shape, 'decay', 0, 0.25).curve, -0.5);
-    assert.equal(dragCurve(shape, 'release', 0, 0.25).curve, -0.5);
+    assert.equal(dragBend(shape, 'attack', 0.25).attackBend, 0.5);
+    assert.equal(dragBend(shape, 'decay', 0.25).decayBend, -0.5);
+    assert.equal(dragBend(shape, 'release', 0.25).releaseBend, -0.5);
 
     // And a bowed-up attack really is above the straight line.
-    const bent = dragCurve(shape, 'attack', 0, 0.25);
+    const bent = dragBend(shape, 'attack', 0.25);
     const [from, to] = [vertices(bent)[1], vertices(bent)[2]];
     assert.ok(levelAt(bent, (from.x + to.x) / 2) > 0.5);
 
-    assert.equal(dragCurve(shape, 'attack', 0.8, 1).curve, 1);
-    assert.equal(dragCurve(shape, 'decay', 0.8, 1).curve, -1);
+    // Only that stage's bend moves: the curve and the other bends stay.
+    assert.equal(bent.curve, 0);
+    assert.equal(bendOf(bent, 'decay'), 0);
+    assert.equal(bendOf(bent, 'release'), 0);
+});
+
+test('a diamond moves what its stage plays, and stops where the range does', () => {
+    // From a curve of +0.8 the attack can only rise to +1, so its bend stops
+    // at +0.2 rather than running on where moving it changes nothing.
+    const shape = { ...DEFAULT, curve: 0.8 };
+    near(dragBend(shape, 'attack', 1).attackBend, 0.2);
+    near(dragBend(shape, 'decay', 1).decayBend, -1.8);
+    near(stageCurve(dragBend(shape, 'decay', 1), 'decay'), -1);
+
+    // A bend past the end is dragged from where the stage plays, not from the
+    // bend: one already at +2 over a +0.8 curve plays +1, and a little drag
+    // down comes away from +1 at once.
+    const over = { ...shape, attackBend: 2 };
+    near(stageCurve(over, 'attack'), 1);
+    near(stageCurve(dragBend(over, 'attack', -0.05), 'attack'), 0.9);
+});
+
+test('each stage plays the curve plus its own bend, and nothing else', () => {
+    const shape = { ...DEFAULT, delay: 0.2, hold: 0.1, sustain: 0.4, curve: 0.25, attackBend: 0.5, decayBend: -0.75 };
+
+    near(stageCurve(shape, 'attack'), 0.75);
+    near(stageCurve(shape, 'decay'), -0.5);
+    near(stageCurve(shape, 'release'), 0.25);
+
+    const all = vertices(shape);
+    const middle = (i) => (all[i - 1].x + all[i].x) / 2;
+
+    near(levelAt(shape, middle(2)), segmentShape(0.5, 0.75));
+    near(levelAt(shape, middle(4)), 1 + (0.4 - 1) * segmentShape(0.5, -0.5));
+    near(levelAt(shape, middle(6)), 0.4 * (1 - segmentShape(0.5, 0.25)));
+
+    // Held to the range together, and a bend that is not a number is none —
+    // as the engine reads them (EnvelopeTests.cpp).
+    near(stageCurve({ ...shape, curve: 0.8, attackBend: 1.5 }, 'attack'), 1);
+    near(stageCurve({ ...shape, curve: 1, decayBend: -2 }, 'decay'), -1);
+    near(stageCurve({ ...shape, attackBend: Number.NaN }, 'attack'), 0.25);
+    near(stageCurve({ ...shape, attackBend: Number.POSITIVE_INFINITY }, 'attack'), 0.25);
+
+    // A shape with no bends at all, as every sound before them had, bends
+    // every stage by the curve.
+    const { attackBend: _a, decayBend: _d, ...plain } = shape;
+    for (const segment of ['attack', 'decay', 'release']) near(stageCurve(plain, segment), 0.25);
 });
 
 test('every edit stays in range', () => {

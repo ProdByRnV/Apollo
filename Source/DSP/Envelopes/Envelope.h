@@ -12,9 +12,10 @@
 
     SEGMENT SHAPE. Each timed segment travels from where the envelope currently
     is to where that segment ends, over exactly the time the user dialled, along
-    a curve set by one `curve` control (PRD §15.1 asks for adjustable curve
-    tension; per-stage curves are listed there as a future option, so there is
-    one control, not six).
+    a curve set by the `curve` control, which bends every stage, plus a bend
+    of the attack's, decay's or release's own (Phase 18f, ADR-0124). A stage's
+    tension is the two added, held to -1 to +1; with no bends, which is every
+    sound made before 18f, each stage's is exactly the curve, as it was.
 
     The shape is
 
@@ -82,6 +83,17 @@ struct EnvelopeSettings
         Negative inverts it.
     */
     float curve = 0.5f;
+
+    /** Each moving stage's own bend, added to the curve (Phase 18f).
+
+        -2 to +2, so a stage can reach either end of the curve's range from any
+        setting of it; the sum is held to -1 to +1. Zero, the default, bends
+        the stage exactly as the curve does, which is how every envelope behaved
+        before the bends existed.
+    */
+    float attackBend = 0.0f;
+    float decayBend = 0.0f;
+    float releaseBend = 0.0f;
 
     /** What a note does to an envelope that is not at rest (Phase 13e-2).
 
@@ -153,6 +165,10 @@ private:
 
     /** @returns the time this stage is configured to take. */
     [[nodiscard]] float secondsForStage (EnvelopeStage query) const noexcept;
+
+    /** @returns the curve tension this stage travels along: the curve plus the
+        stage's own bend, -1 to +1. */
+    [[nodiscard]] float curveForStage (EnvelopeStage query) const noexcept;
 
     /** @returns the level this stage ends on. */
     [[nodiscard]] float targetForStage (EnvelopeStage query) const noexcept;

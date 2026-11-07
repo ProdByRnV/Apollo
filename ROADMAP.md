@@ -200,7 +200,7 @@ front of it is better understood, the way 8f was.
 | 18c | One command that installs Apollo on Windows — `irm … | iex` in PowerShell: checked download, the application per user with a Start-menu entry, the plugin where every DAW looks after one permission prompt, no SmartScreen; checked in CI (ADR-0121) | ✅ |
 | 18d | An analyser of the output on its own — the output's spectrum on the MIDI & Output tab, with a peak line and a reading of frequency, note and level under the pointer; nothing added to the audio thread (ADR-0122) | ✅ |
 | 18e | An envelope follower as a modulation source — FOLLOW in the strip and the matrix, how loud the instrument is before its effects, with attack, release and gain on the Modulation tab; the source list grows to 21, chosen by the developer knowing what it moves (ADR-0123) | ✅ |
-| 18f | A curve for each stage of an envelope | |
+| 18f | A curve for each stage of an envelope — the Curve bends every stage, and the attack, decay and release each add a bend of their own, which the editor's diamonds move; chosen by the developer because nothing moves (ADR-0124) | ✅ |
 | 18g | A library of drawn LFO shapes, to use in another patch | |
 | 18h | Macros as destinations in the matrix | |
 | 18i | A check that the audio thread never allocates or locks, run by the tests | |

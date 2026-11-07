@@ -133,6 +133,34 @@ float Envelope::secondsForStage (EnvelopeStage query) const noexcept
     }
 }
 
+float Envelope::curveForStage (EnvelopeStage query) const noexcept
+{
+    // The delay and the hold do not move, so they have no bend of their own;
+    // what curve they are given makes no difference to them.
+    auto bend = 0.0f;
+
+    switch (query)
+    {
+        case EnvelopeStage::attack:  bend = settings.attackBend;  break;
+        case EnvelopeStage::decay:   bend = settings.decayBend;   break;
+        case EnvelopeStage::release: bend = settings.releaseBend; break;
+
+        case EnvelopeStage::idle:
+        case EnvelopeStage::delay:
+        case EnvelopeStage::hold:
+        case EnvelopeStage::sustain:
+        default:
+            break;
+    }
+
+    // A bend that is not a number is no bend, rather than a curve pinned to
+    // one end; a curve that is not a number lands at the low end as before.
+    if (! std::isfinite (bend))
+        bend = 0.0f;
+
+    return clampUnit (settings.curve + bend, -1.0f, 1.0f);
+}
+
 float Envelope::targetForStage (EnvelopeStage query) const noexcept
 {
     switch (query)
@@ -166,7 +194,7 @@ void Envelope::beginSegment (float target, float seconds) noexcept
     if (segmentLengthSamples <= 0)
         return;
 
-    const auto k = clampUnit (settings.curve, -1.0f, 1.0f) * curveScale;
+    const auto k = curveForStage (stage) * curveScale;
 
     if (std::abs (k) < linearThreshold)
     {

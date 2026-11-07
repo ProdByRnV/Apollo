@@ -85,6 +85,10 @@ export function Envelopes(): JSX.Element {
                         <Knob id={`${p}sustain`} label="Sustain" />
                         <Knob id={`${p}release`} label="Release" />
                         <Knob id={`${p}curve`} label="Curve" />
+                        {/* Each stage's own bend, added to the curve (18f). */}
+                        <Knob id={`${p}attack_bend`} label="A Bend" />
+                        <Knob id={`${p}decay_bend`} label="D Bend" />
+                        <Knob id={`${p}release_bend`} label="R Bend" />
                     </div>
                 );
             })}

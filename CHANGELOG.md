@@ -30,6 +30,12 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
   brightens as it gets louder. **Attack**, **Release** and **Gain** are in the
   new **Follower** panel on the Modulation tab, with a live trace of what it is
   doing.
+- **Bend each stage of an envelope on its own.** The attack, decay and release
+  each have a bend now: drag a stage's diamond in the envelope's picture, or
+  turn **A Bend**, **D Bend** or **R Bend**, and only that stage changes — a
+  snappy attack with a slow, soft release, say. **Curve** still bends all three
+  together, and the bends add to it. Your sounds are unchanged until you bend
+  something.
 - **See where the sound's energy is.** The **Analyser** on the **MIDI & Output**
   tab shows the spectrum of everything Apollo plays, live, with a slowly falling
   line of recent peaks. Point at it to read the frequency, the nearest note and

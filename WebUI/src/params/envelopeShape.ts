@@ -20,8 +20,13 @@
     time by the proportion a knob turn would, and keeps a short stage and a long
     one both visible. The caption gives the time itself.
 
+    EACH MOVING STAGE BENDS BY ITS OWN SUM (Phase 18f, ADR-0124): the curve,
+    which bends all three, plus the stage's own bend, held to -1 to +1 — the
+    engine's Envelope::curveForStage. A diamond moves its own stage's bend.
+
     Everything below works on an EnvelopeShape: the five stage times as
-    normalised values, and the sustain level and curve in their own units. The
+    normalised values, and the sustain level, curve and bends in their own
+    units. The
     editor converts to and from parameters with the engine's metadata, so this
     file invents no range.
 */
@@ -41,9 +46,30 @@ export interface EnvelopeShape {
     release: number;
     /** Level, 0 to 1. */
     sustain: number;
-    /** Tension, -1 to +1. */
+    /** Tension, -1 to +1: every moving stage's. */
     curve: number;
+    /** Each moving stage's own bend, -2 to +2, added to the curve. Absent is
+        none, as it is for a sound made before the bends existed. */
+    attackBend?: number;
+    decayBend?: number;
+    releaseBend?: number;
 }
+
+/** The parameter each bent segment's bend is, after the `envN_`. */
+export const BEND_SUFFIX: Record<BentSegment, string> = {
+    attack: 'attack_bend',
+    decay: 'decay_bend',
+    release: 'release_bend',
+};
+
+const BEND_FIELD = {
+    attack: 'attackBend',
+    decay: 'decayBend',
+    release: 'releaseBend',
+} as const;
+
+/** The bend's own range, the registry's. */
+const BEND_LIMIT = 2;
 
 /** The engine's: Envelope.cpp, curveScale and linearThreshold. */
 const CURVE_SCALE = 6;
@@ -71,6 +97,18 @@ export function segmentShape(p: number, curve: number): number {
 
     if (Math.abs(k) < LINEAR_THRESHOLD) return progress;
     return (1 - Math.exp(-k * progress)) / (1 - Math.exp(-k));
+}
+
+/** @p segment's bend, with anything that is not a number as none — as the
+    engine reads it. */
+export function bendOf(shape: EnvelopeShape, segment: BentSegment): number {
+    const bend = shape[BEND_FIELD[segment]];
+    return typeof bend === 'number' && Number.isFinite(bend) ? bend : 0;
+}
+
+/** The tension @p segment travels along: the curve plus its bend, -1 to +1. */
+export function stageCurve(shape: EnvelopeShape, segment: BentSegment): number {
+    return clamp(shape.curve + bendOf(shape, segment), -1, 1);
 }
 
 //==============================================================================
@@ -117,10 +155,13 @@ export function spanOf(shape: EnvelopeShape): number {
     return Math.max(MIN_SPAN, all[all.length - 1]!.x * HEADROOM);
 }
 
+/** The segment that ends at each corner of vertices(), where it moves. The
+    delay, hold and sustain do not, so no curve changes them. */
+const SEGMENT_ENDING_AT: (BentSegment | null)[] = [null, null, 'attack', null, 'decay', null, 'release'];
+
 /** The level at @p x width units in. */
 export function levelAt(shape: EnvelopeShape, x: number): number {
     const all = vertices(shape);
-    const curve = clamp(shape.curve, -1, 1);
 
     for (let i = 1; i < all.length; ++i) {
         const from = all[i - 1]!;
@@ -130,6 +171,8 @@ export function levelAt(shape: EnvelopeShape, x: number): number {
         const width = to.x - from.x;
         if (!(width > 0)) return to.level;
 
+        const segment = SEGMENT_ENDING_AT[i];
+        const curve = segment ? stageCurve(shape, segment) : 0;
         return from.level + (to.level - from.level) * segmentShape((x - from.x) / width, curve);
     }
 
@@ -228,17 +271,22 @@ export function withCurve(shape: EnvelopeShape, curve: number): EnvelopeShape {
 }
 
 /**
-    The curve after dragging @p segment's handle upwards by @p travel, where 1
-    is the whole height of the curve's range.
+    The shape after dragging @p segment's diamond upwards by @p travel from
+    @p shape, where 1 is the whole height of a stage's range. Only that
+    stage's bend moves; the curve, and so the other stages, stay.
 
     Up bows the line upwards, because that is the direction the hand moved. On
     the rising attack that is positive tension — quick off the mark; on a
     falling decay or release, the same tension drops quickly and so bows
     downwards, and up is negative.
 
-    There is one curve control (PRD §15.1), so every segment bends together.
+    The drag moves what the stage plays — the sum — and the bend is what is
+    left after the curve, so it never runs on past the end of the range where
+    moving it would change nothing.
 */
-export function dragCurve(shape: EnvelopeShape, segment: BentSegment, startCurve: number, travel: number): EnvelopeShape {
+export function dragBend(shape: EnvelopeShape, segment: BentSegment, travel: number): EnvelopeShape {
     const direction = segment === 'attack' ? 1 : -1;
-    return withCurve(shape, startCurve + direction * travel * 2);
+    const target = clamp(stageCurve(shape, segment) + direction * travel * 2, -1, 1);
+    const bend = clamp(target - clamp(shape.curve, -1, 1), -BEND_LIMIT, BEND_LIMIT);
+    return { ...shape, [BEND_FIELD[segment]]: bend };
 }

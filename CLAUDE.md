@@ -649,7 +649,8 @@ Provide four DAHDSR envelopes:
 
 Support:
 
-- Adjustable curves.
+- Adjustable curves. One Curve bends every stage, and the attack, decay and
+  release each add a bend of their own to it (ADR-0124).
 - Linear behavior.
 - Exponential behavior.
 - Visual editing.

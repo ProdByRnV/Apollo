@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, and 18e the envelope follower are done** (ADR-0119 to ADR-0123); 18f–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, and 18f a bend for each envelope stage are done** (ADR-0119 to ADR-0124); 18g–18i follow. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **18f, a curve for each stage of an envelope**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18g, a library of drawn LFO shapes**, when the developer says to go on. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2362,6 +2362,34 @@ Tested in:
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
 
+### A bend for each envelope stage (Phase 18f)
+
+ADR-0124.
+
+- **`DSP/Envelopes/Envelope`**: `EnvelopeSettings` gains `attackBend`,
+  `decayBend` and `releaseBend`; `curveForStage` is the curve plus the
+  stage's bend, held to -1 to +1, a non-number bend read as none. With no
+  bends every stage is the curve, bit for bit.
+- **Twelve parameters** at the end of the registry, `envN_attack_bend`,
+  `_decay_bend`, `_release_bend`, -2 to +2, 322 in all, their VST3
+  identities pinned. Read once a block with the rest of the envelope.
+- **The page**: `params/envelopeShape.ts` draws each segment by its own sum
+  (`stageCurve`) and `dragBend` moves one stage's bend by what it plays; the
+  editor's diamonds and [ ] arrows move the bends; the caption names the bend
+  and what the stage plays, on one line; A Bend, D Bend and R Bend knobs.
+  `formatPlain` writes a plain number that rounds to nothing without a sign.
+
+Tested in:
+- `Tests/DSP/EnvelopeTests.cpp`: each stage with a bend plays exactly what an
+  envelope with that stage's sum for its curve plays, and the others the curve;
+  a bend moved mid-decay bends the rest of it; past either end is the end;
+  NaN and infinity are no bend; and in the instrument, `env1_release_bend`
+  makes a played note quieter a quarter into its release (0.0241 to 0.0124 RMS).
+- `WebUI/test/envelopeShape.test.mjs`: a diamond moves its own bend only, up
+  bows its stage up, stops where the range does; each stage drawn by its sum.
+- `WebUI/test/format.test.mjs`: no "-0.00".
+- `Tests/Host/ParameterIdentities.cpp`: twelve identities added, none changed.
+
 ### The envelope follower (Phase 18e)
 
 ADR-0123.
@@ -3792,6 +3820,20 @@ not exist before, and every file and folder was removed afterwards.
 **Not checked: hearing it.** No note can reach the standalone on this machine
 (above). That a loaded table plays on its oscillator alone, and a sample once or
 looped, is tested through the processor.
+
+### A bend for each envelope stage (Phase 18f), 2026-11-07
+
+The Release standalone on the developer's laptop, Square Keys, Envelope 1, over
+the DevTools protocol with real mouse and keyboard input.
+
+| Checked | Result |
+|---|---|
+| The panel | A Bend, D Bend and R Bend after Curve, on a row of their own |
+| Dragging the release's diamond up 40 px | The release alone bowed upwards: "Release bend -0.67 · plays -0.17", R Bend -0.67; the attack and decay as before. The caption first wrapped to two lines and moved every knob below it; fixed to one line |
+| Dragging the attack's diamond down 30 px | The attack straight, A Bend -0.50; it read "plays -0.00", a hair under zero after the float round trip; fixed for every plain number |
+| From the keyboard | ] six times to the release's bend, Down five times: "Release bend 0.50 · plays 1.00" |
+| Playing it | Env 1's trace through the release of a held A, unbent: 0.17, 0.07, 0.02; bent to play 1.00: 0.12, 0.02, 0.00 — it falls faster |
+| Undo | Each step named, "Undo Env 1 Release Bend"; everything undone to "Nothing to undo", MOD 2/16, Apollo closed as it was |
 
 ### The envelope follower (Phase 18e), 2026-11-07
 

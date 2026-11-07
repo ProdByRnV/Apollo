@@ -96,7 +96,10 @@ using namespace apollo::params;
 // Phase 16b added two, the first after release: sub_octave_up and
 // fx_reverb_lowcut, at the end of the registry so that no released parameter
 // moves (ADR-0114).
-static_assert (parameterCount() == 310, "the registry has three hundred and ten parameters");
+//
+// Phase 18e added three, the envelope follower's (ADR-0123), and 18f twelve, a
+// bend for each moving stage of each envelope (ADR-0124), at the end.
+static_assert (parameterCount() == 322, "the registry has three hundred and twenty-two parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

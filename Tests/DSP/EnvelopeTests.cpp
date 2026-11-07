@@ -8,13 +8,14 @@
     stage is asked to take no time at all.
 */
 
-#include <juce_core/juce_core.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
 
+#include "Audio/ApolloAudioProcessor.h"
 #include "DSP/Envelopes/Envelope.h"
 
 using namespace apollo::dsp;
@@ -82,6 +83,8 @@ public:
         testZeroLengthStages();
         testCurveShape();
         testShapeIsTheEditorsClosedForm();
+        testEachStageBendsOnItsOwn();
+        testBendsAreHeldToTheCurvesRange();
         testReleaseFromAnyStage();
         testRetriggerDoesNotJumpToZero();
         testRestartBeginsFromSilence();
@@ -408,6 +411,157 @@ private:
         }
     }
 
+    /** Renders attack, decay, a moment of sustain, and the release, each stage's
+        values on their own, so they can be compared stage by stage. */
+    struct StageRun
+    {
+        std::vector<float> attack, decay, release;
+    };
+
+    [[nodiscard]] static StageRun runStages (const EnvelopeSettings& shape)
+    {
+        Envelope envelope;
+        envelope.prepare (testSampleRate);
+
+        auto settings = plainSettings();
+        settings.curve = shape.curve;
+        settings.attackBend = shape.attackBend;
+        settings.decayBend = shape.decayBend;
+        settings.releaseBend = shape.releaseBend;
+        envelope.setSettings (settings);
+        envelope.noteOn();
+
+        // A stage's values are the ones produced while in it, plus the one that
+        // ends it, which lands exactly on its target.
+        const auto collect = [&envelope] (EnvelopeStage stage)
+        {
+            std::vector<float> values;
+
+            while (envelope.getStage() == stage && values.size() < 48000)
+                values.push_back (envelope.getNextValue());
+
+            return values;
+        };
+
+        StageRun run;
+        run.attack = collect (EnvelopeStage::attack);
+        run.decay = collect (EnvelopeStage::decay);
+        static_cast<void> (render (envelope, 64));
+        envelope.noteOff();
+        run.release = collect (EnvelopeStage::release);
+        return run;
+    }
+
+    void testEachStageBendsOnItsOwn()
+    {
+        beginTest ("Each stage's bend adds to the curve, and bends that stage alone");
+
+        // An envelope with a curve and three different bends must play each
+        // stage exactly as an envelope with no bends and that stage's sum for
+        // its curve. Exactly, not nearly: each segment starts from an endpoint
+        // that is exact (the attack from silence, the decay from full, the
+        // release from the sustain), so the only thing that can differ is the
+        // shape.
+        EnvelopeSettings bent;
+        bent.curve = 0.25f;
+        bent.attackBend = 0.5f;
+        bent.decayBend = -0.75f;
+        bent.releaseBend = 0.0f;
+
+        const auto withCurve = [] (float curve)
+        {
+            EnvelopeSettings plain;
+            plain.curve = curve;
+            return runStages (plain);
+        };
+
+        const auto run = runStages (bent);
+        const auto attackReference = withCurve (0.75f);
+        const auto decayReference = withCurve (-0.5f);
+        const auto releaseReference = withCurve (0.25f);
+
+        expect (run.attack == attackReference.attack, "the attack is not the curve plus its bend");
+        expect (run.decay == decayReference.decay, "the decay is not the curve plus its bend");
+        expect (run.release == releaseReference.release, "a release with no bend is not the curve's");
+
+        // And the bends are heard: the attack and the decay differ from the
+        // curve's own.
+        const auto unbent = withCurve (0.25f);
+        expect (run.attack != unbent.attack, "the attack's bend changed nothing");
+        expect (run.decay != unbent.decay, "the decay's bend changed nothing");
+
+        // A bend moved while its stage runs bends the rest of that stage, as a
+        // time moved mid-segment retimes it.
+        Envelope envelope;
+        envelope.prepare (testSampleRate);
+        auto settings = plainSettings();
+        settings.attackSeconds = 0.0f;
+        settings.decaySeconds = 0.100f;
+        settings.sustainLevel = 0.0f;
+        envelope.setSettings (settings);
+        envelope.noteOn();
+        static_cast<void> (render (envelope, 480));
+
+        auto straight = envelope;
+        settings.decayBend = 1.0f;
+        envelope.setSettings (settings);
+
+        const auto bentNext = envelope.getNextValue();
+        const auto straightNext = straight.getNextValue();
+        logMessage ("  a decay bent mid-way: next level " + juce::String (bentNext, 5)
+                    + " against " + juce::String (straightNext, 5) + " unbent");
+        expect (bentNext < straightNext - 1.0e-3f, "a bend moved during the decay was ignored until the next note");
+        expect (envelope.getStage() == EnvelopeStage::decay);
+    }
+
+    void testBendsAreHeldToTheCurvesRange()
+    {
+        beginTest ("A stage's curve and bend are held to the curve's range together");
+
+        // Past either end is the end: +0.8 and +1.5 is +1, +1 and -2 is -1.
+        {
+            EnvelopeSettings over;
+            over.curve = 0.8f;
+            over.attackBend = 1.5f;
+            over.decayBend = -2.0f;
+
+            EnvelopeSettings top;
+            top.curve = 1.0f;
+            EnvelopeSettings bottom;
+            bottom.curve = -1.0f;
+
+            const auto run = runStages (over);
+            expect (run.attack == runStages (top).attack, "+0.8 bent by +1.5 is not the top of the range");
+
+            EnvelopeSettings under;
+            under.curve = 1.0f;
+            under.decayBend = -2.0f;
+            expect (runStages (under).decay == runStages (bottom).decay, "+1 bent by -2 is not the bottom of the range");
+        }
+
+        // A bend that is not a number is no bend at all.
+        for (const auto hostile : { std::numeric_limits<float>::quiet_NaN(),
+                                    std::numeric_limits<float>::infinity(),
+                                    -std::numeric_limits<float>::infinity() })
+        {
+            EnvelopeSettings broken;
+            broken.curve = 0.5f;
+            broken.attackBend = hostile;
+            broken.decayBend = hostile;
+            broken.releaseBend = hostile;
+
+            EnvelopeSettings plain;
+            plain.curve = 0.5f;
+
+            const auto run = runStages (broken);
+            const auto reference = runStages (plain);
+
+            expect (run.attack == reference.attack && run.decay == reference.decay
+                        && run.release == reference.release,
+                    "a bend of " + juce::String (hostile) + " bent the envelope");
+        }
+    }
+
     void testReleaseFromAnyStage()
     {
         beginTest ("Note-off releases from wherever the envelope is, with no jump");
@@ -605,6 +759,9 @@ private:
         settings.sustainLevel = 40.0f;
         settings.releaseSeconds = std::numeric_limits<float>::infinity();
         settings.curve = std::numeric_limits<float>::quiet_NaN();
+        settings.attackBend = std::numeric_limits<float>::infinity();
+        settings.decayBend = -1.0e30f;
+        settings.releaseBend = std::numeric_limits<float>::quiet_NaN();
 
         envelope.setSettings (settings);
         envelope.noteOn();
@@ -634,5 +791,76 @@ private:
 };
 
 EnvelopeTests envelopeTests;
+
+//==============================================================================
+
+/** The bends in the instrument (Phase 18f): a parameter set on the processor
+    reaches the envelope a played note runs. */
+class EnvelopeBendInstrumentTests final : public juce::UnitTest
+{
+public:
+    EnvelopeBendInstrumentTests()
+        : juce::UnitTest ("Envelope bends in the instrument", "DSP")
+    {
+    }
+
+    void runTest() override
+    {
+        beginTest ("The amplitude envelope's release bend changes how a note dies away");
+
+        // A quarter of the way into a 400 ms release at the default curve, +0.5,
+        // and with the release bent to +1, which falls faster: the bent one is
+        // quieter. With the bend at zero both runs are the same instrument.
+        const auto quarterThrough = [] (float releaseBend)
+        {
+            apollo::ApolloAudioProcessor processor;
+
+            const auto setPlain = [&processor] (const juce::String& id, float plain)
+            {
+                if (auto* parameter = processor.getValueTreeState().getParameter (id))
+                    parameter->setValueNotifyingHost (parameter->convertTo0to1 (plain));
+            };
+
+            setPlain ("env1_attack", 0.0f);
+            setPlain ("env1_release", 400.0f);
+            setPlain ("env1_release_bend", releaseBend);
+
+            constexpr int block = 480;
+            processor.prepareToPlay (testSampleRate, block);
+
+            juce::AudioBuffer<float> buffer (2, block);
+            auto level = 0.0f;
+
+            // 100 ms held, then 100 ms of the release, measured over its last block.
+            for (int b = 0; b < 20; ++b)
+            {
+                buffer.clear();
+                juce::MidiBuffer midi;
+
+                if (b == 0)
+                    midi.addEvent (juce::MidiMessage::noteOn (1, 60, 0.9f), 0);
+                if (b == 10)
+                    midi.addEvent (juce::MidiMessage::noteOff (1, 60), 0);
+
+                processor.processBlock (buffer, midi);
+                level = buffer.getRMSLevel (0, 0, block);
+            }
+
+            processor.releaseResources();
+            return level;
+        };
+
+        const auto unbent = quarterThrough (0.0f);
+        const auto bent = quarterThrough (0.5f);
+
+        logMessage ("  a quarter into the release: " + juce::String (unbent, 4) + " RMS unbent, "
+                    + juce::String (bent, 4) + " with the release bent by +0.5");
+
+        expect (unbent > 0.01f, "the note was not sounding a quarter into its release");
+        expect (bent < unbent * 0.8f, "the release's bend did not reach the played note");
+    }
+};
+
+EnvelopeBendInstrumentTests envelopeBendInstrumentTests;
 
 } // namespace

@@ -729,6 +729,8 @@ function that costs one multiply.
 Curve tension is **one control per envelope**, not one per stage. PRD §15.1 asks
 for adjustable curve tension and lists per-stage curves as a later option; six
 controls where one will do is a worse instrument until someone asks.
+*Since Phase 18f the curve still bends every stage, and the attack, decay and
+release each add a bend of their own (ADR-0124).*
 
 A change arriving mid-segment retimes that segment from wherever the envelope
 currently is, preserving the fraction already travelled. Applying only at the
@@ -6717,7 +6719,9 @@ is in the editor's tooltip and its accessible description.
 ### One curve, three diamonds
 
 There is one curve control for the whole envelope (PRD §15.1), so every
-segment bends together and the diamonds are three handles on one value. **Up
+segment bends together and the diamonds are three handles on one value.
+*Since Phase 18f each diamond is its own stage's bend, added to the curve, and
+bends that segment alone (ADR-0124).* **Up
 bows the segment being held upwards**, the direction the hand moved. On the
 rising attack that is positive tension; on a falling decay or release, positive
 tension falls quickly and bows downwards, so up there is negative. The LFO
@@ -8609,3 +8613,71 @@ question for the destination list.
 - **A sidechain input.** A different feature — following another track — which
   needs an input bus on an instrument and every host's sidechain routing.
 - **RMS.** A second, hidden time constant in front of the attack.
+
+---
+
+## ADR-0124 — A bend for each stage of an envelope, added to its curve
+
+**Phase 18f · Accepted**
+
+### What was asked
+
+The sixth improvement the developer chose after 1.3.0: a curve for each stage
+of an envelope, which PRD §15.1 lists as a later option and ADR-0030 left as one
+control per envelope.
+
+### What was chosen, by the developer
+
+**The Curve knob still bends every stage, and each moving stage — attack, decay
+and release — has a bend of its own, added to it.** A stage plays
+`clamp(curve + bend, -1, +1)` (`Envelope::curveForStage`). The developer chose
+this from three, asked with what each would move:
+
+- **Curve plus a bend per stage** (chosen). Nothing moves: a sound made before
+  18f has no bends, so every stage plays the curve, exactly as it did; a DAW's
+  automation of `envN_curve` still bends all three; and a preset saved by 18f
+  opens in 1.3.0, which ignores the bends and plays the curve.
+- **Three independent curves**, `envN_curve` becoming the attack's. The
+  cleanest controls, but it changes what a released parameter means, which
+  Docs/COMPATIBILITY.md §3 says takes a schema increment: presets saved after it
+  would be refused by 1.3.0, and automation of Env Curve would bend only the
+  attack.
+- **A One / Per stage switch.** Nothing moves either, but sixteen parameters
+  rather than twelve, and a switch to find before the stages can differ.
+
+### What it is
+
+Twelve parameters at the end of the registry (ADR-0114), `envN_attack_bend`,
+`envN_decay_bend` and `envN_release_bend`, **-2 to +2**, default 0, not
+smoothed and not destinations, as the curve is not. The range is twice the
+curve's so a stage can reach either end of the range from any setting of the
+curve; the sum is held to it. A bend that is not a number is no bend, rather
+than a stage pinned to one end. The delay and the hold do not move and have none.
+
+A bend moved while its stage runs bends the rest of that stage, as a time does
+(ADR-0030). The envelope reads its settings once a block, as before; nothing is
+added per sample. Every regression render passed unregenerated, and the
+twelve VST3 identities are pinned, twelve lines added and none changed.
+
+### On the page
+
+The editor's three diamonds, which ADR-0103 made three handles on the one
+curve, are now each its own stage's bend: dragging one bends that segment
+alone, up bowing it upwards as before. **The drag moves what the stage plays,
+and the bend is what is left after the curve**, so a bend never runs on past
+the end of the range where moving it would change nothing. [ and ] reach the
+three bends after the corners, and the arrows move them the same way. The
+caption names the bend and what the stage plays (`Release bend -0.67 · plays
+-0.17`), held to one line so the knobs below do not move as handles are chosen.
+**A Bend**, **D Bend** and **R Bend** knobs sit after Curve.
+
+Checking it in the standalone found "-0.00" for a stage whose bend cancelled the
+curve — the float round trip leaves a hair under zero — so a plain number that
+rounds to nothing is now written without a sign, for every control.
+
+### Alternatives considered
+
+- **Bends on the delay and hold.** They do not move, so a bend would change
+  nothing.
+- **A drag that bends every stage, with a modifier.** The Curve knob already
+  does that, and a modifier nobody discovers is not a feature.

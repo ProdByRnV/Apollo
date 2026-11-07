@@ -122,6 +122,9 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env1_release` | Rotary Knob | `0–10000 ms` | `50` | 5a | Envelope 1 release time |
 | `env1_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5a | Envelope 1 curve tension; 0 is linear, positive is the analog shape |
 | `env1_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | What a note does to envelope 1 when its voice is reused while sounding, which in Apollo means stolen: 0 restarts from silence, so the note gets its whole attack; 1, the default because it is how Apollo always behaved, continues from the level the last note left, the voice fading back up over the steal's 2 ms rather than stepping as it used to. A voice that was free sounds the same either way (ADR-0097) |
+| `env1_attack_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 1's attack bend, added to the curve: the attack plays curve + bend, held to -1 to +1. 0 plays the curve, as every envelope did before 18f (ADR-0124) |
+| `env1_decay_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 1's decay bend, as for the attack |
+| `env1_release_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 1's release bend, as for the attack |
 | `filter1_type` | Selector / Dropdown | Discrete `[0, 6]` | `1` | 5b, 13c | Filter 1 type: 0 off, 1 lowpass, 2 highpass, 3 bandpass, 4 notch, 5 comb, 6 formant. Comb and formant were appended in 13c, so the first five keep their numbers (ADR-0091). Under formant the cutoff knob is labelled with the vowel it chooses |
 | `filter1_cutoff` | Rotary Knob | `20–20000 Hz` | `20000` | 5b | Filter 1 cutoff frequency |
 | `filter1_resonance` | Rotary Knob | Float `[0.1, 10.0]` | `0.707` | 5b | Filter 1 resonance as Q; 0.707 is Butterworth |
@@ -147,6 +150,9 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env2_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 2 release |
 | `env2_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 2 curve tension |
 | `env2_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 2's retrigger, as for envelope 1, chosen independently of it |
+| `env2_attack_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 2's attack bend, as for envelope 1 |
+| `env2_decay_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 2's decay bend, as for envelope 1 |
+| `env2_release_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 2's release bend, as for envelope 1 |
 | `env3_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 delay |
 | `env3_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 3 attack |
 | `env3_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 3 hold |
@@ -155,6 +161,9 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env3_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 3 release |
 | `env3_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 3 curve tension |
 | `env3_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 3's retrigger, as for envelope 1, chosen independently of it |
+| `env3_attack_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 3's attack bend, as for envelope 1 |
+| `env3_decay_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 3's decay bend, as for envelope 1 |
+| `env3_release_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 3's release bend, as for envelope 1 |
 | `env4_delay` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 delay |
 | `env4_attack` | Rotary Knob | `0–10000 ms` | `5` | 5d | Envelope 4 attack |
 | `env4_hold` | Rotary Knob | `0–2000 ms` | `0` | 5d | Envelope 4 hold |
@@ -163,6 +172,9 @@ Envelopes 2-4 and the four LFOs shipped in Phase 5d, with the modulation matrix 
 | `env4_release` | Rotary Knob | `0–10000 ms` | `300` | 5d | Envelope 4 release |
 | `env4_curve` | Rotary Knob | Bipolar `[-1, 1]` | `0.5` | 5d | Envelope 4 curve tension |
 | `env4_retrigger` | Selector / Dropdown | Discrete `[0, 1]` | `1` | 13e-2 | Envelope 4's retrigger, as for envelope 1, chosen independently of it |
+| `env4_attack_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 4's attack bend, as for envelope 1 |
+| `env4_decay_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 4's decay bend, as for envelope 1 |
+| `env4_release_bend` | Rotary Knob | Bipolar `[-2, 2]` | `0` | 18f | Envelope 4's release bend, as for envelope 1 |
 | `lfo1_shape` | Selector / Dropdown | Discrete `[0, 6]` | `0` | 5d | LFO 1: 0 sine, 1 triangle, 2 saw, 3 reverse saw, 4 square, 5 sample & hold, 6 step |
 | `lfo1_rate` | Rotary Knob | `0.01–400 Hz` | `1` | 5d | LFO 1 rate |
 | `lfo1_sync` | Selector / Dropdown | Discrete `[0, 1]` | `0` | 13e-1 | 0 the rate in hertz, 1 a division of the host's tempo (120 when it gives none). Synced, the Rate knob is hidden and the division shown, and a free-running LFO is locked to the bar while the transport runs (ADR-0096) |
@@ -1066,8 +1078,10 @@ document without one calls every macro by its number (Docs/COMPATIBILITY.md
 ### 10.9 The envelope shape (Phase 13f-2)
 
 **No messages of its own.** The envelope editor is another way of moving the
-`envN_delay`, `_attack`, `_hold`, `_decay`, `_sustain`, `_release` and `_curve`
-parameters, and it uses the knob's messages (ADR-0103):
+`envN_delay`, `_attack`, `_hold`, `_decay`, `_sustain` and `_release`
+parameters, and since 18f each stage's bend, `_attack_bend`, `_decay_bend` and
+`_release_bend`, which its diamonds move (ADR-0124). The curve, which bends
+every stage, is the knob's alone. It uses the knob's messages (ADR-0103):
 
 - `gesture` `begin` when a handle is grabbed, for every parameter it moves (the
   decay's corner moves two), and `end` when it is let go;

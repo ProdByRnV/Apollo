@@ -49,7 +49,8 @@ export function formatPlain(definition: ParameterDefinition, plain: number): str
 
         default:
             if (definition.step >= 1) return String(Math.round(plain));
-            return plain.toFixed(2);
+            // A hair under zero is zero: "-0.00" is a sign with nothing to say.
+            return plain.toFixed(2) === '-0.00' ? '0.00' : plain.toFixed(2);
     }
 }
 

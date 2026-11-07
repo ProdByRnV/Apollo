@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 310> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -485,8 +485,9 @@ inline constexpr std::array<ParameterDefinition, 310> parameterDefinitions { {
     // Bipolar curve tension. Positive is the analog shape — quick off the mark,
     // easing into the target — which is why the default is positive rather than
     // linear: a linear amplitude release sounds like a fade-out rather than
-    // like an instrument stopping. PRD §15.1 asks for one tension control;
-    // per-stage curves are listed there as a later option.
+    // like an instrument stopping. It bends every stage; each moving stage has
+    // a bend of its own as well, added to it, at the end of the registry
+    // (Phase 18f, ADR-0124).
     { "env1_curve", "Env 1 Curve",
       ParameterType::floatingPoint, ParameterUnit::none,
       -1.0f, 1.0f, 0.5f,
@@ -2308,6 +2309,82 @@ inline constexpr std::array<ParameterDefinition, 310> parameterDefinitions { {
     { "follower_gain", "Follower Gain",
       ParameterType::floatingPoint, ParameterUnit::decibels,
       -24.0f, 24.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    // Phase 18f. A bend for each moving stage of each envelope, added to the
+    // envelope's curve, which still bends all three. -2 to +2 so a stage can
+    // reach either end of the curve's range from any setting of it; zero, the
+    // default, is every envelope as it was before 18f (ADR-0124).
+    { "env1_attack_bend", "Env 1 Attack Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env1_decay_bend", "Env 1 Decay Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env1_release_bend", "Env 1 Release Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env2_attack_bend", "Env 2 Attack Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env2_decay_bend", "Env 2 Decay Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env2_release_bend", "Env 2 Release Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env3_attack_bend", "Env 3 Attack Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env3_decay_bend", "Env 3 Decay Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env3_release_bend", "Env 3 Release Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env4_attack_bend", "Env 4 Attack Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env4_decay_bend", "Env 4 Decay Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
+      1.0f, 0.0f,
+      true, false, false },
+
+    { "env4_release_bend", "Env 4 Release Bend",
+      ParameterType::floatingPoint, ParameterUnit::none,
+      -2.0f, 2.0f, 0.0f,
       1.0f, 0.0f,
       true, false, false }
 } };

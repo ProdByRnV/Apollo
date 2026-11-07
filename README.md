@@ -17,7 +17,7 @@ written in React and shown through the platform's own WebView.
 install and use it is just below. What each release contains is in
 [CHANGELOG.md](CHANGELOG.md).
 
-It is a complete instrument: it plays, every one of its 310 parameters affects
+It is a complete instrument: it plays, every one of its 322 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. It has
 been played in FL Studio. What is not yet true is in
 [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md); the largest gaps are
@@ -287,7 +287,7 @@ warp aliases more than the plain oscillator, and the figures are published.
 a comb tuned by its cutoff, and a formant filter that sweeps through vowels),
 each with drive, a mix and key tracking, in series, in parallel, or split so
 that each source chooses its own. Four DAHDSR envelopes with adjustable
-curves, shaped by dragging them; four LFOs with seven built-in shapes and one
+curves, each stage bendable on its own, shaped by dragging them; four LFOs with seven built-in shapes and one
 you draw, which can follow the host's tempo; and a sixteen-slot modulation
 matrix, each slot's depth itself modulatable, whose sources include velocity,
 key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source

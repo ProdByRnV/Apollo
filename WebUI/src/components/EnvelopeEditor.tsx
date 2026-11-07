@@ -3,15 +3,16 @@
 
     A note held to its sustain and then released, left to right: delay, attack,
     hold, decay, sustain, release. The corners are handles, and the small
-    diamond half way along each moving segment is the curve.
+    diamond half way along each moving segment is that segment's bend.
 
       - DRAG A CORNER sideways to change its stage's time. The decay's corner
         also moves up and down, which is the sustain level. Shift for fine.
       - CORNERS IN ONE PLACE: a stage of no time puts its corner on the one
         before it. A drag takes the earlier; Alt-drag takes the later, which is
         how a hold is pulled out from under the attack.
-      - DRAG A DIAMOND up or down to bend the curve. There is one curve control,
-        so every segment bends with it; up bows the segment you hold upwards.
+      - DRAG A DIAMOND up or down to bend that stage alone: up bows the segment
+        you hold upwards. It moves the stage's bend, which is added to the
+        Curve knob's tension; the knob still bends all three (Phase 18f).
       - DOUBLE-CLICK a handle to put what it controls back to its default.
       - FROM THE KEYBOARD, with the editor focused: [ and ] choose a handle,
         the arrows move it (Shift for fine), and Delete resets it.
@@ -32,16 +33,19 @@ import type { ParameterDefinition } from '../bridge/protocol';
 import { cssColour, fitCanvas, pointerOnCanvas } from '../canvas/draw';
 import { useRedrawOnResize } from '../canvas/useRedrawOnResize';
 import {
+    BEND_SUFFIX,
     TIMED_STAGES,
+    bendOf,
     curveHandle,
-    dragCurve,
+    dragBend,
     hitTest,
     levelAt,
     spanOf,
+    stageCurve,
     stageHandle,
     vertices,
 } from '../params/envelopeShape';
-import type { EnvelopeShape, Grab, TimedStage, Vertex } from '../params/envelopeShape';
+import type { BentSegment, EnvelopeShape, Grab, TimedStage, Vertex } from '../params/envelopeShape';
 import { formatPlain } from '../params/format';
 import { toNormalized, toPlain } from '../params/mapping';
 import {
@@ -71,9 +75,13 @@ const CURVE_DRAG_RANGE = 120;
 /** Fine adjustment, as a knob's (Knob.tsx). */
 const FINE = 0.2;
 
+/** A diamond: a moving stage's bend, named as its parameter is after `envN_`. */
+type BendHandle = 'attack_bend' | 'decay_bend' | 'release_bend';
+
 /** What [ and ] step through, in the order they sit. */
-type Handle = TimedStage | 'curve';
-const HANDLES: readonly Handle[] = [...TIMED_STAGES, 'curve'];
+type Handle = TimedStage | BendHandle;
+const BENDS: readonly BentSegment[] = ['attack', 'decay', 'release'];
+const HANDLES: readonly Handle[] = [...TIMED_STAGES, 'attack_bend', 'decay_bend', 'release_bend'];
 
 const STAGE_NAMES: Record<Handle, string> = {
     delay: 'Delay',
@@ -81,8 +89,16 @@ const STAGE_NAMES: Record<Handle, string> = {
     hold: 'Hold',
     decay: 'Decay',
     release: 'Release',
-    curve: 'Curve',
+    attack_bend: 'Attack bend',
+    decay_bend: 'Decay bend',
+    release_bend: 'Release bend',
 };
+
+const bendHandle = (segment: BentSegment): BendHandle => BEND_SUFFIX[segment] as BendHandle;
+
+/** The segment a diamond bends, or null for a corner. */
+const segmentOf = (handle: Handle): BentSegment | null =>
+    BENDS.find((segment) => bendHandle(segment) === handle) ?? null;
 
 /** The letters drawn under each stage, by its index in vertices(). */
 const STAGE_LETTERS = ['D', 'A', 'H', 'D', 'S', 'R'];
@@ -105,7 +121,6 @@ const pxPerLevel = (g: Geometry): number => g.height - PAD - FOOT;
 /** The parameter ids a handle moves. */
 function idsOf(envelope: number, handle: Handle): string[] {
     const p = `env${envelope}_`;
-    if (handle === 'curve') return [`${p}curve`];
     if (handle === 'decay') return [`${p}decay`, `${p}sustain`];
     return [`${p}${handle}`];
 }
@@ -135,7 +150,7 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
 
     const p = `env${envelope}_`;
 
-    // Seven subscriptions, in a fixed order: each re-renders this editor when
+    // Ten subscriptions, in a fixed order: each re-renders this editor when
     // its own parameter moves, from a knob, the host or the matrix's owner.
     const delay = useParameterValue(`${p}delay`);
     const attack = useParameterValue(`${p}attack`);
@@ -144,9 +159,14 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
     const sustain = useParameterValue(`${p}sustain`);
     const release = useParameterValue(`${p}release`);
     const curve = useParameterValue(`${p}curve`);
+    const attackBend = useParameterValue(`${p}attack_bend`);
+    const decayBend = useParameterValue(`${p}decay_bend`);
+    const releaseBend = useParameterValue(`${p}release_bend`);
 
     const sustainDefinition = useParameterDefinition(`${p}sustain`);
     const curveDefinition = useParameterDefinition(`${p}curve`);
+    const bendDefinition = useParameterDefinition(`${p}attack_bend`);
+    const bendPlain = (normalised: number): number => (bendDefinition ? toPlain(bendDefinition, normalised) : 0);
 
     const shape: EnvelopeShape = {
         delay,
@@ -156,6 +176,9 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
         release,
         sustain: sustainDefinition ? toPlain(sustainDefinition, sustain) : sustain,
         curve: curveDefinition ? toPlain(curveDefinition, curve) : 0,
+        attackBend: bendPlain(attackBend),
+        decayBend: bendPlain(decayBend),
+        releaseBend: bendPlain(releaseBend),
     };
 
     const shapeRef = useRef(shape);
@@ -258,15 +281,14 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
         context.fill();
         context.globalAlpha = 1;
 
-        // The curve's diamonds, then the corners over them. A diamond is gold
-        // when the curve is bent and grey when it is a straight line; selected
+        // The bends' diamonds, then the corners over them. A diamond is gold
+        // when its stage is bent and grey when it is a straight line; selected
         // or not is told by size as well as colour (CLAUDE.md §24.2).
-        const curveSelected = selectedRef.current === 'curve';
-
-        for (const segment of ['attack', 'decay', 'release'] as const) {
+        for (const segment of BENDS) {
             const handle = curveHandle(env, segment);
             if (!handle) continue;
 
+            const curveSelected = selectedRef.current === bendHandle(segment);
             const x = xOf(handle.x, g);
             const y = yOf(handle.level, g);
             const r = curveSelected ? 4 : 3;
@@ -277,7 +299,7 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
             context.lineTo(x, y + r);
             context.lineTo(x - r, y);
             context.closePath();
-            context.fillStyle = (env.curve !== 0 || curveSelected) ? line : muted;
+            context.fillStyle = (stageCurve(env, segment) !== 0 || curveSelected) ? line : muted;
             context.fill();
         }
 
@@ -303,7 +325,7 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
         }
     }, []);
 
-    useEffect(draw, [draw, delay, attack, hold, decay, sustain, release, curve, selected]);
+    useEffect(draw, [draw, delay, attack, hold, decay, sustain, release, curve, attackBend, decayBend, releaseBend, selected]);
     useRedrawOnResize(rootRef, draw);
 
     //--------------------------------------------------------------------------
@@ -337,7 +359,7 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
             return hitTest(shapeRef.current, toPixel, at.x, at.y, GRAB_RADIUS, latest);
         };
 
-        const handleOf = (grab: Grab): Handle => (grab.kind === 'stage' ? grab.stage : 'curve');
+        const handleOf = (grab: Grab): Handle => (grab.kind === 'stage' ? grab.stage : bendHandle(grab.segment));
 
         const onPointerDown = (event: PointerEvent): void => {
             if (event.button !== 0 || document.body.dataset.midiMode === 'true') return;
@@ -379,8 +401,9 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
             const { grab, start, geometry: g } = drag;
 
             if (grab.kind === 'curve') {
-                const next = dragCurve(start, grab.segment, start.curve, up / CURVE_DRAG_RANGE);
-                commitValue(`${p}curve`, normalise(`${p}curve`, next.curve));
+                const next = dragBend(start, grab.segment, up / CURVE_DRAG_RANGE);
+                const id = `${p}${BEND_SUFFIX[grab.segment]}`;
+                commitValue(id, normalise(id, bendOf(next, grab.segment)));
                 return;
             }
 
@@ -440,8 +463,10 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
         const fine = event.shiftKey ? FINE : 1;
         const env = shapeRef.current;
 
+        const segment = segmentOf(selected);
+
         const across = (sign: number): void => {
-            if (selected === 'curve') return;
+            if (segment) return;
             const id = `${p}${selected}`;
             nudge(id, valueOf(id) + sign * 0.02 * fine);
         };
@@ -449,8 +474,9 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
         const vertical = (sign: number): void => {
             if (selected === 'decay') {
                 nudge(`${p}sustain`, normalise(`${p}sustain`, clamp(env.sustain + sign * 0.05 * fine, 0, 1)));
-            } else if (selected === 'curve') {
-                nudge(`${p}curve`, normalise(`${p}curve`, clamp(env.curve + sign * 0.1 * fine, -1, 1)));
+            } else if (segment) {
+                const id = `${p}${selected}`;
+                nudge(id, normalise(id, bendOf(dragBend(env, segment, sign * 0.05 * fine), segment)));
             }
         };
 
@@ -471,11 +497,20 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
     };
 
     // What the selected handle holds, in the knobs' own words.
-    const timeDefinition = useParameterDefinition(selected === 'curve' ? `${p}curve` : `${p}${selected}`);
-    const selectedValue = selected === 'curve' ? curve : { delay, attack, hold, decay, release }[selected];
+    const timeDefinition = useParameterDefinition(`${p}${selected}`);
+    const selectedValue = {
+        delay, attack, hold, decay, release,
+        attack_bend: attackBend, decay_bend: decayBend, release_bend: releaseBend,
+    }[selected];
 
     let reading = `${STAGE_NAMES[selected]} ${plainText(timeDefinition, selectedValue)}`;
     if (selected === 'decay') reading += ` · Sustain ${plainText(sustainDefinition, sustain)}`;
+
+    // A bend is added to the curve, so say what the stage plays as well.
+    const selectedSegment = segmentOf(selected);
+    if (selectedSegment && curveDefinition) {
+        reading += ` · plays ${formatPlain(curveDefinition, stageCurve(shape, selectedSegment))}`;
+    }
 
     return (
         <div ref={rootRef} className="env-shape" data-envelope-shape={envelope}>
@@ -486,10 +521,10 @@ export function EnvelopeEditor({ envelope }: { envelope: number }): JSX.Element 
                 role="application"
                 aria-label={`Envelope ${envelope} shape`}
                 title={'Drag a corner to change a time; the decay\'s also sets the sustain. '
-                    + 'Drag a diamond to bend the curve. Alt-drag takes the later of two corners in one place. '
+                    + 'Drag a diamond to bend that stage. Alt-drag takes the later of two corners in one place. '
                     + 'Double-click to reset.'}
                 aria-description={'Drag a corner to change its stage\'s time; the decay\'s corner also sets the '
-                    + 'sustain. Drag a diamond to bend the curve. Double-click a handle to reset it. With the '
+                    + 'sustain. Drag a diamond to bend that stage alone. Double-click a handle to reset it. With the '
                     + 'shape focused, [ and ] choose a handle, the arrows move it and Delete resets it.'}
                 onKeyDown={onKeyDown}
             />

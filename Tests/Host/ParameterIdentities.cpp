@@ -323,6 +323,18 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "follower_attack", 1190202761u },
         { "follower_release", 7532774u },
         { "follower_gain", 2010334976u },
+        { "env1_attack_bend", 291195381u },
+        { "env1_decay_bend", 570787033u },
+        { "env1_release_bend", 1941600748u },
+        { "env2_attack_bend", 2145276022u },
+        { "env2_decay_bend", 699869752u },
+        { "env2_release_bend", 1436042123u },
+        { "env3_attack_bend", 1851873015u },
+        { "env3_decay_bend", 828952471u },
+        { "env3_release_bend", 930483498u },
+        { "env4_attack_bend", 1558470008u },
+        { "env4_decay_bend", 958035190u },
+        { "env4_release_bend", 424924873u },
     };
 
     return identities;

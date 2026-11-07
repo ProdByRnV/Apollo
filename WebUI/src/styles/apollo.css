@@ -1550,6 +1550,21 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     font-variant-numeric: tabular-nums;
 }
 
+/* One line, always: a reading that wrapped would move every knob under the
+   editor up and down as handles were chosen (18f). Where there is not room,
+   the reading is cut short rather than wrapped. */
+.env-shape__reading {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.env-shape__note {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .lfo-curve__reset {
     font: inherit;
     letter-spacing: 0.08em;
