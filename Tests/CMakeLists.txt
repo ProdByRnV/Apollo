@@ -23,6 +23,7 @@ target_sources(ApolloTests PRIVATE
     Engine/FilterModulationTests.cpp
     Engine/EffectModulationTests.cpp
     Engine/GeneratorModulationTests.cpp
+    Engine/GlideTests.cpp
     Engine/EnvelopeRetriggerTests.cpp
     Engine/FilterSplitTests.cpp
     Engine/LfoSyncTests.cpp

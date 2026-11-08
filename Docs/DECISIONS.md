@@ -9132,3 +9132,64 @@ behind, which is a feedback and not a loop.
 fixed list of destinations, and moving them per note means drawing the table
 again per voice many times a second. Rate and phase, which are, cover most of
 what moving them would do. Told to the developer before this was built.
+
+## ADR-0133 — Mono, legato and glide
+
+**Phase 19e · Accepted**
+
+### What was asked
+
+Feedback on 1.4.0: "Is there any way to slide notes?" There was not: every note
+started on its own pitch, in its own voice.
+
+### What it does
+
+Three parameters at the end of the registry, 325 in all, their VST3 identities
+pinned, three lines added and none changed; a **Voicing** panel on the
+Oscillators tab, since how a sound is played is part of the sound.
+
+- **`voice_mode`**: POLY, a voice a note, as Apollo always played; MONO, one
+  voice that every note takes and starts again, and a key let go returns to
+  the newest one still held; LEGATO, one voice that a note played while
+  another is held moves to without starting its envelopes or LFOs again —
+  one played alone starts them.
+- **`glide_time`**, 0 to 5 s on the envelope times' curve: how long a note
+  takes to slide from the last one's pitch, in a straight line of semitones,
+  in any mode. In Poly it slides from where the newest note is — mid-glide if
+  it is gliding — or from the last note played once that has ended.
+- **`glide_mode`**: ALWAYS, or LEGATO, which slides only to a note played
+  while another key is held, so a phrase played joined slides and one played
+  detached does not.
+
+The defaults, Poly and no glide, are every sound made before: each regression
+render passed unregenerated.
+
+### How
+
+**The voice glides.** A glide is an offset in semitones from the note, falling
+to zero at a fixed rate; the pitch is re-derived from it every sixteen samples,
+as pitch modulation is, and exactly on arrival. Key tracking follows it, as it
+follows a bend. `legatoTo` moves a sounding voice to a new note without
+starting it again.
+
+**The engine keeps the keys held**: a fixed list of up to 32, newest last,
+with nothing allocated — which is what lets Mono and Legato go back to the key
+still held when the top one is let go, and what decides a glide to LEGATO. A
+new note in Mono takes the voice through the steal's 2 ms fade, the same
+click-free path a stolen voice has always used, starting the envelopes again;
+the glide begins from where the pitch was. The pedal holds the last note of a
+line as it holds any other. Voices left sounding from Poly when the mode
+changes finish as they would have.
+
+**Slide notes in a DAW.** FL Studio's piano-roll slides, and the like, reach a
+plugin however the host sends them; how FL Studio does so for a VST3 has not
+been tried. Glide in Mono or Legato is the portable answer: overlap the notes
+in the piano roll and the voice slides between them.
+
+### Considered and left
+
+- **A glide at a constant rate** (so many semitones a second) rather than a
+  constant time. Both are common; constant time is what the knob says.
+- **Per-sample pitch**, a power of two for each oscillator every sample, in a
+  loop that is already the voice's most expensive. A pitch stepped three
+  thousand times a second is a glide, and measured as arriving to 0.01 Hz.

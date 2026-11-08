@@ -343,6 +343,34 @@ public:
     /** Begins the release stage. Ignored if the voice is not sounding. */
     void releaseNote() noexcept;
 
+    /** Glide (Phase 19e, ADR-0133): the next note this voice begins — by
+        startNote, or when a steal completes — starts at @p fromNote's pitch and
+        slides to its own over @p seconds, in a straight line of semitones.
+        Zero seconds, or a note that is not a number, is no glide. Consumed by
+        that note. */
+    void setNextGlide (float fromNote, float seconds) noexcept
+    {
+        nextGlideFrom = fromNote;
+        nextGlideSeconds = seconds;
+    }
+
+    /** Moves the sounding note to @p midiNote without starting it again — the
+        envelopes, the LFOs and the oscillators carry on — gliding there over
+        @p seconds, or jumping with none. Legato playing (Phase 19e). Ignored
+        unless the voice is sounding. */
+    void legatoTo (int midiNote, float seconds) noexcept;
+
+    /** The pitch the voice is playing, as a MIDI note: its note, and where a
+        glide has got to on the way to it. Not the bends, and not modulation:
+        this is what a glide to the next note starts from. */
+    [[nodiscard]] float getGlidingNote() const noexcept
+    {
+        return static_cast<float> (note) + glideOffset;
+    }
+
+    /** True while a glide is under way. */
+    [[nodiscard]] bool isGliding() const noexcept { return glideOffset != 0.0f; }
+
     /** Takes this voice for a different note.
 
         The voice first ramps to silence over `stealSeconds` and only then
@@ -473,6 +501,16 @@ private:
     void beginNote (int midiNote, float velocity, std::uint64_t newStartOrder,
                     int midiChannel) noexcept;
     void updatePhaseIncrement() noexcept;
+
+    /** Starts a glide from @p fromNote to the note now playing. */
+    void startGlide (float fromNote, float seconds) noexcept;
+
+    /** Moves a glide on by a sample, and the pitch with it every control
+        block and when it arrives. */
+    void advanceGlide() noexcept;
+
+    /** Re-derives everything that follows the played pitch. */
+    void updatePlayedPitch() noexcept;
     void updateGainTargets() noexcept;
     void snapGainsToTargets() noexcept;
     [[nodiscard]] float nextAmplitude() noexcept;
@@ -694,6 +732,17 @@ private:
         channel-wide bend rather than replacing it.
     */
     float noteBendSemitones = 0.0f;
+
+    /** A glide (Phase 19e): semitones from the note to where the voice is,
+        falling to zero by `glideStep` a sample; the pitch is re-derived every
+        `glideCountdown` samples. Zero is no glide. */
+    float glideOffset = 0.0f;
+    float glideStep = 0.0f;
+    int glideCountdown = 0;
+
+    /** The glide the next note begins with (setNextGlide). */
+    float nextGlideFrom = 0.0f;
+    float nextGlideSeconds = 0.0f;
 
     bool sustainHeld = false;
 

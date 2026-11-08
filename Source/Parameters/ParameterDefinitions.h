@@ -113,7 +113,7 @@ struct ParameterDefinition
     effect parameters are added by their own phases, so no ID ships before the
     DSP that gives it meaning.
 */
-inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
+inline constexpr std::array<ParameterDefinition, 325> parameterDefinitions { {
     // Oscillator 1 -----------------------------------------------------------
     // 0-3 the built-in tables, in the order WavetableLibrary builds them; 4 the
     // oscillator's own user table, appended in Phase 13g so the built-ins keep
@@ -2389,6 +2389,35 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
       ParameterType::floatingPoint, ParameterUnit::none,
       -2.0f, 2.0f, 0.0f,
       1.0f, 0.0f,
+      true, false, false },
+
+    // Phase 19e (ADR-0133). How the voices are given out, and glide. POLY with
+    // no glide, the defaults, is how Apollo always played.
+    //
+    // 0 POLY, a voice a note; 1 MONO, one voice that every note starts again;
+    // 2 LEGATO, one voice that a note played while another is held moves
+    // without starting again. engine::VoiceMode's order.
+    { "voice_mode", "Voice Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 2.0f, 0.0f,
+      1.0f, 1.0f,
+      true, false, false },
+
+    // How long a note takes to slide from the last one's pitch. Skewed as the
+    // envelope times are, because glides are heard the same way: 20 ms and
+    // 200 ms are very different, 4.0 s and 4.2 s are not.
+    { "glide_time", "Glide Time",
+      ParameterType::floatingPoint, ParameterUnit::milliseconds,
+      0.0f, 5000.0f, 0.0f,
+      0.25f, 0.0f,
+      true, false, false },
+
+    // 0 glides to every note; 1 only to a note played while another is held,
+    // so a phrase played legato slides and one played detached does not.
+    { "glide_mode", "Glide Mode",
+      ParameterType::integer, ParameterUnit::none,
+      0.0f, 1.0f, 0.0f,
+      1.0f, 1.0f,
       true, false, false }
 } };
 

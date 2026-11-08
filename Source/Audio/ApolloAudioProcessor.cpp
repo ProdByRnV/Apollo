@@ -104,6 +104,11 @@ ApolloAudioProcessor::ApolloAudioProcessor()
     followerGain = apvts.getRawParameterValue ("follower_gain");
     jassert (followerAttack != nullptr && followerRelease != nullptr && followerGain != nullptr);
 
+    voiceModeParameter = apvts.getRawParameterValue ("voice_mode");
+    glideTimeParameter = apvts.getRawParameterValue ("glide_time");
+    glideModeParameter = apvts.getRawParameterValue ("glide_mode");
+    jassert (voiceModeParameter != nullptr && glideTimeParameter != nullptr && glideModeParameter != nullptr);
+
     osc1Parameters.resolve (apvts, "osc1_");
     osc2Parameters.resolve (apvts, "osc2_");
 
@@ -712,6 +717,19 @@ void ApolloAudioProcessor::applySourceParameters() noexcept
 
     // The envelope follower's settings, once a block like the macros. Its value
     // is the engine's own, measured as the voices render (Phase 18e).
+    // The voice mode and glide, once a block (Phase 19e). A mode out of range
+    // is Poly, how Apollo always played; the glide reaches the engine in
+    // seconds, as the envelope times do.
+    {
+        const auto mode = static_cast<int> (readParameter (voiceModeParameter, 0.0f));
+
+        voiceEngine.setVoicing (mode == 1   ? engine::VoiceMode::mono
+                                : mode == 2 ? engine::VoiceMode::legato
+                                            : engine::VoiceMode::poly,
+                                readParameter (glideTimeParameter, 0.0f) * 0.001f,
+                                readParameter (glideModeParameter, 0.0f) >= 0.5f);
+    }
+
     voiceEngine.setFollowerSettings (readParameter (followerAttack, 10.0f),
                                      readParameter (followerRelease, 200.0f),
                                      readParameter (followerGain, 0.0f));

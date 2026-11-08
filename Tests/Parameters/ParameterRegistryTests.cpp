@@ -99,7 +99,9 @@ using namespace apollo::params;
 //
 // Phase 18e added three, the envelope follower's (ADR-0123), and 18f twelve, a
 // bend for each moving stage of each envelope (ADR-0124), at the end.
-static_assert (parameterCount() == 322, "the registry has three hundred and twenty-two parameters");
+//
+// Phase 19e added three, the voice mode and glide (ADR-0133), at the end.
+static_assert (parameterCount() == 325, "the registry has three hundred and twenty-five parameters");
 static_assert (findParameter ("master_gain") != nullptr);
 static_assert (findParameter ("does_not_exist") == nullptr);
 

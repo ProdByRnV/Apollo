@@ -583,6 +583,34 @@ private:
         session.hold (8);
 
         expectClean ("the master, envelopes and LFOs as destinations", &session);
+
+        // Phase 19e: one voice, every note taking it or moving it, gliding,
+        // with keys let go returning to the ones still held and the pedal.
+        for (const auto mode : { 1.0f, 2.0f, 0.0f })
+        {
+            session.setPlain ("voice_mode", mode);
+            session.setPlain ("glide_time", 120.0f);
+            session.setPlain ("glide_mode", mode == 2.0f ? 1.0f : 0.0f);
+
+            juce::MidiBuffer line;
+            for (int i = 0; i < 8; ++i)
+                line.addEvent (juce::MidiMessage::noteOn (1, 48 + i * 3, 0.8f), i * 30);
+            session.play (256, line);
+            session.hold (4);
+
+            juce::MidiBuffer lift;
+            for (int i = 7; i >= 0; --i)
+                lift.addEvent (juce::MidiMessage::noteOff (1, 48 + i * 3), (7 - i) * 30);
+            session.play (256, lift);
+
+            session.play (256, single (juce::MidiMessage::controllerEvent (1, 64, 127)));
+            session.play (256, chord ({ 60, 64 }, 0.9f));
+            session.play (256, chord ({ 60, 64 }, 0.0f));
+            session.play (256, single (juce::MidiMessage::controllerEvent (1, 64, 0)));
+            session.hold (8);
+        }
+
+        expectClean ("mono, legato and glide", &session);
     }
 
     void testTheHostsWaysOfCalling()

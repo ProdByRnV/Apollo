@@ -61,7 +61,7 @@ import { Envelopes, Follower, Lfos, Macros } from './modules/Modulators';
 import { Filter } from './modules/Filters';
 import { Matrix } from './modules/Matrix';
 import { Presets } from './modules/Presets';
-import { Noise, Oscillator, SubOscillator } from './modules/Sources';
+import { Noise, Oscillator, SubOscillator, Voicing } from './modules/Sources';
 import { Expression, Output } from './modules/Tail';
 import { Unplaced } from './modules/Unplaced';
 import { ModCarryLayer } from './components/ModSource';
@@ -672,6 +672,9 @@ export function App(): JSX.Element {
                                 <SubOscillator />
                                 <Noise />
                             </div>
+
+                            {/* Mono, legato and glide (Phase 19e). */}
+                            <div className="rank rank--wide"><Voicing /></div>
                         </SectionPage>
 
                         <SectionPage index={1} selected={section} idBase={sectionsId}>

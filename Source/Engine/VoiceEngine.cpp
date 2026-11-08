@@ -103,6 +103,8 @@ void VoiceEngine::reset() noexcept
         voice.setFollower (0.0f);
 
     sustainPedalDown = false;
+    heldCount = 0;
+    lastNote = std::numeric_limits<float>::quiet_NaN();
     pitchBendSemitones = 0.0f;
     wheelNormalised = 0.0f;
     aftertouch = 0.0f;
@@ -180,12 +182,41 @@ void VoiceEngine::noteOn (int midiNote, float velocity, int midiChannel) noexcep
         return;
     }
 
+    // The keys held down, for the voice modes and for a glide only between
+    // held notes (Phase 19e). Bookkeeping only in Poly with no glide, which is
+    // how Apollo played before either existed.
+    const auto keysWereHeld = heldCount > 0;
+    pushHeldKey (midiNote, velocity, midiChannel);
+
+    if (voiceMode != VoiceMode::poly)
+    {
+        monoNoteOn (midiNote, velocity, midiChannel, keysWereHeld);
+        return;
+    }
+
     auto* voice = findVoiceForNewNote();
 
     if (voice == nullptr)
         return;
 
+    // A glide from the last note, to this one, in Poly: portamento.
+    const auto from = glideSource();
+    voice->setNextGlide (from, glideSeconds > 0.0f && (keysWereHeld || ! glideOnlyWhenHeld) ? glideSeconds : 0.0f);
+    lastNote = static_cast<float> (midiNote);
+
     const auto order = nextStartOrder++;
+
+    prepareVoiceForNote (*voice, midiChannel);
+
+    if (voice->isActive())
+        voice->steal (midiNote, velocity, order, midiChannel);
+    else
+        voice->startNote (midiNote, velocity, order, midiChannel);
+}
+
+void VoiceEngine::prepareVoiceForNote (Voice& target, int midiChannel) noexcept
+{
+    auto* voice = &target;
 
     voice->setPitchBendSemitones (pitchBendSemitones);
     voice->setPitchBendNormalised (wheelNormalised);
@@ -212,16 +243,28 @@ void VoiceEngine::noteOn (int midiNote, float velocity, int midiChannel) noexcep
     // instrument's current phase rather than one block's worth behind it.
     for (int i = 0; i < Voice::numLfos; ++i)
         voice->setFreeRunningLfoPhase (i, freeRunningLfoPhase[static_cast<std::size_t> (i)]);
-
-    if (voice->isActive())
-        voice->steal (midiNote, velocity, order, midiChannel);
-    else
-        voice->startNote (midiNote, velocity, order, midiChannel);
 }
 
 void VoiceEngine::noteOff (int midiNote, int midiChannel) noexcept
 {
-    for (int i = 0; i < maxPolyphony; ++i)
+    removeHeldKey (midiNote, midiChannel);
+
+    if (voiceMode != VoiceMode::poly)
+    {
+        monoNoteOff (midiNote);
+
+        // Voices left sounding from before the mode changed end as they would
+        // have.
+        releaseVoicesPlaying (midiNote, midiChannel, 1);
+        return;
+    }
+
+    releaseVoicesPlaying (midiNote, midiChannel, 0);
+}
+
+void VoiceEngine::releaseVoicesPlaying (int midiNote, int midiChannel, int firstVoice) noexcept
+{
+    for (int i = firstVoice; i < maxPolyphony; ++i)
     {
         auto& voice = voices[static_cast<std::size_t> (i)];
 
@@ -263,6 +306,141 @@ void VoiceEngine::noteOff (int midiNote, int midiChannel) noexcept
         else
             voice.releaseNote();
     }
+}
+
+void VoiceEngine::setVoicing (VoiceMode mode, float newGlideSeconds, bool onlyWhenHeld) noexcept
+{
+    voiceMode = mode;
+    glideSeconds = std::isfinite (newGlideSeconds) && newGlideSeconds > 0.0f ? newGlideSeconds : 0.0f;
+    glideOnlyWhenHeld = onlyWhenHeld;
+}
+
+void VoiceEngine::pushHeldKey (int midiNote, float velocity, int midiChannel) noexcept
+{
+    // The same key again — a controller that sends two note-ons — is one key,
+    // and now the newest.
+    removeHeldKey (midiNote, midiChannel);
+
+    if (heldCount == static_cast<int> (heldKeys.size()))
+    {
+        for (std::size_t i = 1; i < heldKeys.size(); ++i)
+            heldKeys[i - 1] = heldKeys[i];
+
+        --heldCount;
+    }
+
+    heldKeys[static_cast<std::size_t> (heldCount++)] = { midiNote, velocity, midiChannel };
+}
+
+void VoiceEngine::removeHeldKey (int midiNote, int midiChannel) noexcept
+{
+    for (int i = 0; i < heldCount; ++i)
+    {
+        const auto& key = heldKeys[static_cast<std::size_t> (i)];
+
+        if (key.note != midiNote || (midiChannel != 0 && key.channel != 0 && key.channel != midiChannel))
+            continue;
+
+        for (int j = i + 1; j < heldCount; ++j)
+            heldKeys[static_cast<std::size_t> (j - 1)] = heldKeys[static_cast<std::size_t> (j)];
+
+        --heldCount;
+        return;
+    }
+}
+
+float VoiceEngine::glideSource() const noexcept
+{
+    const Voice* newest = nullptr;
+
+    for (const auto& voice : voices)
+        if (voice.isActive() && ! voice.isStealing()
+            && (newest == nullptr || voice.getStartOrder() > newest->getStartOrder()))
+            newest = &voice;
+
+    // Where the newest note is, mid-glide or not; with nothing sounding, the
+    // last note played, so a phrase picked up after a rest still slides.
+    return newest != nullptr ? newest->getGlidingNote() : lastNote;
+}
+
+void VoiceEngine::monoNoteOn (int midiNote, float velocity, int midiChannel, bool keysWereHeld) noexcept
+{
+    // One voice: the first. Any other still sounding is a tail from before
+    // the mode changed, and finishes on its own.
+    auto& voice = voices[0];
+
+    const auto glide = glideSeconds > 0.0f && (keysWereHeld || ! glideOnlyWhenHeld) ? glideSeconds : 0.0f;
+    const auto from = glideSource();
+    lastNote = static_cast<float> (midiNote);
+
+    // Legato: a note played while another is held moves the voice there, its
+    // envelopes and LFOs carrying on.
+    if (voiceMode == VoiceMode::legato && keysWereHeld && voice.isActive()
+        && ! voice.isStealing() && ! voice.isReleasing())
+    {
+        voice.legatoTo (midiNote, glide);
+        return;
+    }
+
+    // Otherwise the note takes the voice and starts it again: through the
+    // steal's fade if it is sounding, so the change never clicks.
+    voice.setNextGlide (from, glide);
+    prepareVoiceForNote (voice, midiChannel);
+
+    const auto order = nextStartOrder++;
+
+    if (voice.isActive())
+        voice.steal (midiNote, velocity, order, midiChannel);
+    else
+        voice.startNote (midiNote, velocity, order, midiChannel);
+}
+
+void VoiceEngine::monoNoteOff (int midiNote) noexcept
+{
+    auto& voice = voices[0];
+
+    const auto pending = voice.getPendingNote() == midiNote;
+    const auto playing = voice.isActive() && ! voice.isStealing() && voice.getMidiNote() == midiNote;
+
+    // A key that is not the one sounding was only held: letting it go changes
+    // nothing that can be heard.
+    if (! pending && ! playing)
+        return;
+
+    // Another key is still down: back to the newest of them, as a held note
+    // does — gliding, since a key is held.
+    if (heldCount > 0)
+    {
+        const auto& top = heldKeys[static_cast<std::size_t> (heldCount - 1)];
+        lastNote = static_cast<float> (top.note);
+
+        if (voice.isStealing())
+        {
+            voice.setNextGlide (voice.getGlidingNote(), glideSeconds);
+            voice.steal (top.note, top.velocity, nextStartOrder++, top.channel);
+        }
+        else
+        {
+            voice.legatoTo (top.note, glideSeconds);
+        }
+
+        return;
+    }
+
+    // Nothing held: the note ends, or the pedal holds it.
+    if (pending)
+    {
+        voice.releasePendingNote (sustainPedalDown);
+        return;
+    }
+
+    if (voice.isReleasing() || voice.isSustainHeld())
+        return;
+
+    if (sustainPedalDown)
+        voice.setSustainHeld (true);
+    else
+        voice.releaseNote();
 }
 
 void VoiceEngine::setSustainPedal (bool isDown) noexcept
@@ -721,6 +899,8 @@ void VoiceEngine::applySourceParameters() noexcept
 
 void VoiceEngine::allNotesOff() noexcept
 {
+    heldCount = 0;
+
     for (auto& voice : voices)
     {
         voice.setSustainHeld (false);

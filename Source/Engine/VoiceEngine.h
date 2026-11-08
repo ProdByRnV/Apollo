@@ -40,6 +40,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 
 namespace apollo::engine
 {
@@ -175,6 +176,22 @@ struct FilterParameters
     [[nodiscard]] bool operator== (const FilterParameters&) const = default;
 };
 
+/** How the instrument gives out its voices (Phase 19e, ADR-0133). The order is
+    the `voice_mode` parameter's and is permanent. */
+enum class VoiceMode
+{
+    /** Every note its own voice, as Apollo always played. */
+    poly = 0,
+
+    /** One voice. Every note takes it, starting its envelopes again, and a
+        key let go returns to the one still held. */
+    mono,
+
+    /** One voice. A note played while another is held moves the pitch without
+        starting the envelopes again; one played alone starts them. */
+    legato
+};
+
 class VoiceEngine
 {
 public:
@@ -282,6 +299,16 @@ public:
 
     /** Sustain pedal. Releasing the pedal releases every note held by it. */
     void setSustainPedal (bool isDown) noexcept;
+
+    /** The voice mode and the glide (Phase 19e). @p glideSeconds of zero is no
+        glide; @p glideOnlyWhenHeld glides only to a note played while another
+        key is held, as legato playing does. Once a block. */
+    void setVoicing (VoiceMode mode, float glideSeconds, bool glideOnlyWhenHeld) noexcept;
+
+    [[nodiscard]] VoiceMode getVoiceMode() const noexcept { return voiceMode; }
+
+    /** How many keys are held down, for the tests. */
+    [[nodiscard]] int getHeldKeyCount() const noexcept { return heldCount; }
 
     /** Pitch bend for every sounding and future voice, in semitones. */
     void setPitchBendSemitones (float semitones) noexcept;
@@ -540,6 +567,45 @@ public:
 
 private:
     [[nodiscard]] Voice* findVoiceForNewNote() noexcept;
+
+    /** Hands @p voice what a note about to start on @p midiChannel adopts: the
+        bends, the timbre and the free-running LFO phases. */
+    void prepareVoiceForNote (Voice& voice, int midiChannel) noexcept;
+
+    /** A note on, and off, with one voice (Phase 19e). */
+    void monoNoteOn (int midiNote, float velocity, int midiChannel, bool keysWereHeld) noexcept;
+    void monoNoteOff (int midiNote) noexcept;
+
+    /** Releases the voices from @p firstVoice on that play @p midiNote, as a
+        note-off does. */
+    void releaseVoicesPlaying (int midiNote, int midiChannel, int firstVoice) noexcept;
+
+    /** Where a glide to the next note starts: the newest voice's pitch, where
+        its own glide has got to, or the last note played; NaN before any. */
+    [[nodiscard]] float glideSource() const noexcept;
+
+    /** The keys held down, oldest first (Phase 19e). Fixed, so nothing
+        allocates; a key past the last place pushes the oldest out. */
+    struct HeldKey
+    {
+        int note = -1;
+        float velocity = 0.0f;
+        int channel = 0;
+    };
+
+    void pushHeldKey (int midiNote, float velocity, int midiChannel) noexcept;
+    void removeHeldKey (int midiNote, int midiChannel) noexcept;
+
+    std::array<HeldKey, static_cast<std::size_t> (maxPolyphony)> heldKeys {};
+    int heldCount = 0;
+
+    VoiceMode voiceMode = VoiceMode::poly;
+    float glideSeconds = 0.0f;
+    bool glideOnlyWhenHeld = false;
+
+    /** The last note started, for a glide from it once its voice has gone;
+        NaN before any. */
+    float lastNote = std::numeric_limits<float>::quiet_NaN();
 
     /** Resolves `parameters` into voice settings and pushes them to every
         voice, rebuilding the unison layouts if their inputs moved.

@@ -131,6 +131,12 @@ export const LABELS: Record<string, readonly string[]> = {
                 'Velocity', 'Key Track', 'Mod Wheel', 'Pitch Bend', 'Aftertouch', 'Random',
                 'Timbre', 'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4', 'Follower'],
 
+    // engine::VoiceMode (Phase 19e).
+    voice_mode: ['POLY', 'MONO', 'LEGATO'],
+
+    // 0 glides to every note, 1 only to one played while another is held.
+    glide_mode: ['ALWAYS', 'LEGATO'],
+
     // Matches midi::MpeZoneType.
     mpe_zone: ['OFF', 'LOWER', 'UPPER'],
 

@@ -500,6 +500,11 @@ private:
     std::atomic<float>* followerRelease = nullptr;
     std::atomic<float>* followerGain = nullptr;
 
+    /** The voice mode and glide (Phase 19e). */
+    std::atomic<float>* voiceModeParameter = nullptr;
+    std::atomic<float>* glideTimeParameter = nullptr;
+    std::atomic<float>* glideModeParameter = nullptr;
+
     std::array<ModSlotParameterPointers, static_cast<std::size_t> (dsp::maxModulationSlots)>
         modulationParameters;
 

@@ -335,6 +335,9 @@ const std::vector<ParameterIdentity>& pinnedParameterIdentities()
         { "env4_attack_bend", 1558470008u },
         { "env4_decay_bend", 958035190u },
         { "env4_release_bend", 424924873u },
+        { "voice_mode", 632422544u },
+        { "glide_time", 1300260647u },
+        { "glide_mode", 1300057597u },
     };
 
     return identities;

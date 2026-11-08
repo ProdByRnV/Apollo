@@ -128,3 +128,23 @@ export function Noise(): JSX.Element {
         </Module>
     );
 }
+
+/*
+    How the voices are given out, and glide (Phase 19e, ADR-0133). With the
+    oscillators because it is part of the sound, not of the controller: a
+    patch played mono with a slow glide is a different patch.
+
+    MONO is one voice that every note starts again; LEGATO is one voice that a
+    note played while another is held moves without starting again. Glide is
+    the time a note takes to slide from the last one's pitch, in any mode;
+    LEGATO there slides only between held notes.
+*/
+export function Voicing(): JSX.Element {
+    return (
+        <Module title="Voicing">
+            <Segmented id="voice_mode" label="Voices" table={LABELS.voice_mode} />
+            <Knob id="glide_time" label="Glide" />
+            <Segmented id="glide_mode" label="Glide to" table={LABELS.glide_mode} />
+        </Module>
+    );
+}

@@ -589,7 +589,7 @@ float Voice::playedOctaves() const noexcept
     if (stage == VoiceStage::idle)
         return 0.0f;
 
-    return (static_cast<float> (note - 60) + pitchBendSemitones + noteBendSemitones) / 12.0f;
+    return (static_cast<float> (note - 60) + glideOffset + pitchBendSemitones + noteBendSemitones) / 12.0f;
 }
 
 void Voice::updateNoiseRate() noexcept
@@ -728,6 +728,11 @@ void Voice::reset() noexcept
     timbre = 0.5f;
     noteBendSemitones = 0.0f;
 
+    glideOffset = 0.0f;
+    glideStep = 0.0f;
+    glideCountdown = 0;
+    nextGlideSeconds = 0.0f;
+
     // Pitch bend is a channel-wide value, not a per-note one, so it is
     // deliberately NOT cleared here: a voice reused while the wheel is held
     // must adopt the current bend, not snap back to centre.
@@ -741,6 +746,16 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     startOrder = newStartOrder;
     channel = midiChannel;
     sustainHeld = false;
+
+    // A glide this note was given begins here, before anything derives the
+    // pitch (Phase 19e); a note without one starts on its own pitch.
+    glideOffset = 0.0f;
+    glideStep = 0.0f;
+
+    if (nextGlideSeconds > 0.0f)
+        startGlide (nextGlideFrom, nextGlideSeconds);
+
+    nextGlideSeconds = 0.0f;
 
     // Pressure starts at zero whatever the previous note on this voice left
     // behind: it is a *force*, nobody is applying one at the instant a note
@@ -888,6 +903,72 @@ void Voice::releaseNote() noexcept
         envelope.noteOff();
 }
 
+void Voice::startGlide (float fromNote, float seconds) noexcept
+{
+    const auto offset = fromNote - static_cast<float> (note);
+    const auto samples = static_cast<double> (seconds) * sampleRate;
+
+    // No time, no distance, or nonsense: the note simply plays its pitch.
+    if (! std::isfinite (offset) || offset == 0.0f || ! (samples >= 1.0))
+    {
+        glideOffset = 0.0f;
+        glideStep = 0.0f;
+        return;
+    }
+
+    glideOffset = offset;
+    glideStep = static_cast<float> (static_cast<double> (offset) / samples);
+    glideCountdown = modulationBlockSamples;
+}
+
+void Voice::advanceGlide() noexcept
+{
+    glideOffset -= glideStep;
+
+    // Arrived — or passed it, by rounding — so it is exactly there.
+    if ((glideStep > 0.0f && glideOffset <= 0.0f) || (glideStep < 0.0f && glideOffset >= 0.0f))
+    {
+        glideOffset = 0.0f;
+        glideStep = 0.0f;
+        updatePlayedPitch();
+        return;
+    }
+
+    // The pitch every control block, as pitch modulation is: a pow per
+    // oscillator per sample would be the voice's most expensive line, and a
+    // glide stepped 3,000 times a second is a glide.
+    if (--glideCountdown <= 0)
+    {
+        glideCountdown = modulationBlockSamples;
+        updatePlayedPitch();
+    }
+}
+
+void Voice::updatePlayedPitch() noexcept
+{
+    updatePhaseIncrement();
+    updateNoiseRate();
+
+    if (isKeyTracking())
+        resolveFilterCoefficients();
+}
+
+void Voice::legatoTo (int midiNote, float seconds) noexcept
+{
+    if (stage != VoiceStage::sounding || midiNote < 0 || midiNote > 127)
+        return;
+
+    const auto from = getGlidingNote();
+
+    note = midiNote;
+    startGlide (from, seconds);
+    updatePlayedPitch();
+
+    // Key tracking is a source, and follows the new note at the next control
+    // block rather than at the end of the current one.
+    modulationCountdown = 0;
+}
+
 void Voice::setPitchBendSemitones (float semitones) noexcept
 {
     pitchBendSemitones = semitones;
@@ -929,6 +1010,7 @@ void Voice::updatePhaseIncrement() noexcept
     // its own range while a finger slides one note through a much wider one — and
     // outside MPE the per-note term is simply zero.
     const double bentNote = static_cast<double> (note)
+                          + static_cast<double> (glideOffset)
                           + static_cast<double> (pitchBendSemitones)
                           + static_cast<double> (noteBendSemitones)
                           + commonPitch;
@@ -1064,6 +1146,9 @@ void Voice::renderAdding (float* const* output, int numChannels, int startSample
 
     for (int i = 0; i < numSamples; ++i)
     {
+        if (glideStep != 0.0f)
+            advanceGlide();
+
         if (hasActiveRouting)
         {
             // Sources advance every sample so their timing is exact — an
