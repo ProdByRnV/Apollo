@@ -36,7 +36,7 @@ struct ModulationTarget
 
 /** Every destination with a control of its own. All Pitch and Amplitude are
     absent rather than guessed at: neither is one knob. */
-inline constexpr std::array<ModulationTarget, 32> modulationTargets { {
+inline constexpr std::array<ModulationTarget, 65> modulationTargets { {
     { dsp::ModDestination::osc1Pitch,         "osc1_semitones" },
     { dsp::ModDestination::osc2Pitch,         "osc2_semitones" },
     { dsp::ModDestination::osc1Position,      "osc1_position" },
@@ -70,6 +70,40 @@ inline constexpr std::array<ModulationTarget, 32> modulationTargets { {
     { dsp::ModDestination::macro2,            "macro2_value" },
     { dsp::ModDestination::macro3,            "macro3_value" },
     { dsp::ModDestination::macro4,            "macro4_value" },
+    // The master, and the envelopes' and LFOs' own controls (Phase 19b, 19d).
+    { dsp::ModDestination::masterGain,        "master_gain" },
+    { dsp::ModDestination::envelope1Delay,    "env1_delay" },
+    { dsp::ModDestination::envelope1Attack,   "env1_attack" },
+    { dsp::ModDestination::envelope1Hold,     "env1_hold" },
+    { dsp::ModDestination::envelope1Decay,    "env1_decay" },
+    { dsp::ModDestination::envelope1Sustain,  "env1_sustain" },
+    { dsp::ModDestination::envelope1Release,  "env1_release" },
+    { dsp::ModDestination::envelope2Delay,    "env2_delay" },
+    { dsp::ModDestination::envelope2Attack,   "env2_attack" },
+    { dsp::ModDestination::envelope2Hold,     "env2_hold" },
+    { dsp::ModDestination::envelope2Decay,    "env2_decay" },
+    { dsp::ModDestination::envelope2Sustain,  "env2_sustain" },
+    { dsp::ModDestination::envelope2Release,  "env2_release" },
+    { dsp::ModDestination::envelope3Delay,    "env3_delay" },
+    { dsp::ModDestination::envelope3Attack,   "env3_attack" },
+    { dsp::ModDestination::envelope3Hold,     "env3_hold" },
+    { dsp::ModDestination::envelope3Decay,    "env3_decay" },
+    { dsp::ModDestination::envelope3Sustain,  "env3_sustain" },
+    { dsp::ModDestination::envelope3Release,  "env3_release" },
+    { dsp::ModDestination::envelope4Delay,    "env4_delay" },
+    { dsp::ModDestination::envelope4Attack,   "env4_attack" },
+    { dsp::ModDestination::envelope4Hold,     "env4_hold" },
+    { dsp::ModDestination::envelope4Decay,    "env4_decay" },
+    { dsp::ModDestination::envelope4Sustain,  "env4_sustain" },
+    { dsp::ModDestination::envelope4Release,  "env4_release" },
+    { dsp::ModDestination::lfo1Rate,          "lfo1_rate" },
+    { dsp::ModDestination::lfo1Phase,         "lfo1_phase" },
+    { dsp::ModDestination::lfo2Rate,          "lfo2_rate" },
+    { dsp::ModDestination::lfo2Phase,         "lfo2_phase" },
+    { dsp::ModDestination::lfo3Rate,          "lfo3_rate" },
+    { dsp::ModDestination::lfo3Phase,         "lfo3_phase" },
+    { dsp::ModDestination::lfo4Rate,          "lfo4_rate" },
+    { dsp::ModDestination::lfo4Phase,         "lfo4_phase" },
 } };
 
 /** @returns the destination that offsets parameter @p id, or none. */

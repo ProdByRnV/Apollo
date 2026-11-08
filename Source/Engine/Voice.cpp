@@ -172,7 +172,7 @@ void Voice::setNoiseSeed (std::uint32_t seed) noexcept
 
 void Voice::setAmplitudeEnvelope (const dsp::EnvelopeSettings& newSettings) noexcept
 {
-    envelopes[0].setSettings (newSettings);
+    setEnvelopeSettings (0, newSettings);
 }
 
 void Voice::setFilters (const VoiceFilterSettings& newFilters) noexcept
@@ -243,7 +243,13 @@ void Voice::setEnvelopeSettings (int index, const dsp::EnvelopeSettings& newSett
     if (index < 0 || index >= numEnvelopes)
         return;
 
-    envelopes[static_cast<std::size_t> (index)].setSettings (newSettings);
+    const auto i = static_cast<std::size_t> (index);
+    envelopeBase[i] = newSettings;
+
+    // A control moved while the matrix moves the same envelope keeps the
+    // matrix's offsets on top of its new setting.
+    envelopes[i].setSettings (envelopeModulated[i] ? dsp::modulatedEnvelope (newSettings, index, destinationValues)
+                                                   : newSettings);
 }
 
 void Voice::setLfoSettings (int index, const dsp::LfoSettings& newSettings) noexcept
@@ -281,6 +287,34 @@ void Voice::setModulationRouting (const dsp::ModulationRouting& newRouting) noex
 
         if (slot.via != dsp::ModSource::none && via < sourceUsed.size())
             sourceUsed[via] = true;
+    }
+
+    // Which envelopes and LFOs are destinations now (Phase 19d). One that has
+    // stopped being one goes back to exactly what was set.
+    generatorsModulated = false;
+
+    for (int i = 0; i < numEnvelopes; ++i)
+    {
+        const auto at = static_cast<std::size_t> (i);
+        const auto modulated = dsp::routesToEnvelope (routing, i);
+
+        if (envelopeModulated[at] && ! modulated)
+            envelopes[at].setSettings (envelopeBase[at]);
+
+        envelopeModulated[at] = modulated;
+        generatorsModulated = generatorsModulated || modulated;
+    }
+
+    for (int i = 0; i < numLfos; ++i)
+    {
+        const auto at = static_cast<std::size_t> (i);
+        const auto modulated = dsp::routesToLfo (routing, i);
+
+        if (lfoModulated[at] && ! modulated)
+            lfos[at].setModulation (0.0f, 0.0f);
+
+        lfoModulated[at] = modulated;
+        generatorsModulated = generatorsModulated || modulated;
     }
 
     // A routing that has just been switched off must not leave its last offsets
@@ -461,6 +495,25 @@ void Voice::applyModulation() noexcept
 
     updateFilterControls();
     resolveFilterCoefficients();
+
+    if (generatorsModulated)
+        applyGeneratorModulation();
+}
+
+void Voice::applyGeneratorModulation() noexcept
+{
+    for (int i = 0; i < numEnvelopes; ++i)
+    {
+        const auto at = static_cast<std::size_t> (i);
+
+        if (envelopeModulated[at])
+            envelopes[at].setSettings (dsp::modulatedEnvelope (envelopeBase[at], i, destinationValues));
+    }
+
+    for (int i = 0; i < numLfos; ++i)
+        if (lfoModulated[static_cast<std::size_t> (i)])
+            lfos[static_cast<std::size_t> (i)].setModulation (destinationOffset (dsp::lfoRateDestination (i)),
+                                                               destinationOffset (dsp::lfoPhaseDestination (i)));
 }
 
 void Voice::updateFilterControls() noexcept
@@ -726,6 +779,27 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // in rather than gliding up to it.
     snapGainsToTargets();
 
+    // One random value, chosen now and held for the life of the note. This is
+    // the source that makes repeated notes differ from one another, which is a
+    // different job from the noise generator and from a sample-and-hold LFO.
+    // Chosen before the envelopes and LFOs start, which use nothing of it, so
+    // that it is there for the pass below.
+    randomState ^= randomState << 13;
+    randomState ^= randomState >> 17;
+    randomState ^= randomState << 5;
+    perNoteRandom = static_cast<float> (static_cast<std::int32_t> (randomState)) / 2147483648.0f;
+
+    // An envelope or LFO the matrix reaches gets this note's offsets before it
+    // starts (Phase 19d): velocity lengthening a delay that is set to zero has
+    // to be in place before the delay is skipped, and a note's attack is its
+    // attack from its first sample. The sources are as the note starts; the
+    // envelopes and LFOs are read as they last were, since they have not.
+    if (generatorsModulated)
+    {
+        updateModulation();
+        applyGeneratorModulation();
+    }
+
     for (auto& envelope : envelopes)
         envelope.noteOn();
 
@@ -733,14 +807,6 @@ void Voice::beginNote (int midiNote, float velocity, std::uint64_t newStartOrder
     // at different times move together; retriggering ones ignore it and restart.
     for (std::size_t i = 0; i < lfos.size(); ++i)
         lfos[i].noteOn (freeRunningLfoPhase[i]);
-
-    // One random value, chosen now and held for the life of the note. This is
-    // the source that makes repeated notes differ from one another, which is a
-    // different job from the noise generator and from a sample-and-hold LFO.
-    randomState ^= randomState << 13;
-    randomState ^= randomState >> 17;
-    randomState ^= randomState << 5;
-    perNoteRandom = static_cast<float> (static_cast<std::int32_t> (randomState)) / 2147483648.0f;
 
     stealGain = 1.0f;
     stage = VoiceStage::sounding;

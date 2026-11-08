@@ -518,6 +518,11 @@ void VoiceEngine::setModulationRouting (const dsp::ModulationRouting& newRouting
 
     routing = newRouting;
 
+    masterModulated = false;
+
+    for (const auto& slot : routing.slots)
+        masterModulated = masterModulated || (slot.isActive() && slot.destination == dsp::ModDestination::masterGain);
+
     for (auto& voice : voices)
         voice.setModulationRouting (routing);
 }
@@ -572,6 +577,7 @@ void VoiceEngine::updateEffectModulation() noexcept
         for (std::size_t i = 0; i < effectOffsets.size(); ++i)
             effectOffsets[i] = newest->getModulationOffset (static_cast<dsp::ModDestination> (first + i));
 
+        masterOffset = newest->getModulationOffset (dsp::ModDestination::masterGain);
         return;
     }
 
@@ -589,6 +595,8 @@ void VoiceEngine::updateEffectModulation() noexcept
 
     for (std::size_t i = 0; i < effectOffsets.size(); ++i)
         effectOffsets[i] = destinations[first + i];
+
+    masterOffset = destinations[static_cast<std::size_t> (dsp::ModDestination::masterGain)];
 }
 
 float VoiceEngine::getEffectOffset (dsp::ModDestination destination) const noexcept

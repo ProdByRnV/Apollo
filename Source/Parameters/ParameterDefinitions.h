@@ -1181,7 +1181,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod01_destination", "Mod 1 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1208,7 +1208,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod02_destination", "Mod 2 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1232,7 +1232,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod03_destination", "Mod 3 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1256,7 +1256,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod04_destination", "Mod 4 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1280,7 +1280,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod05_destination", "Mod 5 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1304,7 +1304,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod06_destination", "Mod 6 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1328,7 +1328,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod07_destination", "Mod 7 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1352,7 +1352,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod08_destination", "Mod 8 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1376,7 +1376,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod09_destination", "Mod 9 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1400,7 +1400,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod10_destination", "Mod 10 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1424,7 +1424,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod11_destination", "Mod 11 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1448,7 +1448,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod12_destination", "Mod 12 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1472,7 +1472,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod13_destination", "Mod 13 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1496,7 +1496,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod14_destination", "Mod 14 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1520,7 +1520,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod15_destination", "Mod 15 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 
@@ -1544,7 +1544,7 @@ inline constexpr std::array<ParameterDefinition, 322> parameterDefinitions { {
 
     { "mod16_destination", "Mod 16 Destination",
       ParameterType::integer, ParameterUnit::none,
-      0.0f, 34.0f, 0.0f,
+      0.0f, 67.0f, 0.0f,
       1.0f, 1.0f,
       true, false, false },
 

@@ -412,6 +412,15 @@ public:
         in the destination's own units; zero for anything else. */
     [[nodiscard]] float getEffectOffset (dsp::ModDestination destination) const noexcept;
 
+    /** The master gain's offset in decibels as of the last
+        updateEffectModulation (Phase 19b): taken the way the effects' are,
+        from the newest sounding voice or the engine-wide sources. */
+    [[nodiscard]] float getMasterOffset() const noexcept { return masterOffset; }
+
+    /** True when an active routing reaches the master gain, so the processor
+        follows it through the block rather than smoothing towards it. */
+    [[nodiscard]] bool isMasterModulated() const noexcept { return masterModulated; }
+
     /** Channel aftertouch on every channel at once.
 
         Kept for callers that do not track channels, and for the tests that
@@ -590,6 +599,11 @@ private:
 
     /** The effect destinations' offsets, indexed from dsp::firstEffectDestination. */
     std::array<float, static_cast<std::size_t> (dsp::numEffectDestinations)> effectOffsets {};
+
+    /** The master gain's offset in decibels, worked out with the effects'
+        (Phase 19b), and whether any routing reaches it. */
+    float masterOffset = 0.0f;
+    bool masterModulated = false;
     float aftertouch = 0.0f;
 
     midi::MpeZone mpeZone;

@@ -47,6 +47,7 @@
 #include "DSP/Filters/FilterDrive.h"
 #include "DSP/LFO/Lfo.h"
 #include "DSP/Modulation/Macro.h"
+#include "DSP/Modulation/GeneratorModulation.h"
 #include "DSP/Modulation/MacroModulation.h"
 #include "DSP/Modulation/ModulationTypes.h"
 #include "Engine/FilterSettings.h"
@@ -485,6 +486,11 @@ private:
     /** Pushes the modulated values into the things that consume them. */
     void applyModulation() noexcept;
 
+    /** Gives each envelope and LFO the matrix reaches its offsets: an
+        envelope its modulated times and sustain, an LFO its rate and phase
+        offsets (Phase 19d). The others are left exactly as set. */
+    void applyGeneratorModulation() noexcept;
+
     [[nodiscard]] float destinationOffset (dsp::ModDestination destination) const noexcept
     {
         return destinationValues[static_cast<std::size_t> (destination)];
@@ -583,6 +589,18 @@ private:
     std::array<dsp::Envelope, static_cast<std::size_t> (numEnvelopes)> envelopes;
 
     std::array<dsp::Lfo, static_cast<std::size_t> (numLfos)> lfos;
+
+    /** Each envelope's settings as the user set them. What the envelope runs
+        is these, or these with the matrix's offsets where a routing reaches it
+        (Phase 19d). */
+    std::array<dsp::EnvelopeSettings, static_cast<std::size_t> (numEnvelopes)> envelopeBase {};
+
+    /** Which envelopes and LFOs an active routing reaches as a destination.
+        Only those are given offsets, so a patch that modulates none of them
+        runs every one exactly as it did before they could be. */
+    std::array<bool, static_cast<std::size_t> (numEnvelopes)> envelopeModulated {};
+    std::array<bool, static_cast<std::size_t> (numLfos)> lfoModulated {};
+    bool generatorsModulated = false;
 
     dsp::ModulationRouting routing;
     dsp::ModSourceValues sourceValues {};

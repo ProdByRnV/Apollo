@@ -61,10 +61,20 @@ void Envelope::setSettings (const EnvelopeSettings& newSettings) noexcept
         return;
 
     const auto previousSustain = settings.sustainLevel;
+    const auto previousCurve = curveForStage (stage);
 
     settings = newSettings;
 
-    if (samplesRemaining > 0 && segmentLengthSamples > 0)
+    if (samplesRemaining > 0 && segmentLengthSamples > 0 && curveForStage (stage) == previousCurve)
+    {
+        // The same curve: the segment carries on along it from where it is,
+        // over its new length to its new end (Phase 19d). A time or a sustain
+        // the matrix moves every sixteen samples would otherwise restart the
+        // curve every sixteen samples, always at its steepest, and an analog
+        // decay modulated by an LFO would run several times too fast.
+        continueSegment (targetForStage (stage), secondsForStage (stage));
+    }
+    else if (samplesRemaining > 0 && segmentLengthSamples > 0)
     {
         // A change while a timed segment is running retimes that segment rather
         // than waiting for the next one, so a decay knob moved during a held
@@ -212,6 +222,64 @@ void Envelope::beginSegment (float target, float seconds) noexcept
 
     const auto denominator = 1.0f - std::exp (-k);
     expScale = denominator != 0.0f ? 1.0f / denominator : 1.0f;
+}
+
+void Envelope::continueSegment (float target, float seconds) noexcept
+{
+    // How far along the segment is, which the new length keeps.
+    const auto progress = 1.0 - static_cast<double> (samplesRemaining)
+                              / static_cast<double> (segmentLengthSamples);
+
+    const auto samples = static_cast<double> (seconds) * sampleRate;
+    const auto length = samples >= 1.0 ? static_cast<int> (samples) : 0;
+    const auto remaining = static_cast<int> (std::lround ((1.0 - progress) * static_cast<double> (length)));
+
+    // Nothing left of it at the new length: it ends on the next sample, at
+    // its target, as a segment cut short always has.
+    if (length <= 0 || remaining <= 0)
+    {
+        segmentTarget = target;
+        samplesRemaining = 0;
+        segmentLengthSamples = 0;
+        return;
+    }
+
+    if (segmentIsLinear)
+    {
+        // A straight line from here to the end, in the time that is left.
+        segmentTarget = target;
+        linearIncrement = (segmentTarget - level) / static_cast<float> (remaining);
+    }
+    else
+    {
+        // The same point on the same curve, stepped at the new rate. A new
+        // end is met by moving where the curve is drawn from, so the level
+        // does not jump: level = start + (target - start) * s, solved for
+        // start with s where the segment is. Near its end that is ill
+        // conditioned, and the rest of it is drawn from here instead.
+        const auto shaped = (1.0f - expTerm) * expScale;
+
+        if (target != segmentTarget)
+        {
+            if (shaped < 0.999f)
+            {
+                segmentStart = (level - target * shaped) / (1.0f - shaped);
+                segmentTarget = target;
+            }
+            else
+            {
+                segmentTarget = target;
+                segmentIsLinear = true;
+                linearIncrement = (segmentTarget - level) / static_cast<float> (remaining);
+            }
+        }
+
+        const auto k = curveForStage (stage) * curveScale;
+        expRatio = std::exp (-k / static_cast<float> (length));
+    }
+
+    segmentLengthSamples = length;
+    samplesRemaining = remaining;
 }
 
 void Envelope::enterStage (EnvelopeStage next) noexcept

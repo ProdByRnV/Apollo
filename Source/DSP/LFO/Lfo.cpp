@@ -1,5 +1,6 @@
 #include "DSP/LFO/Lfo.h"
 #include "DSP/LFO/LfoCurve.h"
+#include "DSP/Modulation/GeneratorModulation.h"
 
 #include <cmath>
 
@@ -94,8 +95,7 @@ void Lfo::setSettings (const LfoSettings& newSettings) noexcept
 {
     settings = newSettings;
 
-    increment = static_cast<double> (clampRange (settings.rateHz, minimumRateHz, maximumRateHz))
-              / sampleRate;
+    updateIncrement();
 
     // Smoothing as a one-pole coefficient. Expressed as a time so that the
     // control means the same thing at every sample rate.
@@ -110,6 +110,37 @@ void Lfo::setSettings (const LfoSettings& newSettings) noexcept
     const auto fadeSamples = static_cast<double> (fadeSeconds) * sampleRate;
 
     fadeIncrement = fadeSamples >= 1.0 ? static_cast<float> (1.0 / fadeSamples) : 1.0f;
+}
+
+void Lfo::updateIncrement() noexcept
+{
+    // No offset is the rate as set, without a round trip through the knob's
+    // curve, so an unmodulated LFO runs at exactly the rate it always did.
+    const auto rate = rateOffset == 0.0f
+                        ? settings.rateHz
+                        : offsetAlongTravel (clampRange (settings.rateHz, minimumRateHz, maximumRateHz),
+                                             lfoRateMinimumHz, lfoRateMaximumHz, lfoRateSkew, rateOffset);
+
+    increment = static_cast<double> (clampRange (rate, minimumRateHz, maximumRateHz)) / sampleRate;
+}
+
+void Lfo::setModulation (float newRateOffset, float newPhaseShift) noexcept
+{
+    const auto rate = std::isfinite (newRateOffset) ? newRateOffset : 0.0f;
+
+    if (rate != rateOffset)
+    {
+        rateOffset = rate;
+        updateIncrement();
+    }
+
+    // A shift that is not a number shifts nothing.
+    phaseShift = std::isfinite (newPhaseShift) ? static_cast<double> (newPhaseShift) : 0.0;
+}
+
+float Lfo::shapeAtShiftedPhase() noexcept
+{
+    return shapeAt (phaseShift == 0.0 ? phase : wrapPhase (phase + phaseShift));
 }
 
 void Lfo::setSeed (std::uint32_t newSeed) noexcept
@@ -138,7 +169,7 @@ void Lfo::noteOn (double freeRunningPhase) noexcept
         hasHeldValue = false;
     }
 
-    current = shapeAt (phase);
+    current = shapeAtShiftedPhase();
     smoothed = current;
 }
 
@@ -247,7 +278,7 @@ float Lfo::getNextValue() noexcept
     // advances afterwards. The other order would mean the first sample after a
     // note started was already one increment into the shape, so a saw set to
     // retrigger would never quite begin at its bottom.
-    auto value = shapeAt (phase);
+    auto value = shapeAtShiftedPhase();
 
     // Slew. Applied before polarity so the smoothing time means the same thing
     // whichever range the output is in.

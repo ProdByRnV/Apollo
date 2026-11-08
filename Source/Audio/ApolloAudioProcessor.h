@@ -320,7 +320,8 @@ private:
         hear about it, and an idle instance checks one atomic. */
     static constexpr int latencyPollHz = 10;
 
-    /** @returns the master gain as a linear multiplier. */
+    /** @returns the master gain as a linear multiplier: the knob, and the
+        matrix's offset to it where a routing reaches it (Phase 19b). */
     [[nodiscard]] float readMasterGainLinear() const noexcept;
     /** Apollo's bus layout.
 

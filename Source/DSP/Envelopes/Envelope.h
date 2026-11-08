@@ -163,6 +163,11 @@ private:
     /** Starts a timed ramp from the current level to @p target over @p seconds. */
     void beginSegment (float target, float seconds) noexcept;
 
+    /** Gives the segment in progress a new length and end without starting it
+        again: it keeps how far along it is and where it is on its curve, and
+        the level does not jump (Phase 19d). */
+    void continueSegment (float target, float seconds) noexcept;
+
     /** @returns the time this stage is configured to take. */
     [[nodiscard]] float secondsForStage (EnvelopeStage query) const noexcept;
 

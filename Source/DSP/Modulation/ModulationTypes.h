@@ -188,8 +188,87 @@ enum class ModDestination
     macro3,
     macro4,
 
+    /** The master gain, in decibels (Phase 19b). Consumed by the processor,
+        after the effects, like the effect destinations: the newest voice's
+        offset, or the engine-wide sources' when nothing sounds. Appended after
+        release, as everything from here on is (ADR-0131). */
+    masterGain,
+
+    /** Each envelope's stage times and sustain (Phase 19d). A time moves as
+        its knob does — a depth of 1 is the knob's whole travel, on the knob's
+        own curve — so an offset means the same at 5 ms as at 5 s; the sustain
+        is a level, 0 to 1. Per voice: velocity shortening an attack shortens
+        that note's. */
+    envelope1Delay,
+    envelope1Attack,
+    envelope1Hold,
+    envelope1Decay,
+    envelope1Sustain,
+    envelope1Release,
+    envelope2Delay,
+    envelope2Attack,
+    envelope2Hold,
+    envelope2Decay,
+    envelope2Sustain,
+    envelope2Release,
+    envelope3Delay,
+    envelope3Attack,
+    envelope3Hold,
+    envelope3Decay,
+    envelope3Sustain,
+    envelope3Release,
+    envelope4Delay,
+    envelope4Attack,
+    envelope4Hold,
+    envelope4Decay,
+    envelope4Sustain,
+    envelope4Release,
+
+    /** Each LFO's rate, as a fraction of its knob's travel on the knob's own
+        curve, and its phase, in cycles (Phase 19d). Per voice. */
+    lfo1Rate,
+    lfo1Phase,
+    lfo2Rate,
+    lfo2Phase,
+    lfo3Rate,
+    lfo3Phase,
+    lfo4Rate,
+    lfo4Phase,
+
     count
 };
+
+/** The stages an envelope's destinations name, in the order they are listed. */
+enum class EnvelopeTarget
+{
+    delay = 0,
+    attack,
+    hold,
+    decay,
+    sustain,
+    release
+};
+
+inline constexpr int numEnvelopeTargets = 6;
+inline constexpr int numLfoTargets = 2;
+
+/** The first destination of envelope @p index (from 0): its delay. */
+[[nodiscard]] constexpr ModDestination envelopeDestination (int index, EnvelopeTarget target) noexcept
+{
+    return static_cast<ModDestination> (static_cast<int> (ModDestination::envelope1Delay)
+                                        + index * numEnvelopeTargets + static_cast<int> (target));
+}
+
+/** LFO @p index's rate (from 0), and its phase. */
+[[nodiscard]] constexpr ModDestination lfoRateDestination (int index) noexcept
+{
+    return static_cast<ModDestination> (static_cast<int> (ModDestination::lfo1Rate) + index * numLfoTargets);
+}
+
+[[nodiscard]] constexpr ModDestination lfoPhaseDestination (int index) noexcept
+{
+    return static_cast<ModDestination> (static_cast<int> (ModDestination::lfo1Phase) + index * numLfoTargets);
+}
 
 /** The effect destinations, first to last; consumed by the processor rather
     than by a voice. They ended the list until 18h appended the macros. */
@@ -262,6 +341,46 @@ inline constexpr ModDestination firstMacroDestination = ModDestination::macro1;
         case ModDestination::macro2:
         case ModDestination::macro3:
         case ModDestination::macro4:
+            return 1.0f;
+
+        // The master knob's whole travel, -60 to +6 dB.
+        case ModDestination::masterGain:
+            return 66.0f;
+
+        // A time's or a rate's whole knob travel, along the knob's curve; a
+        // sustain's whole level; a whole cycle of phase.
+        case ModDestination::envelope1Delay:
+        case ModDestination::envelope1Attack:
+        case ModDestination::envelope1Hold:
+        case ModDestination::envelope1Decay:
+        case ModDestination::envelope1Sustain:
+        case ModDestination::envelope1Release:
+        case ModDestination::envelope2Delay:
+        case ModDestination::envelope2Attack:
+        case ModDestination::envelope2Hold:
+        case ModDestination::envelope2Decay:
+        case ModDestination::envelope2Sustain:
+        case ModDestination::envelope2Release:
+        case ModDestination::envelope3Delay:
+        case ModDestination::envelope3Attack:
+        case ModDestination::envelope3Hold:
+        case ModDestination::envelope3Decay:
+        case ModDestination::envelope3Sustain:
+        case ModDestination::envelope3Release:
+        case ModDestination::envelope4Delay:
+        case ModDestination::envelope4Attack:
+        case ModDestination::envelope4Hold:
+        case ModDestination::envelope4Decay:
+        case ModDestination::envelope4Sustain:
+        case ModDestination::envelope4Release:
+        case ModDestination::lfo1Rate:
+        case ModDestination::lfo1Phase:
+        case ModDestination::lfo2Rate:
+        case ModDestination::lfo2Phase:
+        case ModDestination::lfo3Rate:
+        case ModDestination::lfo3Phase:
+        case ModDestination::lfo4Rate:
+        case ModDestination::lfo4Phase:
             return 1.0f;
 
         // Cutoff is modulated in octaves rather than hertz, because that is how

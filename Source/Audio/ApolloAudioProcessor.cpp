@@ -2,6 +2,8 @@
 
 #include "ApolloVersion.h"
 
+#include <cmath>
+
 #if APOLLO_WITH_WEBVIEW
  #include "UI/ApolloWebViewEditor.h"
 #else
@@ -460,10 +462,21 @@ void ApolloAudioProcessor::reset()
 
 float ApolloAudioProcessor::readMasterGainLinear() const noexcept
 {
-    if (masterGainParameter == nullptr)
-        return 1.0f;
+    const auto knobDb = masterGainParameter != nullptr
+                          ? masterGainParameter->load (std::memory_order_relaxed)
+                          : 0.0f;
 
-    return juce::Decibels::decibelsToGain (masterGainParameter->load (std::memory_order_relaxed));
+    // The knob alone unless a routing reaches it (Phase 19b), so an unrouted
+    // master is exactly the value it always was.
+    if (! voiceEngine.isMasterModulated())
+        return juce::Decibels::decibelsToGain (knobDb);
+
+    // The knob plus the routing's offset, in decibels, held to the knob's
+    // range. Worked out once a block with the effects' offsets.
+    const auto offset = voiceEngine.getMasterOffset();
+
+    return juce::Decibels::decibelsToGain (
+        juce::jlimit (-60.0f, 6.0f, knobDb + (std::isfinite (offset) ? offset : 0.0f)));
 }
 
 namespace
@@ -1339,24 +1352,52 @@ void ApolloAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     // Master gain last, so it scales the finished mix rather than one stage of
     // it. Smoothed per sample: an automated gain move must not step.
-    masterGain.setTargetValue (readMasterGainLinear());
-
-    if (masterGain.isSmoothing())
+    if (voiceEngine.isMasterModulated())
     {
+        // The matrix moves it (Phase 19b, ADR-0131). Followed across the
+        // block from where it was to where the routing puts it — evenly in
+        // decibels, as the smoothing below ramps — rather than smoothed
+        // towards it over 20 ms, which would lag and flatten a tremolo or a
+        // pump at any block size. So a block-rate value draws a line, and
+        // never a step.
+        const auto target = readMasterGainLinear();
+
+        const auto from = masterGain.getCurrentValue();
+        const auto step = std::pow (target / from, 1.0f / static_cast<float> (numSamples));
+        auto gain = from;
+
         for (int i = 0; i < numSamples; ++i)
         {
-            const auto gain = masterGain.getNextValue();
+            gain *= step;
 
             for (int channel = 0; channel < numOutputChannels; ++channel)
                 outputs[channel][i] *= gain;
         }
+
+        // Where the next block starts from, routed or not.
+        masterGain.setCurrentAndTargetValue (target);
     }
     else
     {
-        const auto gain = masterGain.getCurrentValue();
+        masterGain.setTargetValue (readMasterGainLinear());
 
-        for (int channel = 0; channel < numOutputChannels; ++channel)
-            juce::FloatVectorOperations::multiply (outputs[channel], gain, numSamples);
+        if (masterGain.isSmoothing())
+        {
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const auto gain = masterGain.getNextValue();
+
+                for (int channel = 0; channel < numOutputChannels; ++channel)
+                    outputs[channel][i] *= gain;
+            }
+        }
+        else
+        {
+            const auto gain = masterGain.getCurrentValue();
+
+            for (int channel = 0; channel < numOutputChannels; ++channel)
+                juce::FloatVectorOperations::multiply (outputs[channel], gain, numSamples);
+        }
     }
 
     // The visualisation tap, last, so the output scope shows what actually

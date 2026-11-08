@@ -33,9 +33,6 @@ import { hasCommandModifier, rovingTarget, tabStopIndex } from './roving';
 
 export const SECTIONS = ['Oscillators', 'Filters', 'Modulation', 'Effects', 'MIDI & Output'] as const;
 
-/** The tab with nothing a source can be dropped on. */
-const UNMODULATED = 4;
-
 /** How long a dragged source rests on a tab before the tab opens. Long enough
     that passing over the strip on the way to a control does not change page. */
 const SPRING_MS = 450;
@@ -75,9 +72,9 @@ export function SectionBar({ selected, onSelect, idBase }: SectionBarProps): JSX
     }, []);
 
     useEffect(() => {
-        // Never to the page with no sources on it: the strip the source was
-        // picked up from would go with the page, and the drag with it.
-        if (overTab === null || overTab === selected || overTab === UNMODULATED) {
+        // Every page has the strip since the master became a destination
+        // (Phase 19b), so a source held over any tab opens it.
+        if (overTab === null || overTab === selected) {
             if (pending.current !== null) {
                 window.clearTimeout(pending.current.timer);
                 pending.current = null;
@@ -143,7 +140,9 @@ export function SectionBar({ selected, onSelect, idBase }: SectionBarProps): JSX
                 ))}
             </div>
 
-            {selected !== UNMODULATED ? <ModSourceStrip /> : null}
+            {/* On every tab: since 19b the master, on MIDI & Output, takes a
+                source too. */}
+            <ModSourceStrip />
         </div>
     );
 }

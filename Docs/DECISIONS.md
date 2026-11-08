@@ -9033,3 +9033,102 @@ the matrix's rows, following a routing added, changed or removed from
 anywhere. A macro that drives nothing says how to make it drive something, and
 that there can be as many as wanted. The list wraps inside the macro's box
 rather than widening it.
+
+## ADR-0131 — The master gain as a destination
+
+**Phase 19b · Accepted**
+
+### What was asked
+
+Feedback on 1.4.0: "I can't modulate the master volume."
+
+### What it does
+
+`ModDestination::masterGain` routes a source to the master knob: in decibels,
+a depth of 1 being the knob's whole travel (66 dB), held to the knob's range,
+-60 to +6. It is the processor's, after the effects, so a tremolo or a pump on
+it moves the reverb's tail as well as the notes — what the master is for.
+Like the effect destinations (ADR-0100) it follows the newest sounding voice,
+or the engine-wide sources when nothing sounds, worked out once a block.
+
+**Followed across each block, not smoothed towards.** The master's 20 ms
+smoothing would lag and flatten a 4 Hz tremolo at any block size; instead a
+routed master ramps, evenly in decibels, from where the last block ended to
+where the routing puts it at this one's end. A block-rate value then draws a
+line rather than a step, measured: the mod wheel thrown to full between two
+blocks takes the output from 0 to -33 dB across the next with no step larger
+than 0.13 dB. An unrouted master is computed exactly as before.
+
+The master knob is on the MIDI & Output tab, which was the one tab without the
+source strip, because nothing on it could take a source. The strip is now on
+every tab.
+
+### The destination list grew, after release
+
+`masterGain` is 35, after Macro 4, and 19d's destinations follow it; every
+slot's `modNN_destination` grows from 0–34 to 0–67. Projects, presets and MIDI
+assignments store the choice and are unaffected. A host's automation of a
+slot's destination stores a fraction of the range, and a lane recorded with
+1.4.0 or earlier lands on a different destination from Osc 1 Position onwards,
+as it did after 18e and 18h (ADR-0123, ADR-0126). The developer asked for
+these changes to be made as I saw fit; appending is the way the developer chose
+twice before, with the same consequence, and the release notes say it.
+
+## ADR-0132 — An envelope's times and sustain, and an LFO's rate and phase, as destinations
+
+**Phase 19d · Accepted**
+
+### What was asked
+
+Feedback on 1.4.0: "If possible, make the x/y parameters of points of
+LFO/Envelope modulable." Asked to do what I saw fit.
+
+### What it does
+
+**An envelope's points are its times and its sustain**, which is what the
+editor's corners are: delay, attack, hold, decay and release along the time
+axis, the sustain up the level axis. All six of every envelope are
+destinations, 36 to 59, and **an LFO's rate and phase**, 60 to 67. Per voice:
+velocity shortening an attack shortens that note's.
+
+**A time moves along its knob** (`dsp::offsetAlongTravel`). The knobs are
+skewed — a quarter of an attack knob is 6 ms, three quarters 3.2 s — so an
+offset in seconds would do nothing at one end and everything at the other. The
+offset is added to where the knob sits on its own curve and turned back into
+time there: a depth of 1 is the knob's whole travel, as for every knob a
+source is dropped on. The rate does the same on its knob. The phase is a shift
+in cycles applied where the shape is read, so it moves the wave without moving
+the phase that runs; the sustain is a level, 0 to 1. The curves are repeated
+in the DSP, which does not include the registry, and a test holds them equal.
+
+**A stage carries on along its curve when its time or end moves.** Moving a
+time while a stage ran used to start the stage's curve again from where it
+was. For a knob that is a moment; for the matrix it is every sixteen samples,
+always at the curve's steep start, and an analog one-second decay told its own
+time every control block finished in a fraction of a second. Now a stage
+moved keeps how far along it is and where on its curve, over its new length,
+and a new end is met by moving where the curve is drawn from, so the level
+never jumps: measured, a decay told its own time every sixteen samples follows
+the untouched one exactly, and an LFO on the sustain moves the decay with no
+step larger than 0.0002. A changed curve or bend still starts the stage's
+curve again, as before.
+
+**Before the note starts.** A voice gives a routed envelope and LFO the note's
+offsets before starting them, so velocity lengthening a delay that is set to
+zero delays the note (a zero stage would otherwise be skipped before the
+offset arrived), and an attack is the note's attack from its first sample.
+The per-note random value is now chosen just before the generators start
+rather than just after, which nothing reads in between. A patch that routes to
+no envelope or LFO runs each exactly as set: every regression render passed
+unregenerated.
+
+Self-modulation needs no rule: an LFO on its own rate, or an envelope on its
+own decay, reads the value the generator last produced, one control block
+behind, which is a feedback and not a loop.
+
+### Considered and left
+
+**The drawn LFO curve's points.** A curve has up to 32, so they cannot be a
+fixed list of destinations, and moving them per note means drawing the table
+again per voice many times a second. Rate and phase, which are, cover most of
+what moving them would do. Told to the developer before this was built.

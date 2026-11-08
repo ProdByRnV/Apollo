@@ -154,7 +154,14 @@ export const LABELS: Record<string, readonly string[]> = {
                      'Reverb Mix', 'Compressor Mix',
                      // Appended in 18h, after release: each macro's knob
                      // (ADR-0126). Shown by the macro's own name where it has one.
-                     'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4'],
+                     'Macro 1', 'Macro 2', 'Macro 3', 'Macro 4',
+                     // Appended in 19b and 19d, after release (ADR-0131, ADR-0132).
+                     'Master Gain',
+                     'Env 1 Delay', 'Env 1 Attack', 'Env 1 Hold', 'Env 1 Decay', 'Env 1 Sustain', 'Env 1 Release',
+                     'Env 2 Delay', 'Env 2 Attack', 'Env 2 Hold', 'Env 2 Decay', 'Env 2 Sustain', 'Env 2 Release',
+                     'Env 3 Delay', 'Env 3 Attack', 'Env 3 Hold', 'Env 3 Decay', 'Env 3 Sustain', 'Env 3 Release',
+                     'Env 4 Delay', 'Env 4 Attack', 'Env 4 Hold', 'Env 4 Decay', 'Env 4 Sustain', 'Env 4 Release',
+                     'LFO 1 Rate', 'LFO 1 Phase', 'LFO 2 Rate', 'LFO 2 Phase', 'LFO 3 Rate', 'LFO 3 Phase', 'LFO 4 Rate', 'LFO 4 Phase'],
 
     // dsp::UnisonOscillator::WarpMode.
     osc1_warp_mode: ['OFF', 'SYNC', 'ASYM', 'PWM', 'BEND', 'MIRROR'],

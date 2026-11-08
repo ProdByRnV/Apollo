@@ -59,7 +59,10 @@ private:
     {
         beginTest ("The four macros are appended, and the effect destinations are still the effects");
 
-        expectEquals (static_cast<int> (ModDestination::count), 35);
+        // 35 when 18h appended them; the master, the envelopes and the LFOs
+        // came after them in 19b and 19d, and none of these moved.
+        expect (static_cast<int> (ModDestination::count) > 35);
+        expectEquals (static_cast<int> (ModDestination::macro4), 34);
         expectEquals (static_cast<int> (ModDestination::macro1), 31);
         expectEquals (static_cast<int> (ModDestination::fxCompressorMix), 30, "a released number moved");
         expectEquals (dsp::numEffectDestinations, 6);

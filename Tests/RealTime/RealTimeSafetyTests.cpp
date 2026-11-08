@@ -22,6 +22,7 @@
 
 #include "Audio/ApolloAudioProcessor.h"
 #include "DSP/LFO/LfoCurve.h"
+#include "DSP/Modulation/ModulationTypes.h"
 #include "DSP/Noise/TransientLibrary.h"
 #include "DSP/Oscillators/WavetableBuilder.h"
 #include "RealTime/AudioThreadMonitor.h"
@@ -237,6 +238,7 @@ public:
         testPresetsPlayedByHand();
         testMidiOfEveryKind();
         testAutomationOfEverything();
+        testTheNewDestinations();
         testTheHostsWaysOfCalling();
         testContentReplacedWhilePlaying();
         testOtherRatesAndSizes();
@@ -529,6 +531,58 @@ private:
         }
 
         expectClean ("automation of every parameter", &session);
+    }
+
+    void testTheNewDestinations()
+    {
+        beginTest ("The matrix on the master, an envelope's times and sustain, and an LFO's rate and phase");
+
+        // Phase 19b and 19d: the master followed across each block, envelopes
+        // retimed mid-stage every control block, and LFO rates and phases
+        // moved, while notes start, steal and end.
+        Session session (*this, 48000.0, 256);
+
+        const auto route = [&session] (int slot, dsp::ModSource source, dsp::ModDestination destination, float depth)
+        {
+            const auto prefix = juce::String ("mod") + juce::String (slot).paddedLeft ('0', 2);
+            session.setPlain (prefix + "_source", static_cast<float> (source));
+            session.setPlain (prefix + "_destination", static_cast<float> (destination));
+            session.setPlain (prefix + "_depth", depth);
+        };
+
+        session.setPlain ("env1_attack", 400.0f);
+        session.setPlain ("env1_decay", 600.0f);
+        session.setPlain ("env1_sustain", 0.5f);
+        session.setPlain ("lfo1_rate", 3.0f);
+        session.setPlain ("lfo2_rate", 0.7f);
+
+        route (1, dsp::ModSource::lfo1, dsp::ModDestination::masterGain, -0.2f);
+        route (2, dsp::ModSource::velocity, dsp::ModDestination::envelope1Attack, -0.4f);
+        route (3, dsp::ModSource::lfo2, dsp::ModDestination::envelope1Decay, 0.3f);
+        route (4, dsp::ModSource::lfo2, dsp::ModDestination::envelope1Sustain, 0.3f);
+        route (5, dsp::ModSource::modWheel, dsp::ModDestination::lfo1Rate, 0.4f);
+        route (6, dsp::ModSource::lfo1, dsp::ModDestination::lfo2Phase, 0.5f);
+        route (7, dsp::ModSource::keyTrack, dsp::ModDestination::envelope2Delay, 0.5f);
+        route (8, dsp::ModSource::random, dsp::ModDestination::envelope1Release, 0.3f);
+
+        for (int round = 0; round < 4; ++round)
+        {
+            session.play (256, chord ({ 40 + round, 52 + round, 59 + round, 64 + round }, 0.3f + 0.2f * static_cast<float> (round)));
+
+            for (int i = 0; i < 12; ++i)
+                session.play (256, single (juce::MidiMessage::controllerEvent (1, 1, i * 10)));
+
+            session.play (256, chord ({ 40 + round, 52 + round, 59 + round, 64 + round }, 0.0f));
+            session.hold (6);
+        }
+
+        // And the routings taken away while notes sound.
+        session.play (256, chord ({ 48, 55, 60 }, 0.9f));
+        for (int slot = 1; slot <= 8; ++slot)
+            route (slot, dsp::ModSource::none, dsp::ModDestination::none, 0.0f);
+        session.hold (8);
+
+        expectClean ("the master, envelopes and LFOs as destinations", &session);
     }
 
     void testTheHostsWaysOfCalling()

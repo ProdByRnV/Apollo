@@ -155,6 +155,14 @@ public:
 
     [[nodiscard]] const LfoSettings& getSettings() const noexcept { return settings; }
 
+    /** What the matrix does to this LFO (Phase 19d): @p rateOffset moves the
+        rate along its knob's travel (GeneratorModulation.h), and @p phaseShift,
+        in cycles, moves where in its shape it reads without moving the phase
+        that runs. Zero for both is the LFO as set, exactly. Kept apart from the
+        settings, so a control moved while it is modulated keeps the
+        modulation. */
+    void setModulation (float rateOffset, float phaseShift) noexcept;
+
     /** Seeds the random source used by the sample-and-hold shape.
 
         Given a distinct value per voice by the engine, for the same reason the
@@ -188,6 +196,12 @@ private:
     /** @returns the raw shape at @p p, bipolar, before fade, polarity or slew. */
     [[nodiscard]] float shapeAt (double p) noexcept;
 
+    /** The shape where it is read: at the phase, shifted by the matrix. */
+    [[nodiscard]] float shapeAtShiftedPhase() noexcept;
+
+    /** The phase increment, from the rate and the matrix's offset to it. */
+    void updateIncrement() noexcept;
+
     [[nodiscard]] float nextRandom() noexcept;
 
     double sampleRate = 44100.0;
@@ -196,6 +210,10 @@ private:
 
     double phase = 0.0;
     double increment = 0.0;
+
+    /** The matrix's offsets (setModulation). */
+    float rateOffset = 0.0f;
+    double phaseShift = 0.0;
 
     float current = 0.0f;
 
