@@ -7,8 +7,8 @@
 >
 > Update this file at the end of every roadmap step.
 
-**Last verified:** 2026-10-24
-**Apollo version:** 0.1.0
+**Last verified:** 2026-11-09
+**Apollo version:** 1.4.1
 
 ---
 
@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP), and the release. **Complete: 18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, 18h macros as destinations, 18i the audio-thread check, and 18j what a Mac user meets** (ADR-0119 to ADR-0128). and **18k, released as 1.4.0** on 2026-11-08. The Releases page lists only it (ADR-0112) |
-| **Status** | **Released: version 1.4.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
+| **Phase** | **Phase 19 — The first feedback on 1.4.0**, what the musicians the developer shared it with asked for, made as I saw fit at the developer's direction. **Complete: 19a a preset's comment shown, 19b the master as a destination, 19c a macro saying what it drives, 19d the envelopes' times and the LFOs' rate and phase as destinations, 19e mono, legato and glide** (ADR-0129 to ADR-0133). **19f, the release as 1.4.1**, is next. Phase 18, released as 1.4.0 on 2026-11-08, is complete |
+| **Status** | **Released: version 1.4.0; 1.4.1 built and tested, to be released.** Built, tested and packaged by CI on four platforms. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0 and 1.4.0 published; only 1.4.0 is listed |
-| **Next step** | **The developer's choice.** The developer will try in FL Studio the three things in 1.4.0 that depend on a DAW — SIZE resizing the plugin's window, Ctrl+Z, and an effect added to the rack while a pattern plays — and a fault found there ships as 1.4.1. Proposed next: the interface taking about 9 s to appear (issue 28). Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **19f: release 1.4.1** — the tag, CI publishing it, the download checked by the one command, 1.4.0 made a draft. Then the developer's choice. Open: the developer's FL Studio check of SIZE resizing the plugin's window, Ctrl+Z and a rack change while playing, now joined by FL Studio's slide notes, all on their own time; the Windows command's permission prompt, which only a person can answer (ADR-0121); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117), the Oscillators tab now a little more with Voicing |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2772,6 +2772,64 @@ Tested in:
   non-preset refused with nothing written, the scan listing exactly what was
   imported, and an export refusing a folder that is not there.
 
+### The first feedback on 1.4.0 (Phase 19)
+
+What the musicians the developer shared 1.4.0 with asked for, made as I saw fit
+at the developer's direction and released as 1.4.1 (ADR-0129 to ADR-0134).
+
+- **19a, a preset's comment shown** (ADR-0129): under the presets panel's
+  heading as NOTES, folded or not, line breaks kept, scrolling past four
+  lines; the Save form's comment a three-line `textarea`. Page only — the
+  comment was already in every status message.
+- **19b, the master gain as a destination** (ADR-0131):
+  `ModDestination::masterGain`, 35, in dB over the knob's 66 dB, held to
+  -60 to +6. `VoiceEngine::getMasterOffset`, worked out with the effect
+  offsets; `readMasterGainLinear` adds it only when `isMasterModulated`, and
+  `processBlock` then ramps evenly in dB across the block to it instead of the
+  20 ms smoother. The source strip shows on every tab (`Sections.tsx`).
+- **19c, a macro says what it drives** (ADR-0130): `MacroTargets` under each
+  macro's knobs, from `routingsFromSource`. A macro could already drive any
+  number of controls; shown so in the 1.4.0 standalone before anything was
+  changed.
+- **19d, envelopes and LFOs as destinations** (ADR-0132): 36 to 59, each
+  envelope's six points, and 60 to 67, each LFO's rate and phase.
+  `DSP/Modulation/GeneratorModulation.h`: `offsetAlongTravel` (a value moved
+  along a skewed knob), `modulatedEnvelope`, `routesToEnvelope`,
+  `routesToLfo`. The voice keeps each envelope's base settings and applies the
+  offsets every control block, and before a note's envelopes and LFOs start;
+  `Lfo::setModulation` keeps a rate offset and a phase shift apart from the
+  settings. `Envelope::continueSegment`: a stage whose time or end moves keeps
+  its place on its curve. Every slot's destination 0–67; `modulationTargets`
+  65 entries.
+- **19e, mono, legato and glide** (ADR-0133): `engine::VoiceMode`,
+  `VoiceEngine::setVoicing`, a fixed list of 32 held keys, `monoNoteOn`,
+  `monoNoteOff`, `glideSource`; `Voice::setNextGlide`, `legatoTo`,
+  `startGlide`, `advanceGlide`, `getGlidingNote`. `voice_mode`, `glide_time`
+  and `glide_mode` at the end of the registry, 325 parameters, three VST3
+  identities pinned by addition. A **Voicing** panel on the Oscillators tab.
+
+Tested in:
+- `Tests/Engine/GeneratorModulationTests.cpp`: the list and its numbers, the
+  curves equal to the registry's, `offsetAlongTravel`, a modulated envelope, a
+  stage retimed and retargeted without a jump (largest step 0.00013), a curved
+  decay told its time every sixteen samples following the untouched one
+  exactly, velocity on an attack (689 ms soft, 0.3 ms hard, from the first
+  sample) and on a zero delay (125 ms), an LFO's rate and phase and nonsense
+  for both, a routing removed, and the master: a constant routing equal to the
+  knob set there, pinned at +6 dB, and the mod wheel thrown taking the output
+  from 0 to -33 dB across one block with no step over 0.13 dB.
+- `Tests/Engine/GlideTests.cpp`: Poly with no glide, a Poly glide and its
+  arrival, glide only between held notes, Mono's one voice and its return to
+  the key still held (a quick tap during the steal included), Legato keeping
+  its attack, the pedal, the 32 keys, the pitch heard after a glide from
+  220 Hz to 440 Hz (439.99 Hz), and the processor playing `voice_mode`.
+- `Tests/RealTime/RealTimeSafetyTests.cpp`: the new destinations routed while
+  notes start, steal and end, and all three voice modes with glide and the
+  pedal, inside watched audio callbacks.
+- `WebUI/test/modulationRouting.test.mjs`: `routingsFromSource`.
+- `Tests/Parameters/ParameterRegistryTests.cpp`, `Tests/Host/ParameterIdentities.cpp`:
+  325 parameters, three identities added.
+
 ## 3. What is NOT implemented
 
 | Phase | Absent |
@@ -4355,6 +4413,23 @@ for, are measured through the delay and through the processor.
 
 ---
 
+
+### Phase 19 in the running standalone, 2026-11-08 and 09
+
+The Release standalone, driven over the DevTools protocol. Every edit made was
+undone afterwards, leaving the undo history empty and the sound as found.
+
+| Checked | Seen |
+|---|---|
+| A macro on several controls, in **1.4.0** before any change | Macro 1's handle dropped on Osc 1 Position, Level and Pan made three routings, slots 3, 4 and 5 |
+| The comment of Square Keys | Shown under the heading as NOTES; still shown with the list folded; in the Save form's three-line box |
+| What Macro 1 drives | Two chips, Osc 1 Position +25 % and Osc 1 Level +25 %; the other three macros say how to make them drive something, and every macro's box is the same width |
+| Drop targets on the Modulation tab | Env 1's six knobs and LFO 1's rate and phase are outlined; Velocity → Env 1 Attack and Macro 2 → LFO 1 Rate dropped |
+| The master on MIDI & Output | The source strip is there; LFO 1 → Master Gain dropped. A held note's output meter swung 23–41 % about once a second, against a steady 21 % with the routing undone |
+| The Voicing panel | Under the sub and the noise; three keys held read **1/16** voices in MONO and **3/16** in POLY |
+
+Not seen: a glide heard. Its pitch is measured by the tests instead, arriving
+at 439.99 Hz for 440.
 
 ## 5b. CPU measurements
 

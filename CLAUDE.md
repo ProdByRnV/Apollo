@@ -519,6 +519,8 @@ Apollo's oscillator engine should support:
 - Pitch modulation.
 - Stereo spread.
 - Detuning.
+- Poly, mono and legato voicing, and glide from the last note's pitch
+  (ADR-0133).
 
 The oscillator engine should be optimized for polyphonic operation.
 
@@ -728,6 +730,10 @@ Destinations may include:
 - Level.
 - Pan.
 - FX parameters.
+- The master gain, after the effects, followed across each block (ADR-0131).
+- Each envelope's times and sustain, and each LFO's rate and phase: a time
+  moves along its knob's curve, and a stage moved while it runs carries on
+  along its curve (ADR-0132).
 - Macro destinations: a routing moves a macro's knob, before its curve and
   range, and everything the macro drives follows; a macro moved by a macro
   reads its knob as set, so there are no loops (ADR-0126).
@@ -1327,6 +1333,9 @@ Presets are chosen from a panel at the top of the interface, above the signal
 path — a preset is what you pick before there is a signal. It lists what the
 last scan found, searches by name, author, category or bank, narrows by category
 and by bank, loads on a click, and saves the current sound under a name.
+
+The comment saved with the sound playing is shown under the heading,
+whether the list is showing or not (ADR-0129).
 
 Its heading names the sound playing between **‹** and **›**, which step through
 the list as it is shown, and can **hide the list**, folding the panel to that

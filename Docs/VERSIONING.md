@@ -10,11 +10,11 @@ version moved, or hide a breaking schema change behind an unchanged number.
 
 | Axis | Source of truth | Changes when | Now |
 |---|---|---|---|
-| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `1.4.0` |
-| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `1.4.0` |
+| **Product version** | `project(Apollo VERSION …)` in the top-level `CMakeLists.txt` | A release is made | `1.4.1` |
+| **Plugin version** | Derived from the product version by the plugin targets | With the product version | `1.4.1` |
 | **State / preset schema version** | `currentSchemaVersion` in `Source/State/StateSerialization.h` | The serialized layout changes incompatibly | `2`; reads `1` and `2` |
 | **UI bridge protocol version** | `PROTOCOL_VERSION`, on both sides of the bridge | A bridge message shape changes incompatibly | `1` |
-| **Parameter IDs** | The parameter registry | *Never* — see below | 305 |
+| **Parameter IDs** | The parameter registry | *Never* — see below | 325 |
 
 What these promise a user — which presets and projects open in which version —
 is [COMPATIBILITY.md](COMPATIBILITY.md).
@@ -29,6 +29,10 @@ Semantic versioning, `MAJOR.MINOR.PATCH`.
   compatibility, parameter identity, or supported platforms/formats.
 - **MINOR** — backward-compatible functionality.
 - **PATCH** — backward-compatible fixes.
+
+1.4.1 is the exception so far: the answers to the first feedback on 1.4.0,
+new controls among them, numbered as a patch release at the developer's
+direction (ADR-0134).
 
 Pre-1.0 (`0.x.y`), the public contracts are explicitly *not* frozen. The point at
 which parameter IDs and the preset format become permanent is the 1.0 release;

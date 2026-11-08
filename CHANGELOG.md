@@ -5,6 +5,149 @@ built and why is in [Docs/DECISIONS.md](https://github.com/ProdByRnV/Apollo/blob
 
 ---
 
+## 1.4.1 — 2026-11-09
+
+What the first musicians to play 1.4.0 asked for: notes that slide, a mono and
+a legato mode, the master volume and the envelopes' and LFOs' own controls
+moved by modulation, every macro showing what it drives, and a preset's comment
+shown where you can read it. Everything 1.0 to 1.4 saved opens and sounds the
+same.
+
+### What is new
+
+- **Slide between notes.** The new **Voicing** panel on the **Oscillators** tab
+  has **Glide**, from nothing up to 5 seconds: each note slides from the last
+  one's pitch. **Voices** chooses how notes are played: **POLY**, every note its
+  own voice, as before; **MONO**, one note at a time, and letting go of a key
+  returns to the one you are still holding; **LEGATO**, one note at a time, and
+  a note played while another is held slides there without starting the sound
+  again. **Glide to: LEGATO** slides only between notes you play overlapping, so
+  a joined phrase slides and a detached one does not. In a DAW, overlap the
+  notes in the piano roll.
+- **Modulate the master volume.** The **Master** knob on the **MIDI & Output**
+  tab takes a source like any other: an LFO for a tremolo that moves the reverb
+  tail too, or the envelope follower turned negative for a pump. The row of
+  sources is now on every tab.
+- **Modulate an envelope or an LFO.** Each envelope's **Delay**, **Attack**,
+  **Hold**, **Decay**, **Sustain** and **Release**, and each LFO's **Rate** and
+  **Phase**, take a source. Velocity on an attack makes hard notes snap and soft
+  ones swell; a macro on an LFO's rate speeds it up from one knob; one LFO on
+  another's rate makes it wander. A time moves along its knob, so a depth means
+  the same whether the attack is 5 ms or 5 s.
+- **See what a macro drives.** Each macro on the **Modulation** tab lists, under
+  its knobs, every control it moves and how far. A macro can drive as many
+  controls as you like: drag its handle onto each one.
+- **Read a preset's comment.** The comment saved with a preset is shown under
+  the sound's name in the **Presets** panel, whether the list is open or folded
+  away — so the routings you wrote down are in front of whoever plays it. The
+  comment box in **SAVE…** now takes several lines.
+
+### What changed
+
+- An envelope stage whose time changes while it runs — a knob turned during a
+  long decay, say — now carries on along its curve from where it is, instead of
+  starting its curve again. You may hear a long, curved stage change more
+  smoothly when you turn its knob while it plays.
+
+### One thing that moves
+
+Projects, presets and MIDI assignments from earlier versions open and sound the
+same. The exception is DAW automation that **switches which destination a
+modulation slot uses**: the master, the envelopes and the LFOs made that list
+longer, so a lane recorded with 1.4.0 or earlier picks a different destination
+from Osc 1 Position onwards. Automating which destination a slot uses is rare;
+if you did, choose it again in the matrix. Automation of a slot's depth, and of
+every other control, is unaffected.
+
+### What is in Apollo
+
+- **Sound.** Two wavetable oscillators with up to sixteen unison voices each,
+  nine built-in tables, five warp modes, and your own tables from a library or
+  any file; a sub oscillator; a noise generator with white, pink, four attack
+  transients, or a sample of your own. Played polyphonic, mono or legato, with
+  glide.
+- **Shaping.** Two filters — low-pass, high-pass, band-pass, notch, comb and
+  formant — with drive, mix and key tracking, in series, in parallel, or split
+  per source.
+- **Movement.** Four envelopes you can shape by dragging, with a bend for each
+  stage; four LFOs with seven shapes and one you draw, kept in a library of
+  shapes; tempo sync; an envelope follower; four macros you can name and
+  modulate; and a sixteen-slot modulation matrix that reaches the master, the
+  envelopes and the LFOs too. Drag a source onto a control to modulate it.
+- **Effects.** Distortion, delay, reverb, noise gate, compressor and a
+  seven-band equaliser with a live spectrum, in any order.
+- **Presets.** Nine factory sounds and an init patch built in, and your own
+  saved as `.rnv` files with a comment shown when they load, which you can
+  export to send to someone and import when someone sends you one. Your
+  wavetables and samples travel inside the preset.
+- **Playing.** Any MIDI keyboard or controller: MIDI Learn on every control,
+  controller profiles you can save and share, MPE, and program changes. In the
+  standalone, the computer keyboard and the piano strip as well.
+- **Working.** Undo and redo for everything you do in the window, an interface
+  from 75 % to 200 %, an analyser of the output, and a scope for every source.
+
+### What you need
+
+- **Windows** 10 or 11, 64-bit. The interface uses Microsoft's WebView2, which
+  is already on almost every Windows machine.
+- **macOS** 11 or later, Apple silicon or Intel.
+- **Linux** on x86-64 or ARM64, with X11, GTK 3 and WebKitGTK.
+- A host that loads VST3 plugins, or none: the standalone plays on its own.
+  **Logic Pro and GarageBand cannot load Apollo**, as they take only Audio
+  Units.
+
+### Installing
+
+Open **PowerShell** on Windows, or **Terminal** on a Mac or Linux, paste the
+line for your system and press Enter. It downloads Apollo, checks it, installs
+the application and the plugin, and opens Apollo — past "Windows protected
+your PC" on Windows and the "unidentified developer" block on a Mac:
+
+- Windows: `irm https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.ps1 | iex`
+- Mac: `curl -fsSL https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash`
+- Linux: `wget -qO- https://raw.githubusercontent.com/ProdByRnV/Apollo/main/Tools/get-apollo.sh | bash`
+
+On Windows it asks once for permission to put the plugin in the folder every
+DAW looks in.
+
+**By hand**, download the zip for your system from the assets below. It holds
+the application, the plugin in a `VST3` folder, and `INSTALL.txt`, which says
+where the plugin goes. There is no installer: you copy the plugin into your
+VST3 folder, and uninstalling is deleting it. The step-by-step guide, with what
+to do in FL Studio, Ableton Live and Reaper, is
+[Getting started](https://github.com/ProdByRnV/Apollo#getting-started) in the
+README.
+
+**Updating:** close your DAW and the standalone, then run the same command
+again, or copy the new plugin and standalone over the old ones. Your presets and
+projects carry over, and sound the same, apart from the automation described
+under "One thing that moves".
+
+`SHA256SUMS.txt` holds each download's checksum, for anyone who wants to check
+what they received.
+
+### Known limitations
+
+- Tried in one DAW, FL Studio on Windows. Other hosts are expected to work, as
+  the plugin follows the VST3 standard and is tested against it on every
+  platform, but have not been tried.
+- Not yet tried inside a DAW: the plugin's window following **SIZE**, **Ctrl+Z**
+  (a DAW may take that key for its own undo; the **UNDO** and **REDO** buttons
+  work either way), and FL Studio's own slide notes reaching Apollo. Overlapping
+  notes with **MONO** or **LEGATO** and **Glide** slide in any DAW.
+- The interface has only been seen on Windows. On macOS and Linux it is built
+  and tested, but nobody has looked at it yet. If the typing keys do nothing on
+  a Mac, click once inside the window and try again, and please say so.
+- The window takes several seconds to show the interface when it opens.
+- Neither the macOS nor the Windows downloads are signed with a paid
+  certificate. The one command gets past both; a zip downloaded with a browser
+  needs the one Terminal line in the guide on a Mac, and may show a SmartScreen
+  prompt on Windows.
+
+The full list is [Docs/KNOWN-LIMITATIONS.md](https://github.com/ProdByRnV/Apollo/blob/main/Docs/KNOWN-LIMITATIONS.md).
+
+---
+
 ## 1.4.0 — 2026-11-08
 
 Undo; a size for the interface; three new ways to modulate — by loudness, a

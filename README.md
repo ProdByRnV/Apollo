@@ -12,12 +12,12 @@ written in React and shown through the platform's own WebView.
 
 ## Status
 
-**Version 1.4.0.** Download it from the
+**Version 1.4.1.** Download it from the
 [Releases page](https://github.com/ProdByRnV/Apollo/releases/latest); how to
 install and use it is just below. What each release contains is in
 [CHANGELOG.md](CHANGELOG.md).
 
-It is a complete instrument: it plays, every one of its 322 parameters affects
+It is a complete instrument: it plays, every one of its 325 parameters affects
 the sound, and it is tested, measured and packaged on four platforms. It has
 been played in FL Studio. What is not yet true is in
 [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md); the largest gaps are
@@ -215,11 +215,21 @@ standalone needs a MIDI keyboard.
 - **Make it move.** Drag a green source from the row under the tabs — an
   **LFO**, an **ENV**, a macro — onto a knob outlined in gold. Hold it over
   another tab to open that tab first. A small tag appears on the knob; drag the
-  tag up or down to set how far the source moves it.
+  tag up or down to set how far the source moves it. A source can move as many
+  knobs as you like — drag it onto each — and each macro lists, under its
+  knobs, everything it drives.
+- **Slide between notes.** In the **Voicing** panel on the **Oscillators** tab,
+  turn up **Glide** and each note slides from the last one's pitch. Choose
+  **MONO** to play one note at a time, or **LEGATO** to slide between notes you
+  play overlapping without starting the sound again — in a DAW, overlap the
+  notes in the piano roll. **Glide to: LEGATO** slides only between overlapping
+  notes.
 - **Use your controller's knobs.** Press **MIDI LEARN**, click a control in
   Apollo, then move a knob or fader on your controller. They are now linked.
   Press **MIDI LEARN** again to finish.
 - **Save your sound.** Press **SAVE…** in the Presets panel and give it a name.
+  Write what the sound does in **Comment** — what the mod wheel and the macros
+  move — and it is shown under the sound's name whenever it is loaded.
   Your presets are kept in your own settings folder (`%APPDATA%\Apollo\Presets`
   on Windows), so updating Apollo never touches them.
 - **Choose a wavetable.** Click the table's name on an oscillator to see every
@@ -310,11 +320,13 @@ that each source chooses its own. Four DAHDSR envelopes with adjustable
 curves, each stage bendable on its own, shaped by dragging them; four LFOs with seven built-in shapes and one
 you draw, which can follow the host's tempo; and a sixteen-slot modulation
 matrix, each slot's depth itself modulatable, whose sources include velocity,
-key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source
-and four macros, each with a range, a curve and a name you give it — and each a
-destination too, so one LFO on a macro moves everything the macro drives. Drag a
-source onto a control to modulate it, and drag the tag that appears to set how
-far.
+key tracking, the mod wheel, pitch bend, aftertouch, MPE timbre, a random source,
+an envelope follower and four macros, each with a range, a curve and a name you
+give it — and each a destination too, so one LFO on a macro moves everything the
+macro drives. The envelopes' times and sustain, the LFOs' rate and phase and the
+master volume are destinations as well. Drag a source onto a control to
+modulate it, and drag the tag that appears to set how far. Play it polyphonic,
+mono or legato, with glide.
 
 **Your own content.** Each oscillator can play a wavetable of your own, and the
 noise generator a sample of your own, played once or looped. An oscillator lists

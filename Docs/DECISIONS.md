@@ -9193,3 +9193,17 @@ in the piano roll and the voice slides between them.
 - **Per-sample pitch**, a power of two for each oscillator every sample, in a
   loop that is already the voice's most expensive. A pitch stepped three
   thousand times a second is a glide, and measured as arriving to 0.01 Hz.
+
+## ADR-0134 — 1.4.1, numbered as a patch
+
+**Phase 19f · Accepted**
+
+The developer asked for the answers to the first feedback on 1.4.0 (19a to 19e)
+to be released as 1.4.1, not 1.5.0. VERSIONING.md §2 reserves a patch release
+for fixes, and this one carries new controls — a voice mode, a glide, new
+destinations — and, like 1.4.0, grows the matrix's destination list, which
+moves a host's automation of which destination a slot uses (ADR-0131). The
+number is the developer's to choose: it is what their users see and what they
+asked for. VERSIONING.md §2 records the exception, and the release notes say
+what moves, as 1.4.0's did. A fault found in 1.4.1 ships as 1.4.2; tags are
+never moved (ADR-0112).
