@@ -39,6 +39,14 @@ juce_add_plugin(Apollo
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     VST3_CATEGORIES             "Instrument" "Synth"
+    # The standalone's Audio/MIDI Settings offer an audio input (CLAUDE.md §4).
+    # macOS opens one only for an application whose Info.plist says why, and
+    # closes an application that tries without saying, so without this a Mac
+    # user who chose an input would lose Apollo rather than be asked. It is the
+    # text macOS shows in that question (ADR-0128). Nothing is asked until an
+    # input is chosen; Apollo opens none by default.
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT  "Apollo uses an audio input only when you choose one in its Audio/MIDI Settings."
     # Never install into the user's system plugin folders as a build side
     # effect. Installation is an explicit, packaged step (Phase 11). A
     # developer who wants each build in a host turns on

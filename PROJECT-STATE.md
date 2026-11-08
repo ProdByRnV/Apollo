@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP). **Complete: 18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, 18h macros as destinations, and 18i the audio-thread check** (ADR-0119 to ADR-0127). Not yet released: the CHANGELOG's Unreleased section holds all nine. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
+| **Phase** | **Phase 18 — Improvements after 1.3.0**, nine sub-phases the developer chose from a list (ROADMAP), and the release. **Complete: 18a undo and redo, 18b the interface size, 18c the Windows one-command install, 18d the output analyser, 18e the envelope follower, 18f a bend for each envelope stage, 18g a library of LFO shapes, 18h macros as destinations, 18i the audio-thread check, and 18j what a Mac user meets** (ADR-0119 to ADR-0128). **Next: 18k, the release of 1.4.0.** Not yet released: the CHANGELOG's Unreleased section holds all of it. 1.3.0 (Phase 17, ADR-0117, ADR-0118) is the release; the Releases page lists only it (ADR-0112) |
 | **Status** | **Released: version 1.3.0.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
 | **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0 and 1.3.0 published; only 1.3.0 is listed |
-| **Next step** | **The developer's choice**: Phase 18 is complete, and its nine improvements are unreleased (Docs/VERSIONING.md §7 makes a release). Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
+| **Next step** | **18k, releasing 1.4.0** (Docs/VERSIONING.md §7), after the developer has tried in FL Studio the three things that depend on a DAW: SIZE resizing the plugin's window, Ctrl+Z, and an effect added to the rack while a pattern plays. Open: the Windows command's permission prompt, which only a person can answer (ADR-0121); the interface size in a DAW, where the plugin's window should follow it (ADR-0120); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117) |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -2361,6 +2361,31 @@ Tested in:
 - `Tests/UI/ParameterBridgeTests.cpp`: `revealPresetFolder` reaching the editor.
 - `WebUI/test/interfaceScale.test.mjs`: the zoom for each size in every window
   size, and the tooltip.
+
+### What a Mac user meets (Phase 18j)
+
+ADR-0128. The installer, the guide and the build read against the question of
+how a Mac user installs and opens Apollo, since nobody has yet.
+
+- **`MICROPHONE_PERMISSION_ENABLED`** and its text on the plugin target, so
+  the standalone's `Info.plist` carries `NSMicrophoneUsageDescription`.
+  macOS terminates an application that opens an audio input without one, and
+  the standalone offers an input in Audio/MIDI Settings. The option writes
+  property lists and nothing else; the Windows binaries are byte-identical.
+- **Logic Pro and GarageBand**, which load only Audio Units, are named as
+  unable to load Apollo in the README's step 3, its troubleshooting,
+  `INSTALL.txt` and KNOWN-LIMITATIONS, where a "Plugin formats" row now
+  stands. The Macros row there, which still said a macro could not be a
+  destination after 18h, was corrected.
+- **The README**: uninstalling lists where the one command puts everything on
+  each system, and "damaged or cannot be opened" points at the one command.
+
+Tested in:
+- `Tests/Host/PackageTests.cpp`: "The application says why it would use an
+  audio input", which on macOS reads the plist of the application beside the
+  bundle under test, and so in CI the staged package's. Elsewhere it logs that
+  it is macOS only. The standalone's location is now one helper,
+  `standaloneDirectory`, shared with the dependency check.
 
 ### The audio thread, watched (Phase 18i)
 

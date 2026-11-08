@@ -43,7 +43,8 @@ extension nobody scheduled. Each row says, in italics, what was built.
 
 | Area | Not built | Spec |
 |---|---|---|
-| **Macros** | A macro is a matrix source but not itself a destination, so the matrix cannot move a macro's knob. *Built in 13e-3: four macros, learnable, each with a range and a curve, stored in presets* (ADR-0098) | CLAUDE.md §15 |
+| **Plugin formats** | VST3 only. There is no Audio Unit, so **Logic Pro and GarageBand cannot load Apollo**; on a Mac it plays in a DAW that loads VST3, or as the standalone. No CLAP or AAX either (ADR-0128) | CLAUDE.md §1.1 |
+| **Macros** | A macro moved by another macro reads that macro's knob as set, not as moved, so macro-on-macro is one level deep and cannot loop (ADR-0126). *Built in 13e-3: four macros, learnable, each with a range and a curve, stored in presets (ADR-0098). Built in 18h: each macro a destination in the matrix* | CLAUDE.md §15 |
 | **Drawable LFO curves** | A drawn curve is not automatable. The library is offered on DRAWN only, and shapes are renamed and deleted in the file manager rather than in Apollo. *Built in 13f-1: a drawn shape on every LFO, up to 32 points with a bend per segment, stored in presets (ADR-0102). Built in 18g: a library of shapes, six of Apollo's and the ones you save, to load into any LFO in any patch (ADR-0125)* | PRD §15.2 |
 | **Oscillators** | No interpolation quality modes. *Built in 13a: oscillator 1 tuning and a start phase per oscillator* | PRD §8.2 |
 | **Envelopes** | By default a stolen voice's note starts its envelopes at the level the last note left, so a slow attack is skipped when voices run out; Retrigger set to RESTART gives it the whole attack (13e-2, ADR-0097). *Built in 13f-2: each envelope drawn as a shape that can be dragged (ADR-0103). Built in 18f: a bend for each stage, added to the curve (ADR-0124)* | PRD §15.1 |

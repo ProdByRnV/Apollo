@@ -204,6 +204,8 @@ front of it is better understood, the way 8f was.
 | 18g | A library of drawn LFO shapes, to use in another patch — six of Apollo's and the ones you save, as files in a folder beside the presets, loaded into any LFO as one step of the history; the page names a number, never a path (ADR-0125) | ✅ |
 | 18h | Macros as destinations in the matrix — a routing moves the macro's knob before its curve and range, and everything the macro drives follows; one level, so no loops; the destination list grows to 35, chosen by the developer knowing what it moves (ADR-0126) | ✅ |
 | 18i | A check that the audio thread never allocates or locks, run by the tests — every callback of a scripted session watched by RealtimeSanitizer in a CI job of its own, and by a replaced operator new in every other build; it found SysEx allocating, a rack change locking, and automation with the window open allocating, all three fixed (ADR-0127) | ✅ |
+| 18j | Before 1.4.0, what a Mac user meets — the standalone says why it would use an audio input, which macOS requires before it opens one and enforces by closing the application, checked in the macOS package; Logic Pro and GarageBand, which load only Audio Units, named as unable to load Apollo; the guide's uninstall and "damaged" answers made true on a Mac (ADR-0128) | ✅ |
+| 18k | The release: 1.4.0 | ⬜ |
 
 ### Carried forward
 

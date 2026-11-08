@@ -49,6 +49,10 @@ INSTALLING THE PLUGIN
   Then rescan your plugins in your DAW. Most hosts do this on startup; some
   have a button for it.
 
+  Logic Pro and GarageBand cannot load Apollo: they take only Audio Unit
+  plugins, and Apollo is a VST3. On a Mac, use a DAW that loads VST3, or the
+  standalone.
+
 
 RUNNING THE STANDALONE
 

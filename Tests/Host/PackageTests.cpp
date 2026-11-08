@@ -60,6 +60,7 @@ public:
         testNoDebugArtefacts();
         testNoDeveloperPaths();
         testBundleDescribesItselfToTheSystem();
+        testTheApplicationSaysWhyItWouldUseAnInput();
         testRuntimeDependencies();
         testEveryArchitectureTheBuildAskedFor();
         testThePackageHoldsOnlyApollo();
@@ -76,6 +77,28 @@ private:
         directory.findChildFiles (files, juce::File::findFiles, false);
 
         return files.isEmpty() ? juce::File {} : files.getFirst();
+    }
+
+    /** Where the standalone sits beside this bundle.
+
+        The standalone travels in the same package and is installed by the same
+        copy. In a staged package, which INSTALL.txt marks, it is at the top on
+        macOS and Linux since 1.3.0, so that it is the first thing seen, and in
+        a folder of its own on Windows. In the build tree it is in a folder of
+        its own everywhere.
+    */
+    juce::File standaloneDirectory() const
+    {
+        const auto root = bundle().getParentDirectory().getParentDirectory();
+        const auto staged = root.getChildFile ("INSTALL.txt").existsAsFile();
+
+       #if JUCE_WINDOWS
+        constexpr auto atTheTopWhenStaged = false;
+       #else
+        constexpr auto atTheTopWhenStaged = true;
+       #endif
+
+        return staged && atTheTopWhenStaged ? root : root.getChildFile ("Standalone");
     }
 
     //==========================================================================
@@ -266,6 +289,34 @@ private:
         expect (text.contains ("Apol"), "The plugin code is there");
     }
 
+    void testTheApplicationSaysWhyItWouldUseAnInput()
+    {
+        beginTest ("The application says why it would use an audio input");
+
+        // The standalone offers an audio input in Audio/MIDI Settings. macOS
+        // lets an application open one only if its Info.plist says why, and
+        // closes one that tries without saying, rather than asking the user
+        // (ADR-0128). A plugin is the host's to explain, so this is the
+        // application's plist and not the bundle's.
+       #if JUCE_MAC
+        const auto plist = standaloneDirectory().getChildFile ("Apollo.app")
+                                                .getChildFile ("Contents")
+                                                .getChildFile ("Info.plist");
+
+        if (! standaloneDirectory().isDirectory())
+        {
+            logMessage ("    no standalone beside this bundle; plugin only");
+            return;
+        }
+
+        expect (plist.existsAsFile(), "The application has an Info.plist");
+        expect (plist.loadFileAsString().contains ("NSMicrophoneUsageDescription"),
+                "It carries the reason macOS shows before an input is opened");
+       #else
+        logMessage ("    macOS only");
+       #endif
+    }
+
     void testRuntimeDependencies()
     {
         beginTest ("The binaries depend only on what the user's machine already has");
@@ -336,38 +387,25 @@ private:
 
         check (binary, "the plugin");
 
-        // The standalone travels in the same package and is installed by the
-        // same copy, so it has to be as self-contained as the plugin. In a
-        // staged package, which INSTALL.txt marks, it is at the top on macOS
-        // and Linux since 1.3.0, so that it is the first thing seen, and in a
-        // folder of its own on Windows. In the build tree it is in a folder of
-        // its own everywhere.
-        const auto root = bundle().getParentDirectory().getParentDirectory();
-        const auto staged = root.getChildFile ("INSTALL.txt").existsAsFile();
+        // The standalone is installed by the same copy as the plugin, so it has
+        // to be as self-contained.
+        const auto directory = standaloneDirectory();
 
-       #if JUCE_WINDOWS
-        constexpr auto atTheTopWhenStaged = false;
-       #else
-        constexpr auto atTheTopWhenStaged = true;
-       #endif
-
-        const auto standaloneDirectory = staged && atTheTopWhenStaged ? root : root.getChildFile ("Standalone");
-
-        if (! standaloneDirectory.isDirectory())
+        if (! directory.isDirectory())
         {
             logMessage ("    no standalone beside this bundle; plugin only");
             return;
         }
 
        #if JUCE_MAC
-        const auto standalone = standaloneDirectory.getChildFile ("Apollo.app")
-                                                   .getChildFile ("Contents")
-                                                   .getChildFile ("MacOS")
-                                                   .getChildFile ("Apollo");
+        const auto standalone = directory.getChildFile ("Apollo.app")
+                                         .getChildFile ("Contents")
+                                         .getChildFile ("MacOS")
+                                         .getChildFile ("Apollo");
        #elif JUCE_WINDOWS
-        const auto standalone = standaloneDirectory.getChildFile ("Apollo.exe");
+        const auto standalone = directory.getChildFile ("Apollo.exe");
        #else
-        const auto standalone = standaloneDirectory.getChildFile ("Apollo");
+        const auto standalone = directory.getChildFile ("Apollo");
        #endif
 
         if (standalone.existsAsFile())

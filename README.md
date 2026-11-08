@@ -157,6 +157,11 @@ DAWs look for new plugins when they scan, so after installing:
 
 Then play it from your MIDI keyboard or your DAW's piano roll.
 
+**Logic Pro and GarageBand cannot load Apollo.** They take only Audio Unit
+plugins, and Apollo is a VST3. On a Mac, use Apollo in a DAW that loads VST3 —
+Ableton Live, FL Studio, Reaper, Cubase, Studio One or Bitwig — or on its own as
+the standalone.
+
 ### 4. Or use the standalone
 
 Open the Apollo application. It finds any MIDI keyboard plugged in and plays
@@ -260,8 +265,16 @@ again, or repeat step 2 with the new download, replacing the old files. Your
 presets and projects carry over.
 
 To **uninstall**, delete `Apollo.vst3` from your VST3 folder and delete the
-standalone application. On Windows the one command put the application in
-`%LOCALAPPDATA%\Programs\Apollo` and an Apollo entry in the Start menu.
+standalone application. If you installed with the one command, this is what it
+put where:
+
+| | Application | Plugin |
+|---|---|---|
+| Windows | `%LOCALAPPDATA%\Programs\Apollo`, and Apollo in the Start menu | `C:\Program Files\Common Files\VST3\Apollo.vst3` |
+| Mac | `Apollo` in **Applications** (your own Applications folder, in your home folder, if you could not write to the shared one) | `~/Library/Audio/Plug-Ins/VST3/Apollo.vst3` |
+| Linux | `~/.local/opt/apollo`, the `apollo` command in `~/.local/bin`, and `~/.local/share/applications/apollo.desktop` | `~/.vst3/Apollo.vst3` |
+
+Your presets are kept separately and are not removed; `INSTALL.txt` says where.
 
 ### If something goes wrong
 
@@ -269,7 +282,9 @@ standalone application. On Windows the one command put the application in
 |---|---|
 | Your DAW does not list Apollo | Check that the folder you copied is called `Apollo.vst3` and sits directly in the VST3 folder, then rescan. A 32-bit DAW cannot load Apollo |
 | Apollo's window is blank (Windows) | Install Microsoft Edge WebView2 Runtime, then reopen Apollo |
-| macOS says Apollo is damaged or cannot be opened | Run the Terminal line in step 2 |
+| macOS says Apollo is damaged or cannot be opened | Run the one command at the top of this guide, which installs Apollo again and clears the block. Or, if you installed by hand, the `xattr` line in step 2's macOS instructions |
+| Logic Pro or GarageBand does not list Apollo | They load only Audio Units, which Apollo is not (step 3) |
+| A Mac asks whether Apollo may use the microphone | You chose an audio input in **Options → Audio/MIDI Settings…**. Allow it if you want that input; Apollo needs none to play |
 | The standalone makes no sound | **Options → Audio/MIDI Settings…**: choose your output device, and tick your keyboard under MIDI inputs |
 | An update did not change anything | Close the DAW before replacing `Apollo.vst3`; a DAW with Apollo open keeps the old copy in use |
 

@@ -8926,3 +8926,51 @@ After them both report nothing, and every regression render is unchanged.
   were not written to exercise the audio thread. One scenario written for the
   purpose covers the paths, and new audio-thread work is to add its gesture to
   it (Docs/TESTING.md §6).
+
+---
+
+## ADR-0128 — Before 1.4.0: what a Mac user meets
+
+**Phase 18j · Accepted**
+
+### What was asked
+
+Before the next release, the developer asked how a Mac user installs and opens
+Apollo. Reading the installer, the guide and the build against that question,
+nobody having yet installed Apollo on a Mac by hand, turned up three things.
+
+### What was found
+
+- **The standalone could be closed by macOS.** Its Audio/MIDI Settings offer
+  an audio input (CLAUDE.md §4; the processor declares a stereo input,
+  disabled by default, so none is opened unless chosen). macOS lets an
+  application open an input only if its `Info.plist` carries
+  `NSMicrophoneUsageDescription`, the sentence shown when it asks the user,
+  and terminates one that tries without it. Apollo's did not. JUCE writes the
+  key from `MICROPHONE_PERMISSION_ENABLED` and `MICROPHONE_PERMISSION_TEXT`;
+  they are set, and the option changes nothing but the property lists, so
+  Windows and Linux are untouched. Not seen happening, since no Mac has run
+  Apollo by hand: it is the documented behaviour of macOS, and the key is now
+  checked in the macOS package by a host test ("The application says why it
+  would use an audio input"), which reads the plist of the application in the
+  staged package.
+- **Logic Pro and GarageBand cannot load Apollo,** and nothing said so. They
+  take only Audio Units, and Apollo is VST3 (CLAUDE.md §1.1 lists AU as a
+  possible later format). A Logic user following the guide would install
+  Apollo and never find it. The guide, `INSTALL.txt` and KNOWN-LIMITATIONS
+  now say it where a Mac user looks. Building an Audio Unit is a new format
+  and the developer's decision, not part of this.
+- **The guide left Mac users without two answers.** Uninstalling named where
+  the one command puts things on Windows only, and the remedy for "Apollo is
+  damaged" pointed at "the Terminal line in step 2" when that line is step 4 of
+  the macOS instructions in section 2. Uninstalling now lists every system,
+  and the remedy is the one command, which also replaces a broken signature,
+  which the `xattr` line alone does not.
+
+### Considered and left
+
+An `Install Apollo.command` in the Mac download, so a folder already on the
+Mac installs without the internet: offered to the developer, not chosen for
+this release. A file a browser downloaded is itself blocked by macOS until
+opened from its context menu, so it would not be the one-click install it
+looks like.

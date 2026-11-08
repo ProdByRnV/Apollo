@@ -77,6 +77,13 @@ that watches everything Apollo does while it makes sound:
 - **DAW automation with Apollo's window open.** Each automated value reserved
   memory in the middle of making sound. It no longer does.
 
+And one on a Mac:
+
+- **Choosing an audio input in the standalone.** macOS closes an application
+  that opens an input without saying why it wants one, and Apollo did not say.
+  macOS now asks you first. Apollo needs no input to play, and opens none
+  unless you choose one in **Options → Audio/MIDI Settings…**.
+
 ### Two things that move
 
 Projects, presets and MIDI assignments from earlier versions open and sound the
