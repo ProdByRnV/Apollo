@@ -2110,9 +2110,46 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
     flex-wrap: wrap;
 }
 
+/* The comment of the sound playing (Phase 19a): under the heading, whether the
+   list is showing or not, as typed — line breaks kept — and scrolling inside
+   its own box past four lines, so a long one never pushes the instrument
+   down. A rule of gold down its edge says it belongs to the name above it. */
+.presets__comment {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    padding: 4px 8px;
+    border-left: 2px solid var(--accent);
+    background: var(--surface-raised);
+    border-radius: 0 var(--r-xs) var(--r-xs) 0;
+    min-width: 0;
+}
+
+.presets__comment-label {
+    flex: none;
+    font-size: var(--t-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+.presets__comment-text {
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-height: calc(4 * 1.45em);
+    overflow-y: auto;
+    font-size: var(--t-body);
+    line-height: 1.45;
+    color: var(--text-bright);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .presets__search,
 .presets__filter,
-.presets__field input {
+.presets__field input,
+.presets__field textarea {
     font-family: var(--font-ui);
     font-size: var(--t-body);
     color: var(--text-bright);
@@ -2134,7 +2171,13 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 
 .presets__search:focus,
 .presets__filter:focus,
-.presets__field input:focus {
+.presets__field textarea {
+    resize: vertical;
+    line-height: 1.45;
+}
+
+.presets__field input:focus,
+.presets__field textarea:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent-glow);
@@ -2456,6 +2499,56 @@ body[data-midi-mode="true"] [data-midi-id][data-midi="mapped"] {
 .macro__name:hover .macro__pencil,
 .macro__name:focus-within .macro__pencil {
     color: var(--accent-bright);
+}
+
+/* What a macro drives (Phase 19c): a line under its knobs, each routing a chip
+   naming the control and the depth, green while it moves something, as a
+   routing's tag on the control is. Wraps, so a macro driving eight things
+   grows downwards rather than out of its box. */
+.macro__targets {
+    flex: 1 1 100%;
+    /* Wraps inside the box the knobs make, rather than widening it: without
+       this, a macro's hint made its box wider than its neighbours'. */
+    contain: inline-size;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+}
+
+.macro__targets--empty {
+    font-size: var(--t-label);
+    color: var(--text-dim);
+}
+
+.macro__target {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 6px;
+    font-size: var(--t-label);
+    color: var(--text);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xs);
+    white-space: nowrap;
+}
+
+.macro__target[data-live="true"] {
+    border-color: rgba(61, 220, 132, 0.45);
+}
+
+.macro__target-depth {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.macro__target[data-live="true"] .macro__target-depth {
+    color: var(--active);
 }
 
 /* ==========================================================================

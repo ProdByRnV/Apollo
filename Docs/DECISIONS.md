@@ -8974,3 +8974,62 @@ Mac installs without the internet: offered to the developer, not chosen for
 this release. A file a browser downloaded is itself blocked by macOS until
 opened from its context menu, so it would not be the one-click install it
 looks like.
+
+## ADR-0129 — A preset's comment, shown with its name
+
+**Phase 19a · Accepted**
+
+### What was asked
+
+Feedback on 1.4.0, relayed by the developer: the comment written when a preset
+is saved should be visible in the normal interface, because people write a
+sound's important modulations there.
+
+### What it does
+
+The comment was already saved in every preset and project and sent to the
+page with the sound's name; nothing drew it except the Save form. Now the
+presets panel shows it under its heading as **NOTES**, whether the list is
+showing or folded away, as typed: line breaks kept, a long one scrolling inside
+its own box past four lines rather than pushing the instrument down. A sound
+with no comment shows nothing. The factory presets' comments appear the same
+way.
+
+The Save form's comment field is several lines rather than one, with a
+placeholder saying what a comment is for. Nothing about the format changed:
+line breaks already round-tripped through a save and a load, and a test said
+so.
+
+### Considered and left
+
+Editing the comment in place, without saving. It would make the comment part
+of the sound's edits, with undo and a project marked changed, for something
+the Save form already does. Not asked for.
+
+## ADR-0130 — A macro says what it drives
+
+**Phase 19c · Accepted**
+
+### What was asked
+
+Feedback on 1.4.0: "Right now I can connect one macro to a single parameter.
+Macros should be connectable to multiple parameters."
+
+### What was found
+
+They already were. Driven in the 1.4.0 standalone over the DevTools protocol,
+Macro 1's handle dropped on Osc 1 Position, Level and Pan made three routings,
+in three slots, each with its own depth; the matrix has sixteen, shared by
+every source. Two things could make it look otherwise: nothing on a macro
+showed what it already drove, and many knobs a macro would be wanted on were
+not destinations at all — an envelope's times, an LFO's rate, the master —
+so dropping a macro on one did nothing. 19b and 19d make those destinations.
+
+### What it does
+
+Each macro on the Modulation tab lists its routings under its knobs: the
+control's name and the depth, green while it moves something, in the order of
+the matrix's rows, following a routing added, changed or removed from
+anywhere. A macro that drives nothing says how to make it drive something, and
+that there can be as many as wanted. The list wraps inside the macro's box
+rather than widening it.

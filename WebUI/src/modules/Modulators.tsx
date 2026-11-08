@@ -25,7 +25,9 @@ import { Segmented } from '../components/Segmented';
 import { Trace } from '../components/Trace';
 import { LABELS } from '../params/labels';
 import { defaultMacroName, limitMacroName, macroLabel, macroNameToSend } from '../params/macroNames';
-import { setLocalMacroName, useMacroNames } from '../state/macroNames';
+import { depthText, routingsFromSource } from '../params/modulationRouting';
+import type { SlotState } from '../params/modulationRouting';
+import { setLocalMacroName, useDestinationLabels, useMacroNames } from '../state/macroNames';
 import { plainOf, useParameterValue } from '../state/parameters';
 
 const INDICES = [1, 2, 3, 4];
@@ -272,6 +274,67 @@ export function Follower(): JSX.Element {
     );
 }
 
+/** The matrix's sixteen slots, as the parameters that hold them. */
+const SLOT_PARTS = Array.from({ length: 16 }, (_, index) => {
+    const prefix = `mod${String(index + 1).padStart(2, '0')}`;
+    return { source: `${prefix}_source`, destination: `${prefix}_destination`, depth: `${prefix}_depth` };
+});
+
+/**
+    What one macro drives (Phase 19c): every routing from it, by the name of the
+    control it moves and how far, in the order of the matrix's rows.
+
+    A macro reaching several controls was always possible — drag its handle onto
+    each — but nothing on the macro said so, and the first feedback on 1.4.0
+    read it as a macro being limited to one. So the macro lists them, and says
+    how to add another when it drives nothing.
+*/
+function MacroTargets({ macro }: { macro: number }): JSX.Element {
+    // Every slot, so the list follows a routing added, moved or removed
+    // anywhere: from a drop, a tag's menu or the matrix itself.
+    for (const part of SLOT_PARTS) {
+        useParameterValue(part.source);
+        useParameterValue(part.destination);
+        useParameterValue(part.depth);
+    }
+
+    const destinations = useDestinationLabels();
+
+    const slots: SlotState[] = SLOT_PARTS.map((part) => ({
+        source: plainOf(part.source),
+        destination: plainOf(part.destination),
+        depth: plainOf(part.depth),
+    }));
+
+    const routes = routingsFromSource(slots, 15 + macro);
+
+    if (routes.length === 0) {
+        return (
+            <p className="macro__targets macro__targets--empty">
+                Drives nothing yet. Drag its handle onto any control outlined in gold, as many as you like.
+            </p>
+        );
+    }
+
+    return (
+        <ul className="macro__targets" aria-label={`What ${defaultMacroName(macro)} drives`}>
+            {routes.map((route) => (
+                <li
+                    key={route.slot}
+                    className="macro__target"
+                    data-live={route.live ? 'true' : 'false'}
+                    title={`Slot ${route.slot} of the matrix`}
+                >
+                    <span className="macro__target-name">
+                        {destinations[route.destination] ?? `Destination ${route.destination}`}
+                    </span>
+                    <span className="macro__target-depth">{route.live ? depthText(route.depth) : 'no depth'}</span>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
 export function Macros(): JSX.Element {
     return (
         <Module
@@ -288,6 +351,7 @@ export function Macros(): JSX.Element {
                         <Knob id={`${p}_min`} label="Min" />
                         <Knob id={`${p}_max`} label="Max" />
                         <Knob id={`${p}_curve`} label="Curve" />
+                        <MacroTargets macro={index} />
                     </div>
                 );
             })}

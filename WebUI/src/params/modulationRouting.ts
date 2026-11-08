@@ -127,3 +127,36 @@ export function visibleTags(routings: readonly ControlRouting[]): {
     if (routings.length <= 4) return { shown: routings, hidden: 0 };
     return { shown: routings.slice(0, 3), hidden: routings.length - 3 };
 }
+
+/** A routing as the source it starts from draws it: where it goes and how far. */
+export interface SourceRouting {
+    /** From 1, as the matrix numbers its rows. */
+    slot: number;
+    destination: number;
+    depth: number;
+    /** True when it moves something: a depth that is not zero. */
+    live: boolean;
+}
+
+/** Every slot routing @p source somewhere, in slot order (Phase 19c): what the
+    Macros panel lists under each macro, so a macro driving three controls is
+    seen to drive three. A slot with no destination goes nowhere and is not
+    listed; one with a depth of zero is, as it is on the control. */
+export function routingsFromSource(slots: readonly SlotState[], source: number): SourceRouting[] {
+    const result: SourceRouting[] = [];
+
+    slots.forEach((slot, index) => {
+        const destination = Math.round(slot.destination);
+
+        if (Math.round(slot.source) !== source || destination <= 0) return;
+
+        result.push({
+            slot: index + 1,
+            destination,
+            depth: slot.depth,
+            live: Math.abs(slot.depth) > SILENT_DEPTH,
+        });
+    });
+
+    return result;
+}

@@ -15,6 +15,7 @@ import {
     draggedDepth,
     liveSlotCount,
     routingsByControl,
+    routingsFromSource,
     sameRoutings,
     tagTitle,
     visibleTags,
@@ -108,4 +109,27 @@ test('a tag says what it does in words', () => {
 
     const silent = tagTitle('LFO 1', 'Filter 1 Cutoff', { slot: 3, source: 5, depth: 0, live: false });
     assert.match(silent, /no depth yet/);
+});
+
+test('a source lists every routing it starts, in slot order (19c)', () => {
+    const macro1 = 16;
+    const slots = [
+        { source: 13, destination: 4, depth: 0.3 },
+        { source: macro1, destination: 4, depth: 0.25 },
+        empty,
+        { source: macro1, destination: 6, depth: -0.5 },
+        { source: macro1, destination: 0, depth: 0.5 },   // goes nowhere
+        { source: macro1, destination: 9, depth: 0 },     // assigned, no depth yet
+        { source: 17, destination: 12, depth: 1 },
+    ];
+
+    const routes = routingsFromSource(slots, macro1);
+
+    assert.deepEqual(routes.map((r) => r.slot), [2, 4, 6], 'three routings, by their matrix rows');
+    assert.deepEqual(routes.map((r) => r.destination), [4, 6, 9]);
+    assert.deepEqual(routes.map((r) => r.live), [true, true, false], 'a zero depth is listed, as not moving');
+    assert.equal(routes[1].depth, -0.5, 'a negative depth is kept');
+
+    assert.deepEqual(routingsFromSource(slots, 18), [], 'a macro routed nowhere lists nothing');
+    assert.deepEqual(routingsFromSource([], macro1), []);
 });

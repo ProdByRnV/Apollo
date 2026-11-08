@@ -302,6 +302,22 @@ export function Presets(): JSX.Element {
                 </>
             }
         >
+            {/*
+                The comment of the sound playing, under its name, whether the
+                list is showing or not (Phase 19a). It is where people write
+                what the sound does — "mod wheel opens the filter", "macro 2 is
+                the drive" — and a note that is only visible in the Save form
+                is a note nobody playing the sound ever reads. Line breaks are
+                kept as they were typed; a long one scrolls inside its own box
+                rather than pushing the instrument down.
+            */}
+            {presets.comment.trim() !== '' ? (
+                <div className="presets__comment" role="note" aria-label="Preset comment">
+                    <span className="presets__comment-label" aria-hidden="true">Notes</span>
+                    <p className="presets__comment-text">{presets.comment}</p>
+                </div>
+            ) : null}
+
             {/* The list, its filters and its count, while it is showing. */}
             {listOpen ? (
                 <>
@@ -494,11 +510,18 @@ export function Presets(): JSX.Element {
                         </datalist>
                     </div>
 
+                    {/*
+                        Several lines, because a comment is where a sound's
+                        routings get written down, one to a line, and it is
+                        shown above the list as typed (19a).
+                    */}
                     <label className="presets__field presets__field--wide">
                         <span>Comment</span>
-                        <input
-                            type="text"
+                        <textarea
+                            className="presets__comment-input"
+                            rows={3}
                             maxLength={PRESET_COMMENT_MAX}
+                            placeholder="What the sound does: what the mod wheel, the macros and velocity move"
                             value={draft.comment}
                             onChange={(event) => update('comment', event.target.value)}
                         />
