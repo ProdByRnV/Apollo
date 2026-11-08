@@ -16,10 +16,10 @@
 
 | | |
 |---|---|
-| **Phase** | **Phase 19 — The first feedback on 1.4.0**, what the musicians the developer shared it with asked for, made as I saw fit at the developer's direction. **Complete: 19a a preset's comment shown, 19b the master as a destination, 19c a macro saying what it drives, 19d the envelopes' times and the LFOs' rate and phase as destinations, 19e mono, legato and glide** (ADR-0129 to ADR-0133). **19f, the release as 1.4.1**, is next. Phase 18, released as 1.4.0 on 2026-11-08, is complete |
-| **Status** | **Released: version 1.4.0; 1.4.1 built and tested, to be released.** Built, tested and packaged by CI on four platforms. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
-| **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0 and 1.4.0 published; only 1.4.0 is listed |
-| **Next step** | **19f: release 1.4.1** — the tag, CI publishing it, the download checked by the one command, 1.4.0 made a draft. Then the developer's choice. Open: the developer's FL Studio check of SIZE resizing the plugin's window, Ctrl+Z and a rack change while playing, now joined by FL Studio's slide notes, all on their own time; the Windows command's permission prompt, which only a person can answer (ADR-0121); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117), the Oscillators tab now a little more with Voicing |
+| **Phase** | **Phase 19 — The first feedback on 1.4.0**, what the musicians the developer shared it with asked for, made as I saw fit at the developer's direction. **Complete: 19a a preset's comment shown, 19b the master as a destination, 19c a macro saying what it drives, 19d the envelopes' times and the LFOs' rate and phase as destinations, 19e mono, legato and glide** (ADR-0129 to ADR-0133). and **19f, released as 1.4.1** on 2026-11-09. The Releases page lists only it (ADR-0112) |
+| **Status** | **Released: version 1.4.1.** Built, tested and packaged by CI on four platforms, published with checksums, and downloaded from the Releases page and checked on Windows. Apollo has been played from two MIDI keyboards and in FL Studio by the developer, and 1.1.0 from the computer keyboard. What it does not yet do is in [Docs/KNOWN-LIMITATIONS.md](Docs/KNOWN-LIMITATIONS.md): no other DAW has been tried, and its interface has never been seen on macOS or Linux. What each release contains is [CHANGELOG.md](CHANGELOG.md); how to install and use it is "Getting started" in [README.md](README.md). How each phase got here is §2; why each decision went the way it did is [Docs/DECISIONS.md](Docs/DECISIONS.md) |
+| **Milestone** | **M11 — Release Candidate and the release are met.** 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0, 1.4.0 and 1.4.1 published; only 1.4.1 is listed |
+| **Next step** | **The developer's choice.** Proposed: the interface taking about 9 s to appear (issue 28). Open: the developer's FL Studio check of SIZE resizing the plugin's window, Ctrl+Z and a rack change while playing, now joined by FL Studio's slide notes, all on their own time; the Windows command's permission prompt, which only a person can answer (ADR-0121); the friend's Mac running the one command, the first time anybody sees the interface on macOS; the interface takes about 9 s to appear (issue 28); whether a macro rename marks a project unsaved in FL Studio (ADR-0115); and Modulation and Oscillators still scroll on a laptop screen (ADR-0117), the Oscillators tab now a little more with Voicing |
 
 **Apollo is a wavetable synthesizer** for Windows, macOS and Linux, as a VST3
 plugin and a standalone application: two band-limited wavetable oscillators with
@@ -4430,6 +4430,16 @@ undone afterwards, leaving the undo history empty and the sound as found.
 
 Not seen: a glide heard. Its pitch is measured by the tests instead, arriving
 at 439.99 Hz for 440.
+
+### The release of 1.4.1 (Phase 19f), 2026-11-09
+
+| Checked | Seen |
+|---|---|
+| CI on the release commit, 384e215 | Every job passed: Windows, macOS, Linux, Linux ARM64, Sanitizers, Real time |
+| The tag  | Every job passed again and the Release job published four packages and  |
+| The Windows one command, pasted as a user would (), into scratch folders | Downloaded 1.4.1, matched its checksum, installed the application and the plugin; the application reports 1.4.1 and carries no download mark |
+| The downloaded plugin through the host suite | 221 passed, 0 failed, as the downloaded 1.4.0 did |
+| The Releases page | 1.4.1 marked Latest,  leading to it; 1.4.0 made a draft, its files and tag kept |
 
 ## 5b. CPU measurements
 

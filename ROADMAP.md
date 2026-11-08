@@ -206,13 +206,13 @@ front of it is better understood, the way 8f was.
 | 18i | A check that the audio thread never allocates or locks, run by the tests — every callback of a scripted session watched by RealtimeSanitizer in a CI job of its own, and by a replaced operator new in every other build; it found SysEx allocating, a rack change locking, and automation with the window open allocating, all three fixed (ADR-0127) | ✅ |
 | 18j | Before 1.4.0, what a Mac user meets — the standalone says why it would use an audio input, which macOS requires before it opens one and enforces by closing the application, checked in the macOS package; Logic Pro and GarageBand, which load only Audio Units, named as unable to load Apollo; the guide's uninstall and "damaged" answers made true on a Mac (ADR-0128) | ✅ |
 | 18k | The release: **1.4.0**, published from the tag on 2026-11-08 after every platform passed; installed on Windows by the one command as a user pastes it, and the downloaded plugin through the host suite; 1.3.0 made a draft. Released before the developer tried SIZE, Ctrl+Z and a rack change in FL Studio, at their direction: a fault found there ships as 1.4.1 | ✅ |
-| **19** | **The first feedback on 1.4.0** — what the musicians the developer shared 1.4.0 with asked for, made as I saw fit at the developer's direction, to be released as **1.4.1** | ⬜ |
+| **19** | **The first feedback on 1.4.0** — what the musicians the developer shared 1.4.0 with asked for, made as I saw fit at the developer's direction. Released as **1.4.1** | ✅ |
 | 19a | A preset's comment shown under the presets panel's heading, folded or not, as typed; the Save form's comment several lines (ADR-0129) | ✅ |
 | 19b | The master gain as a matrix destination, followed across each block in dB; the source strip on every tab (ADR-0131) | ✅ |
 | 19c | Each macro lists what it drives — it could always drive several controls, shown so in 1.4.0 before anything changed (ADR-0130) | ✅ |
 | 19d | Every envelope's times and sustain and every LFO's rate and phase as destinations, a time moving along its knob; a stage moved while it runs keeps its place on its curve. The destinations grow to 68 (ADR-0132) | ✅ |
 | 19e | Mono, legato and glide — one voice or many, a glide from the last note's pitch always or only between held notes, a Voicing panel; three parameters, 325 in all (ADR-0133) | ✅ |
-| 19f | The release: **1.4.1**, numbered as a patch at the developer's direction (ADR-0134) | ⬜ |
+| 19f | The release: **1.4.1**, numbered as a patch at the developer's direction (ADR-0134), published from the tag on 2026-11-09 after every platform passed; installed on Windows by the one command as a user pastes it, and the downloaded plugin through the host suite; 1.4.0 made a draft | ✅ |
 
 ### Carried forward
 
