@@ -194,7 +194,7 @@ front of it is better understood, the way 8f was.
 | 17b | The presets panel: ‹ › through the list as shown, Init, Save, Export, Import in its heading, and Hide list; opens with the list, as the developer chose | ✅ |
 | 17c | The space: one line of sources, a shorter preset list, effects not in the rack folded to their headings, the effects in two filling columns — Effects 1,728 → 693 px on a laptop | ✅ |
 | 17d | The standalone opens filling the screen; the application at the top of the Mac and Linux downloads; one Terminal command that installs and opens Apollo on a Mac or Linux, checked in CI on both (ADR-0118) | ✅ |
-| **18** | **Improvements after 1.3.0** — what the developer chose from a list of what could be better, apart from more presets, which they are leaving to sound designers | ✅ |
+| **18** | **Improvements after 1.3.0** — what the developer chose from a list of what could be better, apart from more presets, which they are leaving to sound designers. Released as **1.4.0** | ✅ |
 | 18a | Undo and redo — every edit made in the window, one step per thing done, kept by the processor; Ctrl+Z, Ctrl+Shift+Z and buttons in the masthead naming what they would do (ADR-0119) | ✅ |
 | 18b | The interface's size — SIZE in the masthead, 75 to 200 %, drawn as far as the window leaves the layout room, the plugin window following it, kept per computer; and Open folder beside the Presets title (ADR-0120) | ✅ |
 | 18c | One command that installs Apollo on Windows — `irm … | iex` in PowerShell: checked download, the application per user with a Start-menu entry, the plugin where every DAW looks after one permission prompt, no SmartScreen; checked in CI (ADR-0121) | ✅ |
@@ -205,7 +205,7 @@ front of it is better understood, the way 8f was.
 | 18h | Macros as destinations in the matrix — a routing moves the macro's knob before its curve and range, and everything the macro drives follows; one level, so no loops; the destination list grows to 35, chosen by the developer knowing what it moves (ADR-0126) | ✅ |
 | 18i | A check that the audio thread never allocates or locks, run by the tests — every callback of a scripted session watched by RealtimeSanitizer in a CI job of its own, and by a replaced operator new in every other build; it found SysEx allocating, a rack change locking, and automation with the window open allocating, all three fixed (ADR-0127) | ✅ |
 | 18j | Before 1.4.0, what a Mac user meets — the standalone says why it would use an audio input, which macOS requires before it opens one and enforces by closing the application, checked in the macOS package; Logic Pro and GarageBand, which load only Audio Units, named as unable to load Apollo; the guide's uninstall and "damaged" answers made true on a Mac (ADR-0128) | ✅ |
-| 18k | The release: 1.4.0 | ⬜ |
+| 18k | The release: **1.4.0**, published from the tag on 2026-11-08 after every platform passed; installed on Windows by the one command as a user pastes it, and the downloaded plugin through the host suite; 1.3.0 made a draft. Released before the developer tried SIZE, Ctrl+Z and a rack change in FL Studio, at their direction: a fault found there ships as 1.4.1 | ✅ |
 
 ### Carried forward
 
