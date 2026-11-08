@@ -4436,10 +4436,10 @@ at 439.99 Hz for 440.
 | Checked | Seen |
 |---|---|
 | CI on the release commit, 384e215 | Every job passed: Windows, macOS, Linux, Linux ARM64, Sanitizers, Real time |
-| The tag  | Every job passed again and the Release job published four packages and  |
-| The Windows one command, pasted as a user would (), into scratch folders | Downloaded 1.4.1, matched its checksum, installed the application and the plugin; the application reports 1.4.1 and carries no download mark |
+| The tag `v1.4.1` | Every job passed again and the Release job published four packages and `SHA256SUMS.txt` |
+| The Windows one command, pasted as a user would (`irm … \| iex`), into scratch folders | Downloaded 1.4.1, matched its checksum, installed the application and the plugin; the application reports 1.4.1 and carries no download mark |
 | The downloaded plugin through the host suite | 221 passed, 0 failed, as the downloaded 1.4.0 did |
-| The Releases page | 1.4.1 marked Latest,  leading to it; 1.4.0 made a draft, its files and tag kept |
+| The Releases page | 1.4.1 marked Latest, `releases/latest` leading to it; 1.4.0 made a draft, its files and tag kept |
 
 ## 5b. CPU measurements
 
