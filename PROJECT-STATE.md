@@ -2379,6 +2379,18 @@ how a Mac user installs and opens Apollo, since nobody has yet.
   destination after 18h, was corrected.
 - **The README**: uninstalling lists where the one command puts everything on
   each system, and "damaged or cannot be opened" points at the one command.
+- **The Windows installer retries a download** three times (`Save-Download`),
+  as `get-apollo.sh` already did with `curl --retry 2`. Found when GitHub's
+  download servers timed out for about an hour on 2026-11-08 and failed every
+  installer check in CI; one re-run then passed on five platforms and failed
+  on Windows alone, which had no second try.
+- **Observed, not explained**: running `get-apollo.ps1` from the repository
+  on the development machine, the file was removed from the working tree
+  straight afterwards. Nothing in the script deletes it, Windows Defender
+  logged nothing, and the machine also runs 360 Total Security and Trend
+  Micro Apex One, either of which may quarantine a script that downloads and
+  unblocks a program. Whether they also stop `irm … | iex`, which writes no
+  script to disk, is untested.
 
 Tested in:
 - `Tests/Host/PackageTests.cpp`: "The application says why it would use an

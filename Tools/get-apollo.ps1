@@ -56,6 +56,24 @@ function Install-Apollo
 
     function Say([string] $text) { Write-Host $text }
 
+    # Downloads $uri to $path, trying three times. GitHub's download servers
+    # sometimes answer with a timeout for a while, as they did on 2026-11-08,
+    # and a second try a moment later often succeeds; get-apollo.sh does the
+    # same with curl --retry 2. Throws if the third try fails too.
+    function Save-Download([string] $uri, [string] $path)
+    {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                Invoke-WebRequest -Uri $uri -OutFile $path -UseBasicParsing
+                return
+            }
+            catch {
+                if ($attempt -ge 3) { throw }
+                Start-Sleep -Seconds (2 * $attempt)
+            }
+        }
+    }
+
     #---------------------------------------------------------------------------
     # Where things go.
 
@@ -296,8 +314,8 @@ catch { exit 2 }
 
             Say "Downloading Apollo $version for Windows..."
             try {
-                Invoke-WebRequest -Uri $zip.browser_download_url -OutFile $archive -UseBasicParsing
-                Invoke-WebRequest -Uri $sums.browser_download_url -OutFile (Join-Path $work 'SHA256SUMS.txt') -UseBasicParsing
+                Save-Download $zip.browser_download_url $archive
+                Save-Download $sums.browser_download_url (Join-Path $work 'SHA256SUMS.txt')
             }
             catch {
                 throw 'the download did not finish. Run this again.'
